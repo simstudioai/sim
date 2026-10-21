@@ -4,6 +4,7 @@ description: Manage Jira issues, comments, attachments, and worklogs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="jira"
@@ -79,6 +80,8 @@ Read, write, and update issues. Trigger workflows based on Jira webhook events.
 ### Jira Retrieve
 
 Retrieve detailed information about a specific Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -277,9 +280,13 @@ Retrieve detailed information about a specific Jira issue
 | `issue` | json | Complete raw Jira issue object from the API |
 | `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
 
+</ReferenceDetails>
+
 ### Jira Update
 
 Update a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -309,9 +316,13 @@ Update a Jira issue
 | `issueKey` | string | Updated issue key \(e.g., PROJ-123\) |
 | `summary` | string | Issue summary after update |
 
+</ReferenceDetails>
+
 ### Jira Write
 
 Create a new Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -347,9 +358,13 @@ Create a new Jira issue
 | `url` | string | URL to the created issue in Jira |
 | `assigneeId` | string | Account ID of the assigned user \(null if no assignee was set\) |
 
+</ReferenceDetails>
+
 ### Jira Bulk Read
 
 Retrieve multiple Jira issues from a project in bulk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -387,9 +402,13 @@ Retrieve multiple Jira issues from a project in bulk
 | `nextPageToken` | string | Cursor token for the next page. Null when no more results. |
 | `isLast` | boolean | Whether this is the last page of results |
 
+</ReferenceDetails>
+
 ### Jira Delete Issue
 
 Delete a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -407,9 +426,13 @@ Delete a Jira issue
 | `success` | boolean | Operation success status |
 | `issueKey` | string | Deleted issue key |
 
+</ReferenceDetails>
+
 ### Jira Assign Issue
 
 Assign a Jira issue to a user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -428,9 +451,13 @@ Assign a Jira issue to a user
 | `issueKey` | string | Issue key that was assigned |
 | `assigneeId` | string | Account ID of the assignee \(use "-1" for auto-assign, null to unassign\) |
 
+</ReferenceDetails>
+
 ### Jira Transition Issue
 
 Move a Jira issue between workflow statuses (e.g., To Do -&gt; In Progress)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -455,9 +482,13 @@ Move a Jira issue between workflow statuses (e.g., To Do -&gt; In Progress)
 |   ↳ `id` | string | Status ID |
 |   ↳ `name` | string | Status name |
 
+</ReferenceDetails>
+
 ### Jira Search Issues
 
 Search for Jira issues using JQL (Jira Query Language)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -538,9 +569,13 @@ Search for Jira issues using JQL (Jira Query Language)
 | `isLast` | boolean | Whether this is the last page of results |
 | `total` | number | Always null. The Jira /search/jql endpoint does not return a total count; use isLast and nextPageToken for pagination. |
 
+</ReferenceDetails>
+
 ### Jira Add Comment
 
 Add a comment to a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -571,9 +606,13 @@ Add a comment to a Jira issue
 | `created` | string | ISO 8601 timestamp when the comment was created |
 | `updated` | string | ISO 8601 timestamp when the comment was last updated |
 
+</ReferenceDetails>
+
 ### Jira Get Comments
 
 Get all comments from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -620,9 +659,13 @@ Get all comments from a Jira issue
 |     ↳ `type` | string | Restriction type \(e.g., role, group\) |
 |     ↳ `value` | string | Restriction value \(e.g., Administrators\) |
 
+</ReferenceDetails>
+
 ### Jira Update Comment
 
 Update an existing comment on a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -654,9 +697,13 @@ Update an existing comment on a Jira issue
 | `created` | string | ISO 8601 timestamp when the comment was created |
 | `updated` | string | ISO 8601 timestamp when the comment was last updated |
 
+</ReferenceDetails>
+
 ### Jira Delete Comment
 
 Delete a comment from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -675,9 +722,13 @@ Delete a comment from a Jira issue
 | `issueKey` | string | Issue key |
 | `commentId` | string | Deleted comment ID |
 
+</ReferenceDetails>
+
 ### Jira Get Attachments
 
 Get all attachments from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -712,9 +763,13 @@ Get all attachments from a Jira issue
 |   ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
 | `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
 
+</ReferenceDetails>
+
 ### Jira Add Attachment
 
 Add attachments to a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -739,9 +794,13 @@ Add attachments to a Jira issue
 | `attachmentIds` | array | Array of attachment IDs |
 | `files` | file[] | Uploaded attachment files |
 
+</ReferenceDetails>
+
 ### Jira Delete Attachment
 
 Delete an attachment from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -758,9 +817,13 @@ Delete an attachment from a Jira issue
 | `success` | boolean | Operation success status |
 | `attachmentId` | string | Deleted attachment ID |
 
+</ReferenceDetails>
+
 ### Jira Add Worklog
 
 Add a time tracking worklog entry to a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -794,9 +857,13 @@ Add a time tracking worklog entry to a Jira issue
 | `started` | string | ISO 8601 timestamp when the work started |
 | `created` | string | ISO 8601 timestamp when the worklog was created |
 
+</ReferenceDetails>
+
 ### Jira Get Worklogs
 
 Get all worklog entries from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -842,9 +909,13 @@ Get all worklog entries from a Jira issue
 |   ↳ `created` | string | ISO 8601 timestamp when the worklog was created |
 |   ↳ `updated` | string | ISO 8601 timestamp when the worklog was last updated |
 
+</ReferenceDetails>
+
 ### Jira Update Worklog
 
 Update an existing worklog entry on a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -889,9 +960,13 @@ Update an existing worklog entry on a Jira issue
 | `created` | string | Worklog creation time |
 | `updated` | string | Worklog last update time |
 
+</ReferenceDetails>
+
 ### Jira Delete Worklog
 
 Delete a worklog entry from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -910,9 +985,13 @@ Delete a worklog entry from a Jira issue
 | `issueKey` | string | Issue key |
 | `worklogId` | string | Deleted worklog ID |
 
+</ReferenceDetails>
+
 ### Jira Create Issue Link
 
 Create a link relationship between two Jira issues
+
+<ReferenceDetails>
 
 #### Input
 
@@ -935,9 +1014,13 @@ Create a link relationship between two Jira issues
 | `linkType` | string | Type of issue link |
 | `linkId` | string | Created link ID |
 
+</ReferenceDetails>
+
 ### Jira Delete Issue Link
 
 Delete a link between two Jira issues
+
+<ReferenceDetails>
 
 #### Input
 
@@ -954,9 +1037,13 @@ Delete a link between two Jira issues
 | `success` | boolean | Operation success status |
 | `linkId` | string | Deleted link ID |
 
+</ReferenceDetails>
+
 ### Jira Add Watcher
 
 Add a watcher to a Jira issue to receive notifications about updates
+
+<ReferenceDetails>
 
 #### Input
 
@@ -975,9 +1062,13 @@ Add a watcher to a Jira issue to receive notifications about updates
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Added watcher account ID |
 
+</ReferenceDetails>
+
 ### Jira Remove Watcher
 
 Remove a watcher from a Jira issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -996,9 +1087,13 @@ Remove a watcher from a Jira issue
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Removed watcher account ID |
 
+</ReferenceDetails>
+
 ### Jira Get Users
 
 Get Jira users. If an account ID is provided, returns a single user. Otherwise, returns a list of all users.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1028,9 +1123,13 @@ Get Jira users. If an account ID is provided, returns a single user. Otherwise, 
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 
+</ReferenceDetails>
+
 ### Jira Search Users
 
 Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1059,9 +1158,13 @@ Search for Jira users by email address or display name. Returns matching users w
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 
+</ReferenceDetails>
+
 ### Jira List Projects
 
 List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1093,9 +1196,13 @@ List Jira projects visible to the user, with optional name/key filtering and pag
 | `maxResults` | number | Maximum results per page |
 | `isLast` | boolean | Whether this is the last page of results |
 
+</ReferenceDetails>
+
 ### Jira Get Project
 
 Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1125,9 +1232,13 @@ Get the details of a single Jira project by its ID or key, including its type, l
 |   ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story\) |
 |   ↳ `subtask` | boolean | Whether this issue type is a subtask |
 
+</ReferenceDetails>
+
 ### Jira Get Transitions
 
 Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1152,9 +1263,13 @@ Get the workflow transitions available for an issue in its current status. Use t
 |   ↳ `hasScreen` | boolean | Whether the transition requires a screen with fields |
 | `total` | number | Number of available transitions |
 
+</ReferenceDetails>
+
 ### Jira List Issue Types
 
 List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1177,9 +1292,13 @@ List all issue types visible to the user across projects (e.g., Task, Bug, Story
 |   ↳ `scope` | string | Project ID if this issue type is scoped to a team-managed project |
 | `total` | number | Number of issue types returned |
 
+</ReferenceDetails>
+
 ### Jira Get Fields
 
 Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1203,6 +1322,8 @@ Get all system and custom fields defined in the Jira instance. Useful for discov
 |   ↳ `customType` | string | Custom field type identifier \(only for custom fields\) |
 | `total` | number | Number of fields returned |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -1212,6 +1333,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### Jira Comment Deleted
 
 Trigger workflow when a comment is deleted from a Jira issue
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1292,12 +1415,13 @@ Trigger workflow when a comment is deleted from a Jira issue
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
 |   ↳ `self` | string | REST API URL for this comment |
 
-
----
+</ReferenceDetails>
 
 ### Jira Comment Updated
 
 Trigger workflow when a comment is updated on a Jira issue
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1378,12 +1502,13 @@ Trigger workflow when a comment is updated on a Jira issue
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
 |   ↳ `self` | string | REST API URL for this comment |
 
-
----
+</ReferenceDetails>
 
 ### Jira Issue Commented
 
 Trigger workflow when a comment is added to a Jira issue
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1464,12 +1589,13 @@ Trigger workflow when a comment is added to a Jira issue
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
 |   ↳ `self` | string | REST API URL for this comment |
 
-
----
+</ReferenceDetails>
 
 ### Jira Issue Created
 
 Trigger workflow when a new issue is created in Jira
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1538,12 +1664,13 @@ Trigger workflow when a new issue is created in Jira
 |     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `issue_event_type_name` | string | Issue event type name from Jira \(only present in issue events\) |
 
-
----
+</ReferenceDetails>
 
 ### Jira Issue Deleted
 
 Trigger workflow when an issue is deleted in Jira
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1612,12 +1739,13 @@ Trigger workflow when an issue is deleted in Jira
 |     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `issue_event_type_name` | string | Issue event type name from Jira \(only present in issue events\) |
 
-
----
+</ReferenceDetails>
 
 ### Jira Issue Updated
 
 Trigger workflow when an issue is updated in Jira
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1689,12 +1817,13 @@ Trigger workflow when an issue is updated in Jira
 | `changelog` | object |  |
 |   ↳ `id` | string | Changelog ID |
 
-
----
+</ReferenceDetails>
 
 ### Jira Project Created
 
 Trigger workflow when a project is created in Jira
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1722,13 +1851,14 @@ Trigger workflow when a project is created in Jira
 |     ↳ `displayName` | string | Project lead display name |
 |     ↳ `accountId` | string | Project lead account ID |
 
-
----
+</ReferenceDetails>
 
 ### Jira Sprint Closed
 
 Trigger workflow when a sprint is closed in Jira
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1757,13 +1887,14 @@ Trigger workflow when a sprint is closed in Jira
 |   ↳ `goal` | string | Sprint goal |
 |   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
 
-
----
+</ReferenceDetails>
 
 ### Jira Sprint Created
 
 Trigger workflow when a sprint is created in Jira
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1792,13 +1923,14 @@ Trigger workflow when a sprint is created in Jira
 |   ↳ `goal` | string | Sprint goal |
 |   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
 
-
----
+</ReferenceDetails>
 
 ### Jira Sprint Started
 
 Trigger workflow when a sprint is started in Jira
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1827,12 +1959,13 @@ Trigger workflow when a sprint is started in Jira
 |   ↳ `goal` | string | Sprint goal |
 |   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
 
-
----
+</ReferenceDetails>
 
 ### Jira Version Released
 
 Trigger workflow when a version is released in Jira
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1860,12 +1993,13 @@ Trigger workflow when a version is released in Jira
 |   ↳ `description` | string | Version description |
 |   ↳ `archived` | boolean | Whether the version is archived |
 
-
----
+</ReferenceDetails>
 
 ### Jira Webhook (All Events)
 
 Trigger workflow on any Jira webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1994,12 +2128,13 @@ Trigger workflow on any Jira webhook event
 |   ↳ `description` | string | Version description |
 |   ↳ `archived` | boolean | Whether the version is archived |
 
-
----
+</ReferenceDetails>
 
 ### Jira Worklog Created
 
 Trigger workflow when time is logged on a Jira issue
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2084,12 +2219,13 @@ Trigger workflow when time is logged on a Jira issue
 |   ↳ `issueId` | string | ID of the issue this worklog belongs to |
 |   ↳ `self` | string | REST API URL for this worklog entry |
 
-
----
+</ReferenceDetails>
 
 ### Jira Worklog Deleted
 
 Trigger workflow when a worklog entry is deleted from a Jira issue
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2174,12 +2310,13 @@ Trigger workflow when a worklog entry is deleted from a Jira issue
 |   ↳ `issueId` | string | ID of the issue this worklog belongs to |
 |   ↳ `self` | string | REST API URL for this worklog entry |
 
-
----
+</ReferenceDetails>
 
 ### Jira Worklog Updated
 
 Trigger workflow when a worklog entry is updated on a Jira issue
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2263,4 +2400,6 @@ Trigger workflow when a worklog entry is updated on a Jira issue
 |   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
 |   ↳ `issueId` | string | ID of the issue this worklog belongs to |
 |   ↳ `self` | string | REST API URL for this worklog entry |
+
+</ReferenceDetails>
 

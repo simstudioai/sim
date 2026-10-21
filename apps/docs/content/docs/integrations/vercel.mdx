@@ -4,6 +4,7 @@ description: Manage Vercel deployments, projects, and infrastructure
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="vercel"
@@ -24,6 +25,8 @@ Integrate with Vercel to manage deployments, projects, domains, DNS records, env
 ### Vercel List Deployments
 
 List deployments for a Vercel project or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -65,9 +68,13 @@ List deployments for a Vercel project or team
 | `count` | number | Number of deployments returned |
 | `hasMore` | boolean | Whether more deployments are available |
 
+</ReferenceDetails>
+
 ### Vercel Get Deployment
 
 Get details of a specific Vercel deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +127,13 @@ Get details of a specific Vercel deployment
 | `errorMessage` | string | Deployment error message |
 | `aliasAssigned` | boolean | Whether the alias has been assigned |
 
+</ReferenceDetails>
+
 ### Vercel Create Deployment
 
 Create a new deployment or redeploy an existing one
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,9 +166,13 @@ Create a new deployment or redeploy an existing one
 | `errorMessage` | string | Deployment error message |
 | `aliasAssigned` | boolean | Whether the alias has been assigned |
 
+</ReferenceDetails>
+
 ### Vercel Cancel Deployment
 
 Cancel a running Vercel deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,9 +195,13 @@ Cancel a running Vercel deployment
 | `projectId` | string | Associated project ID |
 | `inspectorUrl` | string | Vercel inspector URL |
 
+</ReferenceDetails>
+
 ### Vercel Delete Deployment
 
 Delete a Vercel deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -200,9 +219,13 @@ Delete a Vercel deployment
 | `uid` | string | The removed deployment ID |
 | `state` | string | Deployment state after deletion \(DELETED\) |
 
+</ReferenceDetails>
+
 ### Vercel Get Deployment Events
 
 Get build and runtime events for a Vercel deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -234,9 +257,13 @@ Get build and runtime events for a Vercel deployment
 |   ↳ `info` | object | Build step info \(type, name, entrypoint, path, step, readyState\) |
 | `count` | number | Number of events returned |
 
+</ReferenceDetails>
+
 ### Vercel List Deployment Files
 
 List files in a Vercel deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -263,9 +290,13 @@ List files in a Vercel deployment
 |     ↳ `uid` | string | File identifier |
 | `count` | number | Number of files returned |
 
+</ReferenceDetails>
+
 ### Vercel Promote Deployment
 
 Promote a deployment by pointing the production deployment to the given deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -283,9 +314,13 @@ Promote a deployment by pointing the production deployment to the given deployme
 | --------- | ---- | ----------- |
 | `promoted` | boolean | Whether the deployment was promoted to production |
 
+</ReferenceDetails>
+
 ### Vercel List Projects
 
 List all projects in a Vercel team or account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -314,9 +349,13 @@ List all projects in a Vercel team or account
 | `hasMore` | boolean | Whether more projects are available |
 | `nextFrom` | string | Continuation token to pass as `from` to fetch the next page |
 
+</ReferenceDetails>
+
 ### Vercel Get Project
 
 Get details of a specific Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -343,9 +382,13 @@ Get details of a specific Vercel project
 |   ↳ `repo` | string | Repository name |
 |   ↳ `org` | string | Organization or owner |
 
+</ReferenceDetails>
+
 ### Vercel Create Project
 
 Create a new Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -374,9 +417,13 @@ Create a new Vercel project
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Update Project
 
 Update an existing Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -404,9 +451,13 @@ Update an existing Vercel project
 | `framework` | string | Project framework |
 | `updatedAt` | number | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Delete Project
 
 Delete a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -423,9 +474,13 @@ Delete a Vercel project
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the project was successfully deleted |
 
+</ReferenceDetails>
+
 ### Vercel Pause Project
 
 Pause a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,11 +498,15 @@ Pause a Vercel project
 | `id` | string | Project ID |
 | `name` | string | Project name |
 | `paused` | boolean | Whether the project is paused |
+
+</ReferenceDetails>
 
 ### Vercel Unpause Project
 
 Unpause a Vercel project
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -465,9 +524,13 @@ Unpause a Vercel project
 | `name` | string | Project name |
 | `paused` | boolean | Whether the project is paused |
 
+</ReferenceDetails>
+
 ### Vercel List Project Domains
 
 List all domains for a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -501,9 +564,13 @@ List all domains for a Vercel project
 | `count` | number | Number of domains returned |
 | `hasMore` | boolean | Whether more domains are available |
 
+</ReferenceDetails>
+
 ### Vercel Add Project Domain
 
 Add a domain to a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -537,9 +604,13 @@ Add a domain to a Vercel project
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Remove Project Domain
 
 Remove a domain from a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -557,9 +628,13 @@ Remove a domain from a Vercel project
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the domain was successfully removed |
 
+</ReferenceDetails>
+
 ### Vercel Update Project Domain
 
 Update a project domain's configuration on Vercel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -593,9 +668,13 @@ Update a project domain's configuration on Vercel
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Verify Project Domain
 
 Verify a Vercel project domain by checking its verification challenge
+
+<ReferenceDetails>
 
 #### Input
 
@@ -621,9 +700,13 @@ Verify a Vercel project domain by checking its verification challenge
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Get Environment Variables
 
 Retrieve environment variables for a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -652,9 +735,13 @@ Retrieve environment variables for a Vercel project
 |   ↳ `updatedAt` | number | Last update timestamp |
 | `count` | number | Number of environment variables returned |
 
+</ReferenceDetails>
+
 ### Vercel Create Environment Variable
 
 Create an environment variable for a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -685,9 +772,13 @@ Create an environment variable for a Vercel project
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Update Environment Variable
 
 Update an environment variable for a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -719,9 +810,13 @@ Update an environment variable for a Vercel project
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Delete Environment Variable
 
 Delete an environment variable from a Vercel project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -739,9 +834,13 @@ Delete an environment variable from a Vercel project
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the environment variable was successfully deleted |
 
+</ReferenceDetails>
+
 ### Vercel List Domains
 
 List all domains in a Vercel account or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -779,9 +878,13 @@ List all domains in a Vercel account or team
 | `count` | number | Number of domains returned |
 | `hasMore` | boolean | Whether more domains are available |
 
+</ReferenceDetails>
+
 ### Vercel Get Domain
 
 Get information about a specific domain in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -816,9 +919,13 @@ Get information about a specific domain in a Vercel account
 | `teamId` | string | Owner team ID |
 | `transferStartedAt` | number | Transfer start timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Add Domain
 
 Add a new domain to a Vercel account or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -850,9 +957,13 @@ Add a new domain to a Vercel account or team
 |   ↳ `username` | string | Creator username |
 |   ↳ `email` | string | Creator email |
 
+</ReferenceDetails>
+
 ### Vercel Delete Domain
 
 Delete a domain from a Vercel account or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -870,9 +981,13 @@ Delete a domain from a Vercel account or team
 | `uid` | string | The ID of the deleted domain |
 | `deleted` | boolean | Whether the domain was deleted |
 
+</ReferenceDetails>
+
 ### Vercel Get Domain Config
 
 Get the configuration for a domain in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -897,9 +1012,13 @@ Get the configuration for a domain in a Vercel account
 |   ↳ `rank` | number | Priority rank \(1 is preferred\) |
 |   ↳ `value` | string | CNAME value |
 
+</ReferenceDetails>
+
 ### Vercel List DNS Records
 
 List all DNS records for a domain in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -931,9 +1050,13 @@ List all DNS records for a domain in a Vercel account
 | `count` | number | Number of records returned |
 | `hasMore` | boolean | Whether more records are available |
 
+</ReferenceDetails>
+
 ### Vercel Create DNS Record
 
 Create a DNS record for a domain in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -964,9 +1087,13 @@ Create a DNS record for a domain in a Vercel account
 | `uid` | string | The DNS record ID |
 | `updated` | number | Timestamp of the update |
 
+</ReferenceDetails>
+
 ### Vercel Update DNS Record
 
 Update an existing DNS record for a domain in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1005,9 +1132,13 @@ Update an existing DNS record for a domain in a Vercel account
 | `recordType` | string | DNS record type \(A, AAAA, ALIAS, CAA, CNAME, HTTPS, MX, NS, SRV, TXT\) |
 | `createdAt` | number | Timestamp of record creation |
 
+</ReferenceDetails>
+
 ### Vercel Delete DNS Record
 
 Delete a DNS record for a domain in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1025,9 +1156,13 @@ Delete a DNS record for a domain in a Vercel account
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the record was deleted |
 
+</ReferenceDetails>
+
 ### Vercel List Aliases
 
 List aliases for a Vercel project or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1059,9 +1194,13 @@ List aliases for a Vercel project or team
 | `count` | number | Number of aliases returned |
 | `hasMore` | boolean | Whether more aliases are available |
 
+</ReferenceDetails>
+
 ### Vercel Get Alias
 
 Get details about a specific alias by ID or hostname
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1088,9 +1227,13 @@ Get details about a specific alias by ID or hostname
 |   ↳ `id` | string | Deployment ID |
 |   ↳ `url` | string | Deployment URL |
 
+</ReferenceDetails>
+
 ### Vercel Create Alias
 
 Assign an alias (domain/subdomain) to a deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1112,9 +1255,13 @@ Assign an alias (domain/subdomain) to a deployment
 | `created` | string | Creation timestamp as ISO 8601 date-time string |
 | `oldDeploymentId` | string | ID of the previously aliased deployment, if the alias was reassigned |
 
+</ReferenceDetails>
+
 ### Vercel Delete Alias
 
 Delete an alias by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1131,9 +1278,13 @@ Delete an alias by its ID
 | --------- | ---- | ----------- |
 | `status` | string | Deletion status \(SUCCESS\) |
 
+</ReferenceDetails>
+
 ### Vercel List Edge Configs
 
 List all Edge Config stores for a team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1157,9 +1308,13 @@ List all Edge Config stores for a team
 |   ↳ `sizeInBytes` | number | Size in bytes |
 | `count` | number | Number of Edge Configs returned |
 
+</ReferenceDetails>
+
 ### Vercel Get Edge Config
 
 Get details about a specific Edge Config store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1182,9 +1337,13 @@ Get details about a specific Edge Config store
 | `itemCount` | number | Number of items |
 | `sizeInBytes` | number | Size in bytes |
 
+</ReferenceDetails>
+
 ### Vercel Create Edge Config
 
 Create a new Edge Config store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1207,9 +1366,13 @@ Create a new Edge Config store
 | `itemCount` | number | Number of items |
 | `sizeInBytes` | number | Size in bytes |
 
+</ReferenceDetails>
+
 ### Vercel Get Edge Config Items
 
 Get all items in an Edge Config store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1232,9 +1395,13 @@ Get all items in an Edge Config store
 |   ↳ `updatedAt` | number | Last update timestamp |
 | `count` | number | Number of items returned |
 
+</ReferenceDetails>
+
 ### Vercel Update Edge Config Items
 
 Create, update, upsert, or delete items in an Edge Config store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1251,9 +1418,13 @@ Create, update, upsert, or delete items in an Edge Config store
 | --------- | ---- | ----------- |
 | `status` | string | Operation status |
 
+</ReferenceDetails>
+
 ### Vercel Delete Edge Config
 
 Delete an Edge Config store by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1269,9 +1440,13 @@ Delete an Edge Config store by ID
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the Edge Config was successfully deleted |
 
+</ReferenceDetails>
+
 ### Vercel List Webhooks
 
 List webhooks for a Vercel project or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1296,9 +1471,13 @@ List webhooks for a Vercel project or team
 |   ↳ `updatedAt` | number | Last updated timestamp |
 | `count` | number | Number of webhooks returned |
 
+</ReferenceDetails>
+
 ### Vercel Get Webhook
 
 Get details about a specific Vercel webhook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1320,9 +1499,13 @@ Get details about a specific Vercel webhook
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Create Webhook
 
 Create a new webhook for a Vercel team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1347,9 +1530,13 @@ Create a new webhook for a Vercel team
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Vercel Delete Webhook
 
 Delete a webhook from a Vercel team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1365,9 +1552,13 @@ Delete a webhook from a Vercel team
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the webhook was successfully deleted |
 
+</ReferenceDetails>
+
 ### Vercel Create Check
 
 Create a new deployment check
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1405,9 +1596,13 @@ Create a new deployment check
 | `completedAt` | number | Completion timestamp in milliseconds |
 | `output` | json | Check result output including metrics \(FCP, LCP, CLS, TBT, virtualExperienceScore\) |
 
+</ReferenceDetails>
+
 ### Vercel Get Check
 
 Get details of a specific deployment check
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1440,9 +1635,13 @@ Get details of a specific deployment check
 | `completedAt` | number | Completion timestamp in milliseconds |
 | `output` | json | Check result output including metrics \(FCP, LCP, CLS, TBT, virtualExperienceScore\) |
 
+</ReferenceDetails>
+
 ### Vercel List Checks
 
 List all checks for a deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1476,9 +1675,13 @@ List all checks for a deployment
 |   ↳ `output` | json | Check result output including metrics |
 | `count` | number | Total number of checks |
 
+</ReferenceDetails>
+
 ### Vercel Update Check
 
 Update an existing deployment check
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1518,9 +1721,13 @@ Update an existing deployment check
 | `completedAt` | number | Completion timestamp in milliseconds |
 | `output` | json | Check result output including metrics \(FCP, LCP, CLS, TBT, virtualExperienceScore\) |
 
+</ReferenceDetails>
+
 ### Vercel Rerequest Check
 
 Rerequest a deployment check
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1539,9 +1746,13 @@ Rerequest a deployment check
 | --------- | ---- | ----------- |
 | `rerequested` | boolean | Whether the check was successfully rerequested |
 
+</ReferenceDetails>
+
 ### Vercel List Teams
 
 List all teams in a Vercel account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1578,9 +1789,13 @@ List all teams in a Vercel account
 |   ↳ `next` | number | Timestamp for next page request |
 |   ↳ `prev` | number | Timestamp for previous page request |
 
+</ReferenceDetails>
+
 ### Vercel Get Team
 
 Get information about a specific Vercel team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1613,9 +1828,13 @@ Get information about a specific Vercel team
 |   ↳ `teamRoles` | array | Team role assignments |
 |   ↳ `teamPermissions` | array | Team permission assignments |
 
+</ReferenceDetails>
+
 ### Vercel List Team Members
 
 List all members of a Vercel team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1653,9 +1872,13 @@ List all members of a Vercel team
 |   ↳ `next` | number | Timestamp to request the next page |
 |   ↳ `prev` | number | Timestamp to request the previous page |
 
+</ReferenceDetails>
+
 ### Vercel Get User
 
 Get information about the authenticated Vercel user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1680,6 +1903,8 @@ Get information about the authenticated Vercel user
 |   ↳ `reason` | string | Reason for the block |
 | `hasTrialAvailable` | boolean | Whether a trial is available |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -1690,6 +1915,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a deployment is canceled
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1729,13 +1956,14 @@ Trigger workflow when a deployment is canceled
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Deployment Created
 
 Trigger workflow when a new deployment is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1775,13 +2003,14 @@ Trigger workflow when a new deployment is created
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Deployment Error
 
 Trigger workflow when a deployment fails
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1821,13 +2050,14 @@ Trigger workflow when a deployment fails
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Deployment Ready
 
 Trigger workflow when a deployment is ready to serve traffic
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1867,12 +2097,13 @@ Trigger workflow when a deployment is ready to serve traffic
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Domain Created
 
 Trigger workflow when a domain is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1912,13 +2143,14 @@ Trigger workflow when a domain is created
 | `user` | object |  |
 |   ↳ `id` | string | User ID |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Project Created
 
 Trigger workflow when a new project is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1958,13 +2190,14 @@ Trigger workflow when a new project is created
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Project Removed
 
 Trigger workflow when a project is removed
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2004,12 +2237,13 @@ Trigger workflow when a project is removed
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
-
----
+</ReferenceDetails>
 
 ### Vercel Webhook (Common Events)
 
 Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2049,4 +2283,6 @@ Trigger on a curated set of common Vercel events (deployments, projects, domains
 | `domain` | object |  |
 |   ↳ `name` | string | Domain name |
 |   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
+
+</ReferenceDetails>
 

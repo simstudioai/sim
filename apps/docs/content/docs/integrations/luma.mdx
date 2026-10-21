@@ -4,6 +4,7 @@ description: Manage events and guests on Luma
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="luma"
@@ -26,6 +27,8 @@ Create, update, look up, and cancel events, list calendar events, manage guest l
 ### Luma Get Event
 
 Retrieve details of a Luma event including name, time, location, hosts, and visibility settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -64,9 +67,13 @@ Retrieve details of a Luma event including name, time, location, hosts, and visi
 |   ↳ `email` | string | Host email address |
 |   ↳ `avatarUrl` | string | Host avatar image URL |
 
+</ReferenceDetails>
+
 ### Luma Create Event
 
 Create a new event on Luma with a name, start time, timezone, and optional details like description, location, and visibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,9 +120,13 @@ Create a new event on Luma with a name, start time, timezone, and optional detai
 |   ↳ `email` | string | Host email address |
 |   ↳ `avatarUrl` | string | Host avatar image URL |
 
+</ReferenceDetails>
+
 ### Luma Update Event
 
 Update an existing Luma event. Only the fields you provide will be changed; all other fields remain unchanged.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -163,9 +174,13 @@ Update an existing Luma event. Only the fields you provide will be changed; all 
 |   ↳ `email` | string | Host email address |
 |   ↳ `avatarUrl` | string | Host avatar image URL |
 
+</ReferenceDetails>
+
 ### Luma List Events
 
 List events from your Luma calendar with optional date range filtering, sorting, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -204,9 +219,13 @@ List events from your Luma calendar with optional date range filtering, sorting,
 | `hasMore` | boolean | Whether more results are available for pagination |
 | `nextCursor` | string | Cursor to pass as paginationCursor to fetch the next page |
 
+</ReferenceDetails>
+
 ### Luma Lookup Event
 
 Look up an event by its public URL or event ID to resolve its canonical ID, API ID, and approval status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +245,13 @@ Look up an event by its public URL or event ID to resolve its canonical ID, API 
 | `apiId` | string | Resolved event API ID \(deprecated identifier\) |
 | `status` | string | Event approval status \(approved, pending, rejected\) |
 
+</ReferenceDetails>
+
 ### Luma Cancel Event
 
 Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +268,13 @@ Cancel a Luma event. This is irreversible and notifies all registered guests. Re
 | --------- | ---- | ----------- |
 | `cancelled` | boolean | Whether the event was successfully cancelled |
 
+</ReferenceDetails>
+
 ### Luma Get Guests
 
 Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -280,9 +307,13 @@ Retrieve the guest list for a Luma event with optional filtering by approval sta
 | `hasMore` | boolean | Whether more results are available for pagination |
 | `nextCursor` | string | Cursor to pass as paginationCursor to fetch the next page |
 
+</ReferenceDetails>
+
 ### Luma Get Guest
 
 Retrieve a single guest's details on a Luma event, including approval status, registration timestamps, and contact info.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -309,9 +340,13 @@ Retrieve a single guest's details on a Luma event, including approval status, re
 |   ↳ `checkedInAt` | string | Check-in timestamp from the first checked-in ticket \(ISO 8601\) |
 |   ↳ `phoneNumber` | string | Guest phone number |
 
+</ReferenceDetails>
+
 ### Luma Add Guests
 
 Add guests to a Luma event by email. Guests are added with Going (approved) status and receive one ticket of the default ticket type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -327,9 +362,13 @@ Add guests to a Luma event by email. Guests are added with Going (approved) stat
 | --------- | ---- | ----------- |
 | `added` | number | Number of guests submitted to the event \(added with Going/approved status\) |
 
+</ReferenceDetails>
+
 ### Luma Send Invites
 
 Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,9 +385,13 @@ Send email invitations to guests for a Luma event. Unlike Add Guests (which regi
 | --------- | ---- | ----------- |
 | `invited` | number | Number of guests invited to the event |
 
+</ReferenceDetails>
+
 ### Luma Update Guest Status
 
 Update a guest's approval status on a Luma event — approve, decline, waitlist, or set to pending. Identify the guest by email or guest ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -367,5 +410,7 @@ Update a guest's approval status on a Luma event — approve, decline, waitlist,
 | --------- | ---- | ----------- |
 | `status` | string | The approval status applied to the guest |
 | `guest` | string | The guest identifier \(email or ID\) that was updated |
+
+</ReferenceDetails>
 
 

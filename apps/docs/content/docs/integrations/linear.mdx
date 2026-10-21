@@ -4,6 +4,7 @@ description: Interact with Linear issues, projects, and more
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="linear_v2"
@@ -16,6 +17,8 @@ Use [Linear](https://linear.app) to manage issues, labels, comments, projects, c
 Connect an account or [personal API key](/integrations/linear-service-account) with access to the target teams. Use returned IDs to connect issue and project operations, and consult the action reference for archive, unarchive, merge, and delete behavior.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [API keys](/integrations/linear-service-account).
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -40,6 +43,8 @@ Manage issues, comments, projects, labels, workflow states, cycles, attachments,
 ### Linear Issue Reader
 
 Fetch and filter issues from Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +100,13 @@ Fetch and filter issues from Linear
 |     ↳ `name` | string | Label name |
 |     ↳ `color` | string | Label color \(hex\) |
 
+</ReferenceDetails>
+
 ### Linear Get Issue
 
 Get a single issue by ID from Linear with full details
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +146,13 @@ Get a single issue by ID from Linear with full details
 |     ↳ `name` | string | Label name |
 |     ↳ `color` | string | Label color \(hex\) |
 
+</ReferenceDetails>
+
 ### Linear Issue Writer
 
 Create a new issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -199,9 +212,13 @@ Create a new issue in Linear
 |   ↳ `projectMilestoneId` | string | Project milestone ID |
 |   ↳ `projectMilestoneName` | string | Project milestone name |
 
+</ReferenceDetails>
+
 ### Linear Update Issue
 
 Update an existing issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,9 +278,13 @@ Update an existing issue in Linear
 |   ↳ `projectMilestoneId` | string | Project milestone ID |
 |   ↳ `projectMilestoneName` | string | Project milestone name |
 
+</ReferenceDetails>
+
 ### Linear Archive Issue
 
 Archive an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -278,9 +299,13 @@ Archive an issue in Linear
 | `success` | boolean | Whether the archive operation was successful |
 | `issueId` | string | The ID of the archived issue |
 
+</ReferenceDetails>
+
 ### Linear Unarchive Issue
 
 Unarchive (restore) an archived issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +320,13 @@ Unarchive (restore) an archived issue in Linear
 | `success` | boolean | Whether the unarchive operation was successful |
 | `issueId` | string | The ID of the unarchived issue |
 
+</ReferenceDetails>
+
 ### Linear Delete Issue
 
 Delete (trash) an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,9 +340,13 @@ Delete (trash) an issue in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
+</ReferenceDetails>
+
 ### Linear Search Issues
 
 Search for issues in Linear using full-text search
+
+<ReferenceDetails>
 
 #### Input
 
@@ -360,9 +393,13 @@ Search for issues in Linear using full-text search
 |     ↳ `name` | string | Label name |
 |     ↳ `color` | string | Label color \(hex\) |
 
+</ReferenceDetails>
+
 ### Linear Add Label to Issue
 
 Add a label to an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -378,9 +415,13 @@ Add a label to an issue in Linear
 | `success` | boolean | Whether the label was successfully added |
 | `issueId` | string | The ID of the issue |
 
+</ReferenceDetails>
+
 ### Linear Remove Label from Issue
 
 Remove a label from an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -396,9 +437,13 @@ Remove a label from an issue in Linear
 | `success` | boolean | Whether the label was successfully removed |
 | `issueId` | string | The ID of the issue |
 
+</ReferenceDetails>
+
 ### Linear Create Comment
 
 Add a comment to an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +469,13 @@ Add a comment to an issue in Linear
 |     ↳ `id` | string | Issue ID |
 |     ↳ `title` | string | Issue title |
 
+</ReferenceDetails>
+
 ### Linear Update Comment
 
 Edit a comment in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +501,13 @@ Edit a comment in Linear
 |     ↳ `id` | string | Issue ID |
 |     ↳ `title` | string | Issue title |
 
+</ReferenceDetails>
+
 ### Linear Delete Comment
 
 Delete a comment from Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -468,9 +521,13 @@ Delete a comment from Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
+</ReferenceDetails>
+
 ### Linear List Comments
 
 List all comments on an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -500,9 +557,13 @@ List all comments on an issue in Linear
 |     ↳ `id` | string | Issue ID |
 |     ↳ `title` | string | Issue title |
 
+</ReferenceDetails>
+
 ### Linear List Projects
 
 List projects in Linear with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -537,9 +598,13 @@ List projects in Linear with optional filtering
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Get Project
 
 Get a single project by ID from Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -568,9 +633,13 @@ Get a single project by ID from Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Create Project
 
 Create a new project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -605,9 +674,13 @@ Create a new project in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Update Project
 
 Update an existing project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -643,9 +716,13 @@ Update an existing project in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Archive Project
 
 Archive a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -660,9 +737,13 @@ Archive a project in Linear
 | `success` | boolean | Whether the archive operation was successful |
 | `projectId` | string | The ID of the archived project |
 
+</ReferenceDetails>
+
 ### Linear List Users
 
 List all users in the Linear workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -688,9 +769,13 @@ List all users in the Linear workspace
 |   ↳ `admin` | boolean | Whether user is admin |
 |   ↳ `avatarUrl` | string | Avatar URL |
 
+</ReferenceDetails>
+
 ### Linear List Teams
 
 List all teams in the Linear workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -712,9 +797,13 @@ List all teams in the Linear workspace
 |   ↳ `key` | string | Team key \(used in issue identifiers\) |
 |   ↳ `description` | string | Team description |
 
+</ReferenceDetails>
+
 ### Linear Get Current User
 
 Get the currently authenticated user (viewer) information
+
+<ReferenceDetails>
 
 #### Input
 
@@ -734,9 +823,13 @@ Get the currently authenticated user (viewer) information
 |   ↳ `admin` | boolean | Whether user is admin |
 |   ↳ `avatarUrl` | string | Avatar URL |
 
+</ReferenceDetails>
+
 ### Linear List Labels
 
 List all labels in Linear workspace or team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -766,9 +859,13 @@ List all labels in Linear workspace or team
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Create Label
 
 Create a new label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -796,9 +893,13 @@ Create a new label in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Update Label
 
 Update an existing label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -826,9 +927,13 @@ Update an existing label in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Archive Label
 
 Archive a label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -843,9 +948,13 @@ Archive a label in Linear
 | `success` | boolean | Whether the archive operation was successful |
 | `labelId` | string | The ID of the archived label |
 
+</ReferenceDetails>
+
 ### Linear List Workflow States
 
 List all workflow states (statuses) in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -876,9 +985,13 @@ List all workflow states (statuses) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Create Workflow State
 
 Create a new workflow state (status) in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -909,9 +1022,13 @@ Create a new workflow state (status) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Update Workflow State
 
 Update an existing workflow state in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -941,9 +1058,13 @@ Update an existing workflow state in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear List Cycles
 
 List cycles (sprints/iterations) in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -973,9 +1094,13 @@ List cycles (sprints/iterations) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Get Cycle
 
 Get a single cycle by ID from Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1000,9 +1125,13 @@ Get a single cycle by ID from Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Create Cycle
 
 Create a new cycle (sprint/iteration) in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1030,9 +1159,13 @@ Create a new cycle (sprint/iteration) in Linear
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Get Active Cycle
 
 Get the currently active cycle for a team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1057,9 +1190,13 @@ Get the currently active cycle for a team
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Linear Create Attachment
 
 Add an attachment to an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1083,9 +1220,13 @@ Add an attachment to an issue in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear List Attachments
 
 List all attachments on an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1110,9 +1251,13 @@ List all attachments on an issue in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Attachment
 
 Update an attachment metadata in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1134,9 +1279,13 @@ Update an attachment metadata in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Attachment
 
 Delete an attachment from Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1150,9 +1299,13 @@ Delete an attachment from Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
+</ReferenceDetails>
+
 ### Linear Create Issue Relation
 
 Link two issues together in Linear (blocks, relates to, duplicates)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1172,9 +1325,13 @@ Link two issues together in Linear (blocks, relates to, duplicates)
 |   ↳ `issue` | object | Source issue |
 |   ↳ `relatedIssue` | object | Target issue |
 
+</ReferenceDetails>
+
 ### Linear List Issue Relations
 
 List all relations (dependencies) for an issue in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1195,9 +1352,13 @@ List all relations (dependencies) for an issue in Linear
 |   ↳ `relatedIssue` | object | Target issue |
 | `pageInfo` | object | Pagination information |
 
+</ReferenceDetails>
+
 ### Linear Delete Issue Relation
 
 Remove a relation between two issues in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1211,9 +1372,13 @@ Remove a relation between two issues in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the delete operation was successful |
 
+</ReferenceDetails>
+
 ### Linear Create Favorite
 
 Bookmark an issue, project, cycle, or label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1235,9 +1400,13 @@ Bookmark an issue, project, cycle, or label in Linear
 |   ↳ `project` | object | Favorited project \(if applicable\) |
 |   ↳ `cycle` | object | Favorited cycle \(if applicable\) |
 
+</ReferenceDetails>
+
 ### Linear List Favorites
 
 List all bookmarked items for the current user in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1258,9 +1427,13 @@ List all bookmarked items for the current user in Linear
 |   ↳ `cycle` | object | Favorited cycle |
 | `pageInfo` | object | Pagination information |
 
+</ReferenceDetails>
+
 ### Linear Create Project Update
 
 Post a status update for a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1281,9 +1454,13 @@ Post a status update for a project in Linear
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `user` | object | User who created the update |
 
+</ReferenceDetails>
+
 ### Linear List Project Updates
 
 List all status updates for a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1305,9 +1482,13 @@ List all status updates for a project in Linear
 |   ↳ `user` | object | User who created the update |
 | `pageInfo` | object | Pagination information |
 
+</ReferenceDetails>
+
 ### Linear List Notifications
 
 List notifications for the current user in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1328,9 +1509,13 @@ List notifications for the current user in Linear
 |   ↳ `issue` | object | Related issue |
 | `pageInfo` | object | Pagination information |
 
+</ReferenceDetails>
+
 ### Linear Update Notification
 
 Mark a notification as read or unread in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1350,9 +1535,13 @@ Mark a notification as read or unread in Linear
 |   ↳ `readAt` | string | Read timestamp |
 |   ↳ `issue` | object | Related issue |
 
+</ReferenceDetails>
+
 ### Linear Create Customer
 
 Create a new customer in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1386,9 +1575,13 @@ Create a new customer in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear List Customers
 
 List all customers in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1419,9 +1612,13 @@ List all customers in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Create Customer Request
 
 Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and optionally link to an issue.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1450,9 +1647,13 @@ Create a customer request (need) in Linear. Assign to customer, set urgency (pri
 |   ↳ `creator` | object | User who created the request |
 |   ↳ `url` | string | URL to the customer request |
 
+</ReferenceDetails>
+
 ### Linear Update Customer Request
 
 Update a customer request (need) in Linear. Can change urgency, description, customer assignment, and linked issue.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1482,9 +1683,13 @@ Update a customer request (need) in Linear. Can change urgency, description, cus
 |   ↳ `creator` | object | User who created the request |
 |   ↳ `url` | string | URL to the customer request |
 
+</ReferenceDetails>
+
 ### Linear List Customer Requests
 
 List all customer requests (needs) in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1512,9 +1717,13 @@ List all customer requests (needs) in Linear
 |   ↳ `url` | string | URL to the customer request |
 | `pageInfo` | object | Pagination information |
 
+</ReferenceDetails>
+
 ### Linear Get Customer
 
 Get a single customer by ID in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1540,9 +1749,13 @@ Get a single customer by ID in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Customer
 
 Update a customer in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1577,9 +1790,13 @@ Update a customer in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Customer
 
 Delete a customer in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1593,9 +1810,13 @@ Delete a customer in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear Merge Customers
 
 Merge two customers in Linear by moving all data from source to target
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1610,9 +1831,13 @@ Merge two customers in Linear by moving all data from source to target
 | --------- | ---- | ----------- |
 | `customer` | object | The merged target customer |
 
+</ReferenceDetails>
+
 ### Linear Create Customer Status
 
 Create a new customer status in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1639,9 +1864,13 @@ Create a new customer status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Customer Status
 
 Update a customer status in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1669,9 +1898,13 @@ Update a customer status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Customer Status
 
 Delete a customer status in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1685,9 +1918,13 @@ Delete a customer status in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear List Customer Statuses
 
 List all customer statuses in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1714,9 +1951,13 @@ List all customer statuses in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Create Customer Tier
 
 Create a new customer tier in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1742,9 +1983,13 @@ Create a new customer tier in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Customer Tier
 
 Update a customer tier in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1763,9 +2008,13 @@ Update a customer tier in Linear
 | --------- | ---- | ----------- |
 | `customerTier` | object | The updated customer tier |
 
+</ReferenceDetails>
+
 ### Linear Delete Customer Tier
 
 Delete a customer tier in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1779,9 +2028,13 @@ Delete a customer tier in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear List Customer Tiers
 
 List all customer tiers in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1807,9 +2060,13 @@ List all customer tiers in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Project
 
 Delete a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1823,9 +2080,13 @@ Delete a project in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear Create Project Label
 
 Create a new project label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1851,9 +2112,13 @@ Create a new project label in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Project Label
 
 Update a project label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1878,9 +2143,13 @@ Update a project label in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Project Label
 
 Delete a project label in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1894,9 +2163,13 @@ Delete a project label in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear List Project Labels
 
 List all project labels in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1923,9 +2196,13 @@ List all project labels in Linear
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Add Label to Project
 
 Add a label to a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1941,9 +2218,13 @@ Add a label to a project in Linear
 | `success` | boolean | Whether the label was added successfully |
 | `projectId` | string | The project ID |
 
+</ReferenceDetails>
+
 ### Linear Remove Label from Project
 
 Remove a label from a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1959,9 +2240,13 @@ Remove a label from a project in Linear
 | `success` | boolean | Whether the label was removed successfully |
 | `projectId` | string | The project ID |
 
+</ReferenceDetails>
+
 ### Linear Create Project Milestone
 
 Create a new project milestone in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1988,9 +2273,13 @@ Create a new project milestone in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Project Milestone
 
 Update a project milestone in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2017,9 +2306,13 @@ Update a project milestone in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Project Milestone
 
 Delete a project milestone in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2033,9 +2326,13 @@ Delete a project milestone in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear List Project Milestones
 
 List all milestones for a project in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2064,9 +2361,13 @@ List all milestones for a project in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Create Project Status
 
 Create a new project status in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2095,9 +2396,13 @@ Create a new project status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Update Project Status
 
 Update a project status in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2126,9 +2431,13 @@ Update a project status in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Linear Delete Project Status
 
 Delete a project status in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2142,9 +2451,13 @@ Delete a project status in Linear
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
 
+</ReferenceDetails>
+
 ### Linear List Project Statuses
 
 List all project statuses in Linear
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2172,6 +2485,8 @@ List all project statuses in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -2182,6 +2497,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a new comment is created in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2222,13 +2539,14 @@ Trigger workflow when a new comment is created in Linear
 |   ↳ `reactionData` | object | Reaction data for the comment |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Comment Updated
 
 Trigger workflow when a comment is updated in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2269,13 +2587,14 @@ Trigger workflow when a comment is updated in Linear
 |   ↳ `reactionData` | object | Reaction data for the comment |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Customer Request Created
 
 Trigger workflow when a new customer request is created in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2314,13 +2633,14 @@ Trigger workflow when a new customer request is created in Linear
 |   ↳ `archivedAt` | string | Archived timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Customer Request Updated
 
 Trigger workflow when a customer request is updated in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2359,13 +2679,14 @@ Trigger workflow when a customer request is updated in Linear
 |   ↳ `archivedAt` | string | Archived timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Cycle Created
 
 Trigger workflow when a new cycle is created in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2409,13 +2730,14 @@ Trigger workflow when a new cycle is created in Linear
 |   ↳ `inProgressScopeHistory` | array | History of in-progress scope |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Cycle Updated
 
 Trigger workflow when a cycle is updated in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2459,13 +2781,14 @@ Trigger workflow when a cycle is updated in Linear
 |   ↳ `inProgressScopeHistory` | array | History of in-progress scope |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Issue Created
 
 Trigger workflow when a new issue is created in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2528,13 +2851,14 @@ Trigger workflow when a new issue is created in Linear
 |   ↳ `slaBreachesAt` | string | SLA breach timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Issue Removed
 
 Trigger workflow when an issue is removed/deleted in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2597,13 +2921,14 @@ Trigger workflow when an issue is removed/deleted in Linear
 |   ↳ `slaBreachesAt` | string | SLA breach timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Issue Updated
 
 Trigger workflow when an issue is updated in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2666,13 +2991,14 @@ Trigger workflow when an issue is updated in Linear
 |   ↳ `slaBreachesAt` | string | SLA breach timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Label Created
 
 Trigger workflow when a new label is created in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2712,13 +3038,14 @@ Trigger workflow when a new label is created in Linear
 |   ↳ `updatedAt` | string | Label last update timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Label Updated
 
 Trigger workflow when a label is updated in Linear
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2758,12 +3085,13 @@ Trigger workflow when a label is updated in Linear
 |   ↳ `updatedAt` | string | Label last update timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Project Created
 
 Trigger workflow when a new project is created in Linear
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2818,12 +3146,13 @@ Trigger workflow when a new project is created in Linear
 |   ↳ `bodyData` | object | Project body data \(rich text content\) |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Project Update Created
 
 Trigger workflow when a new project update is posted in Linear
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2861,12 +3190,13 @@ Trigger workflow when a new project update is posted in Linear
 |   ↳ `updatedAt` | string | Update last update timestamp |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Project Updated
 
 Trigger workflow when a project is updated in Linear
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2921,12 +3251,13 @@ Trigger workflow when a project is updated in Linear
 |   ↳ `bodyData` | object | Project body data \(rich text content\) |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
 
-
----
+</ReferenceDetails>
 
 ### Linear Webhook
 
 Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type).
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2954,4 +3285,6 @@ Trigger workflow from Linear events you select when creating the webhook in Line
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
 | `data` | object | Complete entity data object |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+</ReferenceDetails>
 

@@ -4,6 +4,7 @@ description: Extract text from PDF documents
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="mistral_parse_v3"
@@ -24,6 +25,8 @@ Extract text from uploaded PDF documents, or from a URL.
 ### Mistral PDF Parser
 
 Parse PDF documents using Mistral OCR API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,5 +64,7 @@ Parse PDF documents using Mistral OCR API
 |   ↳ `pages_processed` | number | Total number of pages processed |
 |   ↳ `doc_size_bytes` | number | Document file size in bytes |
 | `document_annotation` | string | Structured annotation data as JSON string \(when applicable\) |
+
+</ReferenceDetails>
 
 

@@ -4,6 +4,7 @@ description: Interact with Grafana dashboards, alerts, and annotations
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="grafana"
@@ -25,6 +26,8 @@ Manage dashboards, alerts, annotations, data sources, folders, and monitor healt
 
 Get a dashboard by its UID
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -41,9 +44,13 @@ Get a dashboard by its UID
 | `dashboard` | json | The full dashboard JSON object |
 | `meta` | json | Dashboard metadata \(version, permissions, etc.\) |
 
+</ReferenceDetails>
+
 ### Grafana List Dashboards
 
 Search and list all dashboards
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +79,13 @@ Search and list all dashboards
 |   ↳ `tags` | array | Dashboard tags |
 |   ↳ `folderTitle` | string | Parent folder title |
 
+</ReferenceDetails>
+
 ### Grafana Create Dashboard
 
 Create a new dashboard
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +114,13 @@ Create a new dashboard
 | `version` | number | The version number of the dashboard |
 | `slug` | string | URL-friendly slug of the dashboard |
 
+</ReferenceDetails>
+
 ### Grafana Update Dashboard
 
 Update an existing dashboard. Fetches the current dashboard and merges your changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +150,13 @@ Update an existing dashboard. Fetches the current dashboard and merges your chan
 | `version` | number | The new version number of the dashboard |
 | `slug` | string | URL-friendly slug of the dashboard |
 
+</ReferenceDetails>
+
 ### Grafana Delete Dashboard
 
 Delete a dashboard by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -156,9 +175,13 @@ Delete a dashboard by its UID
 | `message` | string | Confirmation message |
 | `id` | number | The ID of the deleted dashboard |
 
+</ReferenceDetails>
+
 ### Grafana List Alert Rules
 
 List all alert rules in the Grafana instance
+
+<ReferenceDetails>
 
 #### Input
 
@@ -194,9 +217,13 @@ List all alert rules in the Grafana instance
 |   ↳ `notification_settings` | json | Per-rule notification settings \(overrides\) |
 |   ↳ `record` | json | Recording rule configuration \(recording rules only\) |
 
+</ReferenceDetails>
+
 ### Grafana Get Alert Rule
 
 Get a specific alert rule by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +259,13 @@ Get a specific alert rule by its UID
 | `notification_settings` | json | Per-rule notification settings \(overrides\) |
 | `record` | json | Recording rule configuration \(recording rules only\) |
 
+</ReferenceDetails>
+
 ### Grafana Create Alert Rule
 
 Create a new alert rule
+
+<ReferenceDetails>
 
 #### Input
 
@@ -286,9 +317,13 @@ Create a new alert rule
 | `notification_settings` | json | Per-rule notification settings \(overrides\) |
 | `record` | json | Recording rule configuration \(recording rules only\) |
 
+</ReferenceDetails>
+
 ### Grafana Update Alert Rule
 
 Update an existing alert rule. Fetches the current rule and merges your changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,9 +375,13 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 | `notification_settings` | json | Per-rule notification settings \(overrides\) |
 | `record` | json | Recording rule configuration \(recording rules only\) |
 
+</ReferenceDetails>
+
 ### Grafana Delete Alert Rule
 
 Delete an alert rule by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -359,9 +398,13 @@ Delete an alert rule by its UID
 | --------- | ---- | ----------- |
 | `message` | string | Confirmation message |
 
+</ReferenceDetails>
+
 ### Grafana List Contact Points
 
 List all alert notification contact points
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +427,13 @@ List all alert notification contact points
 |   ↳ `disableResolveMessage` | boolean | Whether resolve messages are disabled |
 |   ↳ `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 
+</ReferenceDetails>
+
 ### Grafana Create Contact Point
 
 Create a notification contact point (e.g., Slack, email, PagerDuty)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -412,9 +459,13 @@ Create a notification contact point (e.g., Slack, email, PagerDuty)
 | `disableResolveMessage` | boolean | Whether resolve notifications are suppressed |
 | `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 
+</ReferenceDetails>
+
 ### Grafana Create Annotation
 
 Create an annotation on a dashboard or as a global annotation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -437,9 +488,13 @@ Create an annotation on a dashboard or as a global annotation
 | `id` | number | The ID of the created annotation |
 | `message` | string | Confirmation message |
 
+</ReferenceDetails>
+
 ### Grafana List Annotations
 
 Query annotations by time range, dashboard, or tags
+
+<ReferenceDetails>
 
 #### Input
 
@@ -480,9 +535,13 @@ Query annotations by time range, dashboard, or tags
 |   ↳ `tags` | array | Annotation tags |
 |   ↳ `data` | json | Additional annotation data object from Grafana |
 
+</ReferenceDetails>
+
 ### Grafana Update Annotation
 
 Update an existing annotation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -504,9 +563,13 @@ Update an existing annotation
 | `annotationId` | number | The annotation that was updated, echoed from the request — Grafana answers a patch with only a message and returns no id |
 | `message` | string | Confirmation message from Grafana, e.g. "Annotation patched" |
 
+</ReferenceDetails>
+
 ### Grafana Delete Annotation
 
 Delete an annotation by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -523,9 +586,13 @@ Delete an annotation by its ID
 | --------- | ---- | ----------- |
 | `message` | string | Confirmation message |
 
+</ReferenceDetails>
+
 ### Grafana List Data Sources
 
 List all data sources configured in Grafana
+
+<ReferenceDetails>
 
 #### Input
 
@@ -559,9 +626,13 @@ List all data sources configured in Grafana
 |   ↳ `version` | number | Data source version |
 |   ↳ `readOnly` | boolean | Whether the data source is read-only |
 
+</ReferenceDetails>
+
 ### Grafana Get Data Source
 
 Get a data source by its ID or UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -595,9 +666,13 @@ Get a data source by its ID or UID
 | `version` | number | Data source version |
 | `readOnly` | boolean | Whether the data source is read-only |
 
+</ReferenceDetails>
+
 ### Grafana Check Data Source Health
 
 Test connectivity to a data source by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -616,9 +691,13 @@ Test connectivity to a data source by its UID
 | `message` | string | The plugin's diagnostic detail, which carries the reason on a failed check |
 | `details` | json | Extra structured detail, when the data source plugin supplies any |
 
+</ReferenceDetails>
+
 ### Grafana List Folders
 
 List all folders in Grafana
+
+<ReferenceDetails>
 
 #### Input
 
@@ -652,9 +731,13 @@ List all folders in Grafana
 |   ↳ `updated` | string | Timestamp when the folder was last updated |
 |   ↳ `version` | number | Folder version number |
 
+</ReferenceDetails>
+
 ### Grafana Create Folder
 
 Create a new folder in Grafana
+
+<ReferenceDetails>
 
 #### Input
 
@@ -687,9 +770,13 @@ Create a new folder in Grafana
 | `updated` | string | Timestamp when the folder was last updated |
 | `version` | number | Version number of the folder |
 
+</ReferenceDetails>
+
 ### Grafana Get Folder
 
 Get a folder by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -720,9 +807,13 @@ Get a folder by its UID
 | `updated` | string | Timestamp when the folder was last updated |
 | `version` | number | Version number of the folder |
 
+</ReferenceDetails>
+
 ### Grafana Update Folder
 
 Update (rename) a folder. Fetches the current folder and merges your changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -754,9 +845,13 @@ Update (rename) a folder. Fetches the current folder and merges your changes.
 | `updated` | string | Timestamp when the folder was last updated |
 | `version` | number | Version number of the folder |
 
+</ReferenceDetails>
+
 ### Grafana Delete Folder
 
 Delete a folder by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -776,9 +871,13 @@ Delete a folder by its UID
 | `uid` | string | The UID that was deleted, echoed from the request |
 | `message` | string | Grafana's confirmation message |
 
+</ReferenceDetails>
+
 ### Grafana Get Health
 
 Check the health of the Grafana instance (version, database status)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -796,9 +895,13 @@ Check the health of the Grafana instance (version, database status)
 | `database` | string | Database health status \(e.g., ok\) |
 | `version` | string | Grafana version |
 
+</ReferenceDetails>
+
 ### Grafana Update Contact Point
 
 Replace a contact point by its UID. Grafana has no partial update for contact points, so every field is rewritten — resend the name, type, and full settings, or the omitted ones are reset.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -821,9 +924,13 @@ Replace a contact point by its UID. Grafana has no partial update for contact po
 | `uid` | string | The UID that was updated, echoed from the request — Grafana answers a contact point update with only a message and returns no object |
 | `message` | string | Confirmation message from Grafana, e.g. "contactpoint updated" |
 
+</ReferenceDetails>
+
 ### Grafana Delete Contact Point
 
 Permanently delete a contact point by its UID. Grafana refuses the delete while the contact point is still referenced by the notification policy tree or by an alert rule.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -841,9 +948,13 @@ Permanently delete a contact point by its UID. Grafana refuses the delete while 
 | `uid` | string | The UID that was deleted, echoed from the request |
 | `message` | string | Confirmation message from Grafana, e.g. "contactpoint deleted" |
 
+</ReferenceDetails>
+
 ### Grafana Move Folder
 
 Move a folder under a different parent folder, or to the root by leaving the parent empty. Returns the folder with its new ancestry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -875,9 +986,13 @@ Move a folder under a different parent folder, or to the root by leaving the par
 | `updated` | string | Last update timestamp |
 | `version` | number | Folder revision number |
 
+</ReferenceDetails>
+
 ### Grafana Get Alert Rule Group
 
 Read an alert rule group: its evaluation interval and every rule in it. The interval is the group-level knob that decides how often those rules are evaluated, which the individual alert rule operations do not expose.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -918,9 +1033,13 @@ Read an alert rule group: its evaluation interval and every rule in it. The inte
 |   ↳ `notification_settings` | json | Per-rule notification settings \(overrides\) |
 |   ↳ `record` | json | Recording rule configuration \(recording rules only\) |
 
+</ReferenceDetails>
+
 ### Grafana Query Data Source
 
 Run one or more queries against a Grafana data source that has a backend implementation, and read the values back. This is how you get actual metric numbers out of Grafana rather than dashboard or alert configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -945,5 +1064,7 @@ Run one or more queries against a Grafana data source that has a backend impleme
 |     ↳ `type` | string | Field type, e.g. time or number |
 |   ↳ `rowCount` | number | Number of rows in the frame |
 |   ↳ `rows` | array | Rows keyed by field name |
+
+</ReferenceDetails>
 
 

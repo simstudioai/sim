@@ -4,6 +4,7 @@ description: Make and manage phone calls
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="twilio_voice"
@@ -24,6 +25,8 @@ Make outbound calls, list calls, retrieve recordings, and receive call events th
 ### Twilio Voice Make Call
 
 Make an outbound phone call using Twilio Voice API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,6 +59,8 @@ Make an outbound phone call using Twilio Voice API.
 | `price` | string | Cost of the call |
 | `priceUnit` | string | Currency of the price |
 | `error` | string | Error message if call failed |
+
+</ReferenceDetails>
 
 ### Twilio Voice List Calls
 
@@ -129,6 +134,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when phone calls are received via Twilio Voice
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -174,4 +181,6 @@ Trigger workflow when phone calls are received via Twilio Voice
 | `callerCountry` | string | Country of the caller \(same as fromCountry\) |
 | `callToken` | string | Twilio call token for authentication |
 | `raw` | string | Complete raw webhook payload from Twilio as JSON string |
+
+</ReferenceDetails>
 

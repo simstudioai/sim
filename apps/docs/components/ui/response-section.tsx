@@ -101,7 +101,6 @@ export function ResponseSection({ children }: ResponseSectionProps) {
               dropdownWidth={96}
               contentClassName='min-w-0'
             />
-            <span className='response-section-content-type'>application/json</span>
           </div>
         </div>
       )}

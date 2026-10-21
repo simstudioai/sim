@@ -4,6 +4,7 @@ description: Manage products, orders, customers, and inventory in your Shopify s
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="shopify"
@@ -14,6 +15,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 Use [Shopify](https://www.shopify.com/) to manage products, orders, customers, inventory, and fulfillments. The reference below covers location and collection lookups as well as store mutations.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [Admin API tokens](/integrations/shopify-service-account).
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -42,6 +45,8 @@ Manage Shopify products and variants, orders, customers, inventory, collections,
 ### Shopify Create Product
 
 Create a new product in your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -129,9 +134,13 @@ Create a new product in your Shopify store
 |         ↳ `url` | string | Image URL |
 |         ↳ `altText` | string | Alternative text for accessibility |
 
+</ReferenceDetails>
+
 ### Shopify Get Product
 
 Get a single product by ID from your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +218,13 @@ Get a single product by ID from your Shopify store
 |         ↳ `url` | string | Image URL |
 |         ↳ `altText` | string | Alternative text for accessibility |
 
+</ReferenceDetails>
+
 ### Shopify List Products
 
 List products from your Shopify store with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +308,13 @@ List products from your Shopify store with optional filtering
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify Update Product
 
 Update an existing product in your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -387,9 +404,13 @@ Update an existing product in your Shopify store
 |         ↳ `url` | string | Image URL |
 |         ↳ `altText` | string | Alternative text for accessibility |
 
+</ReferenceDetails>
+
 ### Shopify Delete Product
 
 Delete a product from your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -404,9 +425,13 @@ Delete a product from your Shopify store
 | --------- | ---- | ----------- |
 | `deletedId` | string | The ID of the deleted product |
 
+</ReferenceDetails>
+
 ### Shopify Get Order
 
 Get a single order by ID from your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -548,9 +573,13 @@ Get a single order by ID from your Shopify store
 |       ↳ `number` | string | Tracking number |
 |       ↳ `url` | string | Tracking URL |
 
+</ReferenceDetails>
+
 ### Shopify List Orders
 
 List orders from your Shopify store with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -701,9 +730,13 @@ List orders from your Shopify store with optional filtering
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify Update Order
 
 Update an existing order in your Shopify store (note, tags, email)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -852,9 +885,13 @@ Update an existing order in your Shopify store (note, tags, email)
 |       ↳ `number` | string | Tracking number |
 |       ↳ `url` | string | Tracking URL |
 
+</ReferenceDetails>
+
 ### Shopify Cancel Order
 
 Cancel an order in your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -891,9 +928,13 @@ Cancel an order in your Shopify store
 |   ↳ `cancelled` | boolean | Whether the cancellation completed |
 |   ↳ `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Shopify Create Customer
 
 Create a new customer in your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -966,9 +1007,13 @@ Create a new customer in your Shopify store
 |     ↳ `zip` | string | Postal or ZIP code |
 |     ↳ `phone` | string | Phone number |
 
+</ReferenceDetails>
+
 ### Shopify Get Customer
 
 Get a single customer by ID from your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1030,9 +1075,13 @@ Get a single customer by ID from your Shopify store
 |     ↳ `zip` | string | Postal or ZIP code |
 |     ↳ `phone` | string | Phone number |
 
+</ReferenceDetails>
+
 ### Shopify List Customers
 
 List customers from your Shopify store with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1091,9 +1140,13 @@ List customers from your Shopify store with optional filtering
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify Update Customer
 
 Update an existing customer in your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1167,9 +1220,13 @@ Update an existing customer in your Shopify store
 |     ↳ `zip` | string | Postal or ZIP code |
 |     ↳ `phone` | string | Phone number |
 
+</ReferenceDetails>
+
 ### Shopify Delete Customer
 
 Delete a customer from your Shopify store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1184,9 +1241,13 @@ Delete a customer from your Shopify store
 | --------- | ---- | ----------- |
 | `deletedId` | string | The ID of the deleted customer |
 
+</ReferenceDetails>
+
 ### Shopify List Inventory Items
 
 List inventory items from your Shopify store. Use this to find inventory item IDs by SKU.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1232,9 +1293,13 @@ List inventory items from your Shopify store. Use this to find inventory item ID
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify Get Inventory Level
 
 Get inventory level for a product variant at a specific location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1270,9 +1335,13 @@ Get inventory level for a product variant at a specific location
 |       ↳ `id` | string | Location identifier \(GID\) |
 |       ↳ `name` | string | Location name |
 
+</ReferenceDetails>
+
 ### Shopify Adjust Inventory
 
 Adjust inventory quantity for a product variant at a specific location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1309,9 +1378,13 @@ Adjust inventory quantity for a product variant at a specific location
 |       ↳ `id` | string | Location identifier \(GID\) |
 |       ↳ `name` | string | Location name |
 
+</ReferenceDetails>
+
 ### Shopify List Locations
 
 List inventory locations from your Shopify store. Use this to find location IDs needed for inventory operations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1351,9 +1424,13 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify Create Fulfillment
 
 Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (use List Fulfillment Orders to find it).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1395,9 +1472,13 @@ Create a fulfillment to mark order items as shipped. Requires a fulfillment orde
 |     ↳ `lineItem` | object | Associated order line item |
 |       ↳ `title` | string | Product title |
 
+</ReferenceDetails>
+
 ### Shopify List Collections
 
 List product collections from your Shopify store. Filter by title, type (custom/smart), or handle.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1433,9 +1514,13 @@ List product collections from your Shopify store. Filter by title, type (custom/
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify List Fulfillment Orders
 
 Find fulfillment order IDs and remaining items for an order at merchant-managed locations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1490,9 +1575,13 @@ Find fulfillment order IDs and remaining items for an order at merchant-managed 
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
+</ReferenceDetails>
+
 ### Shopify Get Fulfillment Order
 
 Read a fulfillment order and one page of line items for partial fulfillment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1542,9 +1631,13 @@ Read a fulfillment order and one page of line items for partial fulfillment
 |         ↳ `lineItem` | object | Original order line item |
 |           ↳ `id` | string | Order line item GID |
 
+</ReferenceDetails>
+
 ### Shopify Get Job
 
 Read Shopify job progress or the outcome and errors of an order cancellation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1572,9 +1665,13 @@ Read Shopify job progress or the outcome and errors of an order cancellation
 |   ↳ `id` | string | Job GID |
 |   ↳ `done` | boolean | Whether processing ran; inspect cancellation result for success |
 
+</ReferenceDetails>
+
 ### Shopify Create Product Variants
 
 Create product variants with pricing, options, inventory attributes, and metafields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1611,9 +1708,13 @@ Create product variants with pricing, options, inventory attributes, and metafie
 |   ↳ `field` | array | Input field path |
 |   ↳ `message` | string | Validation error |
 
+</ReferenceDetails>
+
 ### Shopify Update Product Variants
 
 Update product variants with pricing, options, inventory attributes, and metafields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1650,9 +1751,13 @@ Update product variants with pricing, options, inventory attributes, and metafie
 |   ↳ `field` | array | Input field path |
 |   ↳ `message` | string | Validation error |
 
+</ReferenceDetails>
+
 ### Shopify Get Fulfillment
 
 Read shipment tracking and one page of fulfilled line items
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1687,9 +1792,13 @@ Read shipment tracking and one page of fulfilled line items
 |     ↳ `lineItem` | object | Associated order line item |
 |       ↳ `title` | string | Product title |
 
+</ReferenceDetails>
+
 ### Shopify Update Fulfillment Tracking
 
 Update tracking numbers, URLs, or carrier for an existing fulfillment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1724,9 +1833,13 @@ Update tracking numbers, URLs, or carrier for an existing fulfillment
 |     ↳ `lineItem` | object | Associated order line item |
 |       ↳ `title` | string | Product title |
 
+</ReferenceDetails>
+
 ### Shopify Get Collection
 
 Get a specific collection by ID, including its products. Use this to retrieve products within a collection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1770,5 +1883,7 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 |     ↳ `featuredImage` | object | Featured product image |
 |       ↳ `url` | string | Featured image URL |
 |       ↳ `altText` | string | Alternative text for accessibility |
+
+</ReferenceDetails>
 
 

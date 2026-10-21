@@ -4,6 +4,7 @@ description: Process payments and manage Stripe data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="stripe"
@@ -24,6 +25,8 @@ Manage payment intents, customers, subscriptions, invoices, charges, products, p
 ### Stripe Create Payment Intent
 
 Create a new Payment Intent to process a payment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -96,9 +99,13 @@ Create a new Payment Intent to process a payment
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Payment Intent
 
 Retrieve an existing Payment Intent by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +171,13 @@ Retrieve an existing Payment Intent by ID
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Update Payment Intent
 
 Update an existing Payment Intent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -237,9 +248,13 @@ Update an existing Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Confirm Payment Intent
 
 Confirm a Payment Intent and inspect its resulting status. Confirmation can require further action or asynchronous processing before payment succeeds.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -306,9 +321,13 @@ Confirm a Payment Intent and inspect its resulting status. Confirmation can requ
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Capture Payment Intent
 
 Capture an authorized Payment Intent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -375,9 +394,13 @@ Capture an authorized Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Cancel Payment Intent
 
 Cancel a Payment Intent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -444,9 +467,13 @@ Cancel a Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe List Payment Intents
 
 List all Payment Intents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -512,9 +539,13 @@ List all Payment Intents
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Payment Intents
 
 Search for Payment Intents using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -579,9 +610,13 @@ Search for Payment Intents using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Customer
 
 Create a new customer object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -643,9 +678,13 @@ Create a new customer object
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Customer
 
 Retrieve an existing customer by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -701,9 +740,13 @@ Retrieve an existing customer by ID
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
+</ReferenceDetails>
+
 ### Stripe Update Customer
 
 Update an existing customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -765,9 +808,13 @@ Update an existing customer
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
+</ReferenceDetails>
+
 ### Stripe Delete Customer
 
 Permanently delete a customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -783,9 +830,13 @@ Permanently delete a customer
 | `deleted` | boolean | Whether the resource was deleted |
 | `id` | string | ID of the deleted resource |
 
+</ReferenceDetails>
+
 ### Stripe List Customers
 
 List all customers
+
+<ReferenceDetails>
 
 #### Input
 
@@ -842,9 +893,13 @@ List all customers
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Customers
 
 Search for customers using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -900,9 +955,13 @@ Search for customers using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Subscription
 
 Create a new subscription for a customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -982,9 +1041,13 @@ Create a new subscription for a customer
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Subscription
 
 Retrieve an existing subscription by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1059,9 +1122,13 @@ Retrieve an existing subscription by ID
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Update Subscription
 
 Update an existing subscription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1139,9 +1206,13 @@ Update an existing subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Cancel Subscription
 
 Cancel a subscription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1218,9 +1289,13 @@ Cancel a subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Resume Subscription
 
 Resume a paused subscription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1295,9 +1370,13 @@ Resume a paused subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe List Subscriptions
 
 List one page of subscriptions. Follow starting_after while metadata.has_more is true.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1376,9 +1455,13 @@ List one page of subscriptions. Follow starting_after while metadata.has_more is
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Subscriptions
 
 Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1455,9 +1538,13 @@ Search one page of subscriptions using query syntax. Pass metadata.next_page as 
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 |   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
+</ReferenceDetails>
+
 ### Stripe Create Invoice
 
 Create a new invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1615,9 +1702,13 @@ Create a new invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Invoice
 
 Retrieve an existing invoice by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1771,9 +1862,13 @@ Retrieve an existing invoice by ID
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Update Invoice
 
 Update an existing invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1930,9 +2025,13 @@ Update an existing invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Delete Invoice
 
 Permanently delete a draft invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1948,9 +2047,13 @@ Permanently delete a draft invoice
 | `deleted` | boolean | Whether the invoice was deleted |
 | `id` | string | The ID of the deleted invoice |
 
+</ReferenceDetails>
+
 ### Stripe Finalize Invoice
 
 Finalize a draft invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2105,9 +2208,13 @@ Finalize a draft invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Pay Invoice
 
 Pay an invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2262,9 +2369,13 @@ Pay an invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Void Invoice
 
 Void an invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2418,9 +2529,13 @@ Void an invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Send Invoice
 
 Send an invoice to the customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2440,9 +2555,13 @@ Send an invoice to the customer
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe List Invoices
 
 List all invoices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2462,9 +2581,13 @@ List all invoices
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Invoices
 
 Search for invoices using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2483,9 +2606,13 @@ Search for invoices using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Charge
 
 Create a new charge to process a payment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2512,9 +2639,13 @@ Create a new charge to process a payment
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Charge
 
 Retrieve an existing charge by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2535,9 +2666,13 @@ Retrieve an existing charge by ID
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe Update Charge
 
 Update an existing charge
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2560,9 +2695,13 @@ Update an existing charge
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe Capture Charge
 
 Capture an uncaptured charge
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2584,9 +2723,13 @@ Capture an uncaptured charge
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe List Charges
 
 List all charges
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2606,9 +2749,13 @@ List all charges
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Charges
 
 Search for charges using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2627,9 +2774,13 @@ Search for charges using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Product
 
 Create a new product object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2652,9 +2803,13 @@ Create a new product object
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Product
 
 Retrieve an existing product by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2673,9 +2828,13 @@ Retrieve an existing product by ID
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
+</ReferenceDetails>
+
 ### Stripe Update Product
 
 Update an existing product
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2699,9 +2858,13 @@ Update an existing product
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
+</ReferenceDetails>
+
 ### Stripe Delete Product
 
 Permanently delete a product
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2717,9 +2880,13 @@ Permanently delete a product
 | `deleted` | boolean | Whether the product was deleted |
 | `id` | string | The ID of the deleted product |
 
+</ReferenceDetails>
+
 ### Stripe List Products
 
 List all products
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2738,9 +2905,13 @@ List all products
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Products
 
 Search for products using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2759,9 +2930,13 @@ Search for products using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Price
 
 Create a new price for a product
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2786,9 +2961,13 @@ Create a new price for a product
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Price
 
 Retrieve an existing price by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2808,9 +2987,13 @@ Retrieve an existing price by ID
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Update Price
 
 Update an existing price
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2832,9 +3015,13 @@ Update an existing price
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe List Prices
 
 List all prices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2854,9 +3041,13 @@ List all prices
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Prices
 
 Search for prices using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2875,9 +3066,13 @@ Search for prices using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Event
 
 Retrieve an existing Event by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2896,9 +3091,13 @@ Retrieve an existing Event by ID
 |   ↳ `type` | string | Event type identifier |
 |   ↳ `created` | number | Unix timestamp of creation |
 
+</ReferenceDetails>
+
 ### Stripe List Events
 
 List all Events
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2917,6 +3116,8 @@ List all Events
 | `metadata` | json | List metadata including count and has_more |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+
+</ReferenceDetails>
 
 
 

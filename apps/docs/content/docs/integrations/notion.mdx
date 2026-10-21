@@ -4,6 +4,7 @@ description: Manage Notion pages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="notion_v2"
@@ -14,6 +15,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 Use Notion to read and manage pages, databases, blocks, and comments. Query a database or search the workspace to find the content a workflow needs; webhook triggers can start workflows when content changes.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [Internal integrations](/integrations/notion-service-account).
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -26,13 +29,15 @@ Sim requests no OAuth scopes for Notion. For a self-hosted deployment, register 
 
 ## Use the block [#usage-instructions]
 
-Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.
+Choose an operation and select a connected account. Use Search Workspace to find content, Query Database to retrieve rows from a database, or Append Content to add blocks to a page.
 
 ## Actions
 
 ### Notion Reader
 
 Read content from a Notion page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -50,9 +55,13 @@ Read content from a Notion page
 | `content` | string | Page content in markdown format |
 | `title` | string | Page title |
 
+</ReferenceDetails>
+
 ### Read Notion Database
 
 Read database information and structure from Notion
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,9 +80,13 @@ Read database information and structure from Notion
 | `properties` | object | Database properties schema |
 | `title` | string | Database title |
 
+</ReferenceDetails>
+
 ### Notion Content Appender
 
 Append content to a Notion page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +101,13 @@ Append content to a Notion page
 | --------- | ---- | ----------- |
 | `appended` | boolean | Whether content was successfully appended |
 
+</ReferenceDetails>
+
 ### Notion Page Creator
 
 Create a new page in Notion
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,9 +127,13 @@ Create a new page in Notion
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Page title |
 
+</ReferenceDetails>
+
 ### Notion Page Updater
 
 Update properties of a Notion page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,9 +151,13 @@ Update properties of a Notion page
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Page title |
 
+</ReferenceDetails>
+
 ### Query Notion Database
 
 Query and filter Notion database entries with advanced filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +221,13 @@ Query and filter Notion database entries with advanced filtering
 | `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### Search Notion Workspace
 
 Search across all pages and databases in Notion workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -240,9 +269,13 @@ Search across all pages and databases in Notion workspace
 | `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### Create Notion Database
 
 Create a new database in Notion with custom properties
+
+<ReferenceDetails>
 
 #### Input
 
@@ -262,9 +295,13 @@ Create a new database in Notion with custom properties
 | `properties` | object | Database properties schema |
 | `title` | string | Database title |
 
+</ReferenceDetails>
+
 ### Add Notion Database Row
 
 Add a new row to a Notion database with specified properties
+
+<ReferenceDetails>
 
 #### Input
 
@@ -283,9 +320,13 @@ Add a new row to a Notion database with specified properties
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Row title |
 
+</ReferenceDetails>
+
 ### Notion Append Block Children
 
 Append new block children (content) to a Notion page or block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -320,9 +361,13 @@ Append new block children (content) to a Notion page or block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Retrieve Block
 
 Retrieve a single Notion block by its UUID, including its type-specific content
+
+<ReferenceDetails>
 
 #### Input
 
@@ -355,9 +400,13 @@ Retrieve a single Notion block by its UUID, including its type-specific content
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Retrieve Block Children
 
 Retrieve the block children (content) of a Notion page or block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -392,9 +441,13 @@ Retrieve the block children (content) of a Notion page or block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Update Block
 
 Update the content or archived state of a single Notion block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -429,9 +482,13 @@ Update the content or archived state of a single Notion block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Delete Block
 
 Delete (move to trash) a single Notion block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -464,9 +521,13 @@ Delete (move to trash) a single Notion block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Create Comment
 
 Create a comment on a Notion page or within an existing discussion thread
+
+<ReferenceDetails>
 
 #### Input
 
@@ -501,9 +562,13 @@ Create a comment on a Notion page or within an existing discussion thread
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion List Comments
 
 List unresolved comments on a Notion page or block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -538,9 +603,13 @@ List unresolved comments on a Notion page or block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion List Users
 
 List all users (members and bots) in the Notion workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -574,9 +643,13 @@ List all users (members and bots) in the Notion workspace
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Retrieve User
 
 Retrieve a single Notion user by their UUID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -609,6 +682,8 @@ Retrieve a single Notion user by their UUID
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -618,6 +693,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### Notion Comment Created
 
 Trigger workflow when a comment or suggested edit is added in Notion
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -649,13 +726,14 @@ Trigger workflow when a comment or suggested edit is added in Notion
 |     ↳ `id` | string | Parent page or block ID |
 |     ↳ `parent_type` | string | Parent type \(page or block\) |
 
-
----
+</ReferenceDetails>
 
 ### Notion Database Created
 
 Trigger workflow when a new database is created in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -687,13 +765,14 @@ Trigger workflow when a new database is created in Notion
 |     ↳ `id` | string | Parent page, database, workspace, or space ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Database Deleted
 
 Trigger workflow when a database is deleted in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -725,13 +804,14 @@ Trigger workflow when a database is deleted in Notion
 |     ↳ `id` | string | Parent page, database, workspace, or space ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Database Schema Updated
 
 Trigger workflow when a database schema is modified in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -763,13 +843,14 @@ Trigger workflow when a database schema is modified in Notion
 |     ↳ `id` | string | Parent page, database, workspace, or space ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Content Updated
 
 Trigger workflow when page content is changed in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -801,13 +882,14 @@ Trigger workflow when page content is changed in Notion
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Created
 
 Trigger workflow when a new page is created in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -839,13 +921,14 @@ Trigger workflow when a new page is created in Notion
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Deleted
 
 Trigger workflow when a page is deleted in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -877,13 +960,14 @@ Trigger workflow when a page is deleted in Notion
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Properties Updated
 
 Trigger workflow when page properties are modified in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -915,12 +999,13 @@ Trigger workflow when page properties are modified in Notion
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Webhook (All Events)
 
 Trigger workflow on any Notion webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -953,4 +1038,6 @@ Trigger workflow on any Notion webhook event
 |   ↳ `page_id` | string | Page ID related to the event, when present |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Updated properties included with the event, when provided by Notion |
+
+</ReferenceDetails>
 

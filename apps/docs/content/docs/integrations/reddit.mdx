@@ -4,6 +4,7 @@ description: Access Reddit data and content
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="reddit"
@@ -53,6 +54,8 @@ Read posts, comments, and search content. Submit posts, vote, reply, edit, manag
 
 Fetch posts from a subreddit with different sorting options
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -90,9 +93,13 @@ Fetch posts from a subreddit with different sorting options
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Get Reddit Comments
 
 Fetch comments from a specific Reddit post
+
+<ReferenceDetails>
 
 #### Input
 
@@ -133,9 +140,13 @@ Fetch comments from a specific Reddit post
 |   ↳ `permalink` | string | Comment permalink |
 |   ↳ `replies` | array | Nested reply comments |
 
+</ReferenceDetails>
+
 ### Get Reddit Controversial Posts
 
 Fetch controversial posts from a subreddit
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +183,13 @@ Fetch controversial posts from a subreddit
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Search Reddit
 
 Search for posts within a subreddit
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +230,13 @@ Search for posts within a subreddit
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Submit Reddit Post
 
 Submit a new post to a subreddit (text or link)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -246,9 +265,13 @@ Submit a new post to a subreddit (text or link)
 |   ↳ `url` | string | Post URL from API response |
 |   ↳ `permalink` | string | Full Reddit permalink |
 
+</ReferenceDetails>
+
 ### Vote on Reddit Post/Comment
 
 Upvote, downvote, or unvote a Reddit post or comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -264,9 +287,13 @@ Upvote, downvote, or unvote a Reddit post or comment
 | `success` | boolean | Whether the vote was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Save Reddit Post/Comment
 
 Save a Reddit post or comment to your saved items
+
+<ReferenceDetails>
 
 #### Input
 
@@ -282,9 +309,13 @@ Save a Reddit post or comment to your saved items
 | `success` | boolean | Whether the save was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Unsave Reddit Post/Comment
 
 Remove a Reddit post or comment from your saved items
+
+<ReferenceDetails>
 
 #### Input
 
@@ -299,9 +330,13 @@ Remove a Reddit post or comment from your saved items
 | `success` | boolean | Whether the unsave was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Reply to Reddit Post/Comment
 
 Add a comment reply to a Reddit post or comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +358,13 @@ Add a comment reply to a Reddit post or comment
 |   ↳ `permalink` | string | Comment permalink |
 |   ↳ `body` | string | Comment body text |
 
+</ReferenceDetails>
+
 ### Edit Reddit Post/Comment
 
 Edit the text of your own Reddit post or comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -345,9 +384,13 @@ Edit the text of your own Reddit post or comment
 |   ↳ `body` | string | Updated comment body \(for comments\) |
 |   ↳ `selftext` | string | Updated post text \(for self posts\) |
 
+</ReferenceDetails>
+
 ### Delete Reddit Post/Comment
 
 Delete your own Reddit post or comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +405,13 @@ Delete your own Reddit post or comment
 | `success` | boolean | Whether the deletion was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Subscribe/Unsubscribe from Subreddit
 
 Subscribe or unsubscribe from a subreddit
+
+<ReferenceDetails>
 
 #### Input
 
@@ -380,9 +427,13 @@ Subscribe or unsubscribe from a subreddit
 | `success` | boolean | Whether the subscription action was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Get Reddit User Identity
 
 Get information about the authenticated Reddit user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -404,9 +455,13 @@ Get information about the authenticated Reddit user
 | `has_verified_email` | boolean | Whether email is verified |
 | `icon_img` | string | User avatar/icon URL |
 
+</ReferenceDetails>
+
 ### Get Reddit User Profile
 
 Get public profile information about any Reddit user by username
+
+<ReferenceDetails>
 
 #### Input
 
@@ -429,9 +484,13 @@ Get public profile information about any Reddit user by username
 | `has_verified_email` | boolean | Whether email is verified |
 | `icon_img` | string | User avatar/icon URL |
 
+</ReferenceDetails>
+
 ### Send Reddit Message
 
 Send a private message to a Reddit user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -449,9 +508,13 @@ Send a private message to a Reddit user
 | `success` | boolean | Whether the message was sent successfully |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Get Reddit Messages
 
 Retrieve private messages from your Reddit inbox
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +547,13 @@ Retrieve private messages from your Reddit inbox
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Get Subreddit Info
 
 Get metadata and information about a subreddit
+
+<ReferenceDetails>
 
 #### Input
 
@@ -514,9 +581,13 @@ Get metadata and information about a subreddit
 | `icon_img` | string | Subreddit icon URL |
 | `banner_img` | string | Subreddit banner URL |
 
+</ReferenceDetails>
+
 ### Get Subreddit Rules
 
 Get the rules and site-wide rules that apply to a subreddit
+
+<ReferenceDetails>
 
 #### Input
 
@@ -539,9 +610,13 @@ Get the rules and site-wide rules that apply to a subreddit
 | `site_rules` | array | Reddit site-wide rules that apply to the subreddit |
 | `site_rules_flow` | array | Structured site-wide rules flow used by the report menu |
 
+</ReferenceDetails>
+
 ### Get Reddit User Posts
 
 Fetch submitted posts (t3) from a Reddit user profile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -578,9 +653,13 @@ Fetch submitted posts (t3) from a Reddit user profile
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Get Reddit User Comments
 
 Fetch comments (t1) made by a Reddit user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -611,9 +690,13 @@ Fetch comments (t1) made by a Reddit user
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Get Reddit Saved Items
 
 Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items
+
+<ReferenceDetails>
 
 #### Input
 
@@ -656,9 +739,13 @@ Fetch your own saved posts (t3) and comments (t1). You can only read your own sa
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Get Reddit Info
 
 Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames
+
+<ReferenceDetails>
 
 #### Input
 
@@ -706,9 +793,13 @@ Fetch information about one or more Reddit things (posts, comments, or subreddit
 |   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
 |   ↳ `accounts_active` | number | Number of currently active users |
 
+</ReferenceDetails>
+
 ### Search Subreddits
 
 Search for subreddits by name and description
+
+<ReferenceDetails>
 
 #### Input
 
@@ -742,9 +833,13 @@ Search for subreddits by name and description
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### List My Subreddits
 
 List the subreddits the authenticated user is subscribed to
+
+<ReferenceDetails>
 
 #### Input
 
@@ -777,9 +872,13 @@ List the subreddits the authenticated user is subscribed to
 | `after` | string | Fullname of the last item for forward pagination |
 | `before` | string | Fullname of the first item for backward pagination |
 
+</ReferenceDetails>
+
 ### Report Reddit Post/Comment
 
 Report a Reddit post or comment to subreddit moderators for a rules violation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -796,9 +895,13 @@ Report a Reddit post or comment to subreddit moderators for a rules violation
 | `success` | boolean | Whether the report was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Hide Reddit Post
 
 Hide one or more Reddit posts from your listings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -813,9 +916,13 @@ Hide one or more Reddit posts from your listings
 | `success` | boolean | Whether the hide was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Unhide Reddit Post
 
 Unhide one or more previously hidden Reddit posts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -830,9 +937,13 @@ Unhide one or more previously hidden Reddit posts
 | `success` | boolean | Whether the unhide was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Mark Reddit Post NSFW
 
 Mark a Reddit post as NSFW (not safe for work)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -847,9 +958,13 @@ Mark a Reddit post as NSFW (not safe for work)
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Unmark Reddit Post NSFW
 
 Remove the NSFW (not safe for work) mark from a Reddit post
+
+<ReferenceDetails>
 
 #### Input
 
@@ -864,9 +979,13 @@ Remove the NSFW (not safe for work) mark from a Reddit post
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Mark Reddit Messages Read
 
 Mark one or more private messages as read
+
+<ReferenceDetails>
 
 #### Input
 
@@ -881,9 +1000,13 @@ Mark one or more private messages as read
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Mark All Reddit Messages Read
 
 Mark all private messages in the inbox as read
+
+<ReferenceDetails>
 
 #### Input
 
@@ -897,9 +1020,13 @@ Mark all private messages in the inbox as read
 | `success` | boolean | Whether the operation was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Approve Reddit Post/Comment (Mod)
 
 Approve a reported or removed Reddit post or comment as a moderator
+
+<ReferenceDetails>
 
 #### Input
 
@@ -914,9 +1041,13 @@ Approve a reported or removed Reddit post or comment as a moderator
 | `success` | boolean | Whether the approval was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Remove Reddit Post/Comment (Mod)
 
 Remove a Reddit post or comment as a moderator, optionally marking it as spam
+
+<ReferenceDetails>
 
 #### Input
 
@@ -932,9 +1063,13 @@ Remove a Reddit post or comment as a moderator, optionally marking it as spam
 | `success` | boolean | Whether the removal was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Distinguish Reddit Post/Comment (Mod)
 
 Distinguish or un-distinguish a Reddit post or comment as a moderator
+
+<ReferenceDetails>
 
 #### Input
 
@@ -951,9 +1086,13 @@ Distinguish or un-distinguish a Reddit post or comment as a moderator
 | `success` | boolean | Whether the distinguish action was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Lock Reddit Post/Comment (Mod)
 
 Lock a Reddit post or comment to prevent further replies (moderator action)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -968,9 +1107,13 @@ Lock a Reddit post or comment to prevent further replies (moderator action)
 | `success` | boolean | Whether the lock was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Unlock Reddit Post/Comment (Mod)
 
 Unlock a Reddit post or comment to allow replies again (moderator action)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -985,9 +1128,13 @@ Unlock a Reddit post or comment to allow replies again (moderator action)
 | `success` | boolean | Whether the unlock was successful |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Sticky Reddit Post (Mod)
 
 Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1003,5 +1150,7 @@ Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the sticky action was successful |
 | `message` | string | Success or error message |
+
+</ReferenceDetails>
 
 

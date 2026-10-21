@@ -698,12 +698,19 @@ function operationFor(
   const requestBody = requestBodyFor(route, components, label)
   const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
   const security = operationSecurity(operation, definition, oauthScope)
+  const description = [operation.description, operation.descriptionDetails]
+    .filter(Boolean)
+    .join('\n\n')
   return {
     operationId: operation.operationId,
     summary: operation.summary,
-    description: oauthScope
-      ? `${operation.description}\n\nOAuth scope: \`${oauthScope}\`.`
-      : operation.description,
+    description: oauthScope ? `${description}\n\nOAuth scope: \`${oauthScope}\`.` : description,
+    ...(operation.descriptionDetails
+      ? {
+          'x-sim-docs-intro': operation.description,
+          'x-sim-docs-details': operation.descriptionDetails,
+        }
+      : {}),
     'x-sim-operation': operation.applicationOperation.id,
     ...(oauthScope ? { 'x-oauth-scope': oauthScope } : {}),
     tags: [...operation.tags],
@@ -735,6 +742,9 @@ function validateOperationMetadata(
   nonEmpty(operation.operationId, `${label} operationId`)
   nonEmpty(operation.summary, `${label} summary`)
   nonEmpty(operation.description, `${label} description`)
+  if (operation.descriptionDetails !== undefined) {
+    nonEmpty(operation.descriptionDetails, `${label} descriptionDetails`)
+  }
   if ('byStatus' in operation.success) {
     invariant(
       Object.keys(operation.success.byStatus).length > 0,

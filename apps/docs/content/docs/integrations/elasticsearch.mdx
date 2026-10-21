@@ -4,6 +4,7 @@ description: Search, index, and manage data in Elasticsearch
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="elasticsearch"
@@ -24,6 +25,8 @@ Search with Query DSL, manage documents and indexes, run bulk operations, and in
 ### Elasticsearch Search
 
 Search documents in Elasticsearch using Query DSL. Returns matching documents with scores and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -54,9 +57,13 @@ Search documents in Elasticsearch using Query DSL. Returns matching documents wi
 | `hits` | object | Search results with total count and matching documents |
 | `aggregations` | json | Aggregation results if any |
 
+</ReferenceDetails>
+
 ### Elasticsearch Index Document
 
 Index (create or update) a document in Elasticsearch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +90,13 @@ Index (create or update) a document in Elasticsearch.
 | `_version` | number | Document version |
 | `result` | string | Operation result \(created or updated\) |
 
+</ReferenceDetails>
+
 ### Elasticsearch Get Document
 
 Retrieve a document by ID from Elasticsearch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,9 +124,13 @@ Retrieve a document by ID from Elasticsearch.
 | `found` | boolean | Whether the document was found |
 | `_source` | json | Document content |
 
+</ReferenceDetails>
+
 ### Elasticsearch Update Document
 
 Partially update a document in Elasticsearch using doc merge.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -142,9 +157,13 @@ Partially update a document in Elasticsearch using doc merge.
 | `_version` | number | New document version |
 | `result` | string | Operation result \(updated or noop\) |
 
+</ReferenceDetails>
+
 ### Elasticsearch Delete Document
 
 Delete a document from Elasticsearch by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,9 +189,13 @@ Delete a document from Elasticsearch by ID.
 | `_version` | number | Document version |
 | `result` | string | Operation result \(deleted or not_found\) |
 
+</ReferenceDetails>
+
 ### Elasticsearch Bulk Operations
 
 Perform multiple index, create, delete, or update operations in a single request for high performance.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,9 +220,13 @@ Perform multiple index, create, delete, or update operations in a single request
 | `errors` | boolean | Whether any operation had an error |
 | `items` | array | Results for each operation |
 
+</ReferenceDetails>
+
 ### Elasticsearch Count
 
 Count documents matching a query in Elasticsearch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +249,13 @@ Count documents matching a query in Elasticsearch.
 | `count` | number | Number of documents matching the query |
 | `_shards` | object | Shard statistics |
 
+</ReferenceDetails>
+
 ### Elasticsearch Create Index
 
 Create a new index with optional settings and mappings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -249,9 +280,13 @@ Create a new index with optional settings and mappings.
 | `shards_acknowledged` | boolean | Whether the shards were acknowledged |
 | `index` | string | Created index name |
 
+</ReferenceDetails>
+
 ### Elasticsearch Delete Index
 
 Delete an index and all its documents. This operation is irreversible.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -272,9 +307,13 @@ Delete an index and all its documents. This operation is irreversible.
 | --------- | ---- | ----------- |
 | `acknowledged` | boolean | Whether the deletion was acknowledged |
 
+</ReferenceDetails>
+
 ### Elasticsearch Get Index
 
 Retrieve index information including settings, mappings, and aliases.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +334,13 @@ Retrieve index information including settings, mappings, and aliases.
 | --------- | ---- | ----------- |
 | `indices` | json | Matched indices keyed by index name, each with its aliases, mappings, and settings |
 
+</ReferenceDetails>
+
 ### Elasticsearch Cluster Health
 
 Get the health status of the Elasticsearch cluster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -324,9 +367,13 @@ Get the health status of the Elasticsearch cluster.
 | `active_shards` | number | Number of active shards |
 | `unassigned_shards` | number | Number of unassigned shards |
 
+</ReferenceDetails>
+
 ### Elasticsearch Cluster Stats
 
-Get comprehensive statistics about the Elasticsearch cluster.
+Get Elasticsearch cluster health, node counts, and index statistics.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -349,9 +396,13 @@ Get comprehensive statistics about the Elasticsearch cluster.
 | `nodes` | object | Node statistics including count and versions |
 | `indices` | object | Index statistics including document count and store size |
 
+</ReferenceDetails>
+
 ### Elasticsearch List Indices
 
 List all indices in the Elasticsearch cluster with their health, status, and statistics.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,5 +423,7 @@ List all indices in the Elasticsearch cluster with their health, status, and sta
 | --------- | ---- | ----------- |
 | `message` | string | Summary message about the indices |
 | `indices` | json | Array of index information objects \(index, health, status, docsCount, storeSize, primaryShards, replicaShards\). System indices are omitted unless includeSystemIndices is set. |
+
+</ReferenceDetails>
 
 

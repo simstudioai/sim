@@ -33,9 +33,6 @@ Recurring execution uses a workflow with a Schedule trigger. Describe the work, 
 - "Every Monday at 9am Europe/London, save a report of last week's workflow run counts."
 - "Add an every-six-hours schedule to the data sync workflow and deploy it."
 - "On the first of each month at 9am America/Los_Angeles, export the billing table to CSV and email it to finance@example.com."
-- "Every weekday at 7am America/New_York, find new funding announcements for companies matching our ideal customer profile and post five to #market-intel."
-- "Every Sunday at 10pm America/New_York, enrich prospects added in the past week and update their scores."
-- "Daily at 6am UTC, summarize the previous day's workflow errors and post the main issues to #eng-alerts."
 
 A Schedule trigger stores the timing configuration, including its cron expression and timezone. The deployed workflow defines what each run does; it can include Agent blocks for reasoning.
 
@@ -88,8 +85,6 @@ Save API keys, connection strings, and configuration under **Secrets**. Choose p
 
 - "Add an OPENAI_API_KEY secret for this workspace."
 - "Set a personal DATABASE_URL connection string."
-- "Add WEBHOOK_SECRET for the inbound webhook workflow."
-- "Update SCORING_API_URL to [endpoint]."
 - "List the configured environment variable names."
 
 Provide secret values through the secure input when requested. Workflows reference environment variables with `{{ENV_VAR}}`; resolution depends on scope, grants, and execution context. See [workflow variables and secrets](/workflows/variables#environment-variables) for those rules.
@@ -110,9 +105,7 @@ Available, permitted tools can be selected for Agent blocks in the workflow buil
 A custom tool combines a JSON parameter schema with a JavaScript function body. Describe its inputs, service call or calculation, and returned value:
 
 - "Create a tool that POSTs to our scoring API at [URL] and returns the score field."
-- "Create a Zendesk tool that opens a ticket with a subject and body."
 - "Create an enrichment tool that takes a domain and returns company size, industry, and funding stage."
-- "Create a CRM tool that looks up a contact by email and returns the account owner."
 
 Add the resulting tool to an Agent block's tools and configure the credentials it needs. Verify it with an input appropriate for its external effects.
 

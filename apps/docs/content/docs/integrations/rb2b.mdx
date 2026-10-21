@@ -4,6 +4,7 @@ description: Identify and enrich website visitors
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="rb2b"
@@ -27,6 +28,8 @@ Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level ide
 
 Check the number of API credits remaining on your RB2B account.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -39,9 +42,13 @@ Check the number of API credits remaining on your RB2B account.
 | --------- | ---- | ----------- |
 | `credits_remaining` | number | Number of API credits remaining on the account |
 
+</ReferenceDetails>
+
 ### RB2B IP to HEM
 
 Convert an IP address (and optional user agent) into hashed email addresses (HEM) with accuracy scores.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +68,13 @@ Convert an IP address (and optional user agent) into hashed email addresses (HEM
 |   ↳ `sha256` | string | SHA-256 hash of the matched email \(only when include_sha256 is true\) |
 |   ↳ `score` | number | Match accuracy score \(0 = probabilistic, 1 = deterministic\) |
 
+</ReferenceDetails>
+
 ### RB2B IP to MAID
 
 Resolve an IP address (and optional user agent) into mobile advertising identifiers (MAIDs) observed over the last 60 days.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +92,13 @@ Resolve an IP address (and optional user agent) into mobile advertising identifi
 |   ↳ `device_id` | string | The mobile advertising identifier |
 |   ↳ `device_type` | string | The identifier type \(e.g. AAID, IDFA\) |
 
+</ReferenceDetails>
+
 ### RB2B IP to Company
 
 Identify the company domains associated with an IP address, ranked by confidence.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -100,9 +115,13 @@ Identify the company domains associated with an IP address, ranked by confidence
 |   ↳ `domain` | string | Company domain associated with the IP |
 |   ↳ `percentage` | string | Confidence percentage for the match |
 
+</ReferenceDetails>
+
 ### RB2B Email/HEM to Business Profile
 
 Return a full business profile (name, title, company, industry, seniority and more) for an email address or MD5-hashed email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +153,13 @@ Return a full business profile (name, title, company, industry, seniority and mo
 | `company_revenue_range` | string | Company revenue range band |
 | `md5` | string | MD5 hash of the resolved email |
 
+</ReferenceDetails>
+
 ### RB2B Email/HEM to Best LinkedIn URL
 
 Return the most recently active LinkedIn profile URL for an email address or MD5-hashed email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -151,9 +174,13 @@ Return the most recently active LinkedIn profile URL for an email address or MD5
 | --------- | ---- | ----------- |
 | `linkedin_url` | string | Best LinkedIn profile URL for the email |
 
+</ReferenceDetails>
+
 ### RB2B Email/HEM to LinkedIn Slug
 
 Return the LinkedIn slug (the profile identifier portion of the URL) for an email address or MD5-hashed email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -168,9 +195,13 @@ Return the LinkedIn slug (the profile identifier portion of the URL) for an emai
 | --------- | ---- | ----------- |
 | `linkedin_slug` | string | LinkedIn slug for the email |
 
+</ReferenceDetails>
+
 ### RB2B Email/HEM to MAID
 
 Return up to five mobile advertising identifiers (MAIDs) associated with an email address or MD5-hashed email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +218,13 @@ Return up to five mobile advertising identifiers (MAIDs) associated with an emai
 |   ↳ `device_id` | string | The mobile advertising identifier |
 |   ↳ `device_type` | string | The identifier type \(e.g. AAID, IDFA\) |
 
+</ReferenceDetails>
+
 ### RB2B Email to Last Active Date
 
 Return the last known active date for an email address.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +244,13 @@ Return the last known active date for an email address.
 | `credits_charged` | number | Credits charged for this request |
 | `credits_exhausted` | boolean | Whether the account is out of credits |
 
+</ReferenceDetails>
+
 ### RB2B LinkedIn to Business Profile
 
 Return a full business profile (name, title, company, emails and more) for a LinkedIn profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -242,9 +281,13 @@ Return a full business profile (name, title, company, emails and more) for a Lin
 |   ↳ `website_url` | string | Company website URL |
 |   ↳ `linkedin_url` | string | Company LinkedIn URL |
 
+</ReferenceDetails>
+
 ### RB2B LinkedIn to Best Personal Email
 
 Return the personal email with the most recent known network activity for a LinkedIn profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -259,9 +302,13 @@ Return the personal email with the most recent known network activity for a Link
 | --------- | ---- | ----------- |
 | `email` | string | Best personal email for the LinkedIn profile |
 
+</ReferenceDetails>
+
 ### RB2B LinkedIn to Personal Email
 
 Return the personal email addresses associated with a LinkedIn profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +323,13 @@ Return the personal email addresses associated with a LinkedIn profile.
 | --------- | ---- | ----------- |
 | `emails` | array | Personal email addresses for the LinkedIn profile |
 
+</ReferenceDetails>
+
 ### RB2B LinkedIn to Hashed Emails
 
 Return the business and personal hashed emails (MD5 and SHA-256) associated with a LinkedIn profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -297,9 +348,13 @@ Return the business and personal hashed emails (MD5 and SHA-256) associated with
 | `personal_md5_array` | array | MD5 hashes of personal emails |
 | `personal_sha256_array` | array | SHA-256 hashes of personal emails |
 
+</ReferenceDetails>
+
 ### RB2B LinkedIn to Mobile Phone
 
 Return the mobile phone number with the most recent known network activity for a LinkedIn profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -314,9 +369,13 @@ Return the mobile phone number with the most recent known network activity for a
 | --------- | ---- | ----------- |
 | `mobile_phone` | string | Mobile phone number for the LinkedIn profile |
 
+</ReferenceDetails>
+
 ### RB2B LinkedIn Slug Search
 
 Find a LinkedIn profile URL from a first name, last name, and company domain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -332,5 +391,7 @@ Find a LinkedIn profile URL from a first name, last name, and company domain.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `linkedin_url` | string | LinkedIn profile URL for the person |
+
+</ReferenceDetails>
 
 

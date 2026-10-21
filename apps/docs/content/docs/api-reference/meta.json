@@ -2,7 +2,7 @@
   "title": "API Reference",
   "root": true,
   "pages": [
-    "---Getting Started---",
+    "---Getting started---",
     "getting-started",
     "authentication",
     "---SDKs---",

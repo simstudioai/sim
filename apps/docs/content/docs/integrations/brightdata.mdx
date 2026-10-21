@@ -4,6 +4,7 @@ description: Scrape websites, search engines, and extract structured data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="brightdata"
@@ -25,6 +26,8 @@ Scrape any URL with Web Unlocker, search Google and other engines with SERP API,
 
 Fetch page content with Bright Data Web Unlocker, including its supported anti-bot, CAPTCHA, and IP-block handling. Access depends on the target site and zone configuration.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -44,9 +47,13 @@ Fetch page content with Bright Data Web Unlocker, including its supported anti-b
 | `url` | string | The URL that was scraped |
 | `statusCode` | number | HTTP status code of the response |
 
+</ReferenceDetails>
+
 ### Bright Data SERP Search
 
 Search Google, Bing, DuckDuckGo, or Yandex and get structured search results using Bright Data SERP API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +79,13 @@ Search Google, Bing, DuckDuckGo, or Yandex and get structured search results usi
 | `query` | string | The search query that was executed |
 | `searchEngine` | string | The search engine that was used |
 
+</ReferenceDetails>
+
 ### Bright Data Discover
 
 AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +114,13 @@ AI-powered web discovery that finds and ranks results by intent. Returns up to 2
 | `query` | string | The search query that was executed |
 | `totalResults` | number | Total number of results returned |
 
+</ReferenceDetails>
+
 ### Bright Data Sync Scrape
 
 Scrape URLs synchronously using a Bright Data pre-built scraper and get structured results directly. Supports up to 20 URLs with a 1-minute timeout.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,9 +140,13 @@ Scrape URLs synchronously using a Bright Data pre-built scraper and get structur
 | `snapshotId` | string | Snapshot ID returned if the request exceeded the 1-minute timeout and switched to async processing |
 | `isAsync` | boolean | Whether the request fell back to async mode \(true means use snapshot ID to retrieve results\) |
 
+</ReferenceDetails>
+
 ### Bright Data Scrape Dataset
 
 Trigger a Bright Data pre-built scraper to extract structured data from URLs. Supports 660+ scrapers for platforms like Amazon, LinkedIn, Instagram, and more.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +165,13 @@ Trigger a Bright Data pre-built scraper to extract structured data from URLs. Su
 | `snapshotId` | string | The snapshot ID to retrieve results later |
 | `status` | string | Status of the scraping job \(e.g., "triggered", "running"\) |
 
+</ReferenceDetails>
+
 ### Bright Data Snapshot Status
 
 Check the progress of an async Bright Data scraping job. Returns status: starting, running, ready, or failed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -165,9 +188,13 @@ Check the progress of an async Bright Data scraping job. Returns status: startin
 | `datasetId` | string | The dataset ID associated with this snapshot |
 | `status` | string | Current status of the snapshot: "starting", "running", "ready", or "failed" |
 
+</ReferenceDetails>
+
 ### Bright Data Download Snapshot
 
 Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +213,13 @@ Download the results of a completed Bright Data scraping job using its snapshot 
 | `format` | string | The content type of the downloaded data |
 | `snapshotId` | string | The snapshot ID that was downloaded |
 
+</ReferenceDetails>
+
 ### Bright Data Cancel Snapshot
 
 Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -203,5 +234,7 @@ Cancel an active Bright Data scraping job using its snapshot ID. Terminates data
 | --------- | ---- | ----------- |
 | `snapshotId` | string | The snapshot ID that was cancelled |
 | `cancelled` | boolean | Whether the cancellation was successful |
+
+</ReferenceDetails>
 
 

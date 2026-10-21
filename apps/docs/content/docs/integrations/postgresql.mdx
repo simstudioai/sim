@@ -4,6 +4,7 @@ description: Connect to PostgreSQL database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="postgresql"
@@ -149,6 +150,8 @@ Execute raw SQL query on PostgreSQL database
 
 Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -189,5 +192,7 @@ Introspect PostgreSQL database schema to retrieve table structures, columns, and
 |     ↳ `columns` | array | Columns included in the index |
 |     ↳ `unique` | boolean | Whether the index enforces uniqueness |
 | `schemas` | array | List of available schemas in the database |
+
+</ReferenceDetails>
 
 

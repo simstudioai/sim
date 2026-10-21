@@ -4,6 +4,7 @@ description: Access meeting notes, transcripts, and audit events from Granola
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="granola"
@@ -26,6 +27,8 @@ Integrate Granola into your workflow to retrieve meeting notes, summaries, atten
 ### Granola List Notes
 
 Lists meeting notes from Granola with optional date filters and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -53,9 +56,13 @@ Lists meeting notes from Granola with optional date filters and pagination.
 | `hasMore` | boolean | Whether more notes are available |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola Get Note
 
 Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +106,13 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 |   ↳ `startTime` | string | Segment start time |
 |   ↳ `endTime` | string | Segment end time |
 
+</ReferenceDetails>
+
 ### Granola Get Transcript
 
 Retrieves a meeting transcript from Granola one page at a time, including when Get Note reports the transcript is too large to return inline.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +138,13 @@ Retrieves a meeting transcript from Granola one page at a time, including when G
 | `hasMore` | boolean | Whether another page of transcript items is available |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola List Folders
 
 Lists folders from Granola, sorted alphabetically, with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +165,13 @@ Lists folders from Granola, sorted alphabetically, with pagination.
 | `hasMore` | boolean | Whether more folders are available |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola List Audit Events
 
 Lists workspace audit events from Granola, with optional action and date filters. Events are returned in collection order and retained for one year.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -184,9 +203,13 @@ Lists workspace audit events from Granola, with optional action and date filters
 | `hasMore` | boolean | Whether more audit events are available. A page can hold fewer than pageSize events and still not be the last one. |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola Create Webhook Endpoint
 
 Registers an HTTPS URL in Granola to receive note event deliveries. The signing secret is returned only by this operation and cannot be retrieved later.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,9 +237,13 @@ Registers an HTTPS URL in Granola to receive note event deliveries. The signing 
 | `createdAt` | string | Creation timestamp |
 | `signingSecret` | string | Secret for verifying delivery signatures \(Standard Webhooks HMAC-SHA256\). Returned only here — store it securely. |
 
+</ReferenceDetails>
+
 ### Granola List Webhook Endpoints
 
 Lists the Granola webhook endpoints the API key can manage. A personal key sees the endpoints it created; a workspace admin sees every endpoint in the workspace. Signing secrets are never included.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -240,9 +267,13 @@ Lists the Granola webhook endpoints the API key can manage. A personal key sees 
 |   ↳ `enabled` | boolean | Whether deliveries are active |
 |   ↳ `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Granola Update Webhook Endpoint
 
 Updates a Granola webhook endpoint. Each supplied field replaces its current value; omitted fields are left unchanged. Use enabled to pause or resume deliveries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -271,9 +302,13 @@ Updates a Granola webhook endpoint. Each supplied field replaces its current val
 | `enabled` | boolean | Whether deliveries are active |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Granola Delete Webhook Endpoint
 
 Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediately.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -288,6 +323,8 @@ Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediat
 | --------- | ---- | ----------- |
 | `id` | string | ID of the deleted webhook endpoint |
 | `deleted` | boolean | Whether the endpoint was deleted |
+
+</ReferenceDetails>
 
 
 

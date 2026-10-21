@@ -4,6 +4,7 @@ description: Search and retrieve book information
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="google_books"
@@ -24,6 +25,8 @@ Search for books using the Google Books API. Find volumes by title, author, ISBN
 ### Google Books Volume Search
 
 Search for books using the Google Books API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,6 +64,8 @@ Search for books using the Google Books API
 |   ↳ `thumbnailUrl` | string | Book cover thumbnail URL |
 |   ↳ `isbn10` | string | ISBN-10 identifier |
 |   ↳ `isbn13` | string | ISBN-13 identifier |
+
+</ReferenceDetails>
 
 ### Google Books Volume Details
 

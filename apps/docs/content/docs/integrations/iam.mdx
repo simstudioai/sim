@@ -4,6 +4,7 @@ description: Manage AWS IAM users, roles, policies, and groups
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="iam"
@@ -29,6 +30,8 @@ Create and manage users, roles, policies, groups, and access keys.
 
 List IAM users in your AWS account
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -49,9 +52,13 @@ List IAM users in your AWS account
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of users returned |
 
+</ReferenceDetails>
+
 ### IAM Get User
 
 Get detailed information about an IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +82,13 @@ Get detailed information about an IAM user
 | `permissionsBoundaryArn` | string | ARN of the permissions boundary policy |
 | `tags` | json | Tags attached to the user \(key, value pairs\) |
 
+</ReferenceDetails>
+
 ### IAM Create User
 
 Create a new IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -100,9 +111,13 @@ Create a new IAM user
 | `path` | string | The path of the created user |
 | `createDate` | string | Date the user was created |
 
+</ReferenceDetails>
+
 ### IAM Delete User
 
 Delete an IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +134,13 @@ Delete an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM List Roles
 
 List IAM roles in your AWS account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +162,13 @@ List IAM roles in your AWS account
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of roles returned |
 
+</ReferenceDetails>
+
 ### IAM Get Role
 
 Get detailed information about an IAM role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +194,13 @@ Get detailed information about an IAM role
 | `roleLastUsedDate` | string | Date the role was last used |
 | `roleLastUsedRegion` | string | AWS region where the role was last used |
 
+</ReferenceDetails>
+
 ### IAM Create Role
 
 Create a new IAM role with a trust policy
+
+<ReferenceDetails>
 
 #### Input
 
@@ -199,9 +226,13 @@ Create a new IAM role with a trust policy
 | `path` | string | The path of the created role |
 | `createDate` | string | Date the role was created |
 
+</ReferenceDetails>
+
 ### IAM Delete Role
 
 Delete an IAM role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -218,9 +249,13 @@ Delete an IAM role
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM Attach User Policy
 
 Attach a managed policy to an IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -237,11 +272,15 @@ Attach a managed policy to an IAM user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
+
+</ReferenceDetails>
 
 ### IAM Detach User Policy
 
 Remove a managed policy from an IAM user
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -258,9 +297,13 @@ Remove a managed policy from an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM Attach Role Policy
 
 Attach a managed policy to an IAM role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -278,9 +321,13 @@ Attach a managed policy to an IAM role
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM Detach Role Policy
 
 Remove a managed policy from an IAM role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -298,9 +345,13 @@ Remove a managed policy from an IAM role
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM List Policies
 
 List managed IAM policies
+
+<ReferenceDetails>
 
 #### Input
 
@@ -324,9 +375,13 @@ List managed IAM policies
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of policies returned |
 
+</ReferenceDetails>
+
 ### IAM Get Policy
 
 Get details about a managed IAM policy, including its description — the field ListPolicies never returns
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +409,13 @@ Get details about a managed IAM policy, including its description — the field 
 | `permissionsBoundaryUsageCount` | number | Number of entities using the policy as a permissions boundary |
 | `tags` | json | Tags attached to the policy \(key, value pairs\) |
 
+</ReferenceDetails>
+
 ### IAM Create Access Key
 
 Create a new access key pair for an IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -378,9 +437,13 @@ Create a new access key pair for an IAM user
 | `status` | string | Status of the access key \(Active\) |
 | `createDate` | string | Date the key was created |
 
+</ReferenceDetails>
+
 ### IAM Delete Access Key
 
 Delete an access key pair for an IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -398,9 +461,13 @@ Delete an access key pair for an IAM user
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM List Access Keys
 
 List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,9 +489,13 @@ List an IAM user's access key IDs with their status and age — use to find stal
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of access keys returned |
 
+</ReferenceDetails>
+
 ### IAM Update Access Key
 
 Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +514,13 @@ Activate or deactivate an IAM access key — deactivate an old key and verify no
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM List Groups
 
 List IAM groups in your AWS account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,9 +542,13 @@ List IAM groups in your AWS account
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of groups returned |
 
+</ReferenceDetails>
+
 ### IAM Add User to Group
 
 Add an IAM user to a group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -486,11 +565,15 @@ Add an IAM user to a group
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
+
+</ReferenceDetails>
 
 ### IAM Remove User from Group
 
 Remove an IAM user from a group
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -507,9 +590,13 @@ Remove an IAM user from a group
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### IAM List Attached Role Policies
 
 List all managed policies attached to an IAM role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -532,9 +619,13 @@ List all managed policies attached to an IAM role
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of attached policies returned |
 
+</ReferenceDetails>
+
 ### IAM List Attached User Policies
 
 List all managed policies attached to an IAM user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -557,9 +648,13 @@ List all managed policies attached to an IAM user
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of attached policies returned |
 
+</ReferenceDetails>
+
 ### IAM Simulate Principal Policy
 
 Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks
+
+<ReferenceDetails>
 
 #### Input
 
@@ -583,5 +678,7 @@ Simulate whether a user, role, or group is allowed to perform specific AWS actio
 | `isTruncated` | boolean | Whether there are more results available |
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of evaluation results returned |
+
+</ReferenceDetails>
 
 

@@ -2,9 +2,9 @@
 
 Audited from staging snapshot `4d2fa26f5de0532048487a94bbe1afc744500dfe`, beginning 2026-10-13. Rebased onto `origin/staging` at `9058427155` and reviewed the 20 intervening commits before final validation. The [editorial guide](EDITORIAL_GUIDE.md) defines the final voice, terminology, organization, media, and generated-source rules.
 
-## Scope and method
+## Original copy pass: scope and method
 
-The inventory contains **484 entries**: 153 authored MDX pages, 28 generated CLI references, and 303 generated API operations. One authored entry is the root redirect, leaving 483 readable routes. All 306 integration pages are excluded from copy changes, but their links and shared component/asset dependencies are checked.
+The inventory contains **484 entries**: 153 authored MDX pages, 28 generated CLI references, and 303 generated API operations. One authored entry is the root redirect, leaving 483 readable routes. That original pass excluded 306 integration pages from copy changes while checking their links and shared dependencies. The later complete integration review is recorded in [INTEGRATIONS_AUDIT.md](INTEGRATIONS_AUDIT.md).
 
 Each section received a complete audit before rewriting. Reviewers read the entire assigned copy, retained a per-page ledger, compared consequential claims with the owning implementation, checked examples and limits, inspected local media, and used current primary documentation for external setup. Repeated generated schema prose was read once per unique value while retaining every operation-to-field relationship. This is a documentation accuracy review, not proof of a live hosted configuration or an exhaustive security review.
 
@@ -14,7 +14,7 @@ Useful facts are retained or moved to a linked canonical owner. Changes remove r
 
 The original copy often contained useful technical detail, but placed it behind repeated benefits, broad promises, FAQs, and screenshots of ordinary controls. Pages mixed concepts, setup, reference, and troubleshooting in different orders. The final standard uses a short task-focused opening, sentence-case headings, exact visible labels, and a consistent order for each page type. It preserves detailed references where brevity would hide a requirement or failure consequence.
 
-## Coverage
+## Original copy pass: coverage
 
 | Section | Entries | Disposition |
 | --- | ---: | --- |
@@ -71,6 +71,42 @@ A fresh parallel review compared every complete original page with its final ver
 The final source pass also reviewed the later Chat content-delivery gate, crawler/Markdown changes, and shared file-ownership foundation from staging. Workspace access, search completeness, sharing, storage and retention wording remain supported. Newly added Project foundations are not described as a released Project Files surface. Integration landing backlinks and per-page Markdown are preserved.
 
 ## Components and asset cleanup
+
+### October 20 visual refinement
+
+Current source inventory after staging sync: 490 MDX files, including 308 integration pages, and 33 article image uses. Counts in the dated follow-ups below describe the checks at that stage. The final font review removed the article and footer Season overrides: body copy and navigation retain the existing Inter family, while existing shared controls retain their established typography.
+
+#### Final pre-ship review
+
+- Removed the partial font-family change, verified the Browser settings bottom-edge crop, and checked that all 33 image uses match their overview/detail purpose. Removed two WebP substitutions that were larger than their originals; the media viewer retains source PNGs for zoom fidelity.
+- Rebased the documentation work onto current staging without unrelated release commits. Reviewed the newly added Help Scout reference, removed its repeated capability list and closing promotion, and retained authentication, webhook-signature, connector, and field details. Its action and trigger tables use the shared disclosures.
+- Current-source typography checks pass at 320, 390, 768, and 1280px across Desktop, Editor, and Help Scout, with matching article/navigation font families and no document overflow. The hydrated shared media viewer preserves its background at 125% zoom, closes with Escape or image activation, and restores focus to its trigger; desktop and phone layouts were inspected in a focused component preview.
+- React cleanup found no additional effect/state/query issues. API request panels stay mounted to avoid repeating syntax highlighting when switching languages; disclosure controls have 44px touch targets. Full repository validation remains assigned to CI.
+
+#### Markdown examples follow-up
+
+- Replaced the Files overview with a current Sim Desktop capture of Chat reviewing a Markdown release brief, including a real checklist, owner table, and JSON block. Added focused table-toolbar and code-control captures to the editor guide. The overview retains the bottom-edge crop; control details use the shared inset frame and architecture background. The Chat files guide keeps its simpler release-notes example.
+- Created a small fictional document through Chat and inspected the actual rendered output. Shortened its sample names and metadata before capture. No UI was fabricated, no file was publicly shared, and no integration or deployment settings changed.
+- Read both complete pages, kept their limits and access rules, and made the editor introduction include Chat. Verified the table's fixed header and disabled column resizing in the editor configuration, keyboard access to the table toolbar, and the JSON language control. Added the existing line-wrap and copy controls to the code-block instructions.
+- Both affected MDX pages compile. All 33 article image uses across 489 MDX source files resolve with matching dimensions. All 18 local links from these pages resolve, including the generated bulk-download API page verified in the browser. Files and Editor passed 44 page/theme/viewport checks at 320, 390, 639, 640, 767, 768, 1023, 1024, 1279, 1280, and 1536px, with no document overflow, unloaded images, or image distortion. Desktop and phone compositions were visually inspected.
+- Verification used the lightweight current-source preview. The final production build, full type checks, audits, and test suites remain deferred to CI; no heavy local checks were run.
+
+#### Chat context follow-up
+
+- Replaced standalone Files, Tables, and first-run overview captures with genuine Sim Desktop views that keep the conversation beside the resource. Files and workflow captures were taken again; Tables reuses the approved introduction's Chat/table composition. The grayscale scenery and bottom-edge crop remain intact. The file editor, connection picker, settings, and provider setup images retain focused views where their controls explain the task.
+- Applied the captures to Files, Tables, Getting started, Sim Desktop, and the Chat file/workflow guides. Getting started now leads with a concise Chat request and retains the complete manual builder procedure, model prerequisites, sample output, and failure recovery. Resource overviews link to their corresponding Chat guide.
+- Read the complete affected pages and shortened repetitive prompt lists across Chat's files, workflows, tables, knowledge, actions, and research guides. Kept permissions, content-withholding behavior, write-versus-result distinctions, scheduling/deployment semantics, limits, syntax, and recovery instructions. Removed a dated model-swap example without replacing it with an unverified model recommendation.
+- Verified the composer's **+** resource picker in Sim Desktop: selecting the example file adds its reference and opens the file beside Chat. The source's `handleContextAdd` and `resolveResourceFromContext` agree. Cleared the temporary composer reference without sending it or modifying the file. The workflow capture displays an existing successful execution; no workflow was deployed or rerun for this follow-up.
+- Lightweight checks: all 11 affected MDX pages compile; all 31 image uses across 489 source MDX files resolve with matching intrinsic dimensions; the docs manifest and `git diff --check` pass. Current-source previews use the actual shared components and prose styles. Browser checks cover 81 page/viewport combinations, including 320, 390, both sides of 640/768/1024/1280, and 1536px, with no document overflow or image distortion. Below-fold lazy images were checked after scrolling them into view. Light and dark captures were inspected.
+- This follow-up did not run a full local build or repository-wide tests, per request. The current-source preview is static and does not hydrate the media viewer; the existing production preview predates these final copy changes. Final production compilation and full test suites remain for CI.
+
+The initial visual pass covered 489 MDX files, including integration references and the root redirect. Its 29 article screenshots used the shared branded `Image` treatment. Overview and result captures extend to the frame's bottom edge; focused controls and complete dialogs retain their inset. Current desktop captures now cover Chat, Getting started, Tables, Files, the editor toolbar, the connection picker, integrations, browser settings, and run logs. Retained provider and enterprise screenshots use optimized assets with verified intrinsic dimensions.
+
+The remaining navigation cards on Workflows, Deployment, and Self-hosting became concise links or comparison tables. The Connections video depended on a configured CDN and rendered an empty frame in the local build; a current reference-picker capture replaces it. Its unused video component and URL helper were removed. The 39 interactive workflow examples remain where they explain execution or data flow.
+
+Verification for this final pass: 56 affected MDX files compile; all 29 screenshot dimensions and source assets resolve; generated integration docs and the docs manifest are current; scoped formatting and diff checks pass. Browser checks cover eight representative updated pages at actual 320, 390, 768, and 1280-pixel widths, plus expanded reference tables, keyboard activation, and direct heading links. Current-source previews use the real MDX components and page tokens without a full Next build or client hydration. Full builds, type checks, and the repository test suite are deferred to CI at the user's request; earlier production checks below do not validate these later edits.
+
+### Earlier copy pass
 
 Shared navigation and API UI labels follow sentence case while preserving acronyms and product names. Authored tabs use a local wrapper around Fumadocs selection and keyboard behavior: mixed panels keep their inset, single code fences fill the frame, and mobile tab lists scroll with 44px targets. SSO provider anchors use native explicit triggers with `aria-controls` matching their panel IDs; keyboard navigation, selection, and bookmarked activation remain native. The shared tab frame uses the actual header/TOC row offset when scrolling a bookmarked panel into view. The compact drawer uses 30px visible chip faces within 44px mobile touch targets, aligned full-width dividers, and the shared section order. TOC/header rows reserve their actual heights at mobile/tablet breakpoints; prose wraps without changing intentional code/table scrolling. API method badges use existing platform surface and text tokens instead of custom color overrides. Integration MDX content remains unchanged. The final pass removes the unused ActionMedia component and its local styling, three unused workflow-preview definitions/exports, and 111 local media files (15,187,771 bytes). Every removed asset belonged to an originally reviewed page and had no basename consumer in current repository source, including integrations and application code. Shared components and media with other consumers remain. Remote media was removed from pages only; no remote assets were deleted.
 

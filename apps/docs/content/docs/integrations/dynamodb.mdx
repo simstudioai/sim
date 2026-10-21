@@ -4,6 +4,7 @@ description: Get, put, query, scan, update, and delete items in Amazon DynamoDB 
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="dynamodb"
@@ -25,6 +26,8 @@ Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on Dyn
 
 Get an item from a DynamoDB table by primary key
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -43,9 +46,13 @@ Get an item from a DynamoDB table by primary key
 | `message` | string | Operation status message |
 | `item` | json | Retrieved item |
 
+</ReferenceDetails>
+
 ### DynamoDB Put
 
 Put an item into a DynamoDB table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,9 +74,13 @@ Put an item into a DynamoDB table
 | `message` | string | Operation status message |
 | `item` | json | Created item |
 
+</ReferenceDetails>
+
 ### DynamoDB Query
 
 Query items from a DynamoDB table using key conditions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +108,13 @@ Query items from a DynamoDB table using key conditions
 | `count` | number | Number of items returned |
 | `lastEvaluatedKey` | json | Pagination token to pass as exclusiveStartKey to fetch the next page of results |
 
+</ReferenceDetails>
+
 ### DynamoDB Scan
 
 Scan all items in a DynamoDB table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,9 +140,13 @@ Scan all items in a DynamoDB table
 | `count` | number | Number of items returned |
 | `lastEvaluatedKey` | json | Pagination token to pass as exclusiveStartKey to fetch the next page of results |
 
+</ReferenceDetails>
+
 ### DynamoDB Update
 
 Update an item in a DynamoDB table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +169,13 @@ Update an item in a DynamoDB table
 | `message` | string | Operation status message |
 | `item` | json | Updated item with all attributes |
 
+</ReferenceDetails>
+
 ### DynamoDB Delete
 
 Delete an item from a DynamoDB table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -173,9 +196,13 @@ Delete an item from a DynamoDB table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### DynamoDB Introspect
 
 Introspect DynamoDB to list tables or get detailed schema information for a specific table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,5 +220,7 @@ Introspect DynamoDB to list tables or get detailed schema information for a spec
 | `message` | string | Operation status message |
 | `tables` | array | List of table names in the region |
 | `tableDetails` | json | Detailed schema information for a specific table |
+
+</ReferenceDetails>
 
 

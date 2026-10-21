@@ -4,6 +4,7 @@ description: Manage Google Tasks
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="google_tasks"
@@ -73,6 +74,8 @@ Create a new task in a Google Tasks list
 
 List all tasks in a Google Tasks list
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -112,6 +115,8 @@ List all tasks in a Google Tasks list
 |     ↳ `description` | string | Link description |
 |     ↳ `link` | string | The URL |
 | `nextPageToken` | string | Token for retrieving the next page of results |
+
+</ReferenceDetails>
 
 ### Google Tasks Get Task
 

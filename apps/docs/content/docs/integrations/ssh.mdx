@@ -4,6 +4,7 @@ description: Connect to remote servers via SSH
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="ssh_v2"
@@ -26,6 +27,8 @@ Execute commands, transfer files, and manage remote servers via SSH. Supports pa
 ### SSH Execute Command
 
 Execute a shell command on a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -50,9 +53,13 @@ Execute a shell command on a remote SSH server
 | `success` | boolean | Whether command succeeded \(exit code 0\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Execute Script
 
 Upload and execute a multi-line script on a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +86,13 @@ Upload and execute a multi-line script on a remote SSH server
 | `scriptPath` | string | Temporary path where script was uploaded |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Check Command Exists
 
 Check if a command/program exists on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +115,13 @@ Check if a command/program exists on the remote SSH server
 | `version` | string | Command version output \(if applicable\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Upload File
 
 Upload a file to a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -133,9 +148,13 @@ Upload a file to a remote SSH server
 | `size` | number | File size in bytes |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Download File
 
 Download a file from a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -156,9 +175,13 @@ Download a file from a remote SSH server
 | `file` | file | Downloaded file stored in execution files |
 | `remotePath` | string | Source path on the remote server |
 
+</ReferenceDetails>
+
 ### SSH List Directory
 
 List files and directories in a remote directory
+
+<ReferenceDetails>
 
 #### Input
 
@@ -188,9 +211,13 @@ List files and directories in a remote directory
 | `totalDirectories` | number | Total number of directories |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Check File Exists
 
 Check if a file or directory exists on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -216,9 +243,13 @@ Check if a file or directory exists on the remote SSH server
 | `modified` | string | Last modified timestamp |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Create Directory
 
 Create a directory on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -243,9 +274,13 @@ Create a directory on the remote SSH server
 | `alreadyExists` | boolean | Whether the directory already existed |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Delete File
 
 Delete a file or directory from the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -269,9 +304,13 @@ Delete a file or directory from the remote SSH server
 | `remotePath` | string | Deleted path |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Move/Rename
 
 Move or rename a file or directory on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -296,9 +335,13 @@ Move or rename a file or directory on the remote SSH server
 | `destinationPath` | string | New path |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Get System Info
 
 Retrieve system information from the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +366,13 @@ Retrieve system information from the remote SSH server
 | `diskSpace` | json | Disk space information \(total, free, used\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Read File Content
 
 Read the contents of a remote file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,9 +398,13 @@ Read the contents of a remote file
 | `remotePath` | string | Remote file path |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Write File Content
 
 Write or append content to a remote file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -378,5 +429,7 @@ Write or append content to a remote file
 | `remotePath` | string | File path |
 | `size` | number | Final file size in bytes |
 | `message` | string | Operation status message |
+
+</ReferenceDetails>
 
 

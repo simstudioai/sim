@@ -1,9 +1,7 @@
 ---
-title: Knowledge Base
+title: Knowledge bases
 description: Store documents that your agents can search and use in their answers.
 ---
-
-import { Card, Cards } from 'fumadocs-ui/components/card'
 
 A **knowledge base** stores documents for your agents to search. Sim extracts their text, splits it into passages called chunks, and creates embeddings: numerical representations used to match a question to relevant content. The [Knowledge block](/knowledgebase/using-in-workflows) retrieves those chunks for an Agent to use in its answer.
 
@@ -11,7 +9,7 @@ Upload files for a fixed collection, or use a [connector](/knowledgebase/connect
 
 ## Create a knowledge base
 
-1. Open **Knowledge Base** in your workspace and choose **New base**.
+1. Open **Knowledge bases** in the sidebar and select **New base**.
 2. Enter a name and, optionally, a description. Leave **Chunking Strategy** on **Auto** unless you need different boundaries. See [chunking strategies](/knowledgebase/chunking-strategies) for the settings.
 3. Add files when creating the base, or open it and choose **New documents**.
 4. Wait for processing to finish before searching. A successful upload starts processing; it does not mean the document is indexed yet.
@@ -60,11 +58,9 @@ A query search across multiple bases requires the same embedding model and dimen
 
 ## Related docs
 
-<Cards>
-  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="Configure retrieval and pass chunks to an Agent." />
-  <Card title="Connectors" href="/knowledgebase/connectors" description="Sync documents and manage source access." />
-  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Define metadata and narrow a search." />
-  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Check missing, irrelevant, or duplicate results." />
-  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="Choose passage sizes and boundaries." />
-  <Card title="Export" href="/knowledgebase/export-import" description="Download documents, chunks, tags, and settings." />
-</Cards>
+- [Using a knowledge base in a workflow](/knowledgebase/using-in-workflows) for retrieval and Agent setup
+- [Connectors](/knowledgebase/connectors) for syncing documents from external sources
+- [Tags and filtering](/knowledgebase/tags) for narrowing a search
+- [Debugging retrieval](/knowledgebase/debugging-retrieval) for missing or irrelevant results
+- [Chunking strategies](/knowledgebase/chunking-strategies) for passage sizes and boundaries
+- [Export](/knowledgebase/export-import) for downloading documents, chunks, tags, and settings

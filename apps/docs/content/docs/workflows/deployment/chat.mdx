@@ -5,7 +5,6 @@ description: Share a workflow as a chat with selected outputs, attachments, and 
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from '@/components/ui/tabs'
-import { Image } from '@/components/ui/image'
 
 Deploy a workflow as a chat page, then share its link or embed it in your site. Each message starts a fresh workflow run using the active deployment.
 
@@ -51,9 +50,7 @@ The hosted client also negotiates structured output frames for non-text values s
 Public access allows anonymous people to run the workflow. Review what its input can trigger and what its selected outputs reveal before sharing the link.
 </Callout>
 
-For **Password**, set and share the password with intended callers. For **Email**, add individual addresses such as `user@example.com` or domains such as `@example.com` to **Allowed emails**:
-
-<Image src="/static/chat/chat-deploy-access-email.png" alt="Email access control with an allowed domain entered" width={800} height={386} className="mx-auto h-auto w-full max-w-sm" />
+For **Password**, set and share the password with intended callers. For **Email**, add individual addresses such as `user@example.com` or domains such as `@example.com` to **Allowed emails**.
 
 OTP codes expire after 15 minutes. The hosted UI uses a 30-second resend countdown; server request limits still apply. Verification creates an authentication cookie for subsequent chat requests.
 

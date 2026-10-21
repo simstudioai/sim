@@ -4,6 +4,7 @@ description: Manage customers, sales pipelines, and support cases in Dynamics 36
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="microsoft_dynamics_365"
@@ -51,6 +52,8 @@ Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API
 
 Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -78,9 +81,13 @@ Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filt
 | `nextPageSize` | number | Page size that must accompany nextLink on the continuation request |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Microsoft Dynamics 365 CRM Record
 
 Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -100,9 +107,13 @@ Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Sup
 | `recordId` | string | The requested record ID |
 | `success` | boolean | Whether the record was retrieved successfully |
 
+</ReferenceDetails>
+
 ### Create Microsoft Dynamics 365 CRM Record
 
 Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +131,13 @@ Create a new supported standard Microsoft Dynamics 365 CRM record using Datavers
 | `recordId` | string | The ID of the created record |
 | `success` | boolean | Whether the record was created successfully |
 
+</ReferenceDetails>
+
 ### Update Microsoft Dynamics 365 CRM Record
 
 Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -140,9 +155,13 @@ Update an existing supported standard Microsoft Dynamics 365 CRM record. Only se
 | `recordId` | string | The ID of the updated record |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Search Microsoft Dynamics 365 CRM Records
 
 Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +194,13 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 | `facets` | object | Facet results when facets were requested. Keys are facet names, values are arrays of facet value objects with count and value properties. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Qualify Microsoft Dynamics 365 Lead
 
 Qualify a Dynamics 365 Sales lead and optionally create linked account, contact, and opportunity records.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -203,9 +226,13 @@ Qualify a Dynamics 365 Sales lead and optionally create linked account, contact,
 | `createdEntities` | array | Entity references returned by Dataverse for records created while qualifying the lead |
 | `success` | boolean | Whether the lead was qualified successfully |
 
+</ReferenceDetails>
+
 ### Close Microsoft Dynamics 365 Opportunity
 
 Close a Dynamics 365 Sales opportunity as won or lost.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +253,13 @@ Close a Dynamics 365 Sales opportunity as won or lost.
 | `outcome` | string | The applied opportunity outcome: won or lost |
 | `success` | boolean | Whether the opportunity was closed successfully |
 
+</ReferenceDetails>
+
 ### Close Microsoft Dynamics 365 Case
 
 Resolve and close a Dynamics 365 Customer Service case.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -247,5 +278,7 @@ Resolve and close a Dynamics 365 Customer Service case.
 | --------- | ---- | ----------- |
 | `caseId` | string | GUID of the closed case |
 | `success` | boolean | Whether the case was closed successfully |
+
+</ReferenceDetails>
 
 

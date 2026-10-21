@@ -4,6 +4,7 @@ description: Forward workflow runs to LangSmith for observability
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="langsmith"
@@ -24,6 +25,8 @@ Send run data to LangSmith to trace executions, attach metadata, and monitor wor
 ### LangSmith Create Run
 
 Forward a single run to LangSmith for ingestion.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -55,6 +58,8 @@ Forward a single run to LangSmith for ingestion.
 | `accepted` | boolean | Whether the run was accepted for ingestion |
 | `runId` | string | Run identifier provided in the request |
 | `message` | string | Response message from LangSmith |
+
+</ReferenceDetails>
 
 ### LangSmith Create Runs Batch
 

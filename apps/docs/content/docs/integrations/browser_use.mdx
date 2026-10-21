@@ -4,6 +4,7 @@ description: Run browser automation tasks
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="browser_use"
@@ -24,6 +25,8 @@ Run a browser task from natural-language instructions to navigate pages, interac
 ### Browser Use
 
 Runs a browser automation task using BrowserUse
+
+<ReferenceDetails>
 
 #### Input
 
@@ -64,5 +67,7 @@ Runs a browser automation task using BrowserUse
 | `liveUrl` | string | Embeddable live browser session URL \(active during execution\) |
 | `shareUrl` | string | Public shareable URL for the recorded session \(post-run\) |
 | `sessionId` | string | Browser Use session identifier |
+
+</ReferenceDetails>
 
 

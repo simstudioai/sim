@@ -4,6 +4,7 @@ description: Manage Zoho Desk tickets, replies, contacts, and accounts
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="zoho_desk"
@@ -22,6 +23,8 @@ Trigger mode starts workflows from Zoho Desk events. Sim creates the webhook sub
 Interactive OAuth, which triggers require, supports the US data center only. Blocks can instead use a [Self Client](/integrations/zoho-desk-service-account) for US, EU, India, or Australia. Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by these connections.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [Self clients](/integrations/zoho-desk-service-account).
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -62,6 +65,8 @@ Create, search, and update Zoho Desk tickets, contacts, and accounts; send email
 ### Zoho Desk List Tickets
 
 List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +126,13 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 | `count` | number | Number of tickets returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Ticket
 
 Retrieve a single Zoho Desk ticket by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +180,13 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Update Ticket
 
 Update fields on an existing Zoho Desk ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -246,9 +259,13 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Comments
 
 List comments on a Zoho Desk ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -289,9 +306,13 @@ List comments on a Zoho Desk ticket.
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of comments returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Add Comment
 
 Add a comment to a Zoho Desk ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +352,13 @@ Add a comment to a Zoho Desk ticket.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Threads
 
 List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -388,9 +413,13 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of threads returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Thread
 
 Retrieve the full content of a single Zoho Desk ticket thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +472,13 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Contact
 
 Retrieve a Zoho Desk contact by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -479,9 +512,13 @@ Retrieve a Zoho Desk contact by ID.
 |   ↳ `description` | string | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Attachment
 
 Download a Zoho Desk ticket attachment (from its href) as a file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -497,9 +534,13 @@ Download a Zoho Desk ticket attachment (from its href) as a file.
 | --------- | ---- | ----------- |
 | `file` | file | The downloaded attachment file |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Organizations
 
 List the Zoho Desk organizations (portals) the connected account can access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -516,9 +557,13 @@ List the Zoho Desk organizations (portals) the connected account can access.
 |   ↳ `portalName` | string | Portal name |
 | `count` | number | Number of organizations returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Create Ticket
 
 Create Ticket in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -589,9 +634,13 @@ Create Ticket in Zoho Desk.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Search Tickets
 
 Search Tickets in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -677,9 +726,13 @@ Search Tickets in Zoho Desk.
 | `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
 | `totalCount` | number | Total search matches reported by Zoho, when provided |
 
+</ReferenceDetails>
+
 ### Zoho Desk Move Ticket
 
 Move a ticket to another department.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -696,9 +749,13 @@ Move a ticket to another department.
 | --------- | ---- | ----------- |
 | `completed` | boolean | Whether the requested operation completed successfully |
 
+</ReferenceDetails>
+
 ### Zoho Desk Send Reply
 
 Send an email reply from a configured Zoho Desk sender address.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -763,9 +820,13 @@ Send an email reply from a configured Zoho Desk sender address.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Contacts
 
 List Contacts in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -805,9 +866,13 @@ List Contacts in Zoho Desk.
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
+</ReferenceDetails>
+
 ### Zoho Desk Create Contact
 
 Create Contact in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -859,9 +924,13 @@ Create Contact in Zoho Desk.
 |   ↳ `description` | string | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Update Contact
 
 Update Contact in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -914,9 +983,13 @@ Update Contact in Zoho Desk.
 |   ↳ `description` | string | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Search Contacts
 
 Search Contacts in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -975,9 +1048,13 @@ Search Contacts in Zoho Desk.
 | `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
 | `totalCount` | number | Total search matches reported by Zoho, when provided |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Accounts
 
 List Accounts in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -998,9 +1075,13 @@ List Accounts in Zoho Desk.
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
+</ReferenceDetails>
+
 ### Zoho Desk Create Account
 
 Create Account in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1030,9 +1111,13 @@ Create Account in Zoho Desk.
 | --------- | ---- | ----------- |
 | `account` | object | The account |
 
+</ReferenceDetails>
+
 ### Zoho Desk Update Account
 
 Update Account in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1063,9 +1148,13 @@ Update Account in Zoho Desk.
 | --------- | ---- | ----------- |
 | `account` | object | The account |
 
+</ReferenceDetails>
+
 ### Zoho Desk Search Accounts
 
 Search Accounts in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1100,9 +1189,13 @@ Search Accounts in Zoho Desk.
 | `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
 | `totalCount` | number | Total search matches reported by Zoho, when provided |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Account
 
 Get Account in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1118,9 +1211,13 @@ Get Account in Zoho Desk.
 | --------- | ---- | ----------- |
 | `account` | object | The account |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Departments
 
 List Departments in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1141,9 +1238,13 @@ List Departments in Zoho Desk.
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Department
 
 Get Department in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1158,9 +1259,13 @@ Get Department in Zoho Desk.
 | --------- | ---- | ----------- |
 | `department` | object | The department |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Agents
 
 List Agents in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1191,9 +1296,13 @@ List Agents in Zoho Desk.
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Agent
 
 Get Agent in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1209,9 +1318,13 @@ Get Agent in Zoho Desk.
 | --------- | ---- | ----------- |
 | `agent` | object | The agent |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Comment
 
 Get Comment in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1249,9 +1362,13 @@ Get Comment in Zoho Desk.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk Update Comment
 
 Update comment content or attachments; visibility can only be set when creating a comment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1291,9 +1408,13 @@ Update comment content or attachments; visibility can only be set when creating 
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk Delete Comment
 
 Delete Comment in Zoho Desk.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1308,6 +1429,8 @@ Delete Comment in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `completed` | boolean | Whether the requested operation completed successfully |
+
+</ReferenceDetails>
 
 
 

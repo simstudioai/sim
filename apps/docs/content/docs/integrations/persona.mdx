@@ -4,6 +4,7 @@ description: Verify identities with Persona
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="persona"
@@ -27,6 +28,8 @@ Manage the full inquiry lifecycle (create, update, approve, decline, review, res
 
 Create a new identity verification inquiry from an inquiry template. Returns the created inquiry, which can then be completed by the individual via a one-time link.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -45,9 +48,13 @@ Create a new identity verification inquiry from an inquiry template. Returns the
 | --------- | ---- | ----------- |
 | `inquiry` | object | The created inquiry |
 
+</ReferenceDetails>
+
 ### Persona Get Inquiry
 
 Retrieve a single identity verification inquiry by ID, including its status, collected fields, and decision timestamps.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,9 +69,13 @@ Retrieve a single identity verification inquiry by ID, including its status, col
 | --------- | ---- | ----------- |
 | `inquiry` | object | The retrieved inquiry |
 
+</ReferenceDetails>
+
 ### Persona List Inquiries
 
 List identity verification inquiries, optionally filtered by status, account ID, reference ID, or creation date range. Results are cursor-paginated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +97,13 @@ List identity verification inquiries, optionally filtered by status, account ID,
 | `inquiries` | array | Inquiries matching the filters |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
+</ReferenceDetails>
+
 ### Persona Update Inquiry
 
 Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +122,13 @@ Update an inquiry’s note, fields, tags, or redirect URI. Only the provided val
 | --------- | ---- | ----------- |
 | `inquiry` | object | The updated inquiry |
 
+</ReferenceDetails>
+
 ### Persona Approve Inquiry
 
 Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -124,9 +143,13 @@ Approve an identity verification inquiry. Approving prevents further progress on
 | --------- | ---- | ----------- |
 | `inquiry` | object | The approved inquiry |
 
+</ReferenceDetails>
+
 ### Persona Decline Inquiry
 
 Decline an identity verification inquiry. Declining prevents further progress on the inquiry and triggers any associated workflows and webhooks.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +164,13 @@ Decline an identity verification inquiry. Declining prevents further progress on
 | --------- | ---- | ----------- |
 | `inquiry` | object | The declined inquiry |
 
+</ReferenceDetails>
+
 ### Persona Mark Inquiry for Review
 
 Mark an identity verification inquiry for manual review, moving it to the needs_review status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -158,9 +185,13 @@ Mark an identity verification inquiry for manual review, moving it to the needs_
 | --------- | ---- | ----------- |
 | `inquiry` | object | The inquiry marked for review |
 
+</ReferenceDetails>
+
 ### Persona Resume Inquiry
 
 Resume a pending or expired inquiry, creating a new session so the individual can continue verification. Returns a session token.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -176,9 +207,13 @@ Resume a pending or expired inquiry, creating a new session so the individual ca
 | `inquiry` | object | The resumed inquiry |
 | `sessionToken` | string | Session token for the new inquiry session, used to continue the flow in embedded SDKs |
 
+</ReferenceDetails>
+
 ### Persona Expire Inquiry
 
 Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,9 +228,13 @@ Expire an in-progress inquiry, invalidating its sessions and one-time links so t
 | --------- | ---- | ----------- |
 | `inquiry` | object | The expired inquiry |
 
+</ReferenceDetails>
+
 ### Persona Generate Inquiry Link
 
 Generate a one-time link for an inquiry that the individual can open to complete their identity verification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +252,13 @@ Generate a one-time link for an inquiry that the individual can open to complete
 | `oneTimeLink` | string | One-time link the individual can open to complete the inquiry |
 | `oneTimeLinkShort` | string | Shortened version of the one-time link |
 
+</ReferenceDetails>
+
 ### Persona Print Inquiry PDF
 
 Download a PDF summary of an inquiry, including its collected information and verification results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,9 +273,13 @@ Download a PDF summary of an inquiry, including its collected information and ve
 | --------- | ---- | ----------- |
 | `file` | file | PDF summary of the inquiry, stored in execution files |
 
+</ReferenceDetails>
+
 ### Persona Redact Inquiry
 
 Permanently delete all personally identifiable information collected by an inquiry, for example to honor a data deletion request. This cannot be undone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -247,9 +294,13 @@ Permanently delete all personally identifiable information collected by an inqui
 | --------- | ---- | ----------- |
 | `inquiry` | object | The redacted inquiry \(PII fields are removed\) |
 
+</ReferenceDetails>
+
 ### Persona Create Account
 
 Create an account that represents an individual in Persona. Accounts consolidate inquiries, verifications, and reports for the same person.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +319,13 @@ Create an account that represents an individual in Persona. Accounts consolidate
 | --------- | ---- | ----------- |
 | `account` | object | The created account |
 
+</ReferenceDetails>
+
 ### Persona Get Account
 
 Retrieve a single account by ID, including its reference ID, fields, tags, and status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -285,9 +340,13 @@ Retrieve a single account by ID, including its reference ID, fields, tags, and s
 | --------- | ---- | ----------- |
 | `account` | object | The retrieved account |
 
+</ReferenceDetails>
+
 ### Persona List Accounts
 
 List accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +364,13 @@ List accounts in your Persona organization, optionally filtered by reference ID.
 | `accounts` | array | Accounts matching the filters |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
+</ReferenceDetails>
+
 ### Persona Update Account
 
 Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -326,9 +389,13 @@ Update an account’s reference ID, country code, fields, or tags. Only the prov
 | --------- | ---- | ----------- |
 | `account` | object | The updated account |
 
+</ReferenceDetails>
+
 ### Persona Import Accounts
 
 Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -343,9 +410,13 @@ Bulk-import accounts into Persona from a CSV file. Returns an importer whose sta
 | --------- | ---- | ----------- |
 | `importer` | object | The created account importer |
 
+</ReferenceDetails>
+
 ### Persona Redact Account
 
 Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -360,9 +431,13 @@ Permanently delete all personally identifiable information stored on an account,
 | --------- | ---- | ----------- |
 | `account` | object | The redacted account \(PII fields are removed\) |
 
+</ReferenceDetails>
+
 ### Persona List Cases
 
 List manual review cases, optionally filtered by status, account ID, or reference ID. Results are cursor-paginated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +457,13 @@ List manual review cases, optionally filtered by status, account ID, or referenc
 | `cases` | array | Cases matching the filters |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
+</ReferenceDetails>
+
 ### Persona Get Case
 
 Retrieve a single manual review case by ID, including its status, resolution, and assignee.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -399,9 +478,13 @@ Retrieve a single manual review case by ID, including its status, resolution, an
 | --------- | ---- | ----------- |
 | `case` | object | The retrieved case |
 
+</ReferenceDetails>
+
 ### Persona Create Report
 
 Run a screening report (watchlist, adverse media, or politically exposed person) against an individual by name or search term.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +507,13 @@ Run a screening report (watchlist, adverse media, or politically exposed person)
 | --------- | ---- | ----------- |
 | `report` | object | The created report. Reports run asynchronously; poll until status is ready. |
 
+</ReferenceDetails>
+
 ### Persona Get Report
 
 Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -441,9 +528,13 @@ Retrieve a single screening report by ID, including its status, match results, a
 | --------- | ---- | ----------- |
 | `report` | object | The retrieved report |
 
+</ReferenceDetails>
+
 ### Persona List Reports
 
 List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -462,9 +553,13 @@ List screening reports, optionally filtered by account ID or reference ID. Resul
 | `reports` | array | Reports matching the filters |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
+</ReferenceDetails>
+
 ### Persona Get Verification
 
 Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -479,9 +574,13 @@ Retrieve a single verification by ID (government ID, selfie, document, database,
 | --------- | ---- | ----------- |
 | `verification` | object | The retrieved verification |
 
+</ReferenceDetails>
+
 ### Persona Get Document
 
 Retrieve a single document by ID (government ID, generic document, and more), including its processing status and uploaded files.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -496,9 +595,13 @@ Retrieve a single document by ID (government ID, generic document, and more), in
 | --------- | ---- | ----------- |
 | `document` | object | The retrieved document |
 
+</ReferenceDetails>
+
 ### Persona List Inquiry Templates
 
 List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -514,5 +617,7 @@ List the inquiry templates in your Persona organization, to discover template ID
 | --------- | ---- | ----------- |
 | `inquiryTemplates` | array | Inquiry templates in the organization |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
+</ReferenceDetails>
 
 

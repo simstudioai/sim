@@ -4,6 +4,7 @@ description: Search and retrieve content from Wikipedia
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="wikipedia"
@@ -24,6 +25,8 @@ Get page summary, search pages, get page content, and get random page.
 ### Wikipedia Page Summary
 
 Get a summary and metadata for a specific Wikipedia page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -69,6 +72,8 @@ Get a summary and metadata for a specific Wikipedia page.
 |   ↳ `coordinates` | object | Geographic coordinates |
 |     ↳ `lat` | number | Latitude |
 |     ↳ `lon` | number | Longitude |
+
+</ReferenceDetails>
 
 ### Wikipedia Search
 

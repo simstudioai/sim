@@ -4,6 +4,7 @@ description: Search with Exa AI
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="exa"
@@ -26,6 +27,8 @@ Search the web, retrieve page content, answer questions with citations, or run m
 ### Exa Search
 
 Search the web using Exa AI. Returns relevant search results with titles, URLs, and text snippets.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +84,13 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `structuredOutput` | json | Synthesized answer matching outputSchema, when one was supplied |
 | `grounding` | json | Field-level citations backing the synthesized output |
 
+</ReferenceDetails>
+
 ### Exa Get Contents
 
 Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +129,13 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | `statuses` | json | Per-URL crawl outcome, showing which pages succeeded and whether they came from cache |
 | `requestId` | string | Exa request identifier, useful for support |
 
+</ReferenceDetails>
+
 ### Exa Find Similar Links
 
 Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -157,6 +168,8 @@ Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of
 |   ↳ `highlights` | array | Relevant snippets extracted from the page |
 |   ↳ `score` | number | Similarity score indicating how similar the page is |
 | `requestId` | string | Exa request identifier, useful for support |
+
+</ReferenceDetails>
 
 ### Exa Answer
 

@@ -4,7 +4,6 @@ description: Publish a deployed workflow as a reusable block for your organizati
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Image } from '@/components/ui/image'
 
 Publish a workflow as a custom block so teammates can provide its inputs and use selected outputs without access to its source workflow. The block always runs the source's latest deployment. Use it for a shared knowledge lookup, an authenticated internal API, an enrichment step, or a prompt and guardrail maintained in one place.
 
@@ -53,8 +52,6 @@ Changing the trace policy applies to future runs; it does not rewrite earlier lo
 ## Use a custom block
 
 Open the workflow builder's toolbar and find **Custom Blocks**. Drag a published block into the workflow, fill its inputs, and reference its named outputs downstream. Availability is subject to [permission groups](/platform/enterprise/access-control).
-
-<Image src="/static/enterprise/custom-blocks-toolbar.png" alt="Workflow toolbar showing published blocks in the Custom Blocks section" width={400} height={476} className="mx-auto h-auto w-full max-w-xs" />
 
 The source workflow's owner supplies personal variables and delegated calls. Its workspace supplies workspace variables and carries billing. Consumer inputs cross that boundary; consumers do not acquire the owner's credentials or source-workspace access. Review inputs and exposed outputs as the block's public interface.
 

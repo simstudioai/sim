@@ -4,6 +4,7 @@ description: Query semantic models and manage reports and refreshes
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="powerbi"
@@ -39,6 +40,8 @@ Connect a home-tenant organizational account through the Power BI Microsoft conn
 
 List accessible Power BI workspaces with optional OData filtering and pagination.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -56,9 +59,13 @@ List accessible Power BI workspaces with optional OData filtering and pagination
 |   ↳ `name` | string | Workspace name |
 | `workspaceCount` | number | Number of workspaces returned by this request |
 
+</ReferenceDetails>
+
 ### Power BI List Reports
 
 List reports in a Power BI workspace, including paginated reports.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +82,13 @@ List reports in a Power BI workspace, including paginated reports.
 |   ↳ `name` | string | Report name |
 | `reportCount` | number | Number of reports returned |
 
+</ReferenceDetails>
+
 ### Power BI Get Report
 
 Get report metadata from a Power BI workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -94,9 +105,13 @@ Get report metadata from a Power BI workspace.
 |   ↳ `id` | string | Report ID |
 |   ↳ `name` | string | Report name |
 
+</ReferenceDetails>
+
 ### Power BI List Semantic Models
 
 List semantic models in a Power BI workspace; available metadata depends on permissions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,9 +128,13 @@ List semantic models in a Power BI workspace; available metadata depends on perm
 |   ↳ `name` | string | Semantic model name |
 | `datasetCount` | number | Number of semantic models returned |
 
+</ReferenceDetails>
+
 ### Power BI Get Semantic Model
 
 Get semantic model metadata from a Power BI workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -132,9 +151,13 @@ Get semantic model metadata from a Power BI workspace.
 |   ↳ `id` | string | Semantic model ID |
 |   ↳ `name` | string | Semantic model name |
 
+</ReferenceDetails>
+
 ### Power BI Execute DAX Query
 
 Execute one DAX query returning one table. Requires workspace access, Read/Build permissions, and the tenant Execute Queries setting. Reported errors fail the action even with HTTP 200. Direct tool responses retain partial rows and typed errors; failed workflows expose only the standard error output. Sim limits workflow tool responses to 10 MiB; use summaries or TOPN for larger results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -157,9 +180,13 @@ Execute one DAX query returning one table. Requires workspace access, Read/Build
 | `incomplete` | boolean | Whether the provider reported an embedded error; false does not guarantee an unlimited result |
 | `informationProtectionLabel` | object | Information protection label, when supplied |
 
+</ReferenceDetails>
+
 ### Power BI Refresh Semantic Model
 
 Request a standard asynchronous semantic model refresh and return acceptance immediately. Acceptance does not mean completion; use Get Refresh History separately to inspect status. Shared capacity allows eight refresh requests per day, including scheduled refreshes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -177,9 +204,13 @@ Request a standard asynchronous semantic model refresh and return acceptance imm
 | `requestId` | string | Provider x-ms-request-id header, when supplied |
 | `location` | string | Provider Location header, when supplied |
 
+</ReferenceDetails>
+
 ### Power BI Get Refresh History
 
 Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,5 +228,7 @@ Get recent semantic model refresh history; requires Write permission on the mode
 |   ↳ `refreshAttempts` | array | Refresh attempts supplied by the provider |
 |     ↳ `attemptId` | number | Refresh attempt index |
 | `refreshCount` | number | Number of refresh entries returned |
+
+</ReferenceDetails>
 
 

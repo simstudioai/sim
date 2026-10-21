@@ -53,7 +53,7 @@ Keys authenticate workflow execution, logs, deployed MCP servers, and other API 
 
 Run `sim login` to authorize the CLI in your browser, or `sim login --read-only` to request read access. The CLI stores the login locally and refreshes its access token. See [CLI authentication](/cli/authentication) for profiles, sign-in, and sign-out.
 
-Registered applications send OAuth access tokens in `Authorization: Bearer`:
+Registered applications obtain tokens through the authorization-code flow with PKCE (S256). Send the access token in `Authorization: Bearer`:
 
 ```bash
 curl --fail-with-body 'https://www.sim.ai/api/v2/workspaces' \

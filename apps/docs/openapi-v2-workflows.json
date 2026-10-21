@@ -47,7 +47,9 @@
       "get": {
         "operationId": "listWorkflows",
         "summary": "List workflows",
-        "description": "List active workflows in a workspace with workspace read access. Use `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "List active workflows in a workspace. Requires workspace read access.\n\nUse `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "x-sim-docs-intro": "List active workflows in a workspace. Requires workspace read access.",
+        "x-sim-docs-details": "Use `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.",
         "x-sim-operation": "workflows.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -240,7 +242,9 @@
       "post": {
         "operationId": "createWorkflowV2",
         "summary": "Create workflow",
-        "description": "Create an undeployed workflow at the workspace root or in a workflow folder. Requires workspace write access. The response includes the seeded start block and its ID for connecting other blocks. A name already used in the destination folder returns `409`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "description": "Create an undeployed workflow at the workspace root or in a workflow folder. Requires workspace write access.\n\nThe response includes the seeded start block and its ID for connecting other blocks. A name already used in the destination folder returns `409`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "x-sim-docs-intro": "Create an undeployed workflow at the workspace root or in a workflow folder. Requires workspace write access.",
+        "x-sim-docs-details": "The response includes the seeded start block and its ID for connecting other blocks. A name already used in the destination folder returns `409`. Workspace folder trees exceeding 10,000 folders return `413`.",
         "x-sim-operation": "workflows.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -7053,11 +7057,11 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+        "description": "Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description."
       },
       "oauthBearer": {
         "type": "oauth2",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.",
+        "description": "Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).",
         "flows": {
           "authorizationCode": {
             "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",

@@ -4,6 +4,7 @@ description: Manage secrets with Infisical
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="infisical"
@@ -24,6 +25,8 @@ List, get, create, update, and delete secrets across project environments.
 ### Infisical List Secrets
 
 List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +82,13 @@ List all secrets in a project environment. Returns secret keys, values, comments
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `count` | number | Total number of secrets returned |
 
+</ReferenceDetails>
+
 ### Infisical Get Secret
 
 Retrieve a single secret by name from a project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +143,13 @@ Retrieve a single secret by name from a project environment.
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Infisical Create Secret
 
 Create a new secret in a project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,9 +204,13 @@ Create a new secret in a project environment.
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Infisical Update Secret
 
 Update an existing secret in a project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +266,13 @@ Update an existing secret in a project environment.
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Infisical Delete Secret
 
 Delete a secret from a project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -304,5 +323,7 @@ Delete a secret from a project environment.
 |     ↳ `groupId` | string | Group ID |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
+
+</ReferenceDetails>
 
 

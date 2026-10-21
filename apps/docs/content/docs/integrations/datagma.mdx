@@ -4,6 +4,7 @@ description: Find verified B2B emails, mobile phones, and enrich person or compa
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="datagma"
@@ -53,6 +54,8 @@ Find a verified work email from a person's full name and company. Uses 1 credit 
 
 Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -85,6 +88,8 @@ Enrich a person's profile using their email, LinkedIn URL, or full name and comp
 | `twitter` | string | Twitter handle |
 | `phone` | string | Mobile phone number |
 | `personConfidenceScore` | number | Confidence score for the person match \(0–1\) |
+
+</ReferenceDetails>
 
 ### Datagma Enrich Company
 

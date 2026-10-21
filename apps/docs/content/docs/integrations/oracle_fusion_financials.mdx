@@ -4,6 +4,7 @@ description: Manage receivables and expenses, and report on payables and ledgers
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="oracle_fusion_financials"
@@ -38,6 +39,8 @@ Connect your Oracle Fusion Applications integration user through a reusable save
 
 Apply a standard receipt to a Receivables invoice installment. An omitted amount applies the full open transaction balance.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -54,9 +57,13 @@ Apply a standard receipt to a Receivables invoice installment. An omitted amount
 | --------- | ---- | ----------- |
 | `result` | string | Oracle action result; success is reported separately |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Approve Receivables Invoice
 
 Approve a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +79,13 @@ Approve a pending-approval Oracle Fusion receivables invoice. Returns the action
 | --------- | ---- | ----------- |
 | `result` | string | Oracle action result; success is reported separately |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Create Expense Line
 
 Create an Oracle Fusion expense line.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +128,13 @@ Create an Oracle Fusion expense line.
 | --------- | ---- | ----------- |
 | `expenseLine` | object | Projected expense line |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Create Expense Report
 
 Create an Oracle Fusion expense report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +161,13 @@ Create an Oracle Fusion expense report.
 | --------- | ---- | ----------- |
 | `expenseReport` | object | Projected expense report |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Create Receivables Credit Memo
 
 Create Oracle Fusion receivables credit memo.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -181,9 +200,13 @@ Create Oracle Fusion receivables credit memo.
 | --------- | ---- | ----------- |
 | `receivablesCreditMemo` | json | Projected receivables credit memo |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Create Receivables Invoice
 
 Create Oracle Fusion receivables invoice.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -216,9 +239,13 @@ Create Oracle Fusion receivables invoice.
 | --------- | ---- | ----------- |
 | `receivablesInvoice` | json | Projected receivables invoice |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Create Receivables Receipt
 
 Create Oracle Fusion receivables receipt.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +275,13 @@ Create Oracle Fusion receivables receipt.
 | --------- | ---- | ----------- |
 | `receivablesReceipt` | json | Projected receivables receipt |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Expense Line
 
 Get an Oracle Fusion expense line.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +297,13 @@ Get an Oracle Fusion expense line.
 | --------- | ---- | ----------- |
 | `expenseLine` | object | Projected expense line |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Expense Report
 
 Get an Oracle Fusion expense report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -283,9 +318,13 @@ Get an Oracle Fusion expense report.
 | --------- | ---- | ----------- |
 | `expenseReport` | object | Projected expense report |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get GL Journal Batch
 
 Get an Oracle Fusion gl journal batch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +339,13 @@ Get an Oracle Fusion gl journal batch.
 | --------- | ---- | ----------- |
 | `glJournalBatch` | object | Projected gl journal batch |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get GL Ledger
 
 Get an Oracle Fusion gl ledger.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -317,9 +360,13 @@ Get an Oracle Fusion gl ledger.
 | --------- | ---- | ----------- |
 | `glLedger` | object | Projected gl ledger |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Payables Invoice
 
 Get one Oracle Fusion Payables invoice by its opaque Oracle resource key.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -334,9 +381,13 @@ Get one Oracle Fusion Payables invoice by its opaque Oracle resource key.
 | --------- | ---- | ----------- |
 | `invoice` | object | The Payables invoice |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Payables Invoice Line
 
 Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -352,9 +403,13 @@ Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key.
 | --------- | ---- | ----------- |
 | `invoiceLine` | object | The Payables invoice line |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Payables Payment
 
 Get one Oracle Fusion Payables payment by its CheckId.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +424,13 @@ Get one Oracle Fusion Payables payment by its CheckId.
 | --------- | ---- | ----------- |
 | `payment` | object | The Payables payment |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Receivables Credit Memo
 
 Get Oracle Fusion receivables credit memo.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -386,9 +445,13 @@ Get Oracle Fusion receivables credit memo.
 | --------- | ---- | ----------- |
 | `receivablesCreditMemo` | json | Projected receivables credit memo |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Receivables Invoice
 
 Get Oracle Fusion receivables invoice.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -403,9 +466,13 @@ Get Oracle Fusion receivables invoice.
 | --------- | ---- | ----------- |
 | `receivablesInvoice` | json | Projected receivables invoice |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Receivables Invoice Installment
 
 Get Oracle Fusion receivables invoice installment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -421,9 +488,13 @@ Get Oracle Fusion receivables invoice installment.
 | --------- | ---- | ----------- |
 | `receivablesInvoiceInstallment` | json | Projected receivables invoice installment |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Receivables Invoice Line
 
 Get Oracle Fusion receivables invoice line.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -439,9 +510,13 @@ Get Oracle Fusion receivables invoice line.
 | --------- | ---- | ----------- |
 | `receivablesInvoiceLine` | json | Projected receivables invoice line |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Get Receivables Receipt
 
 Get Oracle Fusion receivables receipt.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -456,9 +531,13 @@ Get Oracle Fusion receivables receipt.
 | --------- | ---- | ----------- |
 | `receivablesReceipt` | json | Projected receivables receipt |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Expense Lines
 
 List one bounded page of Oracle Fusion expense lines.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +563,13 @@ List one bounded page of Oracle Fusion expense lines.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Expense Reports
 
 List one bounded page of Oracle Fusion expense reports.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -511,9 +594,13 @@ List one bounded page of Oracle Fusion expense reports.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List GL Balances
 
 List one bounded page of Oracle Fusion gl balances.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -538,9 +625,13 @@ List one bounded page of Oracle Fusion gl balances.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List GL Journal Batches
 
 List one bounded page of Oracle Fusion gl journal batches.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -565,9 +656,13 @@ List one bounded page of Oracle Fusion gl journal batches.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List GL Ledgers
 
 List one bounded page of Oracle Fusion gl ledgers.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -592,9 +687,13 @@ List one bounded page of Oracle Fusion gl ledgers.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Payables Invoice Lines
 
 List one page of lines for an Oracle Fusion Payables invoice.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -620,9 +719,13 @@ List one page of lines for an Oracle Fusion Payables invoice.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Payables Invoices
 
 List one page of Oracle Fusion Payables invoices using a fixed safe projection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -648,9 +751,13 @@ List one page of Oracle Fusion Payables invoices using a fixed safe projection.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Payables Payments
 
 List one page of Oracle Fusion Payables payments using a fixed safe projection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -675,9 +782,13 @@ List one page of Oracle Fusion Payables payments using a fixed safe projection.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Receivables Credit Memos
 
 List one page of Oracle Fusion receivables credit memos.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -702,9 +813,13 @@ List one page of Oracle Fusion receivables credit memos.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Receivables Invoice Installments
 
 List one page of Oracle Fusion receivables invoice installments.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -730,9 +845,13 @@ List one page of Oracle Fusion receivables invoice installments.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Receivables Invoice Lines
 
 List one page of Oracle Fusion receivables invoice lines.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -758,9 +877,13 @@ List one page of Oracle Fusion receivables invoice lines.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Receivables Invoices
 
 List one page of Oracle Fusion receivables invoices.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -785,9 +908,13 @@ List one page of Oracle Fusion receivables invoices.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials List Receivables Receipts
 
 List one page of Oracle Fusion receivables receipts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -812,9 +939,13 @@ List one page of Oracle Fusion receivables receipts.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Submit Expense Report
 
 Submit an Oracle Fusion expense report. Only result S means submission without errors; other results are returned as business failures.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -829,9 +960,13 @@ Submit an Oracle Fusion expense report. Only result S means submission without e
 | --------- | ---- | ----------- |
 | `result` | string | Documented Oracle action result |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Update Expense Line
 
 Update an Oracle Fusion expense line.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -875,9 +1010,13 @@ Update an Oracle Fusion expense line.
 | --------- | ---- | ----------- |
 | `expenseLine` | object | Projected expense line |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Update Expense Report
 
 Update an Oracle Fusion expense report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -901,9 +1040,13 @@ Update an Oracle Fusion expense report.
 | --------- | ---- | ----------- |
 | `expenseReport` | object | Projected expense report |
 
+</ReferenceDetails>
+
 ### Oracle Fusion Financials Update Receivables Invoice
 
 Update Oracle Fusion receivables invoice.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -920,5 +1063,7 @@ Update Oracle Fusion receivables invoice.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `receivablesInvoice` | json | Projected receivables invoice |
+
+</ReferenceDetails>
 
 

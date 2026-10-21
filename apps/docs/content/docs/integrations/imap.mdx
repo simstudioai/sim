@@ -3,6 +3,8 @@ title: IMAP
 description: Start workflows from IMAP events
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard
@@ -24,6 +26,8 @@ These triggers poll for new data on a schedule.
 ### IMAP Email Trigger
 
 Start a workflow when an IMAP-enabled mailbox receives matching messages.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -56,4 +60,6 @@ Start a workflow when an IMAP-enabled mailbox receives matching messages.
 |   ↳ `hasAttachments` | boolean | Whether email has attachments |
 |   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
 | `timestamp` | string | Event timestamp |
+
+</ReferenceDetails>
 

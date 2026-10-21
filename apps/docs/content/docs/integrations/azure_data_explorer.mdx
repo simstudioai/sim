@@ -4,6 +4,7 @@ description: Query and manage Azure Data Explorer (Kusto) clusters with KQL
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="azure_data_explorer"
@@ -56,6 +57,8 @@ Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhou
 
 Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -85,9 +88,13 @@ Run a Kusto Query Language (KQL) query against an Azure Data Explorer database a
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Management Command
 
 Run an Azure Data Explorer management command (a control command starting with ".") such as .show, .create, .alter, or .drop. Write commands can change data or configuration; use the Query operation for reads.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +123,13 @@ Run an Azure Data Explorer management command (a control command starting with "
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer List Databases
 
 List the databases on an Azure Data Explorer cluster that the service principal can access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +157,13 @@ List the databases on an Azure Data Explorer cluster that the service principal 
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 | `databases` | array | Database names, read from the DatabaseName column |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer List Tables
 
 List the tables in an Azure Data Explorer database, with their folder and docstring.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -177,9 +192,13 @@ List the tables in an Azure Data Explorer database, with their folder and docstr
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 | `tables` | array | Table names, read from the TableName column |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Show Table Schema
 
 Read the column schema of an Azure Data Explorer table in CSL form (e.g., "Timestamp:datetime,Level:string"). Use this before writing a KQL query against an unfamiliar table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -203,9 +222,13 @@ Read the column schema of an Azure Data Explorer table in CSL form (e.g., "Times
 | `folder` | string | The table's folder |
 | `docString` | string | The table's docstring |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Show Database Schema
 
 Read the full schema of an Azure Data Explorer database as a flat list of every table and column, so an agent can discover the data model in one call.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +256,13 @@ Read the full schema of an Azure Data Explorer database as a flat list of every 
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Show Table Details
 
 Read size, row count, hot-cache footprint, and effective policies for a table — or for every table in the database when no table is given. Use it to see how much data a table actually holds before querying it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -264,9 +291,13 @@ Read size, row count, hot-cache footprint, and effective policies for a table �
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer List Functions
 
 List the stored functions in an Azure Data Explorer database, with their parameters and bodies, so an agent can reuse existing logic instead of rewriting it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +326,13 @@ List the stored functions in an Azure Data Explorer database, with their paramet
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 | `functions` | array | Stored function names, read from the Name column |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Ingest Inline
 
 Push rows directly into an Azure Data Explorer table with .ingest inline. Data is parsed as CSV against the table schema unless an ingestion property says otherwise. Intended for small batches — use queued or streaming ingestion for production volumes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -329,9 +364,13 @@ Push rows directly into an Azure Data Explorer table with .ingest inline. Data i
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 | `extentIds` | array | Extent IDs created by the ingestion — one per data shard. A single empty or zero-valued ID means no data shard was generated |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Ingest From Query
 
 Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow. Kusto matches the query result to the target table by column type and position, NOT by column name, so project the columns in exactly the table's order or the data lands in the wrong columns.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -364,9 +403,13 @@ Materialize the result of a KQL query into a table with .set, .append, .set-or-a
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Create Table
 
 Create a table in an Azure Data Explorer database from a CSL column schema. Succeeds without changing anything if a table of the same name already exists.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -397,9 +440,13 @@ Create a table in an Azure Data Explorer database from a CSL column schema. Succ
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Drop Table
 
 Drop a table from an Azure Data Explorer database. The table becomes unavailable to queries; data recovery depends on the retention policy. Returns the tables that remain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -430,9 +477,13 @@ Drop a table from an Azure Data Explorer database. The table becomes unavailable
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 | `tables` | array | Tables remaining in the database, read from the TableName column |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Show Ingestion Failures
 
 List ingestion failures recorded for a database, with the failing table, error code, root cause detail, and whether the failure is permanent or transient. Failures are retained for 14 days.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -461,9 +512,13 @@ List ingestion failures recorded for a database, with the failing table, error c
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
 
+</ReferenceDetails>
+
 ### Azure Data Explorer Show Operations
 
 Check the state of administrative operations on a cluster, such as an async ingestion. Given an operation ID it returns that operation latest update; with no ID it returns the operations from the last two weeks.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -491,5 +546,7 @@ Check the state of administrative operations on a cluster, such as an async inge
 | `rowCount` | number | Rows carried in this result, after the row cap |
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
+
+</ReferenceDetails>
 
 

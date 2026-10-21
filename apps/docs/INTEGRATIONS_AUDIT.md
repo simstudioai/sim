@@ -1,6 +1,8 @@
 # Integration documentation audit
 
-This pass reviews all 306 integration pages: 281 generated references and 25 authored pages (the integration overview, A2A, and registered connection guides). The baseline is staging commit `2676575f218c2080c0cf1e437be9100d320b0134`. [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) defines the ongoing format; [scripts/README.md](../../scripts/README.md) explains regeneration and ownership.
+The original pass reviewed 306 integration pages: 281 generated references and 25 authored pages (the integration overview, A2A, and registered connection guides). The baseline is staging commit `2676575f218c2080c0cf1e437be9100d320b0134`. [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) defines the ongoing format; [scripts/README.md](../../scripts/README.md) explains regeneration and ownership.
+
+The current staging sync contains 308 integration pages. The added Help Scout reference received the same disclosure treatment and a copy pass that removed repeated capability lists while retaining connection, trigger, and knowledge-base setup. Authentication and webhook signatures were checked against the owning implementation and [Help Scout authentication](https://developer.helpscout.com/mailbox-api/overview/authentication/) and [webhook documentation](https://developer.helpscout.com/webhooks/). Historical counts below describe the validation at each earlier stage.
 
 ## Assessment and changes
 
@@ -47,6 +49,8 @@ Cross-review of every changed authored region/guide and canonical prose diff fou
 PR review checked the capability boundaries again against each operation. Corrections distinguish Affinity searches from opportunity/saved-view reads; Teams chat notification subscriptions and their shared seven-day deduplication window from channel webhook mentions; Gong reads from uploads, flow assignments, and background erasure; legacy Logs snapshots from raw log details; and Managed Agent session-specific outputs. PostHog project, organization, and recording reads, Knowledge tag listing/assignment, Pipedrive's supported resources, Airtable's creation/update/deletion triggers, Dropbox trash behavior, Quartr's AI-generated summaries and event types, ServiceNow's dedicated versus generic operations, and Intercom ticket updates are explicit. Dub already supports link-preview titles and descriptions; the copy names those fields rather than implying arbitrary metadata. Databricks Genie wording is clearer without changing its capabilities. Matching authored introductions were updated where needed.
 
 ## Validation
+
+The October 20 visual pass folds large trigger field tables into the same native `ReferenceDetails` component used by action references. This affects 448 trigger definitions on 50 pages. All trigger descriptions remain visible; normalized content and heading comparisons across all 307 MDX files in this directory found no content loss or heading changes. Regeneration is deterministic, and affected MDX compilation passes. Browser checks cover Notion's mixed action/trigger reference and the IMAP and Twilio trigger-only pages, including narrow layouts, expanded tables, keyboard use, and direct links into disclosures. Full build and test validation for these later refinements remains deferred to CI.
 
 Search citation extraction now honors explicit heading IDs without including alias syntax in result titles. Retained parser regressions fail before the fix and when either ID preservation or label cleanup is removed; ordinary heading links remain unchanged.
 

@@ -3,9 +3,6 @@ title: Deploy workflows
 description: Create a live workflow snapshot, update it, and restore earlier versions.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Image } from '@/components/ui/image'
-
 Deploy a workflow when API callers, chat clients, MCP tools, or automatic triggers need to run it. Deployment captures a version of the workflow; later draft edits do not reach live callers until you update it.
 
 You need workspace **Admin** access to deploy or change live versions. Organization permission groups can also restrict API, chat, or MCP deployment.
@@ -31,9 +28,7 @@ One version is live at a time. **Live Workflow** shows the deployed snapshot in 
 
 ### Update
 
-When the draft differs from its deployed version, **Update** appears in the workflow builder toolbar. Click it to deploy an updated snapshot without reopening the modal:
-
-<Image src="/static/api-deployment/api-update-button.png" alt="Update button beside Run with an Update deployment tooltip" width={400} height={186} className="mx-auto h-auto w-full max-w-[240px]" />
+When the draft differs from its deployed version, **Update** appears in the workflow builder toolbar. Click it to deploy an updated snapshot without reopening the modal.
 
 Redeploy after changing automatic trigger settings or the workflow inputs used by an MCP tool.
 
@@ -86,15 +81,15 @@ curl -X POST 'https://www.sim.ai/api/v1/workflows/{workflow-id}/rollback' \
 
 See [Deploy Workflow](/api-reference/workflows/deployWorkflow), [Undeploy Workflow](/api-reference/workflows/undeployWorkflow), and [Rollback Workflow](/api-reference/workflows/rollbackWorkflow) for full contracts and deployment status.
 
-## The surfaces
+## Ways to call a workflow [#the-surfaces]
 
-A workflow can be available through several surfaces at once:
+A deployed workflow can accept calls through several interfaces:
 
-<Cards>
-  <Card title="API" href="/workflows/deployment/api" description="Call a deployed workflow with sync, SSE, or async execution." />
-  <Card title="Chat" href="/workflows/deployment/chat" description="Share a conversational interface; configure Agent Memory for multi-turn context." />
-  <Card title="MCP" href="/workflows/deployment/mcp" description="Expose a workflow as a tool an external assistant can call." />
-</Cards>
+| Interface | Use it to |
+| --- | --- |
+| [API](/workflows/deployment/api) | Run a workflow with sync, SSE, or async execution |
+| [Chat](/workflows/deployment/chat) | Share a conversational interface; configure Agent Memory for multi-turn context |
+| [MCP](/workflows/deployment/mcp) | Expose a workflow as a tool an external assistant can call |
 
 A basic v2 API call sends named Start inputs inside `input`:
 

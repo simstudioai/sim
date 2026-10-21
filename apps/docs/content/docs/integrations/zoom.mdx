@@ -4,6 +4,7 @@ description: Create and manage Zoom meetings and recordings
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="zoom"
@@ -16,6 +17,8 @@ Use [Zoom](https://zoom.us/) to manage meetings, retrieve invitations and record
 Connect a Zoom account from the block or **Integrations** in your workspace sidebar. For account-level authentication, follow the [Server-to-Server OAuth setup](/integrations/zoom-service-account). Manage or disconnect the saved credential from **Integrations**.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [Server-to-server OAuth apps](/integrations/zoom-service-account).
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -49,6 +52,8 @@ Create, read, update, or delete meetings; retrieve invitations, cloud recordings
 ### Zoom Create Meeting
 
 Create a new Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +123,13 @@ Create a new Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
+</ReferenceDetails>
+
 ### Zoom List Meetings
 
 List all meetings for a Zoom user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,9 +163,13 @@ List all meetings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 ### Zoom Get Meeting
 
 Get details of a specific Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +228,13 @@ Get details of a specific Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
+</ReferenceDetails>
+
 ### Zoom Update Meeting
 
 Update an existing Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -244,9 +261,13 @@ Update an existing Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was updated successfully |
 
+</ReferenceDetails>
+
 ### Zoom Delete Meeting
 
 Delete or cancel a Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -263,9 +284,13 @@ Delete or cancel a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was deleted successfully |
 
+</ReferenceDetails>
+
 ### Zoom Get Meeting Invitation
 
 Get the meeting invitation text for a Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +304,13 @@ Get the meeting invitation text for a Zoom meeting
 | --------- | ---- | ----------- |
 | `invitation` | string | The meeting invitation text |
 
+</ReferenceDetails>
+
 ### Zoom List Recordings
 
 List all cloud recordings for a Zoom user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -329,9 +358,13 @@ List all cloud recordings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 ### Zoom Get Meeting Recordings
 
 Get all recordings for a specific Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +405,13 @@ Get all recordings for a specific Zoom meeting
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `files` | file[] | Downloaded recording files |
 
+</ReferenceDetails>
+
 ### Zoom Delete Recording
 
 Delete cloud recordings for a Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -390,9 +427,13 @@ Delete cloud recordings for a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the recording was deleted successfully |
 
+</ReferenceDetails>
+
 ### Zoom List Past Participants
 
 List participants from a past Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,6 +463,8 @@ List participants from a past Zoom meeting
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -432,6 +475,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a Zoom meeting ends
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -463,13 +508,14 @@ Trigger workflow when a Zoom meeting ends
 |     ↳ `status` | string | Meeting status \(e.g. waiting, started; when provided\) |
 |     ↳ `created_at` | string | Creation timestamp in ISO 8601 format \(when provided\) |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Meeting Started
 
 Trigger workflow when a Zoom meeting starts
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -501,8 +547,7 @@ Trigger workflow when a Zoom meeting starts
 |     ↳ `status` | string | Meeting status \(e.g. waiting, started; when provided\) |
 |     ↳ `created_at` | string | Creation timestamp in ISO 8601 format \(when provided\) |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Participant Joined
 

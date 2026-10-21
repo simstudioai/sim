@@ -4,6 +4,7 @@ description: Enrich B2B contacts with verified email, phone, and company data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="dropcontact"
@@ -24,6 +25,8 @@ Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their n
 ### Dropcontact Enrich Contact
 
 Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then makes up to 24 polls, waiting five seconds before each attempt. Dropcontact charges 1 credit for successful email enrichment or for checking an email supplied for verification. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,5 +84,7 @@ Enrich a contact with verified B2B email, phone, company data, and LinkedIn info
 | `job_function` | string | Job function \(e.g. Sales, Engineering\) |
 | `company_turnover` | string | Company revenue/turnover range |
 | `company_results` | string | Company net results |
+
+</ReferenceDetails>
 
 

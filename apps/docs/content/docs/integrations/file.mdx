@@ -4,6 +4,7 @@ description: Read, search, get content, fetch, write, append, compress, decompre
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="file_v5"
@@ -27,6 +28,8 @@ Read workspace file objects, search indexed text across the workspace or selecte
 
 Read workspace file objects from selected files, canonical workspace file IDs, or one or more workspace folders.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -42,9 +45,13 @@ Read workspace file objects from selected files, canonical workspace file IDs, o
 | --------- | ---- | ----------- |
 | `files` | file[] | Workspace file objects |
 
+</ReferenceDetails>
+
 ### File Get Content
 
 Extract workspace file text using the same parser mode as File Search. Use the returned fileId and offset/limit to read the matching line and surrounding context. For documents and spreadsheets, line numbers refer to extracted text, not page numbers or worksheet row numbers.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -64,9 +71,13 @@ Extract workspace file text using the same parser mode as File Search. Use the r
 | `contents` | array | Array of file text contents, one entry per file in input order |
 | `lineRanges` | array | Present when a line range was requested: one entry per file, in the same order, with offset, lineCount, and totalLines |
 
+</ReferenceDetails>
+
 ### File Search
 
 Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -96,9 +107,13 @@ Search the indexed text of active workspace files for lines matching a query, an
 |   ↳ `skippedFiles` | number | Files excluded in full because they are oversized, unsupported, or cannot be completely extracted. |
 |   ↳ `partialFiles` | number | Always zero; retained for compatibility. Files are never partially indexed. |
 
+</ReferenceDetails>
+
 ### File Fetch
 
 Fetch and parse a file from a URL with optional custom headers.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +129,13 @@ Fetch and parse a file from a URL with optional custom headers.
 | `files` | file[] | Fetched files as UserFile objects |
 | `combinedContent` | string | Combined content of all fetched files |
 
+</ReferenceDetails>
+
 ### File Write
 
 Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +160,13 @@ Create a new workspace file, either from text content or from an existing file. 
 | `version` | number | Version number of the content this write recorded |
 | `revision` | string | Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since. |
 
+</ReferenceDetails>
+
 ### File Append
 
 Append content to an existing workspace file. The file must already exist. Content is added to the end of the file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +189,13 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `version` | number | Version number of the content this write recorded |
 | `revision` | string | Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since. |
 
+</ReferenceDetails>
+
 ### Apply File Edit
 
 Apply one precise edit to an existing text file without rewriting it. Use search_replace for verbatim replacement, optionally with replaceAll. Use replace_between, insert_after, or delete_between for complete trimmed-line anchors that stay stable when line numbers move. Folder scope can disambiguate a name or constrain a file ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +228,13 @@ Apply one precise edit to an existing text file without rewriting it. Use search
 | `version` | number | Version number of the content this edit recorded |
 | `revision` | string | Opaque token for the content this edit produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since. |
 
+</ReferenceDetails>
+
 ### File Compress
 
 Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store. Preserves the workspace folder structure of the selected files.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -225,9 +256,13 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 | `url` | string | URL to access the compressed archive |
 | `files` | file[] | Compressed archive file object, as a single-item array |
 
+</ReferenceDetails>
+
 ### File Decompress
 
 Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -242,9 +277,13 @@ Extract the contents of a .zip archive into the workspace, preserving the archiv
 | --------- | ---- | ----------- |
 | `files` | file[] | Extracted workspace file objects |
 
+</ReferenceDetails>
+
 ### Manage Sharing
 
 Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +306,13 @@ Enable or disable the public share link for a workspace file, and set its access
 | `hasPassword` | boolean | Whether the share is password-protected |
 | `allowedEmails` | array | Allowed emails/domains for email or SSO access |
 
+</ReferenceDetails>
+
 ### List Files and Folders
 
 List what is inside a workspace folder: its subfolders and its files together. Lists direct children by default; set Recursive to walk the whole subtree.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -289,9 +332,13 @@ List what is inside a workspace folder: its subfolders and its files together. L
 | `entries` | array | What the folder holds. Each entry has kind "folder" or "file", a name, and its depth below the listed folder. A folder carries its own canonical path; a file carries its id, size, type, and the canonical path of the folder holding it. |
 | `truncated` | boolean | True when the limit cut the listing short, so more entries exist. |
 
+</ReferenceDetails>
+
 ### Create File Folder
 
 Create a workspace file folder at a path. Parent folders are created as needed. Fails if a folder already exists at the path.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +352,13 @@ Create a workspace file folder at a path. Parent folders are created as needed. 
 | --------- | ---- | ----------- |
 | `folder` | object | The created folder, with its name, canonical path, parent path, and timestamps. |
 
+</ReferenceDetails>
+
 ### Move File Folder
 
 Move or rename a workspace file folder by giving its full destination path. Everything inside the folder moves with it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +374,13 @@ Move or rename a workspace file folder by giving its full destination path. Ever
 | `folder` | object | The folder at its new path. |
 | `previousPath` | string | The path the folder had before the move. |
 
+</ReferenceDetails>
+
 ### Delete File Folder
 
 Delete a workspace file folder. It moves to Recently deleted and can be brought back with Restore File Folder. Deleting a folder that still has contents requires the recursive option.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -342,9 +397,13 @@ Delete a workspace file folder. It moves to Recently deleted and can be brought 
 | `deleted` | boolean | Always true when the operation succeeded. |
 | `deletedItems` | object | Counts of the folders and files deleted alongside it. |
 
+</ReferenceDetails>
+
 ### Restore File Folder
 
 Restore a deleted workspace file folder and its contents from Recently deleted. Addressed by folder ID, because a deleted folder has no live path.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -359,9 +418,13 @@ Restore a deleted workspace file folder and its contents from Recently deleted. 
 | `folder` | object | The restored folder at its live path. |
 | `restoredItems` | object | Counts of the folders and files restored alongside it. |
 
+</ReferenceDetails>
+
 ### Move File
 
 Move an existing workspace file into a folder. Moves the file itself; use Move File Folder to relocate a whole folder.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -376,6 +439,8 @@ Move an existing workspace file into a folder. Moves the file itself; use Move F
 | --------- | ---- | ----------- |
 | `fileId` | string | The file that was moved. |
 | `folderPath` | string | The folder the file now lives in. |
+
+</ReferenceDetails>
 
 {/* MANUAL-CONTENT-START:search_limits */}
 ## Search coverage and limits
