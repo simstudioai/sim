@@ -16,11 +16,15 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) {
 }
 
 const pages = [
-  '/introduction',
-  '/getting-started',
-  '/files',
-  '/integrations/apollo',
-  '/api-reference/workflows/listWorkflows',
+  { path: '/introduction', title: 'Introduction', content: '## Models and integrations' },
+  { path: '/getting-started', title: 'Getting started', content: '## Start in Chat' },
+  { path: '/files', title: 'Files', content: '## Upload or create a file' },
+  { path: '/integrations/apollo', title: 'Apollo', content: '### Apollo People Search' },
+  {
+    path: '/api-reference/workflows/listWorkflows',
+    title: 'List workflows',
+    content: '`GET /api/v2/workflows`',
+  },
 ] as const
 const viewports = [
   { name: 'desktop', width: 1440, height: 1000 },
@@ -33,7 +37,7 @@ let browser: Browser | undefined
 try {
   browser = await chromium.launch()
   for (const viewport of viewports) {
-    for (const path of pages) {
+    for (const { path, title, content } of pages) {
       const started = performance.now()
       const context = await browser.newContext({ viewport, reducedMotion: 'reduce' })
       const page = await context.newPage()
@@ -85,6 +89,9 @@ try {
           const markdown = await page.request.get(markdownUrl)
           expect(markdown.ok()).toBe(true)
           const expected = await markdown.text()
+          expect(expected).toContain(`# ${title} (${path})`)
+          expect(expected).toContain(content)
+          if (path.startsWith('/api-reference/')) expect(expected).toContain('## Responses')
           const copy = page.getByRole('button', { name: 'Copy page content', exact: true })
           await context.grantPermissions(['clipboard-read', 'clipboard-write'])
           expect(markdownRequests).toEqual([])
@@ -94,18 +101,21 @@ try {
           await expect
             .poll(() => page.evaluate(() => navigator.clipboard.readText()))
             .toBe(expected)
-          await page.route(markdownUrl, (route) =>
-            route.fulfill({ status: 503, body: 'Unavailable' })
-          )
-          await page.getByRole('button', { name: 'Copied to clipboard' }).click()
-          await expect(page.getByRole('status')).toHaveText('Could not copy. Try again.')
-          await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toHaveCount(0)
-          await expect
-            .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-            .toBe(expected)
-          await page.unroute(markdownUrl)
-          await copy.click()
-          await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+          for (const response of [
+            { status: 503, body: 'Unavailable' },
+            { status: 200, body: ' \n ' },
+          ]) {
+            await page.route(markdownUrl, (route) => route.fulfill(response))
+            await page.getByRole('button', { name: 'Copied to clipboard' }).click()
+            await expect(page.getByRole('status')).toHaveText('Could not copy. Try again.')
+            await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toHaveCount(0)
+            await expect
+              .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+              .toBe(expected)
+            await page.unroute(markdownUrl)
+            await copy.click()
+            await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+          }
         }
         await page.screenshot({
           path: join(dirname(reportPath), `${viewport.name}${path.replaceAll('/', '-')}.png`),
@@ -146,11 +156,14 @@ try {
               new URL('/llms.mdx/platform/costs', origin).toString()
             )
             expect(markdown.ok()).toBe(true)
+            const expected = await markdown.text()
+            expect(expected).toContain('# Credits, billing and limits (/platform/costs)')
+            expect(expected).toContain('## What a workflow run costs')
             await page.getByRole('button', { name: 'Copy page content', exact: true }).click()
             await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
             await expect
               .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-              .toBe(await markdown.text())
+              .toBe(expected)
           }
         }
         results.push({
@@ -175,6 +188,81 @@ try {
         await context.close()
       }
     }
+  }
+  const started = performance.now()
+  const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
+  try {
+    await context.addInitScript(() => {
+      Object.defineProperty(window, 'ClipboardItem', { value: undefined })
+      const writeText = navigator.clipboard.writeText.bind(navigator.clipboard)
+      navigator.clipboard.writeText = (text) => {
+        document.documentElement.dataset.clipboardActivation = String(
+          navigator.userActivation.isActive
+        )
+        return writeText(text)
+      }
+    })
+    const page = await context.newPage()
+    const markdownUrl = new URL('/llms.mdx/introduction', origin).toString()
+    const requests: string[] = []
+    await page.route('**/llms.mdx/**', async (route) => {
+      requests.push(route.request().url())
+      await page.waitForFunction(() => !navigator.userActivation.isActive)
+      await route.continue()
+    })
+    await page.goto(new URL('/introduction', origin).toString(), { waitUntil: 'networkidle' })
+    const copy = page.getByRole('button', { name: /^(Copy page content|Copied to clipboard)$/ })
+    const loaded = page.waitForResponse(markdownUrl)
+    await copy.click()
+    await (await loaded).finished()
+    await expect(copy).toBeEnabled()
+    await expect(page.locator('html')).not.toHaveAttribute('data-clipboard-activation')
+    await page.screenshot({ path: join(dirname(reportPath), 'legacy-clipboard-ready.png') })
+    await copy.click()
+    await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-clipboard-activation', 'true')
+    expect(requests).toEqual([markdownUrl])
+    const copied = await page.evaluate(() => navigator.clipboard.readText())
+    expect(copied).toContain('# Introduction (/introduction)')
+    expect(copied).toContain('## Models and integrations')
+    await page.screenshot({ path: join(dirname(reportPath), 'legacy-clipboard.png') })
+    const navigation = page.getByRole('complementary', { name: 'Documentation navigation' })
+    await navigation.getByRole('button', { name: 'Platform', exact: true }).click()
+    await navigation.getByRole('link', { name: 'Credits, billing and limits', exact: true }).click()
+    await expect(page).toHaveURL(new URL('/platform/costs', origin).toString())
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Credits, billing and limits', exact: true })
+    ).toBeVisible()
+    const nextMarkdownUrl = new URL('/llms.mdx/platform/costs', origin).toString()
+    const nextLoaded = page.waitForResponse(nextMarkdownUrl)
+    await copy.click()
+    await (await nextLoaded).finished()
+    await expect(copy).toBeEnabled()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(copied)
+    await copy.click()
+    await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-clipboard-activation', 'true')
+    expect(requests).toEqual([markdownUrl, nextMarkdownUrl])
+    const nextCopied = await page.evaluate(() => navigator.clipboard.readText())
+    expect(nextCopied).toContain('# Credits, billing and limits (/platform/costs)')
+    expect(nextCopied).toContain('## What a workflow run costs')
+    results.push({
+      path: '/introduction',
+      viewport: 'legacy-clipboard',
+      status: 'passed',
+      durationMs: Math.round(performance.now() - started),
+    })
+  } catch (error) {
+    failed = true
+    results.push({
+      path: '/introduction',
+      viewport: 'legacy-clipboard',
+      status: 'failed',
+      durationMs: Math.round(performance.now() - started),
+      error: getErrorMessage(error),
+    })
+  } finally {
+    await context.close()
   }
 } catch (error) {
   failed = true
