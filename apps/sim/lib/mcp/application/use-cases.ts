@@ -143,6 +143,8 @@ export interface DiscoverMcpServerToolsInput {
   refresh?: boolean
   signal?: AbortSignal
   requireComplete?: boolean
+  /** Discovery nobody asked for: reads the server's shared health state but never writes it. */
+  bestEffort?: boolean
 }
 
 /**
@@ -192,14 +194,18 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     })
     const refresh = input.refresh ? 'skip-cache' : 'cache-aside'
     const tools =
-      input.signal || input.requireComplete
+      input.signal || input.requireComplete || input.bestEffort
         ? await mcpService.discoverServerTools(
             userId,
             context.server.id,
             context.workspaceId,
             refresh,
             undefined,
-            { signal: input.signal, requireComplete: input.requireComplete }
+            {
+              signal: input.signal,
+              requireComplete: input.requireComplete,
+              bestEffort: input.bestEffort,
+            }
           )
         : await mcpService.discoverServerTools(
             userId,

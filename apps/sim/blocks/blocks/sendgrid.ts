@@ -9,7 +9,7 @@ export const SendGridBlock: BlockConfig = {
   name: 'SendGrid',
   description: 'Send emails and manage contacts, lists, and templates with SendGrid',
   longDescription:
-    'Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.',
+    'Send transactional emails with dynamic templates and attachments. Manage marketing contacts, lists, and email templates.',
   docsLink: 'https://docs.sim.ai/integrations/sendgrid',
   category: 'tools',
   integrationType: IntegrationType.Email,

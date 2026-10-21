@@ -12,6 +12,10 @@ inputs:
   path:
     description: Path to mount.
     required: true
+  save-suffix:
+    description: Appended to the actions/cache save key, for a job that must replace an entry another job of the same run already saved under that key. Sticky disks ignore it.
+    required: false
+    default: ''
 
 # Predicates must stay the exact complement of the caller's runs-on — stickydisk
 # only runs on Blacksmith.
@@ -31,6 +35,6 @@ runs:
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
-        key: ${{ inputs.key }}-${{ github.run_id }}
+        key: ${{ inputs.key }}-${{ github.run_id }}${{ inputs.save-suffix }}
         restore-keys: ${{ inputs.key }}-
         path: ${{ inputs.path }}

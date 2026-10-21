@@ -1,21 +1,19 @@
 ---
 title: PlanetScale
 description: Manage PlanetScale databases, branches, backups, and deploy requests
+integration:
+  type: "planetscale"
+  color: "#111111"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="planetscale"
-  color="#111111"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [PlanetScale](https://planetscale.com/) to inspect databases and branches, create or delete branches, restore backups into a new branch, and create or inspect backups. Vitess deploy-request actions create, review, approve, queue, or close schema-change requests.
 
 Create an organization service token with access to the databases and actions your workflow needs. Enter the service token ID, token, and organization slug in the block. Deploy requests are specific to Vitess; use the MySQL or PostgreSQL block to execute SQL.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Manage PlanetScale databases and branches, create and inspect backups, and creat
 ### PlanetScale List Databases
 
 List databases
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,9 +62,13 @@ List databases
 |   ↳ `updatedAt` | string | When the database was last updated |
 |   ↳ `htmlUrl` | string | The URL to see this database's branches in the web UI |
 
+</ReferenceDetails>
+
 ### PlanetScale Get Database
 
 Get a database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -93,9 +97,13 @@ Get a database
 |   ↳ `updatedAt` | string | When the database was last updated |
 |   ↳ `htmlUrl` | string | The URL to see this database's branches in the web UI |
 
+</ReferenceDetails>
+
 ### PlanetScale List Branches
 
 List branches
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +144,13 @@ List branches
 |   ↳ `updatedAt` | string | When the branch was last updated |
 |   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
 
+</ReferenceDetails>
+
 ### PlanetScale Get Branch
 
 Get a branch
+
+<ReferenceDetails>
 
 #### Input
 
@@ -168,9 +180,13 @@ Get a branch
 |   ↳ `updatedAt` | string | When the branch was last updated |
 |   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
 
+</ReferenceDetails>
+
 ### PlanetScale Create Branch
 
 Create a branch
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +225,13 @@ Create a branch
 |   ↳ `updatedAt` | string | When the branch was last updated |
 |   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
 
+</ReferenceDetails>
+
 ### PlanetScale Delete Branch
 
 Delete a branch
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,9 +250,13 @@ Delete a branch
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the branch was deleted |
 
+</ReferenceDetails>
+
 ### PlanetScale List Backups
 
 List backups
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +300,13 @@ List backups
 |   ↳ `completedAt` | string | When the backup completed |
 |   ↳ `expiresAt` | string | When the backup expires |
 
+</ReferenceDetails>
+
 ### PlanetScale Get Backup
 
 Get a backup
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +336,13 @@ Get a backup
 |   ↳ `completedAt` | string | When the backup completed |
 |   ↳ `expiresAt` | string | When the backup expires |
 
+</ReferenceDetails>
+
 ### PlanetScale Create Backup
 
 Create a backup
+
+<ReferenceDetails>
 
 #### Input
 
@@ -343,9 +375,13 @@ Create a backup
 |   ↳ `completedAt` | string | When the backup completed |
 |   ↳ `expiresAt` | string | When the backup expires |
 
+</ReferenceDetails>
+
 ### PlanetScale List Deploy Requests
 
 List deploy requests (Vitess only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -389,9 +425,13 @@ List deploy requests (Vitess only)
 |   ↳ `deployedAt` | string | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
+</ReferenceDetails>
+
 ### PlanetScale Get Deploy Request
 
 Get a deploy request (Vitess only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -423,9 +463,13 @@ Get a deploy request (Vitess only)
 |   ↳ `deployedAt` | string | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
+</ReferenceDetails>
+
 ### PlanetScale Create Deploy Request
 
 Create a deploy request (Vitess only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -461,9 +505,13 @@ Create a deploy request (Vitess only)
 |   ↳ `deployedAt` | string | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
+</ReferenceDetails>
+
 ### PlanetScale Review Deploy Request
 
 Review a deploy request (Vitess only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -488,9 +536,13 @@ Review a deploy request (Vitess only)
 |   ↳ `createdAt` | string | When the review was created |
 |   ↳ `updatedAt` | string | When the review was last updated |
 
+</ReferenceDetails>
+
 ### PlanetScale Queue Deploy Request
 
 Queue a deploy request (Vitess only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -523,9 +575,13 @@ Queue a deploy request (Vitess only)
 |   ↳ `deployedAt` | string | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
+</ReferenceDetails>
+
 ### PlanetScale Close Deploy Request
 
 Close a deploy request (Vitess only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,5 +612,7 @@ Close a deploy request (Vitess only)
 |   ↳ `closedAt` | string | When the deploy request was closed |
 |   ↳ `deployedAt` | string | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
+
+</ReferenceDetails>
 
 

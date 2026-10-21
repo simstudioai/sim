@@ -27,6 +27,7 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { serializeAuditLogFilters } from '@/ee/audit-logs/search-params'
 import { ActivityPanel } from '@/ee/organization-usage/components/activity-panel'
 import { OrganizationActivityOverview } from '@/ee/organization-usage/components/activity-summary'
+import { UsageCalendar } from '@/ee/organization-usage/components/usage-calendar'
 import { UsageConsumers } from '@/ee/organization-usage/components/usage-consumers'
 import { UsageCredits } from '@/ee/organization-usage/components/usage-credits'
 import { UsageTopCards } from '@/ee/organization-usage/components/usage-top-cards'
@@ -252,6 +253,11 @@ export function UsageMonitoring({
             onRetry={() => void workspaceOverview.refetch()}
           />
         </SettingsSection>
+        <UsageCalendar
+          organizationId={organizationId}
+          timezone={window.timezone}
+          workspaceId={workspace}
+        />
         <UsageSection dimension='workflow' unit='credits'>
           <UsageConsumers
             dimension='workflow'
@@ -346,6 +352,7 @@ export function UsageMonitoring({
                 onRetry={() => void overview.refetch()}
               />
             </SettingsSection>
+            <UsageCalendar organizationId={organizationId} timezone={window.timezone} />
             <UsageTopCards
               organizationId={organizationId}
               window={window}

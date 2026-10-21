@@ -3,8 +3,8 @@
  * root. The single source of truth for "is this the marketing surface", because
  * a route group is not a path prefix and nothing else can derive the answer.
  *
- * Two consumers depend on this list being complete, and both fail silently when
- * it is not:
+ * Three consumers depend on this list being complete, and all three fail
+ * silently when it is not:
  *
  * - `next.config.ts` exempts these paths from COEP. The header is a *document*
  *   header inherited across client-side navigations, so an unlisted landing page
@@ -64,6 +64,7 @@ export function isLandingPath(pathname: string): boolean {
  * {@link isLandingPath} does not cover them.
  */
 const MARKETING_DOCUMENT_PATHS: ReadonlySet<string> = new Set([
+  '/index.md',
   '/llms.txt',
   '/llms-full.txt',
   '/changelog.xml',

@@ -1,21 +1,19 @@
 ---
 title: UptimeRobot
 description: Monitor uptime, manage incidents, maintenance windows, and status pages
+integration:
+  type: "uptimerobot"
+  color: "#111921"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="uptimerobot"
-  color="#111921"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [UptimeRobot](https://uptimerobot.com/) v3 to create, update, pause, start, or delete monitors and inspect incidents. Configure HTTP, keyword, ping, port, heartbeat, DNS, API, or UDP checks using the inputs supported by the selected monitor type.
 
 The actions also manage one-time or recurring maintenance windows, email alert contacts, and public status pages with optional domains, logos, and icons. Use maintenance windows to suppress alerts during planned downtime and inspect incidents when a check fails.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Create and manage monitors, inspect incidents, schedule maintenance windows, man
 ### UptimeRobot List Monitors
 
 List monitors in your UptimeRobot account, with optional filters and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -84,9 +84,13 @@ List monitors in your UptimeRobot account, with optional filters and pagination
 |     ↳ `duration` | number | Incident duration in seconds |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
+</ReferenceDetails>
+
 ### UptimeRobot Get Monitor
 
 Get the details of a single UptimeRobot monitor by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +142,13 @@ Get the details of a single UptimeRobot monitor by ID
 |     ↳ `startedAt` | string | When the incident started |
 |     ↳ `duration` | number | Incident duration in seconds |
 
+</ReferenceDetails>
+
 ### UptimeRobot Create Monitor
 
 Create a new monitor in UptimeRobot
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +223,13 @@ Create a new monitor in UptimeRobot
 |     ↳ `startedAt` | string | When the incident started |
 |     ↳ `duration` | number | Incident duration in seconds |
 
+</ReferenceDetails>
+
 ### UptimeRobot Update Monitor
 
 Update an existing UptimeRobot monitor. Only the provided fields are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -290,9 +302,13 @@ Update an existing UptimeRobot monitor. Only the provided fields are changed.
 |     ↳ `startedAt` | string | When the incident started |
 |     ↳ `duration` | number | Incident duration in seconds |
 
+</ReferenceDetails>
+
 ### UptimeRobot Delete Monitor
 
 Permanently delete an UptimeRobot monitor by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +324,13 @@ Permanently delete an UptimeRobot monitor by ID
 | `deleted` | boolean | Whether the monitor was deleted |
 | `id` | number | ID of the deleted monitor |
 
+</ReferenceDetails>
+
 ### UptimeRobot Pause Monitor
 
 Pause an UptimeRobot monitor so it stops running checks
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +382,13 @@ Pause an UptimeRobot monitor so it stops running checks
 |     ↳ `startedAt` | string | When the incident started |
 |     ↳ `duration` | number | Incident duration in seconds |
 
+</ReferenceDetails>
+
 ### UptimeRobot Start Monitor
 
 Resume a paused UptimeRobot monitor so it starts running checks again
+
+<ReferenceDetails>
 
 #### Input
 
@@ -416,9 +440,13 @@ Resume a paused UptimeRobot monitor so it starts running checks again
 |     ↳ `startedAt` | string | When the incident started |
 |     ↳ `duration` | number | Incident duration in seconds |
 
+</ReferenceDetails>
+
 ### UptimeRobot List Incidents
 
 List incidents across your UptimeRobot account (last 24 hours by default), with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -450,9 +478,13 @@ List incidents across your UptimeRobot account (last 24 hours by default), with 
 |   ↳ `includeInReports` | boolean | Whether the incident is included in reports |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
+</ReferenceDetails>
+
 ### UptimeRobot Get Incident
 
 Get the details of a single UptimeRobot incident by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -478,9 +510,13 @@ Get the details of a single UptimeRobot incident by ID
 |     ↳ `httpResponseCode` | number | HTTP response code observed |
 |     ↳ `responseDownloadUrl` | string | URL to download the captured response body |
 
+</ReferenceDetails>
+
 ### UptimeRobot List Maintenance Windows
 
 List maintenance windows in your UptimeRobot account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -508,9 +544,13 @@ List maintenance windows in your UptimeRobot account
 |   ↳ `created` | string | When the maintenance window was created |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
+</ReferenceDetails>
+
 ### UptimeRobot Get Maintenance Window
 
 Get the details of a single UptimeRobot maintenance window by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -537,9 +577,13 @@ Get the details of a single UptimeRobot maintenance window by ID
 |   ↳ `status` | string | Status \(active or paused\) |
 |   ↳ `created` | string | When the maintenance window was created |
 
+</ReferenceDetails>
+
 ### UptimeRobot Create Maintenance Window
 
 Create a new maintenance window to suppress alerts during planned downtime
+
+<ReferenceDetails>
 
 #### Input
 
@@ -573,9 +617,13 @@ Create a new maintenance window to suppress alerts during planned downtime
 |   ↳ `status` | string | Status \(active or paused\) |
 |   ↳ `created` | string | When the maintenance window was created |
 
+</ReferenceDetails>
+
 ### UptimeRobot Update Maintenance Window
 
 Update an existing maintenance window. Only the provided fields are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -610,9 +658,13 @@ Update an existing maintenance window. Only the provided fields are changed.
 |   ↳ `status` | string | Status \(active or paused\) |
 |   ↳ `created` | string | When the maintenance window was created |
 
+</ReferenceDetails>
+
 ### UptimeRobot Delete Maintenance Window
 
 Permanently delete an UptimeRobot maintenance window by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -628,9 +680,13 @@ Permanently delete an UptimeRobot maintenance window by ID
 | `deleted` | boolean | Whether the maintenance window was deleted |
 | `id` | number | ID of the deleted maintenance window |
 
+</ReferenceDetails>
+
 ### UptimeRobot List Alert Contacts
 
 List the personal alert contacts in your UptimeRobot account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -654,9 +710,13 @@ List the personal alert contacts in your UptimeRobot account
 |   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
+</ReferenceDetails>
+
 ### UptimeRobot Get Alert Contact
 
 Get the details of a single UptimeRobot alert contact by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -679,9 +739,13 @@ Get the details of a single UptimeRobot alert contact by ID
 |   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
 |   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
 
+</ReferenceDetails>
+
 ### UptimeRobot Create Alert Contact
 
 Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -706,9 +770,13 @@ Create an email alert contact in UptimeRobot. The contact must be confirmed via 
 |   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
 |   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
 
+</ReferenceDetails>
+
 ### UptimeRobot Delete Alert Contact
 
 Permanently delete an UptimeRobot alert contact by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -724,9 +792,13 @@ Permanently delete an UptimeRobot alert contact by ID
 | `deleted` | boolean | Whether the alert contact was deleted |
 | `id` | number | ID of the deleted alert contact |
 
+</ReferenceDetails>
+
 ### UptimeRobot List Status Pages
 
 List the public status pages in your UptimeRobot account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -758,9 +830,13 @@ List the public status pages in your UptimeRobot account
 |   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
 | `nextLink` | string | URL for the next page of results, or null on the last page |
 
+</ReferenceDetails>
+
 ### UptimeRobot Get Status Page
 
 Get the details of a single UptimeRobot public status page by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -791,9 +867,13 @@ Get the details of a single UptimeRobot public status page by ID
 |   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
 |   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
 
+</ReferenceDetails>
+
 ### UptimeRobot Create Status Page
 
 Create a public status page in UptimeRobot, optionally with a logo and icon image
+
+<ReferenceDetails>
 
 #### Input
 
@@ -832,9 +912,13 @@ Create a public status page in UptimeRobot, optionally with a logo and icon imag
 |   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
 |   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
 
+</ReferenceDetails>
+
 ### UptimeRobot Update Status Page
 
 Update a public status page in UptimeRobot. Only the provided fields are changed; logo and icon images can be replaced.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -874,9 +958,13 @@ Update a public status page in UptimeRobot. Only the provided fields are changed
 |   ↳ `hideUrlLinks` | boolean | Whether the "Powered by" footer link is hidden |
 |   ↳ `subscription` | boolean | Whether the subscribe feature is enabled |
 
+</ReferenceDetails>
+
 ### UptimeRobot Delete Status Page
 
 Permanently delete an UptimeRobot public status page by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -892,9 +980,13 @@ Permanently delete an UptimeRobot public status page by ID
 | `deleted` | boolean | Whether the status page was deleted |
 | `id` | number | ID of the deleted status page |
 
+</ReferenceDetails>
+
 ### UptimeRobot Get Account
 
 Get details about the authenticated UptimeRobot account, including plan and limits
+
+<ReferenceDetails>
 
 #### Input
 
@@ -915,5 +1007,7 @@ Get details about the authenticated UptimeRobot account, including plan and limi
 |   ↳ `plan` | string | Subscription plan name |
 |   ↳ `subscriptionStatus` | string | Subscription status |
 |   ↳ `subscriptionExpiresAt` | string | Subscription expiration date |
+
+</ReferenceDetails>
 
 

@@ -1,21 +1,19 @@
 ---
 title: Email Bison
 description: Manage Email Bison leads, campaigns, replies, and tags
+integration:
+  type: "emailbison"
+  color: "#FB7A22"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="emailbison"
-  color="#FB7A22"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Email Bison](https://emailbison.com/) to create, update, retrieve, and tag leads; create campaigns and attach leads; and pause, resume, or archive campaigns. List and filter replies by status, folder, campaign, sender, lead, or tag.
 
 Triggers can start workflows from first-email, reply, interest, unsubscribe, bounce, open, and sender-account events. Use the event data to update a CRM, route replies, or adjust campaign follow-up.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Create and update leads, manage campaigns, attach leads to campaigns, list repli
 ### Email Bison List Leads
 
 Retrieves leads from Email Bison with optional search and tag filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,9 +58,13 @@ Retrieves leads from Email Bison with optional search and tag filters.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Get Lead
 
 Retrieves a lead by Email Bison lead ID or email address.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,11 +92,15 @@ Retrieves a lead by Email Bison lead ID or email address.
 | `status` | string | Record status |
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
+
+</ReferenceDetails>
 
 ### Email Bison Create Lead
 
 Creates a single lead in Email Bison.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -126,9 +134,13 @@ Creates a single lead in Email Bison.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Update Lead
 
 Updates an existing Email Bison lead. Fields omitted from a PUT update may be cleared by Email Bison.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +176,13 @@ Updates an existing Email Bison lead. Fields omitted from a PUT update may be cl
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison List Campaigns
 
 Retrieves Email Bison campaigns.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -194,9 +210,13 @@ Retrieves Email Bison campaigns.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Create Campaign
 
 Creates a new Email Bison campaign.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +246,13 @@ Creates a new Email Bison campaign.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Update Campaign
 
 Updates Email Bison campaign settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +290,13 @@ Updates Email Bison campaign settings.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Update Campaign Status
 
 Pauses, resumes, or archives an Email Bison campaign.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -298,9 +326,13 @@ Pauses, resumes, or archives an Email Bison campaign.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Attach Leads to Campaign
 
 Adds existing Email Bison leads to a campaign.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +363,13 @@ Adds existing Email Bison leads to a campaign.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison List Replies
 
 Retrieves Email Bison replies with optional status, folder, campaign, sender, lead, and tag filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +405,13 @@ Retrieves Email Bison replies with optional status, folder, campaign, sender, le
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison List Tags
 
 Retrieves all Email Bison tags for the authenticated workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -399,9 +439,13 @@ Retrieves all Email Bison tags for the authenticated workspace.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Create Tag
 
 Creates a new Email Bison tag.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -430,9 +474,13 @@ Creates a new Email Bison tag.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 ### Email Bison Attach Tags to Leads
 
 Attaches Email Bison tags to one or more leads.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,6 +511,8 @@ Attaches Email Bison tags to one or more leads.
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -473,6 +523,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger when a contact receives their first campaign email in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -553,13 +605,14 @@ Trigger when a contact receives their first campaign email in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Contact Interested
 
 Trigger when a reply is marked interested in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -661,13 +714,14 @@ Trigger when a reply is marked interested in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Contact Replied
 
 Trigger when a campaign lead replies in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -769,13 +823,14 @@ Trigger when a campaign lead replies in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Contact Unsubscribed
 
 Trigger when a contact unsubscribes in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -856,13 +911,14 @@ Trigger when a contact unsubscribes in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Account Added
 
 Trigger when a sender email account is added to Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -900,13 +956,14 @@ Trigger when a sender email account is added to Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Account Disconnected
 
 Trigger when a sender email account disconnects in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -944,13 +1001,14 @@ Trigger when a sender email account disconnects in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Account Reconnected
 
 Trigger when a sender email account reconnects in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -988,13 +1046,14 @@ Trigger when a sender email account reconnects in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Account Removed
 
 Trigger when a sender email account is removed from Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1032,12 +1091,13 @@ Trigger when a sender email account is removed from Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Bounced
 
 Trigger when an Email Bison campaign email bounces
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1140,13 +1200,14 @@ Trigger when an Email Bison campaign email bounces
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Opened
 
 Trigger when an Email Bison campaign email is opened
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1227,13 +1288,14 @@ Trigger when an Email Bison campaign email is opened
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Email Sent
 
 Trigger when a campaign email is sent in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1314,12 +1376,13 @@ Trigger when a campaign email is sent in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Manual Email Sent
 
 Trigger when a manual email is sent in Email Bison
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1415,13 +1478,14 @@ Trigger when a manual email is sent in Email Bison
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Tag Attached
 
 Trigger when a custom tag is attached to a taggable in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1445,13 +1509,14 @@ Trigger when a custom tag is attached to a taggable in Email Bison
 | `taggableId` | number | ID of the tagged resource |
 | `taggableType` | string | Type of the tagged resource |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Tag Removed
 
 Trigger when a custom tag is removed from a taggable in Email Bison
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1475,12 +1540,13 @@ Trigger when a custom tag is removed from a taggable in Email Bison
 | `taggableId` | number | ID of the tagged resource |
 | `taggableType` | string | Type of the tagged resource |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Untracked Reply Received
 
 Trigger when Email Bison receives a reply not tied to a scheduled campaign email
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1543,13 +1609,14 @@ Trigger when Email Bison receives a reply not tied to a scheduled campaign email
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Warmup Disabled Causing Bounces
 
 Trigger when warmup is disabled for a sender email causing too many bounces
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1587,13 +1654,14 @@ Trigger when warmup is disabled for a sender email causing too many bounces
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Email Bison Warmup Disabled Receiving Bounces
 
 Trigger when warmup is disabled for a sender email receiving too many bounces
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1630,4 +1698,6 @@ Trigger when warmup is disabled for a sender email receiving too many bounces
 |   ↳ `interested` | number | Sender email interested count |
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
+
+</ReferenceDetails>
 

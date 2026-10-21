@@ -1,14 +1,13 @@
 ---
 title: Buffer
 description: Schedule and publish social media posts across connected channels
+integration:
+  type: "buffer"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="buffer"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Buffer](https://buffer.com/) to draft, queue, schedule, publish, edit, and delete posts on connected social channels. Attach images, videos, or documents; inspect channel settings, daily limits, and published-post metrics; and manage ideas and idea groups.
@@ -32,7 +31,6 @@ Select **Keep current schedule** in **Share Mode** and **Keep current publishing
 Use **Clear Caption** to remove a caption, or an empty assets or tag-ID array to clear those values. Omitted fields preserve existing values. Use the supported date and tag comparators for post filters; the older `startDate`, `endDate`, and `tagIds` filter fields are unavailable.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.
@@ -42,6 +40,8 @@ Create, schedule, edit, and delete posts across connected social channels (Insta
 ### Buffer Create Post
 
 Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -367,9 +367,13 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 |   ↳ `createdAt` | string | Post createdAt |
 |   ↳ `updatedAt` | string | Post updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Edit Post
 
 Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -695,9 +699,13 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 |   ↳ `createdAt` | string | Post createdAt |
 |   ↳ `updatedAt` | string | Post updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Posts
 
 List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1318,9 +1326,13 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 |   ↳ `hasPreviousPage` | boolean | PaginationPageInfo hasPreviousPage |
 |   ↳ `startCursor` | string | PaginationPageInfo startCursor |
 
+</ReferenceDetails>
+
 ### Buffer Get Post
 
 Get a single Buffer post by ID, including its status, schedule, and media
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1630,9 +1642,13 @@ Get a single Buffer post by ID, including its status, schedule, and media
 |   ↳ `createdAt` | string | Post createdAt |
 |   ↳ `updatedAt` | string | Post updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Delete Post
 
 Delete a Buffer post by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1648,9 +1664,13 @@ Delete a Buffer post by ID
 | `deleted` | boolean | Whether the post was deleted |
 | `id` | string | ID of the deleted post |
 
+</ReferenceDetails>
+
 ### Buffer Get Channels
 
 List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1730,9 +1750,13 @@ List the social media channels connected to a Buffer organization, including the
 |   ↳ `createdAt` | string | Channel createdAt |
 |   ↳ `updatedAt` | string | Channel updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Channel
 
 Get one connected channel, including its posting schedule, limits and network settings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1811,9 +1835,13 @@ Get one connected channel, including its posting schedule, limits and network se
 |   ↳ `createdAt` | string | Channel createdAt |
 |   ↳ `updatedAt` | string | Channel updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Aggregated Post Metrics
 
 Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1839,9 +1867,13 @@ Aggregate published post metrics across an organization or selected channels ove
 |     ↳ `value` | number | PostMetric value |
 |   ↳ `metricsUpdatedAt` | string | AggregatedPostMetrics metricsUpdatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Daily Posting Limits
 
 Check sent and scheduled post counts against each channel’s daily limit for a date
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1862,9 +1894,13 @@ Check sent and scheduled post counts against each channel’s daily limit for a 
 |   ↳ `scheduled` | number | DailyPostingLimitStatus scheduled |
 |   ↳ `sent` | number | DailyPostingLimitStatus sent |
 
+</ReferenceDetails>
+
 ### Buffer Create Idea
 
 Save a content idea to a Buffer organization for later drafting and scheduling
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1917,9 +1953,13 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 |   ↳ `title` | string | Idea content title |
 |   ↳ `text` | string | Idea content text |
 
+</ReferenceDetails>
+
 ### Buffer Get Ideas
 
 List content ideas saved in a Buffer organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2008,9 +2048,13 @@ List content ideas saved in a Buffer organization
 |   ↳ `hasPreviousPage` | boolean | PaginationPageInfo hasPreviousPage |
 |   ↳ `startCursor` | string | PaginationPageInfo startCursor |
 
+</ReferenceDetails>
+
 ### Buffer Get Idea Groups
 
 List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2028,9 +2072,13 @@ List idea groups (board columns) in a Buffer organization, including the group I
 |   ↳ `isLocked` | boolean | IdeaGroup isLocked |
 |   ↳ `name` | string | IdeaGroup name |
 
+</ReferenceDetails>
+
 ### Buffer Get Account
 
 Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2084,6 +2132,8 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 |     ↳ `userId` | string | ConnectedApp userId |
 |     ↳ `website` | string | ConnectedApp website |
 |     ↳ `createdAt` | string | ConnectedApp createdAt |
+
+</ReferenceDetails>
 
 ## JSON input schemas [#json-input-schemas]
 

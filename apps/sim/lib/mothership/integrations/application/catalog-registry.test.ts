@@ -10,7 +10,7 @@ import { projectIntegrationCatalog } from '@/lib/mothership/integrations/applica
 /** Registration assertions must exercise the executable registry, not the global empty mock. */
 vi.unmock('@/tools/registry')
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
-vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: vi.fn() }))
+vi.mock('@/lib/mothership/mcp-tools', () => ({ buildMcpToolSchemas: vi.fn() }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 const tools: ToolSchema[] = getExposedIntegrationTools().map((tool) => ({

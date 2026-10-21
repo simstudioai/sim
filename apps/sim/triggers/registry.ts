@@ -301,6 +301,21 @@ import {
   greenhouseOfferCreatedTrigger,
   greenhouseWebhookTrigger,
 } from '@/triggers/greenhouse'
+import {
+  helpScoutAgentRepliedTrigger,
+  helpScoutConversationAssignedTrigger,
+  helpScoutConversationCreatedTrigger,
+  helpScoutConversationDeletedTrigger,
+  helpScoutConversationMergedTrigger,
+  helpScoutConversationMovedTrigger,
+  helpScoutConversationStatusChangedTrigger,
+  helpScoutConversationTagsUpdatedTrigger,
+  helpScoutCustomerCreatedTrigger,
+  helpScoutCustomerRepliedTrigger,
+  helpScoutCustomerUpdatedTrigger,
+  helpScoutNoteCreatedTrigger,
+  helpScoutWebhookTrigger,
+} from '@/triggers/helpscout'
 import { hubspotPollingTrigger } from '@/triggers/hubspot'
 import { imapPollingTrigger } from '@/triggers/imap'
 import {
@@ -801,6 +816,19 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   greenhouse_job_created: greenhouseJobCreatedTrigger,
   greenhouse_job_updated: greenhouseJobUpdatedTrigger,
   greenhouse_webhook: greenhouseWebhookTrigger,
+  helpscout_agent_replied: helpScoutAgentRepliedTrigger,
+  helpscout_conversation_assigned: helpScoutConversationAssignedTrigger,
+  helpscout_conversation_created: helpScoutConversationCreatedTrigger,
+  helpscout_conversation_deleted: helpScoutConversationDeletedTrigger,
+  helpscout_conversation_merged: helpScoutConversationMergedTrigger,
+  helpscout_conversation_moved: helpScoutConversationMovedTrigger,
+  helpscout_conversation_status_changed: helpScoutConversationStatusChangedTrigger,
+  helpscout_conversation_tags_updated: helpScoutConversationTagsUpdatedTrigger,
+  helpscout_customer_created: helpScoutCustomerCreatedTrigger,
+  helpscout_customer_replied: helpScoutCustomerRepliedTrigger,
+  helpscout_customer_updated: helpScoutCustomerUpdatedTrigger,
+  helpscout_note_created: helpScoutNoteCreatedTrigger,
+  helpscout_webhook: helpScoutWebhookTrigger,
   github_webhook: githubWebhookTrigger,
   github_issue_opened: githubIssueOpenedTrigger,
   github_issue_closed: githubIssueClosedTrigger,

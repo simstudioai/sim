@@ -1953,6 +1953,7 @@ export type CreateCredentialConnectionBody =
         | 'docusign'
         | 'pipedrive'
         | 'ramp'
+        | 'helpscout'
         | 'hubspot'
         | 'linkedin'
         | 'instagram'
@@ -6975,6 +6976,8 @@ export type GetSelectorBody = {
     | 'google.drive'
     | 'google.sheets'
     | 'harmonic.savedSearches'
+    | 'helpscout.mailboxes'
+    | 'helpscout.assignees'
     | 'hubspot.lists'
     | 'hubspot.owners'
     | 'hubspot.pipelines'
@@ -9993,6 +9996,8 @@ export type ListSelectorBody = {
     | 'google.drive'
     | 'google.sheets'
     | 'harmonic.savedSearches'
+    | 'helpscout.mailboxes'
+    | 'helpscout.assignees'
     | 'hubspot.lists'
     | 'hubspot.owners'
     | 'hubspot.pipelines'
@@ -18920,6 +18925,8 @@ export const V2_OPERATIONS = {
           'google.drive',
           'google.sheets',
           'harmonic.savedSearches',
+          'helpscout.mailboxes',
+          'helpscout.assignees',
           'hubspot.lists',
           'hubspot.owners',
           'hubspot.pipelines',
@@ -21244,6 +21251,8 @@ export const V2_OPERATIONS = {
           'google.drive',
           'google.sheets',
           'harmonic.savedSearches',
+          'helpscout.mailboxes',
+          'helpscout.assignees',
           'hubspot.lists',
           'hubspot.owners',
           'hubspot.pipelines',

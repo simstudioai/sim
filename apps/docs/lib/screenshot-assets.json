@@ -1,0 +1,16 @@
+{
+  "/static/credentials/atlassian/admin-auth-type-picker.png": "/static/credentials/atlassian/admin-auth-type-picker.webp",
+  "/static/credentials/atlassian/admin-scope-picker.png": "/static/credentials/atlassian/admin-scope-picker.webp",
+  "/static/credentials/gcp-add-client-id.png": "/static/credentials/gcp-add-client-id.webp",
+  "/static/enterprise/data-retention-override.png": "/static/enterprise/data-retention-override.webp",
+  "/static/enterprise/data-retention-pii.png": "/static/enterprise/data-retention-pii.webp",
+  "/static/enterprise/forks-create-warning.png": "/static/enterprise/forks-create-warning.webp",
+  "/static/enterprise/forks-reconfigure.png": "/static/enterprise/forks-reconfigure.webp",
+  "/static/enterprise/entra/connection.png": "/static/enterprise/entra/connection.webp",
+  "/static/enterprise/entra/scope.png": "/static/enterprise/entra/scope.webp",
+  "/static/enterprise/entra/provision-user.png": "/static/enterprise/entra/provision-user.webp",
+  "/static/enterprise/okta/api-integration.png": "/static/enterprise/okta/api-integration.webp",
+  "/static/enterprise/okta/provisioning-actions.png": "/static/enterprise/okta/provisioning-actions.webp",
+  "/static/enterprise/okta/group-push.png": "/static/enterprise/okta/group-push.webp",
+  "/static/enterprise/sso-domains.png": "/static/enterprise/sso-domains.webp"
+}

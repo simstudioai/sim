@@ -1,21 +1,19 @@
 ---
 title: Railway
 description: Manage Railway projects, services, deployments, and variables
+integration:
+  type: "railway"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="railway"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Railway](https://railway.com/) to list projects, inspect their services and environments, monitor deployments, deploy a service, or roll back a deployment. Read or update service and shared environment variables through Railway's public GraphQL API.
 
 Use project, service, and environment IDs from lookup actions in later release steps. Confirm the target environment before changing variables or starting a deployment.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Integrate Railway into workflows to list projects, manage services and environme
 ### Railway List Projects
 
 List Railway projects visible to the provided token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -52,9 +52,13 @@ List Railway projects visible to the provided token
 |   ↳ `endCursor` | string | Cursor for the next page |
 | `count` | number | Number of projects returned |
 
+</ReferenceDetails>
+
 ### Railway Get Project
 
 Get a Railway project with its services and environments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,9 +86,13 @@ Get a Railway project with its services and environments
 |     ↳ `id` | string | Environment ID |
 |     ↳ `name` | string | Environment name |
 
+</ReferenceDetails>
+
 ### Railway Create Project
 
 Create a Railway project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +115,13 @@ Create a Railway project
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 
+</ReferenceDetails>
+
 ### Railway Update Project
 
 Update a Railway project name or description
+
+<ReferenceDetails>
 
 #### Input
 
@@ -132,9 +144,13 @@ Update a Railway project name or description
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
 
+</ReferenceDetails>
+
 ### Railway Delete Project
 
 Delete a Railway project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +166,13 @@ Delete a Railway project
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the project was deleted |
 
+</ReferenceDetails>
+
 ### Railway Transfer Project
 
 Transfer a Railway project to another workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -169,9 +189,13 @@ Transfer a Railway project to another workspace
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the project was transferred |
 
+</ReferenceDetails>
+
 ### Railway List Project Members
 
 List members for a Railway project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,9 +217,13 @@ List members for a Railway project
 |   ↳ `avatar` | string | Member avatar URL |
 | `count` | number | Number of members returned |
 
+</ReferenceDetails>
+
 ### Railway Create Environment
 
 Create a Railway project environment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -218,9 +246,13 @@ Create a Railway project environment
 |   ↳ `id` | string | Environment ID |
 |   ↳ `name` | string | Environment name |
 
+</ReferenceDetails>
+
 ### Railway Delete Environment
 
 Delete a Railway project environment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +268,13 @@ Delete a Railway project environment
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the environment was deleted |
 
+</ReferenceDetails>
+
 ### Railway Create Service
 
 Create a Railway service from a GitHub repo or Docker image
+
+<ReferenceDetails>
 
 #### Input
 
@@ -260,9 +296,13 @@ Create a Railway service from a GitHub repo or Docker image
 |   ↳ `id` | string | Service ID |
 |   ↳ `name` | string | Service name |
 
+</ReferenceDetails>
+
 ### Railway Delete Service
 
 Delete a Railway service and all of its deployments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -278,9 +318,13 @@ Delete a Railway service and all of its deployments
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the service was deleted |
 
+</ReferenceDetails>
+
 ### Railway List Deployments
 
 List deployments for a Railway service in an environment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,9 +355,13 @@ List deployments for a Railway service in an environment
 |   ↳ `hasNextPage` | boolean | Whether more deployments are available |
 |   ↳ `endCursor` | string | Cursor for the next page |
 
+</ReferenceDetails>
+
 ### Railway Get Deployment
 
 Get details for a single Railway deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -336,9 +384,13 @@ Get details for a single Railway deployment
 |   ↳ `canRollback` | boolean | Whether the deployment can be rolled back to |
 |   ↳ `canRedeploy` | boolean | Whether the deployment can be redeployed |
 
+</ReferenceDetails>
+
 ### Railway Deploy Service
 
 Trigger a deployment for a Railway service in an environment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -356,9 +408,13 @@ Trigger a deployment for a Railway service in an environment
 | --------- | ---- | ----------- |
 | `deploymentId` | string | Created deployment ID |
 
+</ReferenceDetails>
+
 ### Railway Restart Deployment
 
 Restart a running Railway deployment without rebuilding
+
+<ReferenceDetails>
 
 #### Input
 
@@ -374,9 +430,13 @@ Restart a running Railway deployment without rebuilding
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deployment was restarted |
 
+</ReferenceDetails>
+
 ### Railway Rollback Deployment
 
 Roll a Railway service back to a previous deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -392,9 +452,13 @@ Roll a Railway service back to a previous deployment
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the rollback was triggered |
 
+</ReferenceDetails>
+
 ### Railway Get Deployment Logs
 
 Retrieve runtime logs for a Railway deployment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +479,13 @@ Retrieve runtime logs for a Railway deployment
 |   ↳ `severity` | string | Log severity |
 | `count` | number | Number of log entries returned |
 
+</ReferenceDetails>
+
 ### Railway List Variables
 
 List Railway environment variables for a service or shared environment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -436,9 +504,13 @@ List Railway environment variables for a service or shared environment
 | `variables` | object | Variable names and values |
 | `count` | number | Number of variables returned |
 
+</ReferenceDetails>
+
 ### Railway Upsert Variable
 
 Create or update a Railway environment variable
+
+<ReferenceDetails>
 
 #### Input
 
@@ -459,9 +531,13 @@ Create or update a Railway environment variable
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the variable was created or updated |
 
+</ReferenceDetails>
+
 ### Railway Delete Variable
 
 Delete a Railway environment variable
+
+<ReferenceDetails>
 
 #### Input
 
@@ -479,5 +555,7 @@ Delete a Railway environment variable
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the variable was deleted |
+
+</ReferenceDetails>
 
 

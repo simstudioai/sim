@@ -1,14 +1,11 @@
 ---
 title: Wealthbox
 description: Interact with Wealthbox
+integration:
+  type: "wealthbox"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="wealthbox"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Wealthbox](https://www.wealthbox.com/) to read and write client notes, contacts, and tasks. A workflow can turn meeting output into a note, retrieve client context, or create follow-up work.
@@ -16,6 +13,8 @@ Use [Wealthbox](https://www.wealthbox.com/) to read and write client notes, cont
 Connect with OAuth or a supported [API access token](/integrations/wealthbox-service-account). Each credential uses the connected Wealthbox user's permissions. Contact writes create new contacts; note and task writes also support updates.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [API access tokens](/integrations/wealthbox-service-account).
 
 ## OAuth scopes [#oauth-scopes]
 

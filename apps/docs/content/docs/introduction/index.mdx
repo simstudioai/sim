@@ -3,21 +3,31 @@ title: Introduction
 description: Build, deploy, and manage AI agents in a shared workspace.
 ---
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect models and tools, store shared data, and inspect what happens when an agent runs.
+import { IntroductionHero, IntroductionLink } from '@/components/introduction'
 
-## Choose how to build
+Build, deploy, and manage AI agents in a shared workspace.
 
-| Method | Use it to |
-| --- | --- |
-| **[Chat](/chat)** | Describe what you need and ask Sim to create or edit workspace resources. Open what it creates, run it, and check the result. |
-| **[Workflow builder](/workflows)** | Connect blocks into agent logic, configure their inputs, and inspect execution step by step. |
-| **[API and SDKs](/api-reference)** | Create resources and run deployed workflows from your application. |
+<IntroductionHero alt="Sim Chat summarizing shipped and planned work beside the release tracker table." />
+
+## Start building [#choose-how-to-build]
+
+<div className="not-prose mb-7">
+  <IntroductionLink href="/chat" title="Start with Chat" icon="chat">
+    Describe a task and build with Sim.
+  </IntroductionLink>
+  <IntroductionLink href="/workflows" title="Use the workflow builder" icon="workflow">
+    Connect blocks, test each step, and deploy.
+  </IntroductionLink>
+  <IntroductionLink href="/api-reference/getting-started" title="Build with the API" icon="api">
+    Create resources and run workflows from your application.
+  </IntroductionLink>
+</div>
 
 You can start in Chat and refine the same workflow in the builder. On self-hosted deployments, Chat depends on the deployment's configuration and can be disabled.
 
-Follow [Getting started](/getting-started) to build an agent with web search tools and structured output.
+Follow [Getting started](/getting-started) to build and run your first workflow.
 
-## Workspace resources
+## Your workspace [#workspace-resources]
 
 A workspace holds the resources your team and agents use:
 
@@ -33,7 +43,7 @@ A workspace holds the resources your team and agents use:
 
 ## Models and integrations
 
-Use the [integration catalog](/integrations) to connect supported models, communication services, productivity apps, search tools, and databases. These tools let agents research a topic, process documents, update business systems, and return results to another application.
+Find supported services in the [integration catalog](/integrations). Add them as workflow blocks or tools an Agent can call.
 
 For tools outside the catalog, connect an [external MCP server](/agents/mcp) or create a [custom tool](/agents/custom-tools). Configure the credentials and permissions each service requires.
 
@@ -46,7 +56,7 @@ The core source is available on [GitHub](https://github.com/simstudioai/sim) und
 
 ## Related docs
 
-- [Getting started](/getting-started): Build and test a research agent.
+- [Getting started](/getting-started): Build and run a simple summarizer.
 - [Chat](/chat): Build and manage workspace resources conversationally.
 - [Workflows](/workflows): Blocks, connections, triggers, and execution.
 - [Quick reference](/quick-reference): Look up builder actions.

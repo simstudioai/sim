@@ -1,19 +1,17 @@
 ---
 title: Outlook
 description: Send, read, search, reply, organize, and manage Outlook email and calendar
+integration:
+  type: "outlook"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="outlook"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Outlook](https://outlook.office365.com) in Sim to send and draft emails, read and organize messages, manage attachments and folders, and create or update calendar events. Switch to trigger mode to start a workflow when a new email arrives.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -46,6 +44,8 @@ Send, draft, read, search, reply, forward, move, copy, and delete email; manage 
 
 Send emails using Outlook
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -68,9 +68,13 @@ Send emails using Outlook
 | `timestamp` | string | Timestamp when email was sent |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Outlook Draft
 
 Draft emails using Outlook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +99,13 @@ Draft emails using Outlook
 | `timestamp` | string | Timestamp when draft was created |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Outlook Read
 
 Read emails from Outlook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +146,13 @@ Read emails from Outlook
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
 | `attachments` | file[] | All email attachments flattened from all emails |
 
+</ReferenceDetails>
+
 ### Outlook Search
 
 Search Outlook messages using a free-text query (Microsoft Graph $search)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +191,13 @@ Search Outlook messages using a free-text query (Microsoft Graph $search)
 |   ↳ `isRead` | boolean | Whether the message has been read |
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
 
+</ReferenceDetails>
+
 ### Outlook Reply
 
 Reply to the sender of an Outlook message with a comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +217,13 @@ Reply to the sender of an Outlook message with a comment
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
+</ReferenceDetails>
+
 ### Outlook Reply All
 
 Reply to all recipients of an Outlook message with a comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -223,9 +243,13 @@ Reply to all recipients of an Outlook message with a comment
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
+</ReferenceDetails>
+
 ### Outlook Forward
 
 Forward an existing Outlook message to specified recipients
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +272,13 @@ Forward an existing Outlook message to specified recipients
 |   ↳ `messageId` | string | Forwarded message ID if provided by API |
 |   ↳ `internetMessageId` | string | RFC 822 Message-ID if provided |
 
+</ReferenceDetails>
+
 ### Outlook Move
 
 Move emails between Outlook folders
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +296,13 @@ Move emails between Outlook folders
 | `messageId` | string | ID of the moved message |
 | `newFolderId` | string | ID of the destination folder |
 
+</ReferenceDetails>
+
 ### Outlook Copy
 
 Copy an Outlook message to another folder
+
+<ReferenceDetails>
 
 #### Input
 
@@ -289,9 +321,13 @@ Copy an Outlook message to another folder
 | `copiedMessageId` | string | ID of the copied message |
 | `destinationFolderId` | string | ID of the destination folder |
 
+</ReferenceDetails>
+
 ### Outlook Mark as Read
 
 Mark an Outlook message as read
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +344,13 @@ Mark an Outlook message as read
 | `messageId` | string | ID of the message |
 | `isRead` | boolean | Read status of the message |
 
+</ReferenceDetails>
+
 ### Outlook Mark as Unread
 
 Mark an Outlook message as unread
+
+<ReferenceDetails>
 
 #### Input
 
@@ -327,9 +367,13 @@ Mark an Outlook message as unread
 | `messageId` | string | ID of the message |
 | `isRead` | boolean | Read status of the message |
 
+</ReferenceDetails>
+
 ### Outlook Update Message
 
 Set the categories, follow-up flag, and importance on an Outlook message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -353,9 +397,13 @@ Set the categories, follow-up flag, and importance on an Outlook message
 |   ↳ `importance` | string | Importance of the message |
 |   ↳ `isRead` | boolean | Whether the message is read |
 
+</ReferenceDetails>
+
 ### Outlook Delete
 
 Delete an Outlook message (move to Deleted Items)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +420,13 @@ Delete an Outlook message (move to Deleted Items)
 | `messageId` | string | ID of the deleted message |
 | `status` | string | Deletion status |
 
+</ReferenceDetails>
+
 ### Outlook List Folders
 
 List mail folders in the root of the Outlook mailbox
+
+<ReferenceDetails>
 
 #### Input
 
@@ -397,9 +449,13 @@ List mail folders in the root of the Outlook mailbox
 |   ↳ `totalItemCount` | number | Total number of items in the folder |
 |   ↳ `isHidden` | boolean | Whether the folder is hidden |
 
+</ReferenceDetails>
+
 ### Outlook Create Folder
 
 Create a new mail folder in the root of the Outlook mailbox
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,9 +478,13 @@ Create a new mail folder in the root of the Outlook mailbox
 |   ↳ `totalItemCount` | number | Total number of items in the folder |
 |   ↳ `isHidden` | boolean | Whether the folder is hidden |
 
+</ReferenceDetails>
+
 ### Outlook List Attachments
 
 List the attachments on an Outlook message (metadata only, without contents)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -446,9 +506,13 @@ List the attachments on an Outlook message (metadata only, without contents)
 |   ↳ `attachmentType` | string | Microsoft Graph attachment type \(e.g. #microsoft.graph.fileAttachment\) |
 |   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Outlook Get Attachment
 
 Get a single attachment on an Outlook message, including its file contents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -472,9 +536,13 @@ Get a single attachment on an Outlook message, including its file contents
 |   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
 | `attachments` | file[] | The downloaded file attachment \(empty for non-file attachment types\) |
 
+</ReferenceDetails>
+
 ### Outlook List Calendar Events
 
 List Outlook calendar events within a start/end time window
+
+<ReferenceDetails>
 
 #### Input
 
@@ -517,9 +585,13 @@ List Outlook calendar events within a start/end time window
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 | `nextLink` | string | URL for the next page of results, if any |
 
+</ReferenceDetails>
+
 ### Outlook Get Calendar Event
 
 Get a single Outlook calendar event by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,9 +628,13 @@ Get a single Outlook calendar event by ID
 |     ↳ `joinUrl` | string | URL to join the online meeting |
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 
+</ReferenceDetails>
+
 ### Outlook Create Calendar Event
 
 Create a new Outlook calendar event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -605,9 +681,13 @@ Create a new Outlook calendar event
 |     ↳ `joinUrl` | string | URL to join the online meeting |
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 
+</ReferenceDetails>
+
 ### Outlook Update Calendar Event
 
 Update an existing Outlook calendar event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -654,9 +734,13 @@ Update an existing Outlook calendar event
 |     ↳ `joinUrl` | string | URL to join the online meeting |
 |   ↳ `webLink` | string | URL that opens the event in Outlook on the web |
 
+</ReferenceDetails>
+
 ### Outlook Delete Calendar Event
 
 Delete an Outlook calendar event by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -673,9 +757,13 @@ Delete an Outlook calendar event by ID
 |   ↳ `eventId` | string | ID of the deleted event |
 |   ↳ `status` | string | Deletion status |
 
+</ReferenceDetails>
+
 ### Outlook Respond to Calendar Invite
 
 Accept, tentatively accept, or decline an Outlook calendar event invitation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -698,6 +786,8 @@ Accept, tentatively accept, or decline an Outlook calendar event invitation
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -709,6 +799,8 @@ These triggers poll for new data on a schedule.
 ### Outlook Email Trigger
 
 Triggers when new emails are received in Outlook (requires Microsoft credentials)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -741,4 +833,6 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 |   ↳ `messageId` | string | Message ID for threading |
 |   ↳ `threadId` | string | Thread ID for conversation threading |
 | `timestamp` | string | Event timestamp |
+
+</ReferenceDetails>
 

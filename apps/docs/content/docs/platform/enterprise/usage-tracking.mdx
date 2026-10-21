@@ -16,7 +16,9 @@ Organization owners and admins open **Settings → Organization → Insights**. 
 | **Last 7 days** / **Last 30 days** | Rolling window ending now. |
 | **Custom range** | Selected dates, up to 92 days. |
 
-The period applies to every tab. Daily bars use your browser's timezone, while billing periods begin at a fixed UTC instant. The first and last bars can be partial. Different timezones can split the same total differently across days.
+The period applies to every tab's charts and breakdowns. The **Usage heatmap** below the credit chart in Overview and workspace details always shows the last 365 days, including today's partial day. Hover, select, or use the arrow keys to inspect a day. A positive charge below one displayed credit reads **&lt;1 credit** and remains colored.
+
+Daily bars and heatmap cells use your browser's timezone, while billing periods begin at a fixed UTC instant. The first and last bars can be partial. Different timezones can split the same total differently across days.
 
 Spend is in **credits**, where 1 credit = $0.005; the UI rounds displayed credits. [Logs](/logs-debugging/logging) and Logs API costs are in USD, while Billing and run-resource API amounts use their documented credit units. Check the endpoint contract before comparing amounts. See [cost calculation](/platform/costs).
 
@@ -67,7 +69,7 @@ Each charge has one source. The exact **Agent block** label in Insights refers t
 
 An ordinary Agent block's hosted model calls remain under Workflow. The Workflow base charge applies even without model calls. To assess a workflow using the Sim Chat block, read its Workflow charges and the separately metered Agent block source; neither charge is counted twice.
 
-A hosted-key tool called inside a workflow belongs to Workflow; the same tool called directly belongs to API tool call. Chat panel, API agent, and Inbox charges cannot be separated by source. Dedicated workspace attribution can distinguish them when those surfaces actually name different workspaces. Usage without a workspace appears under **No workspace** and remains part of the organization total.
+A hosted-key tool called inside a workflow belongs to Workflow; the same tool called directly belongs to API tool call. Chat panel, API agent, and Inbox charges cannot be separated by source. Dedicated workspace attribution can distinguish them when those surfaces actually name different workspaces. Usage without a workspace link appears under **Unassigned usage** and remains part of the organization total. This includes organization-level activity and retained charges from permanently deleted workspaces; the row cannot distinguish between them.
 
 ### Reconcile totals
 

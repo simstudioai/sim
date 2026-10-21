@@ -1,29 +1,29 @@
 ---
 title: Mailgun
 description: Send emails and manage mailing lists with Mailgun
+integration:
+  type: "mailgun"
+  color: "#C12126"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mailgun"
-  color="#C12126"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mailgun](https://www.mailgun.com) to send text or HTML emails, retrieve messages and delivery events, manage mailing lists, and inspect sending domains. Tags help associate sent messages with a workflow or campaign.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
-Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.
+Send text or HTML emails, manage mailing lists and members, inspect domains, and track email events with tags.
 
 ## Actions
 
 ### Mailgun Send Message
 
 Send an email using Mailgun API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +49,13 @@ Send an email using Mailgun API
 | `id` | string | Message ID |
 | `message` | string | Response message from Mailgun |
 
+</ReferenceDetails>
+
 ### Mailgun Get Message
 
 Retrieve a stored message by its key
+
+<ReferenceDetails>
 
 #### Input
 
@@ -80,9 +84,13 @@ Retrieve a stored message by its key
 | `messageHeaders` | json | Message headers |
 | `contentIdMap` | json | Content ID map |
 
+</ReferenceDetails>
+
 ### Mailgun List Messages
 
 List events (logs) for messages sent through Mailgun
+
+<ReferenceDetails>
 
 #### Input
 
@@ -102,9 +110,13 @@ List events (logs) for messages sent through Mailgun
 | `items` | json | Array of event items |
 | `paging` | json | Paging information |
 
+</ReferenceDetails>
+
 ### Mailgun Create Mailing List
 
 Create a new mailing list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,9 +137,13 @@ Create a new mailing list
 | `message` | string | Response message |
 | `list` | json | Created mailing list details |
 
+</ReferenceDetails>
+
 ### Mailgun Get Mailing List
 
 Get details of a mailing list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +160,13 @@ Get details of a mailing list
 | `success` | boolean | Whether the request was successful |
 | `list` | json | Mailing list details |
 
+</ReferenceDetails>
+
 ### Mailgun Add List Member
 
 Add a member to a mailing list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -168,9 +188,13 @@ Add a member to a mailing list
 | `message` | string | Response message |
 | `member` | json | Added member details |
 
+</ReferenceDetails>
+
 ### Mailgun List Domains
 
 List all domains for your Mailgun account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +211,13 @@ List all domains for your Mailgun account
 | `totalCount` | number | Total number of domains |
 | `items` | json | Array of domain objects |
 
+</ReferenceDetails>
+
 ### Mailgun Get Domain
 
 Get details of a specific domain
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,5 +233,7 @@ Get details of a specific domain
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the request was successful |
 | `domain` | json | Domain details |
+
+</ReferenceDetails>
 
 

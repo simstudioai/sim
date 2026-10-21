@@ -10,10 +10,7 @@ Ask Sim to create a knowledge base, add source documents, or search existing con
 Name the base and describe the content it should hold:
 
 - "Create a Product Docs knowledge base for our product documentation."
-- "Create a Support KB for support policies and troubleshooting guides."
-- "Create a competitive intelligence knowledge base."
 - "Create a knowledge base from our sales playbook and configure the outbound workflow to search it."
-- "Create a customer success knowledge base for onboarding guides and case studies."
 
 ## Add and process documents [#adding-documents]
 
@@ -22,7 +19,6 @@ Attach a supported file, paste text, or provide an accessible URL:
 - "Add this PDF to Product Docs." Attach the PDF.
 - "Add this text to Support KB as a new document: [content]."
 - "Fetch [URL] and add its content to competitive intelligence."
-- "Add these three case studies to the customer success knowledge base." Attach the files.
 
 PDFs, Markdown, plain text, and content fetched from web pages can be ingested. Sim can help process and index the documents. Content is searchable only after processing completes successfully and the document is enabled.
 
@@ -37,7 +33,6 @@ Specify the knowledge base and question:
 - "What does Product Docs say about refunds?"
 - "Search Support KB for SSO setup errors."
 - "Compare Pro and Enterprise features using the product docs."
-- "Find documents about [competitor]'s pricing in competitive intelligence."
 
 Sim retrieves matching content to answer the question. Check that the returned evidence comes from the intended documents; a partial search or no matches does not establish that the base contains no relevant information.
 
@@ -50,7 +45,6 @@ Connectors sync documents from external services on a configured schedule. Ask S
 - "Sync the support page tree from Notion into Support KB."
 - "Connect the onboarding folder in Google Drive to the customer success knowledge base."
 - "Sync this GitHub repository's documentation into Product Docs."
-- "Sync this Slack channel's history into Support KB."
 
 Supported sources also include cloud storage such as Dropbox and OneDrive, wikis and issue trackers such as Confluence and Jira, and CRM records such as HubSpot and Salesforce. See the [connector guide](/knowledgebase/connectors) for the current source list, setup requirements, and sync frequency options.
 
@@ -88,7 +82,7 @@ Each graph is private to you in that organization. The active graph is selected 
 
 ## Related docs
 
-- [Knowledge base](/knowledgebase)
+- [Knowledge bases](/knowledgebase)
 - [Connectors](/knowledgebase/connectors)
 - [Using knowledge bases in workflows](/knowledgebase/using-in-workflows)
 - [Debugging retrieval](/knowledgebase/debugging-retrieval)

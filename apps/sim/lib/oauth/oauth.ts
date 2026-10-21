@@ -39,6 +39,7 @@ import {
   GoogleVaultIcon,
   GreenhouseIcon,
   HarmonicIcon,
+  HelpScoutIcon,
   HubspotIcon,
   InstagramIcon,
   IntuneIcon,
@@ -1530,6 +1531,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'vanta',
   },
+  helpscout: {
+    name: 'Help Scout',
+    icon: HelpScoutIcon,
+    services: {
+      helpscout: {
+        name: 'Help Scout',
+        description: 'Manage Help Scout conversations, replies, notes, and customers.',
+        providerId: 'helpscout',
+        serviceAccountProviderId: 'helpscout-service-account',
+        authType: 'oauth',
+        icon: HelpScoutIcon,
+        baseProviderIcon: HelpScoutIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'helpscout',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -2133,6 +2151,20 @@ function getProviderAuthConfig(
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'helpscout': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'helpscout',
+        'HELPSCOUT_CLIENT_ID',
+        'HELPSCOUT_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.helpscout.net/v2/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'wealthbox': {

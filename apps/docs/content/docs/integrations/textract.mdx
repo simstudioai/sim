@@ -1,21 +1,19 @@
 ---
 title: AWS Textract
 description: Extract text, tables, and forms from documents
+integration:
+  type: "textract_v2"
+  color: "linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="textract_v2"
-  color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS Textract](https://aws.amazon.com/textract/) to extract text, handwriting, tables, forms, key-value pairs, and supported document-analysis features. Expense and identity-document actions return their corresponding structured results.
 
 Single-page parsing supports JPEG, PNG, and single-page PDF supplied as a file or URL. Multi-page parsing supports PDF and TIFF stored in S3; provide the document's `s3://bucket/key` URI. Choose the document mode supported by the selected action.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Integrate AWS Textract into your workflow to extract text, tables, forms, and ke
 ### AWS Textract Parser
 
 Parse documents using AWS Textract OCR and document analysis
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,6 +76,8 @@ Parse documents using AWS Textract OCR and document analysis
 | `documentMetadata` | object | Metadata about the analyzed document |
 |   ↳ `pages` | number | Number of pages in the document |
 | `modelVersion` | string | Version of the Textract model used for processing |
+
+</ReferenceDetails>
 
 ### AWS Textract Analyze Expense
 

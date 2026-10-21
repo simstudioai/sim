@@ -3,7 +3,18 @@ title: Files and documents
 description: Process attachments and create or edit workspace documents, presentations, images, and charts.
 ---
 
+import { Image } from '@/components/ui/image'
+
 Ask Sim to read an attachment, create a deliverable, or edit a workspace file. Name the output format and filename when you need a saved result. Supported generation and processing capabilities depend on your deployment.
+
+<Image
+  variant="overview"
+  src="/static/docs-captures/files.webp"
+  alt="Release notes open beside Chat, with Sim summarizing shipped work and next steps"
+  width={2400}
+  height={1000}
+  background="architecture"
+/>
 
 ## Attach and save files [#uploading-files-to-the-workspace]
 
@@ -27,22 +38,17 @@ Direct uploads are deliberate input and are not automatically scanned for secret
 
 Sim can write Markdown, plain text, code, CSV, and JSON files. Ask for the content and its destination:
 
-- "Write a technical spec for the new auth system as auth-spec.md."
-- "Create test-accounts.csv with name, email, and plan tier columns."
-- "Write a Python script that calls our workflow API and processes the response."
-- "Save a postmortem for last Tuesday's outage as outage-review.md."
-- "Draft an outbound email for Acme Corp based on its recent funding announcement and save it as acme-email.md."
-- "Save a weekly ops digest with run counts, errors, and top failures from the past seven days."
+> Create test-accounts.csv with name, email, and plan tier columns. Save it to workspace Files.
 
 Saved workspace files appear in **Files** and can open in the resource panel. Text edits can appear as Sim writes; generated binary documents and media appear when their artifacts are ready.
 
 ## Edit an existing file [#editing-existing-files]
 
-Open the file with an `@`-mention or the **+** menu and describe the change:
+Select the file through an `@`-mention or the **+** menu. It opens beside the conversation so you can review the edits. Describe the change:
 
 - "Update the pricing section with these new tiers: [details]."
 - "Refactor this Python script to use async/await."
-- "Add error handling to this spec and shorten the introduction."
+- "Shorten this report's introduction and keep its findings intact."
 
 Name the existing file when you want Sim to update it rather than create another copy. Editing requires the relevant file access.
 
@@ -52,11 +58,7 @@ Specify a binary format such as `.pptx`, `.docx`, `.pdf`, or `.xlsx` when you ne
 
 For presentations, include the audience, slide count, and contents:
 
-- "Create an eight-slide Q3 review as q3-review.pptx, covering growth, retention, and roadmap."
-- "Turn this research report into a 10-slide presentation."
-- "Create a deck explaining our API onboarding flow."
-- "Create a battle card deck for our top three competitors, with positioning, pricing, and our strengths."
-- "Create an Acme Corp account plan covering its priorities, our solution fit, and next steps."
+> Create an eight-slide Q3 review as q3-review.pptx for the product team, covering growth, retention, and roadmap.
 
 Ask Sim to save the final file to the workspace. Open it to review the content and layout, then download it from the resource panel or **Files**.
 

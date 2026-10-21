@@ -1,19 +1,17 @@
 ---
 title: PostgreSQL
 description: Connect to PostgreSQL database
+integration:
+  type: "postgresql"
+  color: "#336791"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="postgresql"
-  color="#336791"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [PostgreSQL](https://www.postgresql.org/) to query and modify rows, execute SQL, and inspect tables, columns, keys, and indexes. Schema inspection lets a workflow discover the database structure before generating a query.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -149,6 +147,8 @@ Execute raw SQL query on PostgreSQL database
 
 Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -189,5 +189,7 @@ Introspect PostgreSQL database schema to retrieve table structures, columns, and
 |     ↳ `columns` | array | Columns included in the index |
 |     ↳ `unique` | boolean | Whether the index enforces uniqueness |
 | `schemas` | array | List of available schemas in the database |
+
+</ReferenceDetails>
 
 

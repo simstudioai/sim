@@ -112,11 +112,6 @@ permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockIm
 
 vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/mothership/mcp-tools', () => ({
-  buildTaggedMcpToolSchemas: vi.fn(async () => []),
-  buildOrganizationTaggedMcpToolSchemas: vi.fn(async () => []),
-}))
-
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 /** Denied-operation projection walks the block map only for blocks the mocked tool list never names. */
@@ -891,9 +886,7 @@ describe('desktop request capabilities', () => {
 
 it('carries only enabled MCP IDs without eager catalog discovery while preserving desktop capabilities', async () => {
   const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
-  const { buildOrganizationTaggedMcpToolSchemas } = await import('@/lib/mothership/mcp-tools')
   vi.mocked(getBlockVisibilityForCopilot).mockClear()
-  vi.mocked(buildOrganizationTaggedMcpToolSchemas).mockClear()
   const principal = createSessionPrincipal({ userId: 'user-org' })
   const payload = await buildCopilotRequestPayload({
     message: 'Use my tools',
@@ -909,7 +902,6 @@ it('carries only enabled MCP IDs without eager catalog discovery while preservin
     terminalCapable: true,
   })
   expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
-  expect(buildOrganizationTaggedMcpToolSchemas).not.toHaveBeenCalled()
   expect(payload.integrationCatalog).toEqual({ mcpServerIds: ['server-a', 'server-b'] })
   expect(payload).not.toHaveProperty('integrationTools')
   expect(payload).not.toHaveProperty('mothershipTools')

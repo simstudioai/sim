@@ -1,14 +1,10 @@
 ---
 title: A2A
 description: Interact with external A2A-compatible agents
+integration:
+  type: "a2a"
+  color: "#4151B5"
 ---
-
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="a2a"
-  color="#4151B5"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the A2A (Agent-to-Agent) protocol to send messages, structured data, and files to external agents, inspect their Agent Cards, and track or cancel tasks. Provide the agent's endpoint URL and, when required, an API key. Sim sends that key in `X-API-Key` for task requests; agents that require a different authentication scheme need a compatible endpoint. Agent Card discovery runs before authentication, so the card must be reachable without that key.

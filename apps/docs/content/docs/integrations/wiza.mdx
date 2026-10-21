@@ -1,19 +1,17 @@
 ---
 title: Wiza
 description: Find, enrich, and verify B2B contact data with Wiza
+integration:
+  type: "wiza"
+  color: "#9284BC"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="wiza"
-  color="#9284BC"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Wiza](https://wiza.co/) to search prospects, enrich companies, reveal contact details, and check credits. Individual Reveal starts enrichment and polls within one block operation; it fails if the polling window ends before completion.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -53,6 +51,8 @@ Search prospects, enrich companies, reveal verified emails and phone numbers for
 
 Search Wiza's database of prospects using person, company, and financial filters
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -85,9 +85,13 @@ Search Wiza's database of prospects using person, company, and financial filters
 | `total` | number | Total number of matching prospects |
 | `profiles` | array | Sample profiles matching the filter criteria |
 
+</ReferenceDetails>
+
 ### Wiza Company Enrichment
 
 Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,9 +134,13 @@ Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed fi
 | `company_country` | string | Country |
 | `credits` | json | Credits deducted for this enrichment \(api_credits: \{ total, company_credits \}\) |
 
+</ReferenceDetails>
+
 ### Wiza Individual Reveal
 
 Reveal a contact by LinkedIn URL, name plus company/domain, or email. Starts the reveal and polls at two-second intervals for up to 60 attempts, failing if it remains incomplete. Wiza charges 2 credits for a valid email, 5 for a phone, or 1 for a matched profile-only reveal.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,6 +195,8 @@ Reveal a contact by LinkedIn URL, name plus company/domain, or email. Starts the
 | `company_location` | string | Full company location |
 | `company_description` | string | Company description |
 | `credits` | json | Credits consumed by the reveal |
+
+</ReferenceDetails>
 
 ### Wiza Get Credits
 

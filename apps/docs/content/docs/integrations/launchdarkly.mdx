@@ -1,14 +1,13 @@
 ---
 title: LaunchDarkly
 description: Manage feature flags with LaunchDarkly
+integration:
+  type: "launchdarkly"
+  color: "#191919"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="launchdarkly"
-  color="#191919"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [LaunchDarkly](https://launchdarkly.com/) to list, create, update, toggle, and delete feature flags, and inspect their environment-specific status. Toggling uses LaunchDarkly's semantic patch API.
@@ -20,7 +19,6 @@ Read projects, environments, segments, members, and audit logs to find targeting
 Create a personal access token or service token under **Organization settings > Authorization > Tokens** in LaunchDarkly. Sim sends it directly in the `Authorization` header, without a `Bearer` prefix. Grant only the access the workflow needs. [Service tokens are available on selected plans](https://launchdarkly.com/docs/home/account/api); SDK keys cannot authenticate REST API requests.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs. Requires an API key.
@@ -30,6 +28,8 @@ List, create, update, toggle, and delete feature flags. Read projects, environme
 ### LaunchDarkly Create Flag
 
 Create a new feature flag in a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +63,13 @@ Create a new feature flag in a LaunchDarkly project.
 | `maintainerId` | string | The ID of the member who maintains this flag |
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Delete Flag
 
 Delete a feature flag from a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +85,13 @@ Delete a feature flag from a LaunchDarkly project.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the flag was successfully deleted |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Get Audit Log
 
 List audit log entries from your LaunchDarkly account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +117,13 @@ List audit log entries from your LaunchDarkly account.
 |   ↳ `targetKind` | string | Resource specifier of the target \(e.g. proj/default:env/production:flag/my-flag\) |
 | `totalCount` | number | Total number of audit log entries |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Get Flag
 
 Get a single feature flag by key from a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +155,13 @@ Get a single feature flag by key from a LaunchDarkly project.
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is on in the requested environment \(null when the flag spans multiple environments and no environment key was provided\) |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Get Flag Status
 
 Get the status of a feature flag across environments (active, inactive, launched, etc.).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +180,13 @@ Get the status of a feature flag across environments (active, inactive, launched
 | `lastRequested` | string | Timestamp of the last evaluation |
 | `defaultVal` | string | The default variation value |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Environments
 
 List environments in a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -190,9 +210,13 @@ List environments in a LaunchDarkly project.
 |   ↳ `tags` | array | Tags applied to the environment |
 | `totalCount` | number | Total number of environments |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Flags
 
 List feature flags in a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +250,13 @@ List feature flags in a LaunchDarkly project.
 |   ↳ `maintainerEmail` | string | The email of the member who maintains this flag |
 | `totalCount` | number | Total number of flags |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Members
 
 List account members in your LaunchDarkly organization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -252,9 +280,13 @@ List account members in your LaunchDarkly organization.
 |   ↳ `verified` | boolean | Whether the member email is verified |
 | `totalCount` | number | Total number of members |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Projects
 
 List all projects in your LaunchDarkly account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -274,9 +306,13 @@ List all projects in your LaunchDarkly account.
 |   ↳ `tags` | array | Tags applied to the project |
 | `totalCount` | number | Total number of projects |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Segments
 
 List user segments in a LaunchDarkly project and environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +338,13 @@ List user segments in a LaunchDarkly project and environment.
 |   ↳ `excluded` | array | User keys explicitly excluded from the segment |
 | `totalCount` | number | Total number of segments |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Toggle Flag
 
 Toggle a feature flag on or off in a specific LaunchDarkly environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +377,13 @@ Toggle a feature flag on or off in a specific LaunchDarkly environment.
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is now on in the target environment |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Update Flag
 
 Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -374,5 +418,7 @@ Update feature flag metadata (name, description, tags, temporary, archived) usin
 |   ↳ `description` | string | The variation description |
 | `maintainerId` | string | The ID of the member who maintains this flag |
 | `maintainerEmail` | string | The email of the member who maintains this flag |
+
+</ReferenceDetails>
 
 

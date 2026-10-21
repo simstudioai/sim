@@ -23,14 +23,10 @@ import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockBuildSelectedMcpToolSchemas,
-  mockBuildTaggedMcpToolSchemas,
   mockComputeWorkspaceEntitlements,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
 } = vi.hoisted(() => ({
-  mockBuildSelectedMcpToolSchemas: vi.fn(),
-  mockBuildTaggedMcpToolSchemas: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
@@ -51,11 +47,6 @@ vi.mock('@/lib/mothership/chat/process-contents', () => ({
 
 vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: mockComputeWorkspaceEntitlements,
-}))
-
-vi.mock('@/lib/mothership/mcp-tools', () => ({
-  buildSelectedMcpToolSchemas: mockBuildSelectedMcpToolSchemas,
-  buildTaggedMcpToolSchemas: mockBuildTaggedMcpToolSchemas,
 }))
 
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
@@ -144,8 +135,6 @@ describe('mothership private trace provenance transport', () => {
       decryptionFailures: [],
     })
     mockBuildIntegrationToolSchemas.mockResolvedValue([])
-    mockBuildSelectedMcpToolSchemas.mockResolvedValue([])
-    mockBuildTaggedMcpToolSchemas.mockResolvedValue([])
     mockComputeWorkspaceEntitlements.mockResolvedValue([])
     mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
     mockProcessContextsServer.mockResolvedValue([])
@@ -484,9 +473,6 @@ describe('mothership private trace provenance transport', () => {
   })
 
   it('sends enabled MCP IDs without schemas or activating matching configured secrets', async () => {
-    mockBuildTaggedMcpToolSchemas.mockResolvedValueOnce([
-      { name: 'mcp-docs', description: 'Uses secret-value' },
-    ])
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         const registry =

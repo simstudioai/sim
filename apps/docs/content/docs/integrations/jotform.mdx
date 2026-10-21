@@ -1,14 +1,13 @@
 ---
 title: Jotform
 description: Read submissions, manage forms, and wire up webhooks in Jotform
+integration:
+  type: "jotform"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="jotform"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Jotform](https://www.jotform.com/) to manage forms and submissions, create reports, and configure submission webhooks. Submission answers are available by question ID and question label; writes require the question IDs described below.
@@ -30,7 +29,6 @@ Submissions are keyed by question ID, not by label. Run **List Questions** on a 
 [Jotform has deprecated its folder endpoints](https://api.jotform.com/docs/) in favor of labels. This integration implements labels only; if you have existing automations built on folder IDs, migrate them to the label operations.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 Integrate Jotform into your workflow to list and read form submissions with their answers resolved to question labels, build and edit forms and their questions, create shareable reports, register submission webhooks, and check account usage.
@@ -40,6 +38,8 @@ Integrate Jotform into your workflow to list and read form submissions with thei
 ### Jotform List Forms
 
 List the forms on a Jotform account with their titles, status, and submission counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -77,9 +77,13 @@ List the forms on a Jotform account with their titles, status, and submission co
 |   ↳ `limit` | number | Page size applied |
 |   ↳ `count` | number | Number of forms returned |
 
+</ReferenceDetails>
+
 ### Jotform Get Form
 
 Get the details of a single Jotform form, including its status, URL, and submission counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +113,13 @@ Get the details of a single Jotform form, including its status, URL, and submiss
 |   ↳ `archived` | string | 1 when the form is archived, otherwise 0 |
 |   ↳ `url` | string | Public form URL |
 
+</ReferenceDetails>
+
 ### Jotform Create Form
 
 Create a new Jotform form from a list of questions, plus optional form properties and notification emails.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,9 +147,13 @@ Create a new Jotform form from a list of questions, plus optional form propertie
 |   ↳ `count` | string | Total submission count |
 |   ↳ `url` | string | Public form URL |
 
+</ReferenceDetails>
+
 ### Jotform Clone Form
 
 Clone an existing Jotform form and return the copy.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +183,13 @@ Clone an existing Jotform form and return the copy.
 |   ↳ `archived` | string | 1 when the form is archived, otherwise 0 |
 |   ↳ `url` | string | Public URL of the cloned form |
 
+</ReferenceDetails>
+
 ### Jotform Delete Form
 
 Delete a Jotform form. The API returns the form with status DELETED.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +214,13 @@ Delete a Jotform form. The API returns the form with status DELETED.
 |   ↳ `new` | string | Unread submission count |
 |   ↳ `count` | string | Total submission count |
 
+</ReferenceDetails>
+
 ### Jotform Get Form Properties
 
 Get the settings of a form: layout, limits, redirect behavior, notification emails, and validation strings. Supply a property key to read just one.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -217,9 +237,13 @@ Get the settings of a form: layout, limits, redirect behavior, notification emai
 | --------- | ---- | ----------- |
 | `properties` | json | Form properties keyed by property name. The set varies by form; documented keys include formWidth, labelWidth, activeRedirect, thankurl, expireDate, limitSubmission, styles, emails, and formStrings. |
 
+</ReferenceDetails>
+
 ### Jotform Update Form Properties
 
 Update form settings such as the thank-you redirect, submission limit, width, or styles. Only the supplied keys change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +260,13 @@ Update form settings such as the thank-you redirect, submission limit, width, or
 | --------- | ---- | ----------- |
 | `properties` | json | The property keys that were edited, with their new values |
 
+</ReferenceDetails>
+
 ### Jotform List Form Files
 
 List every file uploaded through a form, with its download URL, size, type, and the submission it came from.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -262,9 +290,13 @@ List every file uploaded through a form, with its download URL, size, type, and 
 |   ↳ `date` | string | Upload time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `url` | string | Download URL for the file |
 
+</ReferenceDetails>
+
 ### Jotform List Questions
 
 List every question on a form with its question ID, label, and field type. Question IDs are what submissions are keyed by.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -286,9 +318,13 @@ List every question on a form with its question ID, label, and field type. Quest
 |   ↳ `type` | string | Field type, e.g. control_textbox, control_textarea, control_dropdown, control_fullname, control_email, control_fileupload |
 |   ↳ `required` | string | Yes when the question is required |
 
+</ReferenceDetails>
+
 ### Jotform Get Question
 
 Get every property of a single form question, including its validation rules and field-specific settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,9 +347,13 @@ Get every property of a single form question, including its validation rules and
 |   ↳ `type` | string | Field type, e.g. control_head or control_textbox |
 |   ↳ `required` | string | Yes when the question is required |
 
+</ReferenceDetails>
+
 ### Jotform Create Question
 
 Add a question to an existing Jotform form.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,9 +380,13 @@ Add a question to an existing Jotform form.
 |   ↳ `type` | string | Field type of the question |
 |   ↳ `required` | string | Yes when the question is required |
 
+</ReferenceDetails>
+
 ### Jotform Update Question
 
 Edit the properties of a form question, such as its label, order, or validation. Only the supplied properties change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,9 +407,13 @@ Edit the properties of a form question, such as its label, order, or validation.
 | --------- | ---- | ----------- |
 | `question` | json | The question properties that were edited, with their new values. Jotform echoes only the changed keys, such as text, order, and type. |
 
+</ReferenceDetails>
+
 ### Jotform Delete Question
 
 Delete a question from a Jotform form.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -383,9 +431,13 @@ Delete a question from a Jotform form.
 | `deleted` | boolean | True when Jotform accepted the deletion |
 | `message` | string | Confirmation text returned by Jotform |
 
+</ReferenceDetails>
+
 ### Jotform List Form Submissions
 
 List the submissions received by one form, with each answer available both by question ID and by question label.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -420,9 +472,13 @@ List the submissions received by one form, with each answer available both by qu
 |   ↳ `limit` | number | Page size applied |
 |   ↳ `count` | number | Number of submissions returned |
 
+</ReferenceDetails>
+
 ### Jotform List Submissions
 
 List submissions across every form on the account, optionally narrowed to specific forms or a date range.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -456,9 +512,13 @@ List submissions across every form on the account, optionally narrowed to specif
 |   ↳ `limit` | number | Page size applied |
 |   ↳ `count` | number | Number of submissions returned |
 
+</ReferenceDetails>
+
 ### Jotform Get Submission
 
 Get a single Jotform submission, with its answers available both by question ID and by question label.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +544,13 @@ Get a single Jotform submission, with its answers available both by question ID 
 |   ↳ `answers` | json | Answers keyed by question ID. Each holds text \(the question label\), type, answer, and prettyFormat when Jotform renders one. |
 |   ↳ `values` | json | The same answers re-keyed by question label, each rendered as a single string. A label shared by more than one question is suffixed with its question ID on every occurrence, so no answer is lost. |
 
+</ReferenceDetails>
+
 ### Jotform Create Submission
 
 Submit an entry to a Jotform form. Answers are keyed by question ID, which the List Questions operation returns.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -504,9 +568,13 @@ Submit an entry to a Jotform form. Answers are keyed by question ID, which the L
 | `submissionId` | string | ID of the submission that was created |
 | `url` | string | API URL of the new submission |
 
+</ReferenceDetails>
+
 ### Jotform Update Submission
 
 Edit an existing Jotform submission. Only the question IDs supplied are changed; the rest keep their stored answers.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -524,9 +592,13 @@ Edit an existing Jotform submission. Only the question IDs supplied are changed;
 | `submissionId` | string | ID of the submission that was edited |
 | `url` | string | API URL of the submission |
 
+</ReferenceDetails>
+
 ### Jotform Delete Submission
 
 Delete a single Jotform submission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -543,9 +615,13 @@ Delete a single Jotform submission.
 | `deleted` | boolean | True when Jotform accepted the deletion |
 | `message` | string | Confirmation text returned by Jotform |
 
+</ReferenceDetails>
+
 ### Jotform List Reports
 
 List every report on the account, across all forms, with the shareable URL for each Excel, CSV, grid, table, calendar, RSS, or visual report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -571,9 +647,13 @@ List every report on the account, across all forms, with the shareable URL for e
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 
+</ReferenceDetails>
+
 ### Jotform List Form Reports
 
 List the reports built from one form, each with its shareable URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -600,9 +680,13 @@ List the reports built from one form, each with its shareable URL.
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 
+</ReferenceDetails>
+
 ### Jotform Create Report
 
 Create a shareable report of a form, choosing the report type and which submission fields it shows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -629,9 +713,13 @@ Create a shareable report of a form, choosing the report type and which submissi
 |   ↳ `url` | string | Shareable URL of the report |
 |   ↳ `isProtected` | boolean | True when the report is password protected |
 
+</ReferenceDetails>
+
 ### Jotform Get Report
 
 Get the details and shareable URL of a single Jotform report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -658,9 +746,13 @@ Get the details and shareable URL of a single Jotform report.
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 
+</ReferenceDetails>
+
 ### Jotform Delete Report
 
 Delete an existing Jotform report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -677,9 +769,13 @@ Delete an existing Jotform report.
 | `deleted` | boolean | True when Jotform accepted the deletion |
 | `message` | string | Confirmation text returned by Jotform |
 
+</ReferenceDetails>
+
 ### Jotform List Webhooks
 
 List the webhooks registered on a form. The returned IDs are what the Delete Webhook operation takes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -697,9 +793,13 @@ List the webhooks registered on a form. The returned IDs are what the Delete Web
 |   ↳ `id` | string | Webhook ID, used when deleting the webhook |
 |   ↳ `url` | string | URL that receives submission notifications |
 
+</ReferenceDetails>
+
 ### Jotform Create Webhook
 
 Register a webhook on a form so every new submission is posted to the given URL. Returns the full webhook list for the form.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -718,9 +818,13 @@ Register a webhook on a form so every new submission is posted to the given URL.
 |   ↳ `id` | string | Webhook ID, used when deleting the webhook |
 |   ↳ `url` | string | URL that receives submission notifications |
 
+</ReferenceDetails>
+
 ### Jotform Delete Webhook
 
 Remove a webhook from a form. Returns the webhooks that remain registered on the form.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -739,9 +843,13 @@ Remove a webhook from a form. Returns the webhooks that remain registered on the
 |   ↳ `id` | string | Webhook ID |
 |   ↳ `url` | string | URL that receives submission notifications |
 
+</ReferenceDetails>
+
 ### Jotform Get Account
 
 Get the Jotform account behind the API key, including its plan, status, time zone, and contact details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -771,9 +879,13 @@ Get the Jotform account behind the API key, including its plan, status, time zon
 |   ↳ `avatarUrl` | string | Avatar image URL |
 |   ↳ `usage` | string | URL of the monthly usage endpoint |
 
+</ReferenceDetails>
+
 ### Jotform Get Usage
 
 Get this month usage for the account: submissions received, payments, form views, upload space, and API calls made today.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -795,9 +907,13 @@ Get this month usage for the account: submissions received, payments, form views
 |   ↳ `views` | string | Form views received this month |
 |   ↳ `api` | string | API calls made today |
 
+</ReferenceDetails>
+
 ### Jotform Get History
 
 Read the account activity log: forms created, updated, deleted or purged, and account logins.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -824,9 +940,13 @@ Read the account activity log: forms created, updated, deleted or purged, and ac
 |   ↳ `ip` | string | IP address the activity came from |
 |   ↳ `timestamp` | string | Unix timestamp of the activity, in seconds |
 
+</ReferenceDetails>
+
 ### Jotform Create Submissions
 
 Submit several entries to a Jotform form in one call. Each entry is keyed by question ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -846,9 +966,13 @@ Submit several entries to a Jotform form in one call. Each entry is keyed by que
 |   ↳ `url` | string | API URL of the created submission |
 | `count` | number | Number of submissions created |
 
+</ReferenceDetails>
+
 ### Jotform Create Questions
 
 Add several questions to an existing Jotform form in one call.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -871,9 +995,13 @@ Add several questions to an existing Jotform form in one call.
 |   ↳ `type` | string | Field type of the question |
 |   ↳ `required` | string | Yes when the question is required |
 
+</ReferenceDetails>
+
 ### Jotform List Labels
 
 List the labels on the account as a tree. Labels are how Jotform groups forms, workflows, sheets, and apps, replacing the older folder endpoints.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -898,9 +1026,13 @@ List the labels on the account as a tree. Labels are how Jotform groups forms, w
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `sublabels` | json | Nested labels beneath this one |
 
+</ReferenceDetails>
+
 ### Jotform Get Label
 
 Get the name, color, and owner of a single Jotform label.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -924,9 +1056,13 @@ Get the name, color, and owner of a single Jotform label.
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 
+</ReferenceDetails>
+
 ### Jotform Create Label
 
 Create a Jotform label for grouping forms and other assets, optionally nested under a parent label.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -950,9 +1086,13 @@ Create a Jotform label for grouping forms and other assets, optionally nested un
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 
+</ReferenceDetails>
+
 ### Jotform Update Label
 
 Rename a Jotform label or change its color.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -970,9 +1110,13 @@ Rename a Jotform label or change its color.
 | --------- | ---- | ----------- |
 | `label` | json | The label fields that were edited, with their new values. Jotform echoes only the changed keys, such as name and color. |
 
+</ReferenceDetails>
+
 ### Jotform Delete Label
 
 Delete a Jotform label along with all of its sublabels.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -989,9 +1133,13 @@ Delete a Jotform label along with all of its sublabels.
 | `deleted` | boolean | True when Jotform accepted the deletion |
 | `message` | string | Confirmation text returned by Jotform |
 
+</ReferenceDetails>
+
 ### Jotform List Label Resources
 
 List the assets assigned to a label — forms, workflows, sheets, and apps — with their status and titles.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1020,9 +1168,13 @@ List the assets assigned to a label — forms, workflows, sheets, and apps — w
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
 
+</ReferenceDetails>
+
 ### Jotform Add Label Resources
 
 Assign forms, workflows, sheets, or apps to a Jotform label.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1041,9 +1193,13 @@ Assign forms, workflows, sheets, or apps to a Jotform label.
 |   ↳ `id` | string | Asset ID |
 |   ↳ `type` | string | Asset kind, echoed uppercase: FORM, WORKFLOW, SHEET, or PORTAL |
 
+</ReferenceDetails>
+
 ### Jotform Remove Label Resources
 
 Unassign forms, workflows, sheets, or apps from a Jotform label.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1062,9 +1218,13 @@ Unassign forms, workflows, sheets, or apps from a Jotform label.
 |   ↳ `id` | string | Asset ID |
 |   ↳ `type` | string | Asset kind, echoed uppercase: FORM, WORKFLOW, SHEET, or PORTAL |
 
+</ReferenceDetails>
+
 ### Jotform List Sub-Users
 
 List the sub-users on the account with the forms and folders each one can reach, and at what access level.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1085,9 +1245,13 @@ List the sub-users on the account with the forms and folders each one can reach,
 |   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
 |   ↳ `permissions` | json | What the sub-user can reach: each entry has type \(FORM, FOLDER, or ALL\), resource_id, access_type \(full or readOnly\), and title |
 
+</ReferenceDetails>
+
 ### Jotform Get Settings
 
 Read the account settings behind the API key, including time zone, language, and contact details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1118,9 +1282,13 @@ Read the account settings behind the API key, including time zone, language, and
 |   ↳ `avatarUrl` | string | Avatar image URL |
 |   ↳ `usage` | string | URL of the monthly usage endpoint |
 
+</ReferenceDetails>
+
 ### Jotform Update Settings
 
 Update account settings such as name, email, website, company, industry, or time zone. Only the supplied fields change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1155,6 +1323,8 @@ Update account settings such as name, email, website, company, industry, or time
 |   ↳ `language` | string | Account interface language, e.g. en-US |
 |   ↳ `avatarUrl` | string | Avatar image URL |
 |   ↳ `usage` | string | URL of the monthly usage endpoint |
+
+</ReferenceDetails>
 
 
 

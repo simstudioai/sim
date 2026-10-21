@@ -404,4 +404,20 @@ describe('Error Extractors', () => {
       )
     })
   })
+  describe('helpscout-errors', () => {
+    it('explains an empty-body 404 when Help Scout tools select it', () => {
+      const errorInfo: ErrorInfo = { status: 404, statusText: 'Not Found', data: '' }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.HELPSCOUT_ERRORS)).toBe(
+        'Not found: the Help Scout resource does not exist or the connected user cannot access it'
+      )
+    })
+
+    it('never answers for other services through the fallback chain', () => {
+      expect(extractErrorMessage({ status: 404, statusText: 'Not Found', data: '' })).toBe(
+        'Not Found'
+      )
+      expect(extractErrorMessage({ status: 404, data: 'no such page' })).toBe('no such page')
+    })
+  })
 })

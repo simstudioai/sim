@@ -1,14 +1,13 @@
 ---
 title: TinyFish
 description: Automate and read the live web
+integration:
+  type: "tinyfish"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="tinyfish"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [TinyFish](https://www.tinyfish.ai/) to run a browser agent from a starting URL and natural-language goal, search the web, or fetch rendered page content.
@@ -56,7 +55,6 @@ When hosted keys are enabled for the deployment, **Run Agent**, **Search**, and 
 A failed automation comes back as HTTP 200 with the failure inside the run's own `error` object, so read `status` rather than assuming success. The `category` tells you what to do: `AGENT_FAILURE` means the goal or the site needs attention, `SYSTEM_FAILURE` is worth retrying after `retryAfter` seconds, and `BILLING_FAILURE` means the TinyFish wallet is empty. All of that is on the block's `error` output, so a workflow can branch on it without parsing a message string.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 Give a web agent a natural-language goal and let it drive a real browser on supported, reachable sites, queue and track long-running automations, search the web, and fetch pages as clean markdown.
@@ -66,6 +64,8 @@ Give a web agent a natural-language goal and let it drive a real browser on supp
 ### TinyFish Run Agent
 
 Run a TinyFish web agent against a website and wait for it to finish, returning the structured result it extracted
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +116,13 @@ Run a TinyFish web agent against a website and wait for it to finish, returning 
 |   ↳ `setupUrl` | string | Path on the TinyFish dashboard that sets up a profile for the blocked domain |
 |   ↳ `reason` | string | auth_wall \(the run hit a login\) or bot_challenge \(the site blocked automation\) |
 
+</ReferenceDetails>
+
 ### TinyFish Start Agent Run
 
 Queue a TinyFish web agent run and return its run ID immediately, without waiting for the automation to finish
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +150,13 @@ Queue a TinyFish web agent run and return its run ID immediately, without waitin
 | --------- | ---- | ----------- |
 | `runId` | string | Identifier of the queued run, used to poll or cancel it |
 
+</ReferenceDetails>
+
 ### TinyFish Get Run
 
 Get the status, extracted result, and step history of a TinyFish automation run by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -202,9 +210,13 @@ Get the status, extracted result, and step history of a TinyFish automation run 
 |   ↳ `action` | string | Action the agent took |
 |   ↳ `duration` | string | Time the step took |
 
+</ReferenceDetails>
+
 ### TinyFish Cancel Run
 
 Cancel a queued or in-progress TinyFish automation run by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +234,13 @@ Cancel a queued or in-progress TinyFish automation run by its ID
 | `cancelledAt` | string | ISO 8601 timestamp of the cancellation, null when nothing was cancelled |
 | `message` | string | Context such as "Run already cancelled" or "Run already finished" |
 
+</ReferenceDetails>
+
 ### TinyFish List Runs
 
 List TinyFish automation runs, optionally filtered by status, goal text, or creation date
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,9 +297,13 @@ List TinyFish automation runs, optionally filtered by status, goal text, or crea
 | `nextCursor` | string | Cursor for the next page, null when there are no more results |
 | `hasMore` | boolean | Whether more results follow this page |
 
+</ReferenceDetails>
+
 ### TinyFish Search
 
 Search the web with TinyFish and get ranked results with titles, snippets, and URLs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +327,13 @@ Search the web with TinyFish and get ranked results with titles, snippets, and U
 |   ↳ `url` | string | Result URL |
 | `totalResults` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### TinyFish Fetch
 
 Fetch up to 10 URLs with TinyFish, rendering JavaScript when needed, and return clean extracted content
+
+<ReferenceDetails>
 
 #### Input
 
@@ -342,9 +366,13 @@ Fetch up to 10 URLs with TinyFish, rendering JavaScript when needed, and return 
 |   ↳ `url` | string | URL that failed |
 |   ↳ `error` | string | Why the fetch failed |
 
+</ReferenceDetails>
+
 ### TinyFish List Vault Items
 
 List the credentials available from password managers connected to TinyFish, with the URIs an agent run can be scoped to
+
+<ReferenceDetails>
 
 #### Input
 
@@ -368,9 +396,13 @@ List the credentials available from password managers connected to TinyFish, wit
 |     ↳ `type` | string | STRING, CONCEALED, or OTP |
 |   ↳ `hasTotp` | boolean | Whether the credential carries a TOTP secret |
 
+</ReferenceDetails>
+
 ### TinyFish List Browser Profiles
 
 List the Browser Context Profiles saved on the TinyFish account, with the ids an agent run can start from to reuse a logged-in session
+
+<ReferenceDetails>
 
 #### Input
 
@@ -391,5 +423,7 @@ List the Browser Context Profiles saved on the TinyFish account, with the ids an
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the profile was created, null when the API omits it |
 |   ↳ `updatedAt` | string | ISO 8601 timestamp when the profile was last saved, null when the API omits it |
 |   ↳ `isDefault` | boolean | Whether runs with no Browser Profile ID use this one, null when the API omits it |
+
+</ReferenceDetails>
 
 

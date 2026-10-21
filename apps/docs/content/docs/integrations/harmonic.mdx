@@ -1,14 +1,13 @@
 ---
 title: Harmonic
 description: Search and enrich private-market contacts
+integration:
+  type: "harmonic"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="harmonic"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Harmonic](https://harmonic.ai/) is a private-market intelligence platform for researching companies, people, and investors. Its Scout agent accepts a natural-language sourcing request—such as “find forward-deployed engineers in enterprise software”—and the Harmonic block converts the result into a predictable `contacts` table for downstream scoring, review, storage in Sim tables, or delivery to CRM and other integration blocks.
@@ -34,7 +33,6 @@ Harmonic recommends no more than 100 saved-search results per page. Its general 
 Harmonic does not publish a webhook-registration contract for this workflow surface, so the integration has no native triggers. Use a **Schedule** block to poll a shared saved search when recurring synchronization is needed.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.
@@ -44,6 +42,8 @@ Connect a reusable Harmonic team API key, use Scout to find people with natural-
 ### Harmonic Search People with Scout
 
 Ask Harmonic Scout to find people using natural language and return a stable, workflow-ready contacts table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -80,9 +80,13 @@ Ask Harmonic Scout to find people using natural language and return a stable, wo
 | `status` | string | Final Scout task status \(success\) |
 | `count` | number | Number of contacts returned |
 
+</ReferenceDetails>
+
 ### Harmonic Enrich Person
 
 Resolve a LinkedIn profile URL or email address into a normalized Harmonic contact, queueing enrichment when the person is not yet in Harmonic.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +126,13 @@ Resolve a LinkedIn profile URL or email address into a normalized Harmonic conta
 | `found` | boolean | Whether Harmonic returned a person profile |
 | `enrichmentQueued` | boolean | Whether Harmonic queued a background refresh \(HTTP 201\) for this person |
 
+</ReferenceDetails>
+
 ### Harmonic Get Person
 
 Fetch one Harmonic person by numeric ID or URN, including any email resolved by a completed enrichment job.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -160,9 +168,13 @@ Fetch one Harmonic person by numeric ID or URN, including any email resolved by 
 |   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
 | `found` | boolean | Whether Harmonic returned a person profile |
 
+</ReferenceDetails>
+
 ### Harmonic Batch Get People
 
 Fetch full Harmonic person profiles for up to 500 combined numeric IDs and person URNs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +210,13 @@ Fetch full Harmonic person profiles for up to 500 combined numeric IDs and perso
 |   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
 | `count` | number | Number of contacts returned |
 
+</ReferenceDetails>
+
 ### Harmonic Get Company Employees
 
 List person URNs for a company, filtered by role group and employment status. Pair with Batch Get People to hydrate contacts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +240,13 @@ List person URNs for a company, filtered by role group and employment status. Pa
 |   ↳ `currentCursor` | string | Cursor for the current page |
 |   ↳ `hasNext` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Harmonic List People Saved Searches
 
 List the team-shared Harmonic saved searches that target people. Use a returned ID or URN to fetch results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -249,9 +269,13 @@ List the team-shared Harmonic saved searches that target people. Use a returned 
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `count` | number | Number of people saved searches returned |
 
+</ReferenceDetails>
+
 ### Harmonic Get People Saved Search Results
 
 Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -293,9 +317,13 @@ Get one page of a Harmonic people saved search. Full records become contacts; UR
 |   ↳ `currentCursor` | string | Cursor for the current page |
 |   ↳ `hasNext` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Harmonic Get People Saved Search Net-New Results
 
 Get only the people newly matching a subscribed Harmonic people saved search, so a monitor does not reprocess the whole result set.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +366,13 @@ Get only the people newly matching a subscribed Harmonic people saved search, so
 |   ↳ `currentCursor` | string | Cursor for the current page |
 |   ↳ `hasNext` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Harmonic Clear People Saved Search Net-New Results
 
 Acknowledge net-new people on a saved search so the next poll returns only fresh matches. Clearing everything requires setting the scope explicitly.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -357,9 +389,13 @@ Acknowledge net-new people on a saved search so the next poll returns only fresh
 | `cleared` | boolean | Whether Harmonic accepted the acknowledgement |
 | `clearedPersonUrns` | array | Person URNs acknowledged, or null when every net-new result was cleared |
 
+</ReferenceDetails>
+
 ### Harmonic Submit Email Enrichment Job
 
 Queue bulk email enrichment for up to 5,000 people, given either person URNs or LinkedIn profile URLs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,9 +417,13 @@ Queue bulk email enrichment for up to 5,000 people, given either person URNs or 
 |   ↳ `submittedIdentifier` | string | Identifier submitted to Harmonic |
 |   ↳ `reason` | string | Why Harmonic dropped it \(NOT_FOUND, INVALID_URL, ALREADY_HAS_EMAIL, RECENTLY_ATTEMPTED\) |
 
+</ReferenceDetails>
+
 ### Harmonic Get Email Enrichment Job
 
 Check a Harmonic bulk email enrichment job. Per-person results appear once the job is terminal; fetch the emails with Get Person or Batch Get People.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -411,9 +451,13 @@ Check a Harmonic bulk email enrichment job. Per-person results appear once the j
 | `createdAt` | string | Job creation timestamp |
 | `completedAt` | string | Job completion timestamp |
 
+</ReferenceDetails>
+
 ### Harmonic Get Email Enrichment Usage
 
 Read the team monthly email-enrichment quota. Check this before a large batch to avoid a quota rejection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -428,9 +472,13 @@ Read the team monthly email-enrichment quota. Check this before a large batch to
 | `monthlyLimit` | number | Monthly email enrichment allowance |
 | `monthlyRemaining` | number | Enrichments left this month |
 
+</ReferenceDetails>
+
 ### Harmonic Get Enrichment Status
 
 Check enrichment jobs Harmonic queued for people it did not already have, and read the person URN each one produced.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -448,5 +496,7 @@ Check enrichment jobs Harmonic queued for people it did not already have, and re
 |   ↳ `message` | string | Provider status message |
 |   ↳ `enrichedEntityUrn` | string | Resulting company or person URN once enrichment completes |
 | `count` | number | Number of enrichment statuses returned |
+
+</ReferenceDetails>
 
 

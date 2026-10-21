@@ -1,6 +1,5 @@
 import type { InferPageType } from 'fumadocs-core/source'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
-import { getIntegrationLandingPage, INTEGRATION_LANDING_LABEL } from '@/lib/integration-landing'
 import { getApiSpecContent } from '@/lib/openapi'
 import type { PageData, source } from '@/lib/source'
 
@@ -30,11 +29,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
 
   if (typeof data.getText !== 'function') return ''
   const processed = await data.getText('processed')
-  const landingPage = getIntegrationLandingPage(page.slugs)
-  const landingLink = landingPage
-    ? `${INTEGRATION_LANDING_LABEL} [${landingPage.title}](${landingPage.url})\n\n`
-    : ''
   return `${heading}
 
-${landingLink}${processed}`
+${processed}`
 }

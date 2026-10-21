@@ -3,10 +3,11 @@ title: Workflows
 description: Connect blocks into reusable agent logic, then run a draft or deploy a version for callers and triggers.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 
 A workflow connects blocks into a reusable procedure. A trigger supplies the input, blocks perform the work, and connections determine when each block runs.
+
+Ask Sim to build or refine a workflow in [Chat](/chat/workflows), then inspect it in the side panel. You can also add and configure blocks directly in the workflow builder.
 
 This example classifies a customer message by category and urgency. Its Agent requests structured output through **Response Format**:
 
@@ -72,9 +73,7 @@ Use **Run** in the workflow builder to test a draft and inspect its block output
 
 ## Related docs [#next]
 
-<Cards>
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="Read outputs, references, and data types." />
-  <Card title="How workflows run" href="/workflows/how-it-runs" description="Dependency order, branches, failures, and duration." />
-  <Card title="Start" href="/workflows/triggers/start" description="Define inputs for editor, API, and chat runs." />
-  <Card title="Deploy workflows" href="/workflows/deployment" description="Manage live versions and caller access." />
-</Cards>
+- [Data flow](/workflows/data-flow): outputs, references, and data types
+- [Execution order](/workflows/how-it-runs): dependencies, branches, failures, and duration
+- [Start](/workflows/triggers/start): inputs for editor, API, and chat runs
+- [Deployment](/workflows/deployment): live versions and caller access

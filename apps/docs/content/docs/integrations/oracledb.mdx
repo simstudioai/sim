@@ -1,14 +1,13 @@
 ---
 title: Oracle Database
 description: Connect directly to an Oracle Database
+integration:
+  type: "oracledb"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="oracledb"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Oracle Database](https://www.oracle.com/database/) is a relational database reached here directly over Oracle Net. The integration can query rows, run a supported SQL statement, insert/update/delete structured data with bound values, and inspect the schemas visible to the connected account.
@@ -38,7 +37,6 @@ Oracle treats zero-length character values as `NULL`. Oracle `NUMBER` results ar
 
 Introspection reads privilege-scoped `ALL_*` dictionary views, not `DBA_*` views. Its `schemas` list contains table owners visible through `ALL_TABLES` plus the selected or current schema; it is not a list of every Oracle user. Cross-version introspection leaves column defaults as `null` because Oracle exposes the compatible `DATA_DEFAULT` field as a non-streamable LONG. Reported indexes exclude indexes backing primary keys. Introspection is capped at 1,000 tables, 10,000 columns, and 10 MiB, so use a schema filter for large accounts. Prefer a dedicated least-privilege database user with only the object permissions each workflow needs; grant write or DDL privileges only when those operations are intentional.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -169,6 +167,8 @@ Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE,
 
 Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -207,5 +207,7 @@ Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and ta
 |     ↳ `columns` | array | Indexed columns in column-position order |
 |     ↳ `unique` | boolean | Whether the index is declared UNIQUE |
 | `schemas` | array | Table-owning schemas visible through ALL_TABLES, plus the selected or current schema |
+
+</ReferenceDetails>
 
 

@@ -1,21 +1,19 @@
 ---
 title: Similarweb
 description: Website traffic and analytics data
+integration:
+  type: "similarweb"
+  color: "#000922"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="similarweb"
-  color="#000922"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Similarweb](https://www.similarweb.com/) to retrieve website traffic estimates, visit duration, bounce rate, pages per visit, country breakdowns, rankings, and traffic sources. Compare sites or report changes across the selected periods.
 
 These are provider estimates rather than your site's measured analytics. Use the selected operation's geographic, time-period, and granularity fields to keep comparisons consistent.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -25,7 +23,9 @@ Retrieve website analytics including traffic estimates, engagement metrics, rank
 
 ### SimilarWeb Website Overview
 
-Get comprehensive website analytics including traffic, rankings, engagement, and traffic sources
+Get website traffic, rankings, engagement, and traffic sources.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,6 +58,8 @@ Get comprehensive website analytics including traffic, rankings, engagement, and
 |   ↳ `social` | number | Social traffic share |
 |   ↳ `mail` | number | Email traffic share |
 |   ↳ `paidReferrals` | number | Paid referral traffic share |
+
+</ReferenceDetails>
 
 ### SimilarWeb Traffic Visits
 

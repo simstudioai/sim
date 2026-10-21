@@ -3,24 +3,17 @@ title: Self-hosting
 description: Deploy and operate Sim on your own infrastructure
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 
 Run Sim on your own infrastructure with Docker Compose or Kubernetes. Both run the same app, realtime service, database migrations, and background job endpoints.
 
 ## Choose a deployment
 
-<Cards>
-  <Card title="Docker" href="/platform/self-hosting/docker">
-    Start a single-node installation with published containers.
-  </Card>
-  <Card title="Kubernetes" href="/platform/self-hosting/kubernetes">
-    Install the Helm chart on a cluster you operate.
-  </Card>
-  <Card title="Cloud platforms" href="/platform/self-hosting/platforms">
-    Check provider-specific requirements for Railway, a VPS, or managed Kubernetes.
-  </Card>
-</Cards>
+| Deployment | Use it for |
+| --- | --- |
+| [Docker](/platform/self-hosting/docker) | A single-node installation with published containers |
+| [Kubernetes](/platform/self-hosting/kubernetes) | A Helm installation on a cluster you operate |
+| [Cloud platforms](/platform/self-hosting/platforms) | Provider-specific setup for Railway, a VPS, or managed Kubernetes |
 
 Compose bundles PostgreSQL, Redis, and a scheduler. The Helm chart bundles PostgreSQL and Redis and enables scheduled jobs by default. Kubernetes also exposes replica, autoscaling, disruption-budget, secret-store, and network-policy settings; configure these for your cluster before relying on high availability. See [Reference architectures](/platform/self-hosting/reference-architectures).
 

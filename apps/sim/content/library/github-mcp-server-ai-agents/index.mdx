@@ -4,7 +4,7 @@ title: 'How to Use the GitHub MCP Server With AI Agents: Builders, Security, and
 description: 'Compare AI agent builders for the official GitHub MCP Server, then learn how to configure secure repository access, approval gates, and write actions.'
 seoTitle: 'How to Use the GitHub MCP Server With AI Agents'
 date: 2026-10-08
-updated: 2026-10-08
+updated: 2026-10-20
 authors:
   - andrew
 readingTime: 14
@@ -28,6 +28,22 @@ faq:
     a: "Claude Code can connect to MCP servers and is a strong choice for interactive repository work from a developer’s terminal."
   - q: "Can OpenAI agents use the GitHub MCP Server?"
     a: "OpenAI agents can use supported remote MCP integrations or MCP support in the Agents SDK when developers need a code-first application architecture."
+  - q: "What can an AI agent do with the GitHub MCP Server?"
+    a: "An agent can read code, commits, issues, and pull requests, and with write tools enabled it can create issues, branches, comments, and pull requests, limited by its enabled toolsets and its GitHub identity's permissions."
+  - q: "Can the GitHub MCP Server read private repositories?"
+    a: "Yes, but only when the connected GitHub identity already has access to that private repository."
+  - q: "Should a GitHub MCP agent use a personal access token?"
+    a: "Use the narrowest identity the deployment supports, such as a GitHub App or a dedicated bot account limited to named repositories, rather than a developer's broad personal token."
+  - q: "Should a GitHub MCP agent have write access?"
+    a: "Give write access only when the task needs it, and put human approval and branch protection in front of consequential writes."
+  - q: "Can self-hosted Sim run a GitHub MCP agent on local models?"
+    a: "Yes. Self-hosted Sim can use Ollama, vLLM, LM Studio, or LiteLLM-compatible endpoints for the agent's model, and local models don't require Sim Enterprise."
+  - q: "Can Sim require approval before a GitHub MCP agent opens a pull request?"
+    a: "Yes. A Human in the Loop block pauses the run for a reviewer, and a downstream Condition checks the submitted approval field before the pull-request step runs."
+  - q: "Does Sim's Human in the Loop block reject unapproved actions on its own?"
+    a: "No. Resuming the block doesn't approve anything, so a downstream Condition must check the reviewer's approval field and route rejections away from the write step."
+  - q: "Does running the GitHub MCP Server locally keep all data local?"
+    a: "Not by itself, because the model provider and MCP host still receive the prompts, repository content, and tool results. Running self-hosted Sim with a local model as well keeps that data on infrastructure the team controls."
   - q: "Can n8n connect to the GitHub MCP Server?"
     a: "n8n can use MCP client capabilities where the required server transport is supported, and it can also perform GitHub operations through native GitHub nodes."
   - q: "Is n8n open source?"
@@ -266,6 +282,18 @@ Strong permission practices include:
 - Require protected branches and independent review for generated code.
 - Review GitHub organization policies before allowing external MCP hosts.
 
+Start each agent role at the narrowest level that covers its task:
+
+| Agent role | Typical capability | Starting posture |
+|---|---|---|
+| Repository Q&A | Read code, metadata, commits, issues, and pull requests | Read-only access to named repositories |
+| Issue triage | Read issues, add labels and comments | Read access plus narrow issue-write permission |
+| Pull-request review | Read diffs and post review comments | Read access plus the Pull requests write permission |
+| Change proposal | Read code, create a branch or pull request | Write tools enabled only after a reviewer approves the plan |
+| Repository administration | Change settings, secrets, branch protection, or members | Keep out of agent credentials |
+
+Repository access and MCP tool exposure are separate controls. A token can allow a write that the enabled toolsets don't expose, and an exposed tool still fails when GitHub denies the underlying identity.
+
 An access token is not the only security boundary. Repository settings, enabled server tools, workflow conditions, approval gates, and GitHub protections must all reinforce the same policy.
 
 ## Is the GitHub MCP Server safe for write actions?
@@ -289,7 +317,7 @@ The GitHub-hosted remote option is usually simpler, while a local deployment giv
 
 A remote deployment reduces server maintenance and can simplify onboarding where the chosen client and authentication method are supported. A local deployment can be preferable when a team needs tighter process control, development-time inspection, or a client transport that fits local execution.
 
-Local operation does not automatically make the system secure. Credentials, logs, container configuration, updates, outbound access, and the connected AI host still need protection. Remote operation also does not remove the need for least privilege and repository-level controls.
+Running only the server locally doesn't keep repository data local, because the model provider and the MCP host still receive the prompts, file contents, and tool results the agent uses. To keep that data on infrastructure the team controls, the host and the model need to run there too, for example self-hosted Sim with a local model through Ollama, vLLM, LM Studio, or LiteLLM. Local operation does not automatically make the system secure. Credentials, logs, container configuration, updates, outbound access, and the connected AI host still need protection. Remote operation also does not remove the need for least privilege and repository-level controls.
 
 Use GitHub’s current deployment documentation in the official repository to choose between the supported options rather than assuming every MCP client supports every transport.
 

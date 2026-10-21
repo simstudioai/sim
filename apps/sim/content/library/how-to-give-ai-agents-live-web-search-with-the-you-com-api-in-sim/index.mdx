@@ -63,7 +63,7 @@ The other four tools support longer investigations and account checks. [Research
 
 [Frontier uses a background task](https://you.com/docs/guides/research/background-requests) because its work extends beyond a single workflow run. In one Sim workflow, call Research with frontier effort and `background` set to `true`, then store the returned `taskId`. A second, scheduled workflow reads that ID and calls Get Research Task. If the task remains in progress, the next scheduled run checks again. When the status reaches `completed`, the workflow can use the report. A `failed` or `cancelled` status should follow an error path.
 
-[Research](https://you.com/docs/api-reference/research/v1-research) also returns a `warnings` array for source access problems or partial results. Route that array through a Sim Condition block before sending the report downstream. When warnings appear, you can send the report for review rather than treating it as complete. This kind of routing is one reason [workflow builders for multi-step tasks](https://www.sim.ai/library/ai-agent-workflow-builders-multi-step-tasks) matter when research has several possible outcomes.
+[Research](https://you.com/docs/api-reference/research/v1-research) also returns a `warnings` array for source access problems or partial results. Route that array through a Sim Condition block before sending the report downstream. When warnings appear, you can send the report for review rather than treating it as complete. This kind of routing is one reason [workflow builders for multi-step tasks](https://www.sim.ai/library/best-ai-workflow-builders) matter when research has several possible outcomes.
 
 ## Structured output for downstream workflows
 

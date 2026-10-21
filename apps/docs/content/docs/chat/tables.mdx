@@ -14,8 +14,6 @@ Describe the columns and types, or attach a CSV for Sim to import:
 - "Create a leads table with name, email, company, status, and created date columns."
 - "Create a table matching this CSV." Attach the file.
 - "Create an errors table with message and workflow text columns, a timestamp date column, and a resolved boolean."
-- "Create a prospects table with company, domain, employee count, industry, fit score, and last contacted date."
-- "Create an enrichment results table for email, company, title, LinkedIn URL, and fit score."
 
 Inspect the schema and imported rows before using the table in an agent. Specify unique or required columns when the data needs those constraints.
 
@@ -25,9 +23,7 @@ Name the table, fields, filters, and time range:
 
 - "How many leads have status 'qualified'?"
 - "Show leads from the past seven days with score above 0.8."
-- "List the five most common error messages in the failures table."
 - "Find duplicate emails in the contacts table."
-- "Count prospects with a fit score above 0.75 that have not been contacted in the past 30 days."
 - "Calculate conversion from 'contacted' to 'meeting booked' in this month's pipeline data."
 
 Sim can query the matching rows and compute summaries. It can also read multiple tables and combine their results: describe the relationship, such as matching `company_id` between contacts and companies. This does not create a persistent join between the tables.

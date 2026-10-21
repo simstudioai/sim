@@ -1,14 +1,13 @@
 ---
 title: Ramp
 description: Read spend, bills, cards, and reimbursements, and add transaction memos in Ramp
+integration:
+  type: "ramp"
+  color: "#E4F222"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ramp"
-  color="#E4F222"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Ramp](https://ramp.com/) helps businesses manage corporate cards, expenses, bills, and reimbursements.
@@ -28,7 +27,6 @@ The OAuth deployment settings below apply to the optional browser consent flow. 
 
 List operations return one page at a time, with 2–100 results per page. Pass `nextCursor` as the pagination cursor to continue. Money outputs preserve Ramp's currency and minor-unit fields; avoid combining different currencies.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -61,6 +59,8 @@ Connect Ramp to your agents to review company balances, employees, card transact
 
 Fetch the company information in Ramp
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -82,9 +82,13 @@ Fetch the company information in Ramp
 |     ↳ `currency` | string | Currency |
 |     ↳ `value` | number | Amount in the smallest currency denomination; signed for transactions |
 
+</ReferenceDetails>
+
 ### Ramp Get Balance
 
 Fetch the company balance information in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +123,13 @@ Fetch the company balance information in Ramp
 |   ↳ `next_billing_date` | string | Next billing date |
 |   ↳ `prev_billing_date` | string | Prev billing date |
 
+</ReferenceDetails>
+
 ### Ramp List Users
 
 List users in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,9 +162,13 @@ List users in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get User
 
 Fetch a user in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -182,9 +194,13 @@ Fetch a user in Ramp
 |   ↳ `entity_id` | string | Entity id |
 |   ↳ `is_manager` | boolean | Is manager |
 
+</ReferenceDetails>
+
 ### Ramp List Transactions
 
 List transactions in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +248,13 @@ List transactions in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get Transaction
 
 Fetch a transaction in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +293,13 @@ Fetch a transaction in Ramp
 |   ↳ `entity_id` | string | Entity id |
 |   ↳ `updated_at` | string | Updated at |
 
+</ReferenceDetails>
+
 ### Ramp List Physical Cards
 
 List physical cards in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -303,9 +327,13 @@ List physical cards in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get Physical Card
 
 Fetch a physical card in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -328,9 +356,13 @@ Fetch a physical card in Ramp
 |   ↳ `fund_id` | string | Fund id |
 |   ↳ `created_at` | string | Created at |
 
+</ReferenceDetails>
+
 ### Ramp List Virtual Cards
 
 List virtual cards in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +386,13 @@ List virtual cards in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get Virtual Card
 
 Fetch a virtual card in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -375,9 +411,13 @@ Fetch a virtual card in Ramp
 |   ↳ `is_card_suspended` | boolean | Is card suspended |
 |   ↳ `created_at` | string | Created at |
 
+</ReferenceDetails>
+
 ### Ramp List Vendors
 
 List vendors in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -419,9 +459,13 @@ List vendors in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get Vendor
 
 Fetch a vendor in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -457,9 +501,13 @@ Fetch a vendor in Ramp
 |     ↳ `currency_code` | string | Currency code |
 |     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
 
+</ReferenceDetails>
+
 ### Ramp List Bills
 
 List bills in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -503,9 +551,13 @@ List bills in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get Bill
 
 Fetch a bill in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -541,9 +593,13 @@ Fetch a bill in Ramp
 |   ↳ `created_at` | string | Created at |
 |   ↳ `entity_id` | string | Entity id |
 
+</ReferenceDetails>
+
 ### Ramp List Reimbursements
 
 List reimbursements in one page in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -589,9 +645,13 @@ List reimbursements in one page in Ramp
 | `nextCursor` | string | Pass this cursor as start to fetch the next page |
 | `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Ramp Get Reimbursement
 
 Fetch a reimbursement in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -629,9 +689,13 @@ Fetch a reimbursement in Ramp
 |   ↳ `sync_status` | string | Sync status |
 |   ↳ `entity_id` | string | Entity id |
 
+</ReferenceDetails>
+
 ### Ramp Get Memo
 
 Fetch a transaction memo in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -647,9 +711,13 @@ Fetch a transaction memo in Ramp
 |   ↳ `id` | string | Id |
 |   ↳ `memo` | string | Memo |
 
+</ReferenceDetails>
+
 ### Ramp Create Memo
 
 Upload a new memo for a transaction in Ramp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -666,5 +734,7 @@ Upload a new memo for a transaction in Ramp
 | `memo` | json | Memo details |
 |   ↳ `id` | string | Id |
 |   ↳ `memo` | string | Memo |
+
+</ReferenceDetails>
 
 

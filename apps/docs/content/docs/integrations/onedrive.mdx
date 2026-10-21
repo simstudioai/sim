@@ -1,19 +1,17 @@
 ---
 title: OneDrive
 description: Create, upload, download, search, move, copy, share, and delete files
+integration:
+  type: "onedrive"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="onedrive"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [OneDrive](https://onedrive.live.com) to upload, download, search, and organize files and folders. The actions below also cover metadata, copying or moving items, sharing links, and deletion.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -43,6 +41,8 @@ Create text and Excel files, upload files, download files, list and search files
 
 Upload a file to OneDrive
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -60,9 +60,13 @@ Upload a file to OneDrive
 | `success` | boolean | Whether the file was uploaded successfully |
 | `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps |
 
+</ReferenceDetails>
+
 ### Create Folder in OneDrive
 
 Create a new folder in OneDrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -78,9 +82,13 @@ Create a new folder in OneDrive
 | `success` | boolean | Whether the folder was created successfully |
 | `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
 
+</ReferenceDetails>
+
 ### Download File from OneDrive
 
 Download a file from OneDrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +103,13 @@ Download a file from OneDrive
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
+</ReferenceDetails>
+
 ### List OneDrive Files
 
 List files and folders in OneDrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +128,13 @@ List files and folders in OneDrive
 | `files` | array | Array of file and folder objects with metadata |
 | `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
 
+</ReferenceDetails>
+
 ### Search OneDrive Files
 
 Search for files and folders across OneDrive by name, metadata, or content (recursive)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +152,13 @@ Search for files and folders across OneDrive by name, metadata, or content (recu
 | `files` | array | Array of file and folder objects matching the search query |
 | `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
 
+</ReferenceDetails>
+
 ### Get OneDrive Item Metadata
 
 Get metadata for a specific OneDrive file or folder by ID, or the drive root
+
+<ReferenceDetails>
 
 #### Input
 
@@ -153,9 +173,13 @@ Get metadata for a specific OneDrive file or folder by ID, or the drive root
 | `success` | boolean | Whether the item metadata was retrieved |
 | `file` | object | The file or folder metadata, including id, name, webViewLink, size, and timestamps |
 
+</ReferenceDetails>
+
 ### Get OneDrive Info
 
 Get information about the OneDrive drive, including storage quota
+
+<ReferenceDetails>
 
 #### Input
 
@@ -173,9 +197,13 @@ Get information about the OneDrive drive, including storage quota
 | `owner` | string | Display name of the drive owner |
 | `quota` | object | Storage quota information in bytes \(total, used, remaining, deleted, state\) |
 
+</ReferenceDetails>
+
 ### Move or Rename OneDrive File
 
 Move a file or folder to a new parent folder, rename it, or both
+
+<ReferenceDetails>
 
 #### Input
 
@@ -192,9 +220,13 @@ Move a file or folder to a new parent folder, rename it, or both
 | `success` | boolean | Whether the move or rename was successful |
 | `file` | object | The updated file object with its new name and/or parent folder |
 
+</ReferenceDetails>
+
 ### Copy OneDrive File
 
 Copy a file or folder to another location within OneDrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +245,13 @@ Copy a file or folder to another location within OneDrive
 | `name` | string | The requested name for the copy, if provided |
 | `monitorUrl` | string | URL to poll for the status of the asynchronous copy operation \(copy completes in the background\) |
 
+</ReferenceDetails>
+
 ### Create OneDrive Sharing Link
 
 Create a view or edit sharing link for a OneDrive file or folder
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +268,13 @@ Create a view or edit sharing link for a OneDrive file or folder
 | `success` | boolean | Whether the sharing link was created successfully |
 | `link` | object | The created sharing link, including its type, scope, and URL |
 
+</ReferenceDetails>
+
 ### Delete File from OneDrive
 
 Delete a file or folder from OneDrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -249,5 +289,7 @@ Delete a file or folder from OneDrive
 | `success` | boolean | Whether the file was deleted successfully |
 | `deleted` | boolean | Confirmation that the file was deleted |
 | `fileId` | string | The ID of the deleted file |
+
+</ReferenceDetails>
 
 

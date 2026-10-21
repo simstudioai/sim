@@ -1,21 +1,19 @@
 ---
 title: Resend
 description: Send emails and manage contacts with Resend.
+integration:
+  type: "resend"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="resend"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Resend](https://resend.com/) to send emails, retrieve their status, manage contacts, and inspect domains. Configure a Resend API key and the sender, recipients, and content required by the operation.
 
 Use returned email IDs to check delivery status. The block's actions define the available operations; template editing and analytics management are not exposed here.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Send emails, retrieve email status, manage contacts, and view domains. Requires 
 ### Send Email
 
 Send an email using your own Resend API key and from address
+
+<ReferenceDetails>
 
 #### Input
 
@@ -53,9 +53,13 @@ Send an email using your own Resend API key and from address
 | `subject` | string | Email subject |
 | `body` | string | Email body content |
 
+</ReferenceDetails>
+
 ### Get Email
 
 Retrieve details of a previously sent email by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -84,9 +88,13 @@ Retrieve details of a previously sent email by its ID
 |   ↳ `name` | string | Tag name |
 |   ↳ `value` | string | Tag value |
 
+</ReferenceDetails>
+
 ### Cancel Email
 
 Cancel a scheduled email before it is sent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -101,9 +109,13 @@ Cancel a scheduled email before it is sent
 | --------- | ---- | ----------- |
 | `id` | string | Canceled email ID |
 
+</ReferenceDetails>
+
 ### Create Contact
 
 Create a new contact in Resend
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +133,13 @@ Create a new contact in Resend
 | --------- | ---- | ----------- |
 | `id` | string | Created contact ID |
 
+</ReferenceDetails>
+
 ### List Contacts
 
 List all contacts in Resend
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +160,13 @@ List all contacts in Resend
 |   ↳ `unsubscribed` | boolean | Whether the contact is unsubscribed |
 | `hasMore` | boolean | Whether there are more contacts to retrieve |
 
+</ReferenceDetails>
+
 ### Get Contact
 
 Retrieve details of a contact by ID or email
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +186,13 @@ Retrieve details of a contact by ID or email
 | `createdAt` | string | Contact creation timestamp |
 | `unsubscribed` | boolean | Whether the contact is unsubscribed |
 
+</ReferenceDetails>
+
 ### Update Contact
 
 Update an existing contact in Resend
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +210,13 @@ Update an existing contact in Resend
 | --------- | ---- | ----------- |
 | `id` | string | Updated contact ID |
 
+</ReferenceDetails>
+
 ### Delete Contact
 
 Delete a contact from Resend by ID or email
+
+<ReferenceDetails>
 
 #### Input
 
@@ -204,9 +232,13 @@ Delete a contact from Resend by ID or email
 | `id` | string | Deleted contact ID |
 | `deleted` | boolean | Whether the contact was successfully deleted |
 
+</ReferenceDetails>
+
 ### Create Audience
 
 Create a new audience in Resend
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +254,13 @@ Create a new audience in Resend
 | `id` | string | Created audience ID |
 | `name` | string | Audience name |
 
+</ReferenceDetails>
+
 ### Get Audience
 
 Retrieve details of an audience by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -241,9 +277,13 @@ Retrieve details of an audience by ID
 | `name` | string | Audience name |
 | `createdAt` | string | Audience creation timestamp |
 
+</ReferenceDetails>
+
 ### List Audiences
 
 List all audiences in Resend
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,9 +301,13 @@ List all audiences in Resend
 |   ↳ `created_at` | string | Audience creation timestamp |
 | `hasMore` | boolean | Whether there are more audiences to retrieve |
 
+</ReferenceDetails>
+
 ### Delete Audience
 
 Delete an audience from Resend by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +323,13 @@ Delete an audience from Resend by ID
 | `id` | string | Deleted audience ID |
 | `deleted` | boolean | Whether the audience was successfully deleted |
 
+</ReferenceDetails>
+
 ### Create Broadcast
 
 Create a broadcast email for an audience in Resend
+
+<ReferenceDetails>
 
 #### Input
 
@@ -303,9 +351,13 @@ Create a broadcast email for an audience in Resend
 | --------- | ---- | ----------- |
 | `id` | string | Created broadcast ID |
 
+</ReferenceDetails>
+
 ### Send Broadcast
 
 Send a broadcast immediately or schedule it for later
+
+<ReferenceDetails>
 
 #### Input
 
@@ -321,9 +373,13 @@ Send a broadcast immediately or schedule it for later
 | --------- | ---- | ----------- |
 | `id` | string | Broadcast ID |
 
+</ReferenceDetails>
+
 ### Get Broadcast
 
 Retrieve details of a broadcast by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -349,9 +405,13 @@ Retrieve details of a broadcast by ID
 | `scheduledAt` | string | Scheduled send timestamp |
 | `sentAt` | string | Timestamp the broadcast was sent |
 
+</ReferenceDetails>
+
 ### List Domains
 
 List all verified domains in your Resend account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -371,6 +431,8 @@ List all verified domains in your Resend account
 |   ↳ `createdAt` | string | Domain creation timestamp |
 | `hasMore` | boolean | Whether there are more domains to retrieve |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -381,6 +443,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when an email bounces
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -406,13 +470,14 @@ Trigger workflow when an email bounces
 | `bounceSubType` | string | Bounce sub-type \(e.g., Suppressed\) |
 | `bounceMessage` | string | Bounce error message |
 
-
----
+</ReferenceDetails>
 
 ### Resend Email Clicked
 
 Trigger workflow when a link in an email is clicked
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -439,13 +504,14 @@ Trigger workflow when a link in an email is clicked
 | `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
 | `clickUserAgent` | string | Browser user agent string |
 
-
----
+</ReferenceDetails>
 
 ### Resend Email Complained
 
 Trigger workflow when an email is marked as spam
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -468,13 +534,14 @@ Trigger workflow when an email is marked as spam
 | `to` | json | Array of recipient email addresses |
 | `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Resend Email Delivered
 
 Trigger workflow when an email is delivered
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -497,13 +564,14 @@ Trigger workflow when an email is delivered
 | `to` | json | Array of recipient email addresses |
 | `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Resend Email Failed
 
 Trigger workflow when an email fails to send
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -526,13 +594,14 @@ Trigger workflow when an email fails to send
 | `to` | json | Array of recipient email addresses |
 | `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Resend Email Opened
 
 Trigger workflow when an email is opened
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -555,13 +624,14 @@ Trigger workflow when an email is opened
 | `to` | json | Array of recipient email addresses |
 | `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Resend Email Sent
 
 Trigger workflow when an email is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -584,12 +654,13 @@ Trigger workflow when an email is sent
 | `to` | json | Array of recipient email addresses |
 | `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Resend Webhook (All Events)
 
-Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use &lt;code&gt;data&lt;/code&gt; for the full payload.
+Start a workflow for subscribed Resend email, contact, and domain events. Flattened email fields may be null for non-email events; use `data` for the full payload.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -619,4 +690,6 @@ Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, dom
 | `clickLink` | string | URL that was clicked |
 | `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
 | `clickUserAgent` | string | Browser user agent string |
+
+</ReferenceDetails>
 

@@ -12,12 +12,7 @@ interface PageFooterProps {
   next?: PageNeighbour
 }
 
-/**
- * Sequential page navigation. The destination name carries the meaning, so each
- * card shows it alone with a direction chevron — the chevron already says which
- * way you are going, and a "Previous"/"Next" label above the name only repeated
- * that. Social links live in the site footer directly below this.
- */
+/** Sequential navigation between neighboring documentation pages. */
 export function PageFooter({ previous, next }: PageFooterProps) {
   if (!previous && !next) return null
 

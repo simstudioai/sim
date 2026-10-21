@@ -429,6 +429,21 @@ function civilKey(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** A bounded year of calendar days, including today's partial day in the viewer's timezone. */
+export function resolveUsageCalendarWindow(
+  timezone: string,
+  now = new Date()
+): Extract<UsageAnalyticsWindow, { kind: 'range' }> {
+  const start = civilDate(localCalendarDate(now, timezone))
+  start.setUTCDate(start.getUTCDate() - 364)
+  return {
+    kind: 'range',
+    from: zonedWallClockToUtc(`${civilKey(start)}T00:00`, timezone),
+    // Include the current instant so today's empty cell survives a request exactly at midnight.
+    to: new Date(now.getTime() + 1),
+  }
+}
+
 /**
  * Mirrors Postgres `date_trunc(bucket, …)`: an ISO week starts Monday, a month on
  * the 1st. The series keys have to land on the same boundaries the SQL emitted or
@@ -710,14 +725,12 @@ export function foldUsageBreakdown(
 /**
  * What a null grouping key means, per dimension.
  *
- * A single "Unattributed" label was wrong in both directions: on Workspaces it means
- * usage that belongs to no workspace, and on Workflows it means usage that never came
- * from a workflow — which is most of an organization's spend, and reading that as an
- * attribution failure is what made the workflow list useless.
+ * Workspace attribution is absent for organization-level usage and is cleared when
+ * a workspace is permanently deleted. The null bucket cannot distinguish the two.
  */
 export const USAGE_NULL_KEY_LABELS: Record<UsageBreakdownDimension, string> = {
   member: 'Unknown member',
-  workspace: 'No workspace',
+  workspace: 'Unassigned usage',
   // Unreachable: the workflow dimension filters null ids out entirely.
   workflow: 'Unknown workflow',
   model: 'Unknown model',

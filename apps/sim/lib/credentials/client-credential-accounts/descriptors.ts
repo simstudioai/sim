@@ -105,7 +105,10 @@ export interface ClientCredentialAccountDescriptor {
   defaultAuthMethod?: string
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
-  /** Optional one-line caveat rendered in the connect modal. */
+  /**
+   * Optional one-line caveat, rendered under the `orgId` field of the connect modal. A descriptor
+   * without an `orgId` field puts its guidance in a field `hint` instead.
+   */
   helpText?: string
 }
 
@@ -120,6 +123,7 @@ export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' a
 export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
 export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-account' as const
+export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -143,6 +147,7 @@ export type ClientCredentialAccountProviderId =
   | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -421,6 +426,27 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/greenhouse',
+  },
+  [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Help Scout',
+    connectNoun: 'app',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'App ID',
+        placeholder: 'Paste the App ID',
+        secret: false,
+        hint: 'Create the app in Help Scout under Your Profile > My Apps.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'App secret',
+        placeholder: 'Paste the App Secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/helpscout',
   },
   [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,

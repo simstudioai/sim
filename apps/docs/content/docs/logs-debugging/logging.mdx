@@ -18,10 +18,12 @@ status:error workflow:"Support" duration:>5s
 The list holds a stable snapshot. Select **Refresh**, **N new logs**, or **Updates available** to load new or changed runs. With editing access, select **Export** to download a CSV using the current filters.
 
 <Image
-  src="/static/logs/logs.png"
+  src="/static/docs-captures/logs.webp"
   alt="Workspace Logs list with workflow, date, status, credits, trigger, and duration columns"
-  width={1064}
-  height={800}
+  width={2400}
+  height={482}
+  variant="overview"
+  background="canyon"
 />
 
 ## Read log details
@@ -36,7 +38,7 @@ Select an entry to open **Log Details**. The run records its execution ID, workf
 
 **Trace** shows the block and child spans with their timing and status. Select a span to inspect stacked, collapsible **Input**, **Output** or **Error**, and any **Thinking** or **Error message** sections. Inputs contain resolved variable values and referenced outputs. Structured data can be inspected and copied; agent text can render as Markdown.
 
-Workspace access settings govern which trace, workflow data, snapshot, and cost details are visible. Protected resolved secret values are masked in the log-facing copy, subject to documented exceptions. See [Permission groups](/enterprise/access-control) and [Execution log protection](/platform/credentials#execution-log-protection).
+Workspace access settings govern which trace, workflow data, snapshot, and cost details are visible. Protected resolved secret values are masked in the log-facing copy, subject to documented exceptions. See [Permission groups](/platform/enterprise/access-control) and [Execution log protection](/platform/credentials#execution-log-protection).
 
 ## Watch a manual run
 
@@ -50,7 +52,7 @@ Some older migrated logs have no saved workflow state and show **Logged State No
 
 ## Retention
 
-Sim Cloud Free defaults to 30 days. Paid plans and billing-disabled deployments have no plan-based default log expiry. Organization or workspace policies can change effective retention; cleanup removes expired data rather than providing a recoverable archive. See [Data retention](/enterprise/data-retention).
+Sim Cloud Free defaults to 30 days. Paid plans and billing-disabled deployments have no plan-based default log expiry. Organization or workspace policies can change effective retention; cleanup removes expired data rather than providing a recoverable archive. See [Data retention](/platform/enterprise/data-retention).
 
 ## Related docs
 

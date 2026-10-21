@@ -1,14 +1,11 @@
 ---
 title: Apify
 description: Run Apify actors and retrieve results
+integration:
+  type: "apify"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="apify"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Apify](https://apify.com/) runs Actors for web scraping and browser automation. Run an Actor synchronously when it can finish within the synchronous endpoint’s five-minute limit. **Run Actor (Async)** starts a provider run and polls it within the same Sim step; it does not return immediately for detached processing. Its polling budget follows Sim’s default synchronous execution timeout. If that wait ends before the Actor finishes, use the returned run ID with **Get Run**, then retrieve dataset items after success. You can also run saved Actor tasks and fetch dataset items directly.

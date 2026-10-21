@@ -66,6 +66,13 @@ export const organizationUsageOperations = {
     capability: 'none',
     ...BASE,
   }),
+  /** permission-group-exempt: daily credit history requires organization billing-admin authority. */
+  readCalendar: defineOrganizationOperation({
+    id: 'organization_usage.calendar.read',
+    contentDelivery: 'none',
+    capability: 'none',
+    ...BASE,
+  }),
   /**
    * permission-group-exempt: the organization's pooled ledger is authorized by organization billing-admin authority, which no workspace-shaped group key names
    */

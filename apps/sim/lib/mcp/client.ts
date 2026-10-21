@@ -239,12 +239,11 @@ export class McpClient {
         logger.info(`[${this.config.name}] Registered tools/list_changed notification handler`)
       }
 
-      const serverVersion = this.client.getServerVersion()
       logger.info(`Successfully connected to MCP server: ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
         outcome: 'connected' satisfies ConnectionOutcome,
-        protocolVersion: serverVersion,
+        protocolVersion: this.getNegotiatedVersion(),
       })
     } catch (error) {
       this.isConnected = false
@@ -543,9 +542,9 @@ export class McpClient {
     }
   }
 
+  /** The protocol version agreed during initialize, which the transport records. */
   getNegotiatedVersion(): string | undefined {
-    const serverVersion = this.client.getServerVersion()
-    return typeof serverVersion === 'string' ? serverVersion : undefined
+    return this.transport.protocolVersion
   }
 
   getSessionId(): string | undefined {

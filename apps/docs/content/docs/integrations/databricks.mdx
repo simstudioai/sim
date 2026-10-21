@@ -1,14 +1,13 @@
 ---
 title: Databricks
 description: Run SQL, manage jobs, and ask Genie agents on Databricks
+integration:
+  type: "databricks"
+  color: "#F9F7F4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="databricks"
-  color="#F9F7F4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Databricks](https://www.databricks.com/) to execute parameterized SQL, manage jobs and runs, control compute clusters and SQL warehouses, and work with Genie spaces. Connect with a personal access token and your Databricks workspace host URL.
@@ -22,7 +21,6 @@ Cluster operations support creating, configuring, starting, restarting, resizing
 Genie operations create and update spaces, answer natural-language questions, manage conversation history, and retrieve generated SQL, results, and charts. Reuse the conversation ID for follow-ups. Use a space's `etag` when updating it to avoid overwriting concurrent changes. Agent mode supports research reports and response cancellation; it must be enabled in your workspace.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts. Connect with a personal access token and workspace host URL.
@@ -32,6 +30,8 @@ Execute parameterized SQL and retrieve result chunks, create and manage jobs, su
 ### Databricks Execute SQL
 
 Execute a SQL statement against a Databricks SQL warehouse and return results inline. Supports parameterized queries and Unity Catalog.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -69,9 +69,13 @@ Execute a SQL statement against a Databricks SQL warehouse and return results in
 | `statementId` | string | SQL statement ID of the query |
 | `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
 
+</ReferenceDetails>
+
 ### Databricks Get Statement
 
 Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -102,9 +106,13 @@ Poll a SQL statement by its ID to retrieve status and results. Use this after Ex
 | `statementId` | string | SQL statement ID of the query |
 | `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
 
+</ReferenceDetails>
+
 ### Databricks Get Statement Chunk
 
 Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL or Get Statement.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +135,13 @@ Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL
 | `nextChunkInternalLink` | string | Workspace-relative path to the next result chunk |
 | `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
 
+</ReferenceDetails>
+
 ### Databricks Cancel Statement
 
 Request cancellation of an executing SQL statement; poll Get Statement to confirm its final status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +158,13 @@ Request cancellation of an executing SQL statement; poll Get Statement to confir
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the cancellation request was accepted |
 
+</ReferenceDetails>
+
 ### Databricks List Jobs
 
 List all jobs in a Databricks workspace with optional filtering by name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -290,9 +306,13 @@ List all jobs in a Databricks workspace with optional filtering by name.
 | `hasMore` | boolean | Whether more jobs are available for pagination |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Databricks Get Job
 
 Get the full definition and settings of a single Databricks job by its job ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -439,9 +459,13 @@ Get the full definition and settings of a single Databricks job by its job ID.
 | `schedule` | object | Cron schedule configuration \(quartz_cron_expression, timezone_id, pause_status\) |
 | `tags` | object | Key-value tags applied to the job |
 
+</ReferenceDetails>
+
 ### Databricks Create Job
 
 Create a Databricks job with tasks, scheduling, execution identity, and notifications.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -486,9 +510,13 @@ Create a Databricks job with tasks, scheduling, execution identity, and notifica
 | --------- | ---- | ----------- |
 | `jobId` | number | Job identifier |
 
+</ReferenceDetails>
+
 ### Databricks Update Job
 
 Merge selected settings into a Databricks job and optionally remove settings or tasks.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -506,9 +534,13 @@ Merge selected settings into a Databricks job and optionally remove settings or 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Reset Job
 
 Replace all settings of a Databricks job.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -525,9 +557,13 @@ Replace all settings of a Databricks job.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Delete Job
 
 Delete a Databricks job and cancel its active runs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -543,9 +579,13 @@ Delete a Databricks job and cancel its active runs.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Run Job
 
 Trigger an existing Databricks job to run immediately with optional job-level or notebook parameters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -569,9 +609,13 @@ Trigger an existing Databricks job to run immediately with optional job-level or
 | `runId` | number | The globally unique ID of the triggered run |
 | `numberInJob` | number | The sequence number of this run among all runs of the job |
 
+</ReferenceDetails>
+
 ### Databricks Submit Run
 
 Submit a one-time task run without creating a saved job.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -602,9 +646,13 @@ Submit a one-time task run without creating a saved job.
 | --------- | ---- | ----------- |
 | `runId` | number | Run identifier |
 
+</ReferenceDetails>
+
 ### Databricks List Runs
 
 List job runs in a Databricks workspace with optional filtering by job, status, and time range.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -766,9 +814,13 @@ List job runs in a Databricks workspace with optional filtering by job, status, 
 | `hasMore` | boolean | Whether more runs are available for pagination |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Databricks Get Run
 
 Get the status, timing, and details of a Databricks job run by its run ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -940,9 +992,13 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 | `runPageUrl` | string | URL to the run detail page in Databricks UI |
 | `creatorUserName` | string | Email of the user who triggered the run |
 
+</ReferenceDetails>
+
 ### Databricks Get Run Output
 
 Get the output of a completed Databricks job run, including notebook results, error messages, and logs. For multi-task jobs, use the task run ID (not the parent run ID).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -975,9 +1031,13 @@ Get the output of a completed Databricks job run, including notebook results, er
 | `logs` | string | Log output \(last 5 MB\) from spark_jar, spark_python, or python_wheel tasks |
 | `logsTruncated` | boolean | Whether the log output was truncated |
 
+</ReferenceDetails>
+
 ### Databricks Repair Run
 
 Rerun failed or selected tasks within an existing Databricks run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1000,9 +1060,13 @@ Rerun failed or selected tasks within an existing Databricks run.
 | --------- | ---- | ----------- |
 | `repairId` | number | Identifier of the repair; pass it as latestRepairId on the next repair |
 
+</ReferenceDetails>
+
 ### Databricks Cancel Run
 
 Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1018,9 +1082,13 @@ Cancel a running or pending Databricks job run. Cancellation is asynchronous; po
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the cancel request was accepted |
 
+</ReferenceDetails>
+
 ### Databricks Cancel All Runs
 
 Request cancellation of active runs of a job or queued runs in the workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1037,9 +1105,13 @@ Request cancellation of active runs of a job or queued runs in the workspace.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Delete Run
 
 Delete a completed Databricks job run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1055,9 +1127,13 @@ Delete a completed Databricks job run.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks List Clusters
 
 List a page of clusters in a Databricks workspace including their state, configuration, and resource details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1097,9 +1173,13 @@ List a page of clusters in a Databricks workspace including their state, configu
 |   ↳ `autoterminationMinutes` | number | Minutes of inactivity before auto-termination \(0 = disabled\) |
 |   ↳ `startTime` | number | Cluster start timestamp \(epoch ms\) |
 
+</ReferenceDetails>
+
 ### Databricks Get Cluster
 
 Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1136,9 +1216,13 @@ Get the state, configuration, and resource details of a single Databricks cluste
 |   ↳ `autoterminationMinutes` | number | Minutes of inactivity before auto-termination \(0 = disabled\) |
 |   ↳ `startTime` | number | Cluster start timestamp \(epoch ms\) |
 
+</ReferenceDetails>
+
 ### Databricks Create Cluster
 
 Create a compute cluster with runtime, sizing, policy, and cloud-specific settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1189,9 +1273,13 @@ Create a compute cluster with runtime, sizing, policy, and cloud-specific settin
 | --------- | ---- | ----------- |
 | `clusterId` | string | Compute cluster identifier |
 
+</ReferenceDetails>
+
 ### Databricks Edit Cluster
 
 Replace a compute cluster configuration; a running cluster restarts to apply the changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1242,9 +1330,13 @@ Replace a compute cluster configuration; a running cluster restarts to apply the
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Start Cluster
 
 Start a terminated all-purpose compute cluster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1260,9 +1352,13 @@ Start a terminated all-purpose compute cluster.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Restart Cluster
 
 Restart a running compute cluster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1279,9 +1375,13 @@ Restart a running compute cluster.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Resize Cluster
 
 Change the fixed worker count or autoscaling range of a running cluster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1299,9 +1399,13 @@ Change the fixed worker count or autoscaling range of a running cluster.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Terminate Cluster
 
 Terminate a compute cluster while retaining its configuration for a later restart.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1316,11 +1420,15 @@ Terminate a compute cluster while retaining its configuration for a later restar
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
+
+</ReferenceDetails>
 
 ### Databricks Delete Cluster
 
 Permanently delete a compute cluster and its configuration.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1335,9 +1443,13 @@ Permanently delete a compute cluster and its configuration.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks List Warehouses
 
 List a page of SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1388,9 +1500,13 @@ List a page of SQL warehouses in a Databricks workspace including their size, st
 |   ↳ `numActiveSessions` | number | Number of active sessions |
 |   ↳ `enableServerlessCompute` | boolean | Whether serverless compute is enabled |
 
+</ReferenceDetails>
+
 ### Databricks Get Warehouse
 
 Get the configuration, state, and scaling settings of a SQL warehouse.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1439,9 +1555,13 @@ Get the configuration, state, and scaling settings of a SQL warehouse.
 |   ↳ `numActiveSessions` | number | Number of active sessions |
 |   ↳ `enableServerlessCompute` | boolean | Whether serverless compute is enabled |
 
+</ReferenceDetails>
+
 ### Databricks Create Warehouse
 
 Create a SQL warehouse with sizing, autoscaling, and serverless settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1469,9 +1589,13 @@ Create a SQL warehouse with sizing, autoscaling, and serverless settings.
 | --------- | ---- | ----------- |
 | `warehouseId` | string | SQL warehouse identifier |
 
+</ReferenceDetails>
+
 ### Databricks Edit Warehouse
 
 Update a SQL warehouse configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1500,9 +1624,13 @@ Update a SQL warehouse configuration.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Start Warehouse
 
 Start a stopped SQL warehouse.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1517,11 +1645,15 @@ Start a stopped SQL warehouse.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
+
+</ReferenceDetails>
 
 ### Databricks Stop Warehouse
 
 Stop a running SQL warehouse.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1535,11 +1667,15 @@ Stop a running SQL warehouse.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
+
+</ReferenceDetails>
 
 ### Databricks Delete Warehouse
 
 Delete a SQL warehouse.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1554,9 +1690,13 @@ Delete a SQL warehouse.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Genie List Spaces
 
 List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1582,9 +1722,13 @@ List the Genie spaces (Genie agents) you can access. Use this to find the space 
 |   ↳ `updateTime` | string | When the space was last modified \(ISO 8601\) |
 | `nextPageToken` | string | Token for the next page of results |
 
+</ReferenceDetails>
+
 ### Databricks Genie Get Space
 
 Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1609,9 +1753,13 @@ Get a Genie space's title, description, and SQL warehouse, optionally with its f
 | `updateTime` | string | When the space was last modified \(ISO 8601\) |
 | `serializedSpace` | string | Serialized space configuration as a JSON string \(data sources, instructions, sample questions\) |
 
+</ReferenceDetails>
+
 ### Databricks Create Genie Space
 
 Create a Genie space from its serialized configuration and a SQL warehouse.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1639,9 +1787,13 @@ Create a Genie space from its serialized configuration and a SQL warehouse.
 | `updateTime` | string | When the space was last modified \(ISO 8601\) |
 | `serializedSpace` | string | Serialized Genie configuration \(data_sources, instructions, config, benchmarks\) |
 
+</ReferenceDetails>
+
 ### Databricks Update Genie Space
 
 Update a Genie space, optionally protecting the change with its current ETag.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1671,9 +1823,13 @@ Update a Genie space, optionally protecting the change with its current ETag.
 | `updateTime` | string | When the space was last modified \(ISO 8601\) |
 | `serializedSpace` | string | Serialized Genie configuration \(data_sources, instructions, config, benchmarks\) |
 
+</ReferenceDetails>
+
 ### Databricks Trash Genie Space
 
 Move a Genie space to the trash.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1689,9 +1845,13 @@ Move a Genie space to the trash.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Databricks accepted the request |
 
+</ReferenceDetails>
+
 ### Databricks Genie Ask
 
 Ask a Databricks Genie space a question in natural language and wait for the answer. Starts a new conversation, or continues an existing one when a conversation ID is given. Returns the text answer, the SQL Genie generated, and the query result rows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1744,9 +1904,13 @@ Ask a Databricks Genie space a question in natural language and wait for the ans
 | `totalRows` | number | Total number of rows in the result |
 | `truncated` | boolean | Whether the result set was truncated; null when no query result was retrieved |
 
+</ReferenceDetails>
+
 ### Databricks Genie Get Message
 
 Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1786,9 +1950,13 @@ Get a Genie message's status and answer, including the generated SQL, visualizat
 | `errorType` | string | Genie error type |
 | `createdTimestamp` | number | When the message was created |
 
+</ReferenceDetails>
+
 ### Databricks Genie List Messages
 
 List the messages in a Genie conversation with their answers and generated SQL, for example to replay a conversation history.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1831,9 +1999,13 @@ List the messages in a Genie conversation with their answers and generated SQL, 
 |   ↳ `createdTimestamp` | number | When the message was created |
 | `nextPageToken` | string | Token for the next page of results |
 
+</ReferenceDetails>
+
 ### Databricks Genie Get Query Result
 
 Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1865,11 +2037,15 @@ Get the rows returned by the SQL query Genie generated for a message. Available 
 | `truncated` | boolean | Whether the result set was truncated |
 | `statementId` | string | SQL statement ID of the query |
 | `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
+
+</ReferenceDetails>
 
 ### Databricks Genie Execute Query
 
 Re-run the SQL query Genie generated for a message. Use this when the message's query result has expired (status QUERY_RESULT_EXPIRED). If the returned status is PENDING or RUNNING, fetch the rows afterwards with Get Genie Query Result.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1901,9 +2077,13 @@ Re-run the SQL query Genie generated for a message. Use this when the message's 
 | `statementId` | string | SQL statement ID of the query |
 | `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
 
+</ReferenceDetails>
+
 ### Databricks Genie Download Visualization
 
 Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1922,9 +2102,13 @@ Download a chart Genie generated as a PNG image, for example to post it to Slack
 | --------- | ---- | ----------- |
 | `file` | file | Rendered chart image \(PNG\) stored in execution files |
 
+</ReferenceDetails>
+
 ### Databricks Genie Send Feedback
 
 Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1944,9 +2128,13 @@ Rate a Genie answer as positive or negative, with an optional comment. Space aut
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the feedback was recorded |
 
+</ReferenceDetails>
+
 ### Databricks Genie Delete Message
 
 Delete a message from a Genie conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1964,9 +2152,13 @@ Delete a message from a Genie conversation.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the message was deleted |
 
+</ReferenceDetails>
+
 ### Databricks Genie List Conversations
 
 List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1990,9 +2182,13 @@ List conversations in a Genie space, including whether each is a chat-mode or ag
 |   ↳ `agentType` | string | Conversation mode \(GENIE_CONVERSATION_TYPE_CHAT or GENIE_CONVERSATION_TYPE_AGENT\) |
 | `nextPageToken` | string | Token for the next page of results |
 
+</ReferenceDetails>
+
 ### Databricks Genie Delete Conversation
 
 Delete a Genie conversation you no longer need.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2009,9 +2205,13 @@ Delete a Genie conversation you no longer need.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the conversation was deleted |
 
+</ReferenceDetails>
+
 ### Databricks Genie Agent Ask
 
 Ask a Genie agent a question in agent mode, where Genie plans multi-step research, runs several SQL queries, and writes a report with citations. Waits for the final report. Starts a new agent-mode conversation, or continues one when a conversation ID is given. Agent mode is in preview and must be enabled on the workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2049,9 +2249,13 @@ Ask a Genie agent a question in agent mode, where Genie plans multi-step researc
 | `createdAt` | number | When the response was created \(Unix epoch seconds\) |
 | `error` | string | System error message the agent reported alongside its report |
 
+</ReferenceDetails>
+
 ### Databricks Genie Agent List Items
 
 List an agent-mode conversation's full history in order: questions, reasoning, SQL calls, query results, and reports. Agent mode is in preview and must be enabled on the workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2084,9 +2288,13 @@ List an agent-mode conversation's full history in order: questions, reasoning, S
 | `hasMore` | boolean | Whether more items follow this page |
 | `status` | string | Status of the latest response in the conversation |
 
+</ReferenceDetails>
+
 ### Databricks Genie Agent Cancel
 
 Cancel an in-flight Genie agent response using the response ID returned by the agent stream.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2125,5 +2333,7 @@ Cancel an in-flight Genie agent response using the response ID returned by the a
 | `error` | string | Why Genie failed to answer |
 | `errorType` | string | Genie error type |
 | `createdTimestamp` | number | When the message was created |
+
+</ReferenceDetails>
 
 

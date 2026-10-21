@@ -1,21 +1,19 @@
 ---
 title: You.com
 description: Search, read, and research the web with You.com
+integration:
+  type: "youcom"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="youcom"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [You.com](https://you.com/) to search the web and news, retrieve page content, get cited answers, or run deep and financial research. Search supports date, country, language, and domain filters; research can return structured fields or run in the background for later status checks.
 
 Image search requires early-access permission. Account Balance reports remaining API credits. Create a key on the [You.com platform](https://you.com/platform) and provide it to the selected operation.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -26,6 +24,8 @@ Search the web and news with query-relevant highlights or full page content, fet
 ### You.com Search
 
 Search the web and news with You.com, returning LLM-ready results with optional query-relevant highlights or full page content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +83,13 @@ Search the web and news with You.com, returning LLM-ready results with optional 
 | `query` | string | Query used to retrieve the results |
 | `latency` | number | Search latency in seconds |
 
+</ReferenceDetails>
+
 ### You.com Get Contents
 
 Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +113,13 @@ Fetch the HTML, Markdown, and page metadata of one or more web pages with You.co
 |   ↳ `siteName` | string | OpenGraph site name \(metadata format\) |
 |   ↳ `faviconUrl` | string | Favicon URL of the page's domain \(metadata format\) |
 
+</ReferenceDetails>
+
 ### You.com Answer
 
 Get a synthesized answer to a question with numbered citations and the web results used to write it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +151,13 @@ Get a synthesized answer to a question with numbered citations and the web resul
 |   ↳ `thumbnailUrl` | string | Thumbnail URL |
 |   ↳ `pageAge` | string | Age of the result |
 
+</ReferenceDetails>
+
 ### You.com Research
 
 Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -178,9 +190,13 @@ Run multi-step web research on a question and get a thorough, cited answer, or s
 | `streamUrl` | string | URL path of the task progress event stream \(background only\) |
 | `createdAt` | string | When the background task was created, RFC 3339 \(background only\) |
 
+</ReferenceDetails>
+
 ### You.com Get Research Task
 
 Get the status of a background research task and, once completed, its cited answer and sources.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +231,13 @@ Get the status of a background research task and, once completed, its cited answ
 |   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
 | `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 
+</ReferenceDetails>
+
 ### You.com Finance Research
 
 Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -239,9 +259,13 @@ Research a financial question across earnings reports, SEC filings, analyst cove
 |   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
 | `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 
+</ReferenceDetails>
+
 ### You.com Search Images
 
 Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -264,9 +288,13 @@ Find image URLs for a query with You.com. Beta, and limited to You.com early-acc
 | `query` | string | Query that was submitted |
 | `searchUuid` | string | Unique ID of the search |
 
+</ReferenceDetails>
+
 ### You.com Get Account Balance
 
 Get the remaining You.com API credit balance for the account or organization that owns the API key.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,5 +309,7 @@ Get the remaining You.com API credit balance for the account or organization tha
 | `accountId` | string | Stable hashed ID of the billing entity \(user or organization\) |
 | `accountType` | string | Billing entity type \(account\) |
 | `balance` | number | Remaining credit balance in cents \(divide by 100 for USD\) |
+
+</ReferenceDetails>
 
 

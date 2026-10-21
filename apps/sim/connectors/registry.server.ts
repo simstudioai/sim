@@ -30,6 +30,7 @@ import { googleVaultConnector } from '@/connectors/google-vault'
 import { grainConnector } from '@/connectors/grain'
 import { granolaConnector } from '@/connectors/granola'
 import { greenhouseConnector } from '@/connectors/greenhouse'
+import { helpScoutConnector } from '@/connectors/helpscout'
 import { hubspotConnector } from '@/connectors/hubspot'
 import { incidentioConnector } from '@/connectors/incidentio'
 import { intercomConnector } from '@/connectors/intercom'
@@ -108,6 +109,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   grain: grainConnector,
   granola: granolaConnector,
   greenhouse: greenhouseConnector,
+  helpscout: helpScoutConnector,
   hubspot: hubspotConnector,
   incidentio: incidentioConnector,
   intercom: intercomConnector,

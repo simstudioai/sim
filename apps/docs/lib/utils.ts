@@ -10,16 +10,3 @@
  * 'text-sm')` emitted both and let CSS source order pick the winner.
  */
 export { cn } from '@sim/emcn'
-
-/**
- * Get the full URL for an asset stored in Vercel Blob
- * - If CDN is configured (NEXT_PUBLIC_BLOB_BASE_URL), uses CDN URL
- * - Otherwise falls back to local static assets served from root path
- */
-export function getAssetUrl(filename: string) {
-  const cdnBaseUrl = process.env.NEXT_PUBLIC_BLOB_BASE_URL
-  if (cdnBaseUrl) {
-    return `${cdnBaseUrl}/${filename}`
-  }
-  return `/${filename}`
-}

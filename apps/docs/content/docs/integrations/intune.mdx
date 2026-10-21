@@ -1,14 +1,13 @@
 ---
 title: Microsoft Intune
 description: Manage devices, application inventory, and compliance with Microsoft Intune
+integration:
+  type: "intune"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="intune"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) to inspect managed devices, detected applications, compliance policy statuses, and device configuration metadata. Request device sync, restart, remote lock, or retirement; restart, lock, and retirement require explicit confirmation.
@@ -17,7 +16,6 @@ Connect a Microsoft work or school account with an appropriate Intune role. The 
 
 List operations return one page. Pass `nextLink` to the same operation and resource to continue. Policy and configuration outputs contain common metadata and exclude platform-specific settings. An accepted device action confirms that Intune received the request; it does not confirm completion on the device.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -47,6 +45,8 @@ Read managed device and detected application inventories, inspect compliance pol
 ### Microsoft Intune List Devices
 
 Read one page of devices from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +83,13 @@ Read one page of devices from Microsoft Intune
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Device
 
 Read device details from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +123,13 @@ Read device details from Microsoft Intune
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Detected Apps
 
 Read one page of detected apps from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +152,13 @@ Read one page of detected apps from Microsoft Intune
 |   ↳ `publisher` | string | Application publisher |
 |   ↳ `platform` | string | Application platform |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Detected App
 
 Read detected app details from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,9 +179,13 @@ Read detected app details from Microsoft Intune
 |   ↳ `publisher` | string | Application publisher |
 |   ↳ `platform` | string | Application platform |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List App Devices
 
 Read one page of managed devices that have a detected application installed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -206,9 +222,13 @@ Read one page of managed devices that have a detected application installed
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Compliance Policies
 
 Read one page of compliance policies from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,9 +250,13 @@ Read one page of compliance policies from Microsoft Intune
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Compliance Policy
 
 Read common metadata for an Intune compliance policy
+
+<ReferenceDetails>
 
 #### Input
 
@@ -252,9 +276,13 @@ Read common metadata for an Intune compliance policy
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Compliance Policy Device Statuses
 
 Read one page of compliance policy device statuses from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +307,13 @@ Read one page of compliance policy device statuses from Microsoft Intune
 |   ↳ `userPrincipalName` | string | User principal name |
 |   ↳ `complianceGracePeriodExpirationDateTime` | string | Compliance grace period expiration |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Device Configurations
 
 Read one page of device configurations from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -303,9 +335,13 @@ Read one page of device configurations from Microsoft Intune
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Device Configuration
 
 Read common metadata for an Intune device configuration
+
+<ReferenceDetails>
 
 #### Input
 
@@ -325,9 +361,13 @@ Read common metadata for an Intune device configuration
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Sync Device
 
 Request a device check-in to receive pending Intune policies and actions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,11 +380,15 @@ Request a device check-in to receive pending Intune policies and actions
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 ### Microsoft Intune Reboot Device
 
 Request a device restart after explicit confirmation; may interrupt the signed-in user
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -357,11 +401,15 @@ Request a device restart after explicit confirmation; may interrupt the signed-i
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 ### Microsoft Intune Remote Lock Device
 
 Request a remote device lock after explicit confirmation on supported platforms
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -374,11 +422,15 @@ Request a remote device lock after explicit confirmation on supported platforms
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 ### Microsoft Intune Retire Device
 
 Retire a device after explicit confirmation, removing company data and management
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -391,5 +443,7 @@ Retire a device after explicit confirmation, removing company data and managemen
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 

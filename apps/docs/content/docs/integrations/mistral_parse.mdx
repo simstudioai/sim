@@ -1,19 +1,17 @@
 ---
 title: Mistral Parser
 description: Extract text from PDF documents
+integration:
+  type: "mistral_parse_v3"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mistral_parse_v3"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mistral's OCR API](https://mistral.ai/) to extract text and page structure from a PDF uploaded to Sim or supplied by URL. The current parser returns page Markdown, image metadata, the model, and usage information. **Specific Pages** accepts zero-based indices such as `0,1,2`; leave it empty to process all pages. The block offers Markdown, plain-text, and JSON format values, but its current result uses the structured page output documented below. Base64 image data is a hidden tool input and has no block control.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -24,6 +22,8 @@ Extract text from uploaded PDF documents, or from a URL.
 ### Mistral PDF Parser
 
 Parse PDF documents using Mistral OCR API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,5 +61,7 @@ Parse PDF documents using Mistral OCR API
 |   ↳ `pages_processed` | number | Total number of pages processed |
 |   ↳ `doc_size_bytes` | number | Document file size in bytes |
 | `document_annotation` | string | Structured annotation data as JSON string \(when applicable\) |
+
+</ReferenceDetails>
 
 

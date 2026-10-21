@@ -469,6 +469,12 @@ jobs:
           clear_cache() {
             find "$GITHUB_WORKSPACE/apps/sim/.next/dev" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
           }
+          # A sticky disk keeps nothing from a failed job, so a clear here sticks only when the job
+          # passes. The marker names the cache for desktop-live-cache-reset, which empties it after
+          # a failed job; written on each panic, it survives the restart truncating the log.
+          mark_cache_broken() {
+            jq -r .version "$GITHUB_WORKSPACE/node_modules/next/package.json" > "$report_dir/turbopack-cache-broken"
+          }
           # SIGINT first: `next dev` SIGKILLs its server 100ms after SIGTERM, which discards a cache
           # write in flight. stop-session.sh then removes anything still running.
           # SIGINT is best-effort; the cleanup always runs, since workers and the detached telemetry
@@ -490,6 +496,7 @@ jobs:
             wait "$server_pid" "$realtime_pid" 2>/dev/null || true
             if cache_broken; then
               echo "::warning::Turbopack reported a broken dev cache; clearing it for the next run."
+              mark_cache_broken
               clear_cache
             fi
             exit "$status"
@@ -511,6 +518,7 @@ jobs:
               if [ "$retried" = 0 ] && cache_broken; then
                 echo "::warning::Turbopack rejected the restored dev cache; restarting from an empty cache."
                 bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag"
+                mark_cache_broken
                 clear_cache
                 : > "$next_log"
                 retried=1
@@ -542,6 +550,63 @@ jobs:
           path: ${{ runner.temp }}/e2e/
           if-no-files-found: ignore
           retention-days: 7
+
+  # Empties a dev cache Turbopack panicked on in a failed desktop-live run. The run's own clear is
+  # discarded with the rest of its failed job, so every later run would restore the same broken
+  # cache and fail; emptied in this passing job, the empty cache is what the next run mounts. A
+  # failure the cache did not cause leaves no marker, and the warm cache stays.
+  desktop-live-cache-reset:
+    name: desktop-live cache reset
+    needs: desktop-live
+    if: ${{ always() && needs.desktop-live.result == 'failure' }}
+    runs-on: *runner-2vcpu
+    timeout-minutes: 5
+    steps:
+      - name: Download desktop-live results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: desktop-live-e2e-results-*
+          path: ${{ runner.temp }}/desktop-live
+          merge-multiple: true
+
+      # The marker carries only the Next version; the rest of the key comes from this run's own
+      # context, as in desktop-live, so a fork's marker can name no cache but its own.
+      - name: Resolve the broken cache's key
+        id: broken
+        env:
+          MARKER: ${{ runner.temp }}/desktop-live/turbopack-cache-broken
+          FORK_SUFFIX: ${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+        run: |
+          if [ ! -s "$MARKER" ]; then
+            echo "No broken dev cache reported; keeping the warm cache."
+            exit 0
+          fi
+          next_version="$(head -n 1 "$MARKER")"
+          if ! [[ "$next_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.-]*$ ]]; then
+            echo "::error::The broken cache marker holds no Next version: '$next_version'"
+            exit 1
+          fi
+          echo "key=${GITHUB_REPOSITORY}-next-dev-desktop-live-${GITHUB_EVENT_NAME}${FORK_SUFFIX}-${next_version}" >> "$GITHUB_OUTPUT"
+
+      - *checkout-mirror
+      - *checkout-plain
+
+      # A desktop-live leg that passed may have saved this run's actions/cache entry already; the
+      # suffix gives the emptied cache its own, newer entry for the next run's prefix restore.
+      - name: Mount the broken dev cache
+        if: steps.broken.outputs.key != ''
+        uses: ./.github/actions/cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ steps.broken.outputs.key }}
+          path: ./apps/sim/.next/dev
+          save-suffix: -reset
+
+      - name: Empty the dev cache
+        if: steps.broken.outputs.key != ''
+        run: |
+          mkdir -p apps/sim/.next/dev
+          find apps/sim/.next/dev -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
   # Lint, audits, type-check and the schema sync check: about two minutes of mostly cached work,
   # kept off the test shards so neither waits on the other.
