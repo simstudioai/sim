@@ -126,3 +126,60 @@ describe('ToolActivityGroup search disclosure', () => {
     expect(container.textContent).not.toContain('No results')
   })
 })
+
+describe('ToolActivityGroup live header', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    container = document.createElement('div')
+    document.body.append(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  function header(tools: ToolCallData[]) {
+    act(() =>
+      root.render(<ToolActivityGroup tools={tools} isLive ToolCallComponent={TestToolCall} />)
+    )
+    return container.textContent
+  }
+
+  const streamingCli: ToolCallData = {
+    id: 'cli-1',
+    toolName: 'sim_cli',
+    displayTitle: 'Running CLI command',
+    status: 'executing',
+  }
+
+  it('keeps the wait wording while a first CLI call has no title yet', () => {
+    expect(header([streamingCli])).toBe('Thinking')
+  })
+
+  it('shows the streamed description as soon as it arrives', () => {
+    const described = {
+      ...streamingCli,
+      activityDescription: 'Looking up the failed run',
+      displayTitle: 'Looking up the failed run',
+    }
+    expect(header([described])).toBe('Looking up the failed run')
+  })
+
+  it('holds the earlier title while a refined CLI call waits for its description', () => {
+    const earlier: ToolCallData = {
+      id: 'cli-0',
+      toolName: 'cli_workflows_list',
+      displayTitle: 'Listed workflows',
+      status: 'success',
+      activityDescription: 'Listing workflows',
+      params: { args: ['workflows', 'list'] },
+    }
+    const refined = { ...streamingCli, toolName: 'cli_logs_get', displayTitle: 'Reading run logs' }
+    expect(header([earlier, refined])).toBe('Listed workflows')
+  })
+})

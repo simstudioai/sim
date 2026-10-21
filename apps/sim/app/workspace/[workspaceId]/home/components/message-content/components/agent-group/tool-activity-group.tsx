@@ -95,8 +95,8 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
 /**
  * An executing call whose streamed arguments do not name its action yet, so its
  * title is only its tool's placeholder: a search before its arguments arrive,
- * a `sim_cli` call before its command parses ("Running CLI command"),
- * a `run_code` call before its arguments
+ * a CLI call before its final frame (the verb parsed mid-stream would only flash
+ * ahead of the model's description), a `run_code` call before its arguments
  * resolve, while their parameters hold at most the activity, and an
  * integration gateway call before its description streams ("Calling integration").
  * A call awaiting approval is never untitled, so its permission card keeps the
@@ -111,6 +111,7 @@ function isAwaitingTitle(tool: ToolCallData): boolean {
   }
   return (
     (tool.toolName === 'sim_cli' ||
+      tool.toolName.startsWith('cli_') ||
       tool.toolName === RunCode.id ||
       tool.toolName === 'search_workspace') &&
     Object.keys(tool.params ?? {}).every((key) => key === 'activity')
@@ -144,11 +145,15 @@ export function getActivityHeaderTool(
   )
 }
 
+/** The turn's wait wording, kept while a first call's own title is still streaming. */
+const AWAITING_TITLE_LABEL = 'Thinking'
+
 /**
  * The title of an activity in progress for its header call, with earlier
  * stops and skips kept visible. A header call still awaiting its title has no
  * earlier call to hold, so it reads as the activity's intent when the model
- * gave one, else as its own in-progress title.
+ * gave one, else as the wait it continues: a tool's placeholder ("Running CLI
+ * command") would flash between the turn's "Thinking" and the model's description.
  */
 export function getInProgressActivityLabel(
   activeLabel: string,
@@ -156,7 +161,9 @@ export function getInProgressActivityLabel(
   tools: ToolCallData[],
   activityTitle: string | undefined
 ): string {
-  const label = (isAwaitingTitle(headerTool) && activityTitle) || activeLabel
+  const label = isAwaitingTitle(headerTool)
+    ? activityTitle || AWAITING_TITLE_LABEL
+    : activeLabel
   return getActiveToolActivityTitle(label, headerTool, tools)
 }
 
