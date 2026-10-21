@@ -579,7 +579,8 @@ async function handleCallPhase(
     existing.activityDescription ??= activityDescription
   }
   /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
-  const suppliedActivity = readToolActivity(args) ?? readToolActivity(existing?.params)
+  const argsActivity = readToolActivity(args)
+  const suppliedActivity = argsActivity ?? readToolActivity(existing?.params)
   const activity = suppliedActivity?.completedTitle
     ? suppliedActivity
     : suppliedActivity &&
@@ -588,7 +589,7 @@ async function handleCallPhase(
         .map((tool) => readToolActivity(tool.params))
         .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
   // A tool's own `activity` argument (any value that is not a display label) is never replaced.
-  const ownsActivity = args?.activity !== undefined && !readToolActivity(args)
+  const ownsActivity = args?.activity !== undefined && !argsActivity
   const displayArgs = activity && !ownsActivity ? { ...args, activity } : args
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)

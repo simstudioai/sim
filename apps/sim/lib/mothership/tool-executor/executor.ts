@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { openResourceInputSchema } from '@/lib/api/contracts/mothership-resource-tools'
 import { observeContentDelivery } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
@@ -11,8 +12,8 @@ import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { isOwnerScopedFile } from '@/lib/mothership/file-owners'
-import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { readToolActivity } from '@/lib/mothership/tools/activity'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
@@ -294,8 +295,7 @@ async function executeGatedTool(
     }
 
     try {
-      const { activity: _activity, ...executionParams } = params
-      return await handler(executionParams, context)
+      return await handler(omit(params, ['activity']), context)
     } catch (error) {
       const message = toError(error).message
       logger.error('Tool execution failed', {
@@ -341,11 +341,9 @@ function withoutDisplayActivity(
   toolId: string,
   params: Record<string, unknown>
 ): Record<string, unknown> {
-  if (!ToolActivity.safeParse(params.activity).success || getToolParams(toolId)?.activity) {
-    return params
-  }
-  const { activity: _activity, ...rest } = params
-  return rest
+  return readToolActivity(params) && !getToolParams(toolId)?.activity
+    ? omit(params, ['activity'])
+    : params
 }
 
 function buildAppToolParams(
