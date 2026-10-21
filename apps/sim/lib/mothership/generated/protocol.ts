@@ -72,7 +72,9 @@ const WorkspaceInventorySchema = z.object({
   tables: z.array(InventoryNamed),
   knowledgeBases: z.array(InventoryNamed),
   files: z.array(z.object({ path: z.string(), size: z.number().optional() })),
-  skills: z.array(z.object({ name: z.string() })),
+  skills: z.array(
+    z.object({ id: z.string().optional(), name: z.string(), description: z.string().optional() }),
+  ),
   customTools: z.array(z.object({ id: z.string(), title: z.string() })),
   mcpServers: z.array(InventoryNamed),
   credentials: z.array(
@@ -352,8 +354,9 @@ export interface ChatRequest extends StreamResponseReceipt {
   /**
    * What exists in the workspace, by name and id, so the agent orients without a round
    * of listings per world (an orientation turn on dev spent nine tool rounds and ~20K
-   * tokens learning this). Names and ids only — never a tree, never contents — and each
-   * world capped; a capped world is named in `truncated` so the agent lists it itself.
+   * tokens learning this). Names, ids and skill descriptions — never a tree, never
+   * contents — and each world capped; a capped world is named in `truncated` so the agent
+   * lists it itself.
    * Rendered as a request-local trailing message, never into the transcript.
    */
   inventory?: WorkspaceInventory | undefined;
@@ -366,7 +369,11 @@ export interface WorkspaceInventory {
   knowledgeBases: { id: string; name: string }[];
   /** `files/...` paths as the CLI prints them. */
   files: { path: string; size?: number | undefined }[];
-  skills: { name: string }[];
+  /**
+   * The skill catalog: the agent loads a matching skill with `skills get <id>`. `id` and
+   * `description` are optional so either side can ship first.
+   */
+  skills: { id?: string | undefined; name: string; description?: string | undefined }[];
   customTools: { id: string; title: string }[];
   mcpServers: { id: string; name: string }[];
   credentials: { id: string; name: string; provider?: string | undefined; type?: string | undefined }[];
