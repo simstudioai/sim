@@ -31,8 +31,12 @@ import type {
   IntegrationCatalogRequest,
   IntegrationCatalogResponse,
 } from '@/lib/mothership/generated/integration-catalog'
-import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import { buildMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import {
+  assertPermissionsAllowed,
+  McpToolsNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('IntegrationCatalog')
 
@@ -47,11 +51,19 @@ export const readIntegrationCatalogOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot', 'executor'],
 })
 
+interface CatalogProjectionOptions {
+  /** Services the user named in the conversation; they rank first among equally relevant matches. */
+  preferredServices?: ReadonlySet<string>
+}
+
 /** Return schemas only for targeted discovery, while preserving ranked search and explicit full listings. */
 export function projectIntegrationCatalog(
   tools: ToolSchema[],
-  input: IntegrationCatalogRequest
+  input: IntegrationCatalogRequest,
+  { preferredServices }: CatalogProjectionOptions = {}
 ): IntegrationCatalogResponse {
+  const preferred = (tool: ToolSchema) =>
+    Number(Boolean(tool.service && preferredServices?.has(tool.service)))
   const normalized = input.query?.trim().toLowerCase() ?? ''
   const terms = normalized.split(/[^a-z0-9]+/).filter(Boolean)
   const services = resolveServiceFilter(tools, input.service)
@@ -73,6 +85,7 @@ export function projectIntegrationCatalog(
       Number(b.tool.name.toLowerCase() === normalized) -
         Number(a.tool.name.toLowerCase() === normalized) ||
       b.score - a.score ||
+      preferred(b.tool) - preferred(a.tool) ||
       a.tool.name.localeCompare(b.tool.name)
   )
   const selected = input.limit === 0 ? matches : matches.slice(0, input.limit)
@@ -196,68 +209,106 @@ const catalogUseCase = defineAuthorizedChatUseCase({
       context.mode !== 'assistant' &&
       (!input.toolId || input.toolId.startsWith('mcp-')) &&
       (!input.service || input.service.startsWith('mcp:'))
-    if (includeMcp && (input.mcpServerIds.length || input.mcpToolIds?.length)) {
-      if (!workspaceId) {
-        if (input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:'))
-          throw new OrchestrationError(
-            'validation',
-            'MCP discovery requires an explicit workspace ID'
-          )
-        return projectIntegrationCatalog(tools, input)
-      }
-      const selectedIds = new Set(input.mcpToolIds ?? [])
-      const serverIds = new Set(input.mcpServerIds)
-      const selectedServers = [...selectedIds].map((id) => {
-        const target = parseMcpToolTarget(id)
-        return target.kind === 'shared_server' ? target.serverId : target.credentialId
-      })
-      let candidates = [...new Set([...serverIds, ...selectedServers])].filter(
-        (serverId) =>
-          (!input.service || input.service === `mcp:${serverId}`) &&
-          (!input.toolId || input.toolId.startsWith(`${serverId}-`))
-      )
-      if (context.organizationId && candidates.length) {
-        const { servers } = await listMcpServersUseCase.execute({
-          principal: createCopilotChatPrincipal(
-            { userId: context.userId, workspaceId },
-            MCP_SERVER_DELEGATION_AUDIENCE
-          ),
-          input: { workspaceId },
-        })
-        const available = new Set(servers.map((server) => server.id))
-        candidates = candidates.filter((id) => available.has(id))
-      }
-      const executorContext = input.mcpExecution
-        ? catalogExecutorContext(input, context.userId, workspaceId)
-        : undefined
-      const { tools: mcpTools, failures } = await buildTaggedMcpToolSchemas(
-        context.userId,
-        workspaceId,
-        candidates,
-        executorContext
-      )
-      const targetFailure = failures.find(
-        ({ serverId }) =>
-          input.service === `mcp:${serverId}` ||
-          (input.toolId?.startsWith(`${serverId}-`) &&
-            !mcpTools.some((tool) => tool.name === input.toolId))
-      )
-      if (targetFailure) throw targetFailure.error
-      for (const { serverId, error } of failures) {
-        logger.warn('Omitting an undiscoverable tagged MCP server from the integration catalog', {
-          serverId,
-          reason: error.message,
-        })
-      }
-      tools.push(
-        ...mcpTools.filter(
-          (tool) => selectedIds.has(tool.name) || serverIds.has(tool.service?.slice(4) ?? '')
+    /** A workflow block's request names its operations; a chat may use every usable server. */
+    const selectionScoped = Boolean(input.mcpExecution || input.mcpToolIds?.length)
+    const selectsNothing = !input.mcpServerIds.length && !input.mcpToolIds?.length
+    if (!includeMcp || (selectionScoped && selectsNothing))
+      return projectIntegrationCatalog(tools, input)
+    const targeted = Boolean(input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:'))
+    if (!workspaceId) {
+      if (targeted)
+        throw new OrchestrationError(
+          'validation',
+          'MCP discovery requires an explicit workspace ID'
         )
-      )
+      return projectIntegrationCatalog(tools, input)
     }
-    return projectIntegrationCatalog(tools, input)
+    try {
+      await assertPermissionsAllowed({ userId: context.userId, workspaceId, toolKind: 'mcp' })
+    } catch (error) {
+      if (selectionScoped || targeted || !(error instanceof McpToolsNotAllowedError)) throw error
+      return projectIntegrationCatalog(tools, input)
+    }
+
+    const selectedIds = new Set(input.mcpToolIds ?? [])
+    const taggedIds = new Set(input.mcpServerIds)
+    const isTarget = (serverId: string) =>
+      (!input.service || input.service === `mcp:${serverId}`) &&
+      (!input.toolId || input.toolId.startsWith(`${serverId}-`))
+    const selectedServers = [...selectedIds].map((id) => {
+      const target = parseMcpToolTarget(id)
+      return target.kind === 'shared_server' ? target.serverId : target.credentialId
+    })
+    const named = [...new Set([...taggedIds, ...selectedServers])].filter(isTarget)
+    let complete = named
+    let bestEffort: string[] = []
+    if (!selectionScoped) {
+      const usable = await listUsableMcpServerIds(context.userId, workspaceId)
+      const untagged = [...usable].filter(
+        (serverId) => isTarget(serverId) && !taggedIds.has(serverId)
+      )
+      /** A targeted server is listed completely; a tagged one keeps its own error even once unusable. */
+      if (targeted) complete = [...named, ...untagged]
+      else {
+        complete = named.filter((serverId) => usable.has(serverId))
+        bestEffort = untagged
+      }
+    }
+    const executorContext = input.mcpExecution
+      ? catalogExecutorContext(input, context.userId, workspaceId)
+      : undefined
+    const { tools: mcpTools, failures } = await buildMcpToolSchemas(
+      context.userId,
+      workspaceId,
+      { complete, bestEffort },
+      executorContext
+    )
+    const targetFailure = failures.find(
+      ({ serverId }) =>
+        input.service === `mcp:${serverId}` ||
+        (input.toolId?.startsWith(`${serverId}-`) &&
+          !mcpTools.some((tool) => tool.name === input.toolId))
+    )
+    if (targetFailure) throw targetFailure.error
+    for (const { serverId, error } of failures) {
+      const details = { serverId, reason: error.message }
+      if (taggedIds.has(serverId) || selectedServers.includes(serverId))
+        logger.warn(
+          'Omitting an undiscoverable tagged MCP server from the integration catalog',
+          details
+        )
+      else
+        logger.info('Omitting an undiscoverable MCP server from the integration catalog', details)
+    }
+    tools.push(
+      ...(selectionScoped
+        ? mcpTools.filter(
+            (tool) => selectedIds.has(tool.name) || taggedIds.has(tool.service?.slice(4) ?? '')
+          )
+        : mcpTools)
+    )
+    return projectIntegrationCatalog(tools, input, {
+      preferredServices: new Set([...taggedIds].map((serverId) => `mcp:${serverId}`)),
+    })
   },
 })
+
+/**
+ * The enabled, live servers in the workspace that the requester may use through
+ * chat. Credential Group servers need an explicit managed connection, so only a
+ * workflow block's selection reaches them.
+ */
+async function listUsableMcpServerIds(userId: string, workspaceId: string): Promise<Set<string>> {
+  const { servers } = await listMcpServersUseCase.execute({
+    principal: createCopilotChatPrincipal({ userId, workspaceId }, MCP_SERVER_DELEGATION_AUDIENCE),
+    input: { workspaceId },
+  })
+  return new Set(
+    servers
+      .filter((server) => server.enabled && !server.credentialGroupId)
+      .map((server) => server.id)
+  )
+}
 
 /** Restore only the canonical nonsecret origin, never a bearer token from request state. */
 function catalogExecutorContext(

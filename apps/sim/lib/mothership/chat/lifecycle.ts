@@ -256,7 +256,7 @@ export async function loadChatFileAttachmentsNamed(
  * MCP server ids tagged (`/name`) on a chat's live messages, in first-tagged
  * transcript order. Reads only the `mcp` entries of each message's `contexts`
  * instead of materializing the whole transcript, and skips soft-deleted
- * messages so a removed turn no longer enables its servers.
+ * messages so a removed turn no longer tags its servers.
  */
 export async function loadChatMcpServerIds(chatId: string): Promise<string[]> {
   const rows = await db
