@@ -1,6 +1,10 @@
 import { copilotChats, member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
 import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
 import {
   mothershipChatPayloadMock,
@@ -47,7 +51,10 @@ const mocks = {
   listServers: mcpUseCasesMockFns.mockListMcpServersUseCase,
   config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
   workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  credentials: credentialsEnvironmentMockFns.mockGetAccessibleOAuthCredentials,
+  managed: credentialsEnvironmentMockFns.mockGetEnrolledManagedOAuthCredentials,
 }
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({ discoverMcpServerToolsAsExecutor: vi.fn() }))
@@ -101,7 +108,349 @@ beforeEach(() => {
   mocks.discover.mockResolvedValue({ tools: [] })
   mocks.mcpPermission.mockResolvedValue(undefined)
   mocks.listServers.mockResolvedValue({ servers: [usableServer('mcp-abc')] })
+  mocks.credentials.mockResolvedValue([])
+  mocks.managed.mockResolvedValue([])
 })
+
+/**
+ * Real registry descriptions and parameters: email-capable and customer-facing operations, plus
+ * unrelated ones so term rarity resembles the full catalog, where most operations are neither.
+ */
+const catalogRows: [string, string, string, string, string?][] = [
+  [
+    'gmail_send',
+    'gmail',
+    'Send emails using Gmail',
+    'to,subject,body,cc,bcc,attachments',
+    'google-email',
+  ],
+  [
+    'gmail_send_v2',
+    'gmail',
+    'Send emails using Gmail.',
+    'to,subject,body,cc,bcc,attachments',
+    'google-email',
+  ],
+  ['gmail_search', 'gmail', 'Search emails in Gmail', 'query,maxResults', 'google-email'],
+  [
+    'outlook_send',
+    'outlook',
+    'Send emails using Outlook',
+    'to,subject,body,cc,bcc,attachments',
+    'outlook',
+  ],
+  [
+    'agentmail_send_message',
+    'agentmail',
+    'Send an email message from an AgentMail inbox',
+    'apiKey,inboxId,to,subject,text,html,cc,bcc',
+  ],
+  [
+    'agentmail_send_draft',
+    'agentmail',
+    'Send an existing email draft in AgentMail',
+    'apiKey,inboxId,draftId',
+  ],
+  [
+    'lemlist_send_email',
+    'lemlist',
+    'Sends an email to a contact through the Lemlist inbox.',
+    'apiKey,sendUserId,contactId,subject,message,cc',
+  ],
+  [
+    'mailgun_send_message',
+    'mailgun',
+    'Send an email using Mailgun API',
+    'apiKey,domain,from,to,subject,text,html',
+  ],
+  [
+    'sendgrid_send_mail',
+    'sendgrid',
+    'Send an email using SendGrid API',
+    'apiKey,from,to,subject,content,templateId',
+  ],
+  [
+    'ses_send_email',
+    'ses',
+    'Send an email via AWS SES using simple or HTML content',
+    'region,fromAddress,toAddresses,subject,bodyText',
+  ],
+  [
+    'resend_send',
+    'resend',
+    'Send an email using your own Resend API key and from address',
+    'fromAddress,to,subject,body',
+  ],
+  [
+    'smtp_send_mail',
+    'smtp',
+    'Send emails via SMTP server',
+    'smtpHost,smtpPort,from,to,subject,body',
+  ],
+  ['stripe_send_invoice', 'stripe', 'Send an invoice to the customer', 'apiKey,id'],
+  ['stripe_list_customers', 'stripe', 'List all customers', 'apiKey,limit,email'],
+  [
+    'helpscout_create_conversation',
+    'helpscout',
+    'Create a Help Scout conversation in an inbox with a first customer message, reply, or note. A new customer is created when the email is not already known.',
+    'subject,mailboxId,customerId,customerEmail,text',
+  ],
+  [
+    'hubspot_create_contact',
+    'hubspot',
+    'Create a new contact in HubSpot. Requires at least one of: email, firstname, or lastname',
+    'properties,associations',
+  ],
+  [
+    'zendesk_create_ticket',
+    'zendesk',
+    'Create a new ticket in Zendesk with support for custom fields',
+    'email,apiToken,subdomain,subject,description',
+  ],
+  [
+    'slack_message',
+    'slack',
+    'Send messages to Slack channels or direct messages.',
+    'channel,text,threadTs',
+    'slack',
+  ],
+  [
+    'google_calendar_list_v2',
+    'google_calendar',
+    'List events from Google Calendar',
+    'calendarId,timeMin,timeMax',
+    'google-calendar',
+  ],
+  [
+    'github_list_prs_v2',
+    'github',
+    'List pull requests in a GitHub repository',
+    'owner,repo,state',
+    'github',
+  ],
+  [
+    'github_create_issue_v2',
+    'github',
+    'Create a new issue in a GitHub repository',
+    'owner,repo,title,body',
+    'github',
+  ],
+  ['jira_write', 'jira', 'Write a Jira issue', 'domain,projectId,summary,description', 'jira'],
+  [
+    'jira_search_issues',
+    'jira',
+    'Search for Jira issues using JQL',
+    'domain,jql,maxResults',
+    'jira',
+  ],
+  [
+    'linear_create_issue',
+    'linear',
+    'Create a new issue in Linear',
+    'teamId,title,description',
+    'linear',
+  ],
+  [
+    'notion_create_page',
+    'notion',
+    'Create a new page in Notion',
+    'parentId,title,content',
+    'notion',
+  ],
+  [
+    'notion_query_database',
+    'notion',
+    'Query and filter Notion database entries with advanced filtering',
+    'databaseId,filter,sorts',
+    'notion',
+  ],
+  [
+    'google_sheets_read_v2',
+    'google_sheets',
+    'Read data from a specific sheet in a Google Sheets spreadsheet',
+    'spreadsheetId,sheetName,cellRange',
+    'google-sheets',
+  ],
+  [
+    'google_sheets_update_v2',
+    'google_sheets',
+    'Update data in a specific sheet in a Google Sheets spreadsheet',
+    'spreadsheetId,sheetName,cellRange,values',
+    'google-sheets',
+  ],
+  [
+    'google_drive_upload',
+    'google_drive',
+    'Upload a file to Google Drive',
+    'fileName,content,folderId',
+    'google-drive',
+  ],
+  [
+    'airtable_list_records',
+    'airtable',
+    'Read records from an Airtable table',
+    'baseId,tableId,maxRecords',
+    'airtable',
+  ],
+  ['asana_create_task', 'asana', 'Create a new task in Asana', 'workspace,name,notes', 'asana'],
+  [
+    'trello_create_card',
+    'trello',
+    'Create a new card on a Trello board',
+    'listId,name,desc',
+    'trello',
+  ],
+  ['dropbox_upload', 'dropbox', 'Upload a file to Dropbox', 'path,fileContent,mode', 'dropbox'],
+  [
+    'confluence_retrieve',
+    'confluence',
+    'Retrieve content from Confluence pages using the Confluence API.',
+    'domain,pageId',
+    'confluence',
+  ],
+  [
+    'discord_send_message',
+    'discord',
+    'Send a message to a Discord channel',
+    'botToken,channelId,content',
+  ],
+  [
+    'postgresql_query',
+    'postgresql',
+    'Execute a SELECT query on PostgreSQL database',
+    'host,port,database,query',
+  ],
+  [
+    'openai_embeddings',
+    'openai',
+    'Generate embeddings from text using OpenAI',
+    'input,model,apiKey',
+  ],
+  [
+    'firecrawl_scrape',
+    'firecrawl',
+    'Extract structured content from web pages',
+    'url,scrapeOptions,apiKey',
+  ],
+  [
+    'youtube_search',
+    'youtube',
+    'Search for videos on YouTube using the YouTube Data API.',
+    'query,maxResults,apiKey',
+  ],
+]
+const emailCapable = catalogRows.map(([name, service, description, parameters, provider]) => ({
+  name,
+  service,
+  description,
+  input_schema: {
+    type: 'object',
+    properties: Object.fromEntries(parameters.split(',').map((key) => [key, { type: 'string' }])),
+  },
+  ...(provider ? { oauth: { required: true, provider } } : {}),
+}))
+function rankOf(toolId: string, query: string, connectedProviderIds: string[] = []) {
+  return (
+    projectIntegrationCatalog(emailCapable, { ...input, query, limit: 0 }, { connectedProviderIds })
+      .operations.map((operation) => operation.toolId)
+      .indexOf(toolId) + 1
+  )
+}
+
+describe('integration catalog ranking', () => {
+  it('ranks a connected Gmail send operation in the top three for a natural-language email intent', () => {
+    const rank = rankOf('gmail_send', 'send an email to a customer', ['google-email'])
+    expect(rank).toBeGreaterThan(0)
+    expect(rank).toBeLessThanOrEqual(3)
+  })
+
+  it('ranks the connected service ahead of an equally relevant unconnected one', () => {
+    expect(rankOf('outlook_send', 'send email', ['outlook'])).toBeLessThan(
+      rankOf('gmail_send', 'send email', ['outlook'])
+    )
+    expect(rankOf('gmail_send', 'send email', ['google-email'])).toBeLessThan(
+      rankOf('outlook_send', 'send email', ['google-email'])
+    )
+  })
+
+  it('never matches on a stop word that folds to another term', () => {
+    const setnx = {
+      name: 'redis_setnx',
+      description: 'Set a key only if it does not exist',
+      input_schema: { type: 'object', properties: {} },
+    }
+    expect(
+      projectIntegrationCatalog([setnx], { ...input, query: 'what does it do', limit: 0 })
+    ).toMatchObject({
+      total: 0,
+    })
+  })
+
+  it('folds -es plurals onto their singular', () => {
+    const branch = {
+      name: 'github_create_branch',
+      description: 'Create a branch',
+      input_schema: { type: 'object', properties: {} },
+    }
+    const warehouse = {
+      name: 'snowflake_get_warehouse',
+      description: 'Get a warehouse',
+      input_schema: { type: 'object', properties: {} },
+    }
+    for (const query of ['branches', 'branch', 'warehouses', 'warehouse'])
+      expect(
+        projectIntegrationCatalog([branch, warehouse], {
+          ...input,
+          query,
+          limit: 0,
+        }).operations.map((operation) => operation.toolId)
+      ).toEqual([query.startsWith('branch') ? 'github_create_branch' : 'snowflake_get_warehouse'])
+  })
+
+  it('matches nothing for a query made only of stop words and one-character terms', () => {
+    for (const query of ['a the to of', 'to a', 'x y z', 'gets uses'])
+      expect(projectIntegrationCatalog(emailCapable, { ...input, query, limit: 0 })).toMatchObject({
+        total: 0,
+        operations: [],
+      })
+  })
+
+  it('only counts operations that share a content term with the intent', () => {
+    const result = projectIntegrationCatalog(emailCapable, {
+      ...input,
+      query: 'send an email to a customer',
+      limit: 0,
+    })
+    expect(result.operations.map((operation) => operation.toolId)).not.toContain(
+      'google_calendar_list_v2'
+    )
+  })
+
+  it('ranks an exact operation ID first even over a connected, more repetitive match', () => {
+    expect(rankOf('outlook_send', 'outlook_send', ['google-email'])).toBe(1)
+    expect(rankOf('gmail_send', 'gmail_send', ['outlook'])).toBe(1)
+  })
+
+  it('breaks only score ties by preferred service, after the connected boost', () => {
+    const twins = ['alpha', 'beta'].map((service) => ({
+      name: `${service}_send`,
+      service,
+      description: 'Send an email',
+      input_schema: { type: 'object', properties: {} },
+      oauth: { required: true, provider: `${service}-provider` },
+    }))
+    const order = (preferred: string[], connectedProviderIds: string[] = []) =>
+      projectIntegrationCatalog(
+        twins,
+        { ...input, query: 'send email', limit: 0 },
+        { preferredServices: new Set(preferred), connectedProviderIds }
+      ).operations.map((operation) => operation.toolId)
+    expect(order([])).toEqual(['alpha_send', 'beta_send'])
+    expect(order(['beta'])).toEqual(['beta_send', 'alpha_send'])
+    expect(order(['beta'], ['alpha-provider'])).toEqual(['alpha_send', 'beta_send'])
+  })
+})
+
 describe('integration catalog projection', () => {
   it.each(['google_calendar', 'google-calendar', 'Google Calendar', ' GOOGLE-CALENDAR '])(
     'resolves the registered Calendar service name %s without changing the operation',
@@ -215,7 +564,7 @@ describe('integration catalog projection', () => {
     })
     expect(projectIntegrationCatalog(tools, { ...input, limit: 0 }).operations).toHaveLength(2)
   })
-  it('returns schemas only for matching query or exact ID and never guesses unknown tools', () => {
+  it('returns schemas only for a matching query, service filter or exact ID and never guesses unknown tools', () => {
     expect(
       projectIntegrationCatalog(tools, { ...input, query: 'email' }).operations[0]?.inputSchema
     ).toEqual({ type: 'object' })
@@ -226,11 +575,49 @@ describe('integration catalog projection', () => {
       projectIntegrationCatalog(tools, { ...input, toolId: 'gmail_delete' }).operations
     ).toEqual([])
     expect(
-      projectIntegrationCatalog(tools, { ...input, service: 'gmail' }).operations[0]
-    ).not.toHaveProperty('inputSchema')
+      projectIntegrationCatalog(tools, { ...input, service: 'gmail' }).operations[0]?.inputSchema
+    ).toEqual({ type: 'object' })
   })
 })
 describe('catalog authorization', () => {
+  it('boosts the services the requester has connected in the authorized target workspace', async () => {
+    queueChat('agent')
+    mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
+    mocks.build.mockResolvedValue(structuredClone(emailCapable))
+    mocks.credentials.mockResolvedValue([{ id: 'credential-1', providerId: 'outlook' }])
+    const result = await readIntegrationCatalog.execute({
+      principal: principal(),
+      input: { ...input, mode: 'agent', workspaceId: 'workspace-1', query: 'send email' },
+    })
+    expect(mocks.credentials).toHaveBeenCalledWith('workspace-1', 'actor')
+    expect(result.operations[0]?.toolId).toBe('outlook_send')
+  })
+
+  it('boosts a service the requester connected through a managed account', async () => {
+    queueChat('agent')
+    mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
+    mocks.build.mockResolvedValue(structuredClone(emailCapable))
+    mocks.managed.mockResolvedValue([{ id: 'credential-2', providerId: 'outlook' }])
+    const result = await readIntegrationCatalog.execute({
+      principal: principal(),
+      input: { ...input, mode: 'agent', workspaceId: 'workspace-1', query: 'send email' },
+    })
+    expect(mocks.managed).toHaveBeenCalledWith('workspace-1', 'actor')
+    expect(result.operations[0]?.toolId).toBe('outlook_send')
+  })
+
+  it('still lists operations, unboosted, when the connected-service lookup fails', async () => {
+    queueChat('agent')
+    mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
+    mocks.build.mockResolvedValue(structuredClone(emailCapable))
+    mocks.credentials.mockRejectedValue(new Error('database unavailable'))
+    const result = await readIntegrationCatalog.execute({
+      principal: principal(),
+      input: { ...input, mode: 'agent', workspaceId: 'workspace-1', query: 'send email' },
+    })
+    expect(result.operations.length).toBeGreaterThan(0)
+  })
+
   it.each(['agent', 'plan'] as const)(
     'preserves integration discovery for %s conversations',
     async (mode) => {
