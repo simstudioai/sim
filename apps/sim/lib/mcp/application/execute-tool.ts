@@ -97,18 +97,15 @@ export function coerceToolArguments(
 export function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
   const validate = compileMcpToolSchema(tool.inputSchema)
   if (validate(args)) return
-  const details = (validate.errors ?? [])
-    .slice(0, MAX_REPORTED_ARGUMENT_ERRORS)
-    .map(describeArgumentError)
+  // Ajv stops at the first failure (no allErrors: unbounded work on untrusted input).
+  const first = validate.errors?.[0]
   throw new OrchestrationError(
     'validation',
-    details.length > 0
-      ? `Invalid MCP operation arguments: ${details.join('; ')}`
+    first
+      ? `Invalid MCP operation arguments: ${describeArgumentError(first)}`
       : 'Invalid MCP operation arguments'
   )
 }
-
-const MAX_REPORTED_ARGUMENT_ERRORS = 3
 
 /** Names the failing argument so the caller can correct it; the schema and arguments are not secret. */
 function describeArgumentError(error: ErrorObject): string {

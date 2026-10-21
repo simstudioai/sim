@@ -408,9 +408,12 @@ describe('validateToolArguments', () => {
     },
   }
 
-  it('names each invalid argument so the caller can correct the call', () => {
-    expect(() => validateToolArguments(tool, { limit: 'ten', extra: true })).toThrow(
-      "Invalid MCP operation arguments: must have required property 'query'; must NOT have additional properties 'extra'; /limit must be integer"
+  it('names the invalid argument so the caller can correct the call', () => {
+    expect(() => validateToolArguments(tool, { query: 'sim', limit: 'ten' })).toThrow(
+      'Invalid MCP operation arguments: /limit must be integer'
+    )
+    expect(() => validateToolArguments(tool, { query: 'sim', extra: true })).toThrow(
+      "Invalid MCP operation arguments: must NOT have additional properties 'extra'"
     )
   })
 
