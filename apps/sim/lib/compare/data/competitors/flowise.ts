@@ -19,7 +19,7 @@ export const flowiseProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Flowise reached end of life on August 31, 2026: it was an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, owned by Workday since August 2025, until its team wound the project down.',
+    'The Flowise open-source project reached end of life on August 31, 2026: Flowise is a low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, owned by Workday since August 2025, and flowiseai.com still lists its Cloud plans.',
   leadAnswer: [
     'Flowise was an open-source, Apache 2.0-licensed, low-code visual builder for LLM chains, RAG pipelines, and multi-agent workflows, owned by Workday since August 2025. Its team ',
     { text: 'announced the sunset of Flowise', href: 'https://flowiseai.com/sunset' },

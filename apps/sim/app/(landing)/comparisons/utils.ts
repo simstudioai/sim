@@ -198,20 +198,20 @@ function formatClaim(item: { title: string; description: string }): string {
   return `${lowercaseFirst(item.title)}: ${item.description}`
 }
 
-const SENTENCE_END = /[.!?](?=\s+["'(A-Z]|$)/g
+const SENTENCE_END = /[.!?]["')]?(?=\s+["'(A-Z]|$)/g
 
 /** A period that closes "vs.", "incl.", "etc.", or a single letter ("e.g.", "U.S."), not a sentence. */
 const ABBREVIATION_END = /(?:^|[\s(.-])(?:vs|incl|etc|[A-Za-z])\.$/
 
 /**
  * Returns the first sentence of `value`: text up to the first `.`, `!`, or `?`
- * followed by whitespace and a capital, quote, or paren, or by the end of the
- * string. Decimals ("2.0", "$0.005") and abbreviations ("vs.", "U.S.") never end it.
+ * (plus any closing quote or paren) followed by whitespace and a capital, quote,
+ * or paren, or by the end of the string. Decimals ("2.0", "$0.005") and abbreviations ("vs.", "U.S.") never end it.
  */
 function firstSentence(value: string): string {
   for (const match of value.matchAll(SENTENCE_END)) {
-    const candidate = value.slice(0, match.index + 1)
-    if (!ABBREVIATION_END.test(candidate)) return candidate
+    const candidate = value.slice(0, match.index + match[0].length)
+    if (!ABBREVIATION_END.test(value.slice(0, match.index + 1))) return candidate
   }
   return value
 }
