@@ -160,7 +160,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          "Only the archived code: Flowise's Community Edition reached end of life on August 31, 2026, and its Apache-licensed code can still be self-hosted, including via Docker, on your own infrastructure. The code is Apache 2.0 and the repository has been archived since August 2026, so a self-hosted deployment runs the final release or a fork you maintain.",
+          "Only the archived code: Flowise's Community Edition reached end of life on August 31, 2026, and its Apache 2.0 code can still be self-hosted, including via Docker, on your own infrastructure. The repository has been archived since August 2026, so a self-hosted deployment runs the final release or a fork you maintain.",
         shortValue: 'Yes, but the archived code is no longer maintained',
         confidence: 'verified',
         sources: [
