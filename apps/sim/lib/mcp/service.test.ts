@@ -1,6 +1,10 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
-import { McpOauthRedirectRequiredMock, mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
+import {
+  McpOauthRedirectRequiredMock,
+  mcpOauthMock,
+  mcpOauthMockFns,
+} from '@sim/testing/mocks/mcp-oauth.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -10,6 +14,7 @@ const {
   mockDisconnect,
   mockGetWorkspaceServersRows,
   mockResolveEnvVars,
+  mockFindMissingEnvVars,
   mockValidateDomain,
   mockValidateSsrf,
   mockIsDomainAllowed,
@@ -64,6 +69,7 @@ const {
     mockDisconnect,
     mockGetWorkspaceServersRows: vi.fn(),
     mockResolveEnvVars: vi.fn(),
+    mockFindMissingEnvVars: vi.fn(),
     mockValidateDomain: vi.fn(),
     mockValidateSsrf: vi.fn(),
     mockIsDomainAllowed: vi.fn(() => true),
@@ -108,6 +114,7 @@ vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 
 vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: (...args: unknown[]) => mockResolveEnvVars(...args),
+  findMissingMcpConfigEnvVars: (...args: unknown[]) => mockFindMissingEnvVars(...args),
 }))
 
 vi.mock('@/lib/mcp/storage', () => ({
@@ -480,5 +487,144 @@ describe('McpService.discoverTools per-server caching', () => {
 
     expect(tools.map((tool) => tool.name)).toEqual(['a1'])
     expect(mockListTools).toHaveBeenCalledTimes(2)
+  })
+})
+
+/**
+ * A server's status, failure count, cooldown and OAuth row are shared by the workspace, but
+ * credentials resolve per requester. Discovery a member never asked for (an untagged server in
+ * a broad catalog query) must neither mark the server failing for everyone nor connect with
+ * credentials the requester lacks.
+ */
+describe('McpService best-effort discovery', () => {
+  const MEMBER_B = 'user-b'
+
+  beforeEach(async () => {
+    resetDbChainMock()
+    wireSelectsToWorkspaceRows()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'mcp-a' }])
+    mockListTools.mockReset()
+    mockConnect.mockReset()
+    mockConnect.mockResolvedValue(undefined)
+    mockDisconnect.mockResolvedValue(undefined)
+    mockIsDomainAllowed.mockReturnValue(true)
+    mockValidateSsrf.mockResolvedValue('1.2.3.4')
+    mockValidateDomain.mockImplementation(() => undefined)
+    mockResolveEnvVars.mockImplementation((config: { url: string }) =>
+      Promise.resolve({ config: { ...config }, missingVars: [] })
+    )
+    mockFindMissingEnvVars.mockReset()
+    mockFindMissingEnvVars.mockResolvedValue([])
+    mcpOauthMockFns.mockLoadOauthRow.mockReset()
+    mcpOauthMockFns.mockGetOrCreateOauthRow.mockReset()
+    await mcpService.clearCache()
+    mockCacheAdapter.set.mockClear()
+    mockCacheAdapter.delete.mockClear()
+  })
+
+  function expectNoSharedStateWrites() {
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+      expect.anything(),
+      expect.any(Number)
+    )
+    expect(mockCacheAdapter.delete).not.toHaveBeenCalled()
+  }
+
+  it("leaves status and cooldown alone on failure, so another member's targeted discovery still runs", async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error('Connection refused'))
+
+    await expect(
+      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
+        bestEffort: true,
+      })
+    ).rejects.toThrow('Connection refused')
+    expectNoSharedStateWrites()
+
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const tools = await mcpService.discoverServerTools(
+      USER_ID,
+      'mcp-a',
+      WORKSPACE_ID,
+      'cache-aside',
+      undefined,
+      { requireComplete: true }
+    )
+    expect(tools.map((t) => t.name)).toEqual(['a1'])
+  })
+
+  it('skips a server whose variables the requester lacks without connecting, even when cached', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', { headers: { Authorization: 'Bearer {{MY_TOKEN}}' } }),
+    ])
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    expect(await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).toHaveLength(1)
+    resetDbChainMock()
+    wireSelectsToWorkspaceRows()
+    mockCacheAdapter.set.mockClear()
+    mockCacheAdapter.delete.mockClear()
+    mockListTools.mockClear()
+    mockConnect.mockClear()
+
+    mockFindMissingEnvVars.mockImplementation(async (_config: unknown, userId: string) =>
+      userId === MEMBER_B ? ['MY_TOKEN'] : []
+    )
+    await expect(
+      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
+        bestEffort: true,
+      })
+    ).rejects.toThrow('MY_TOKEN')
+    expect(mockConnect).not.toHaveBeenCalled()
+    expect(mockListTools).not.toHaveBeenCalled()
+    expectNoSharedStateWrites()
+
+    const tools = await mcpService.discoverServerTools(
+      USER_ID,
+      'mcp-a',
+      WORKSPACE_ID,
+      'cache-aside',
+      undefined,
+      { bestEffort: true }
+    )
+    expect(tools.map((t) => t.name)).toEqual(['a1'])
+  })
+
+  it('skips an OAuth server nobody authorized without creating its OAuth row or marking it pending', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mcpOauthMockFns.mockLoadOauthRow.mockResolvedValue(null)
+
+    await expect(
+      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
+        bestEffort: true,
+      })
+    ).rejects.toBeInstanceOf(McpOauthAuthorizationRequiredError)
+    expect(mcpOauthMockFns.mockGetOrCreateOauthRow).not.toHaveBeenCalled()
+    expect(mockConnect).not.toHaveBeenCalled()
+    expectNoSharedStateWrites()
+  })
+
+  it('warms the shared tool cache on success without stamping status', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    await mcpService.discoverServerTools(
+      MEMBER_B,
+      'mcp-a',
+      WORKSPACE_ID,
+      'cache-aside',
+      undefined,
+      {
+        bestEffort: true,
+      }
+    )
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockCacheAdapter.set).toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a`,
+      [tool('a1', 'mcp-a')],
+      expect.any(Number)
+    )
   })
 })

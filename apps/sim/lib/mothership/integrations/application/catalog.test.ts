@@ -379,11 +379,18 @@ describe('integration catalog ranking', () => {
       description: 'Set a key only if it does not exist',
       input_schema: { type: 'object', properties: {} },
     }
+    const doe = {
+      name: 'crm_find_doe',
+      description: 'Find a Jane Doe record',
+      input_schema: { type: 'object', properties: {} },
+    }
     expect(
-      projectIntegrationCatalog([setnx], { ...input, query: 'what does it do', limit: 0 })
-    ).toMatchObject({
-      total: 0,
-    })
+      projectIntegrationCatalog([setnx, doe], {
+        ...input,
+        query: 'what does setnx do',
+        limit: 0,
+      }).operations.map((operation) => operation.toolId)
+    ).toEqual(['redis_setnx'])
   })
 
   it('folds -es plurals onto their singular', () => {
@@ -407,12 +414,22 @@ describe('integration catalog ranking', () => {
       ).toEqual([query.startsWith('branch') ? 'github_create_branch' : 'snowflake_get_warehouse'])
   })
 
-  it('matches nothing for a query made only of stop words and one-character terms', () => {
-    for (const query of ['a the to of', 'to a', 'x y z', 'gets uses'])
-      expect(projectIntegrationCatalog(emailCapable, { ...input, query, limit: 0 })).toMatchObject({
-        total: 0,
-        operations: [],
-      })
+  /** An agent reading total 0 would conclude the workspace has no integrations at all. */
+  it('lists every operation, compactly, for a query with no content terms', () => {
+    const listing = projectIntegrationCatalog(emailCapable, { ...input, limit: 0 })
+    for (const query of [
+      'all',
+      'any',
+      'what can I use',
+      'a the to of',
+      'x y z',
+      'gets uses',
+      '发送邮件',
+    ])
+      expect(projectIntegrationCatalog(emailCapable, { ...input, query, limit: 0 })).toEqual(
+        listing
+      )
+    expect(listing.total).toBe(emailCapable.length)
   })
 
   it('only counts operations that share a content term with the intent', () => {
@@ -892,10 +909,18 @@ describe('untagged workspace MCP servers', () => {
       expect(toolIds(result)).toEqual(['mcp-crm-lookup', 'mcp-docs-lookup'])
       expect(mocks.discover).toHaveBeenCalledWith({
         principal: expect.objectContaining({ workspaceId: 'workspace-1', subjectUserId: 'actor' }),
-        input: { workspaceId: 'workspace-1', serverId: 'mcp-docs' },
+        input: { workspaceId: 'workspace-1', serverId: 'mcp-docs', bestEffort: true },
       })
     }
   )
+
+  it('keeps built-ins and tagged servers when the workspace server list fails', async () => {
+    mocks.listServers.mockRejectedValue(new Error('connection terminated'))
+    const result = await catalog({ mcpServerIds: ['mcp-docs'] })
+    expect(toolIds(result)).toEqual(['mcp-docs-lookup', 'gmail_send', 'slack_send'])
+    expect(discoveredServerIds()).toEqual(['mcp-docs'])
+    await expect(catalog({ service: 'mcp:mcp-crm' })).rejects.toThrow('connection terminated')
+  })
 
   it('keeps Search free of MCP even with usable workspace servers', async () => {
     const result = await catalog({}, 'assistant')

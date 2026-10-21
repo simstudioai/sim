@@ -1,6 +1,6 @@
 import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
+import { findMissingMcpConfigEnvVars, resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 
 const mockGetEffectiveEnvironmentSnapshot =
   environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
@@ -169,5 +169,31 @@ describe('resolveMcpConfigEnvVars secret provenance', () => {
       { name: 'MCP_HOST', encryptedValue: 'old-host-ciphertext' },
       { name: 'MCP_TOKEN', encryptedValue: 'old-token-ciphertext' },
     ])
+  })
+})
+
+describe('findMissingMcpConfigEnvVars', () => {
+  it('names the variables this requester has no value for, without reading env for literal configs', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockReset()
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_HOST: 'api.example.com' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+
+    expect(await findMissingMcpConfigEnvVars(BASE_CONFIG, 'user-b', 'workspace-1')).toEqual([
+      'MCP_TOKEN',
+    ])
+    expect(
+      await findMissingMcpConfigEnvVars(
+        { ...BASE_CONFIG, url: 'https://api.example.com/mcp', headers: {} },
+        'user-b',
+        'workspace-1'
+      )
+    ).toEqual([])
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledTimes(1)
   })
 })

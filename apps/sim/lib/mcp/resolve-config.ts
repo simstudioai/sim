@@ -12,7 +12,7 @@ import {
 } from '@/lib/environment/utils'
 import type { McpServerConfig } from '@/lib/mcp/types'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { createEnvVarPattern, resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
   createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
@@ -148,4 +148,25 @@ export async function resolveMcpConfigEnvVars(
     missingVars: allMissingVars,
     resolvedSecretTraceProvenance,
   }
+}
+
+/**
+ * The variables `config` references (url, headers) that `userId` has no value for in this
+ * workspace. Read-only: it records no secret usage, so it can check whether a requester can
+ * authenticate to a server before anything connects.
+ */
+export async function findMissingMcpConfigEnvVars(
+  config: McpServerConfig,
+  userId: string,
+  workspaceId?: string
+): Promise<string[]> {
+  const values = [config.url, ...Object.values(config.headers ?? {})].filter(
+    (value): value is string => typeof value === 'string'
+  )
+  if (!values.some((value) => createEnvVarPattern().test(value))) return []
+  const env = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+  const envVars = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+  const missingKeys: string[] = []
+  for (const value of values) resolveEnvVarReferences(value, envVars, { missingKeys })
+  return [...new Set(missingKeys)]
 }
