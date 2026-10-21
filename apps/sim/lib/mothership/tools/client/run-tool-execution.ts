@@ -885,6 +885,10 @@ async function doExecuteRunTool(
         toolCallId,
         toolName,
       })
+    } else if (isPlainRecord(result) && result.status === 'paused') {
+      // A paused run has no outcome to confirm yet; Sim reports it once a resume
+      // or cancellation settles the run.
+      logger.info('[RunTool] Workflow execution paused', { toolCallId, toolName, executionId })
     } else if (succeeded) {
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
       const pendingCompletion = {

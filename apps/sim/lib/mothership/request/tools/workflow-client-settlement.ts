@@ -12,7 +12,10 @@ import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionMessage,
 } from '@/lib/mothership/tools/workflow-tools'
-import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
+import {
+  getWorkflowExecutionCopilotToolCallId,
+  getWorkflowExecutionLogStatus,
+} from '@/lib/workflows/executor/execution-state'
 
 interface ReportClientWorkflowToolParams {
   toolCallId: string
@@ -63,6 +66,25 @@ export async function reportSettledClientWorkflowTool({
     data,
     executionId,
   })
+}
+
+/**
+ * Report the browser-claimed workflow tool bound to an execution that settled
+ * on the server after it paused, by a resume or a cancellation.
+ *
+ * The execute route's own report leaves a paused execution open, and the
+ * browser has nothing left to report, so without this the Chat turn waits for
+ * the full client wait. It reports only through
+ * {@link reportSettledClientWorkflowTool}, so it changes nothing while the run
+ * is still paused, and a browser report, a background detach, or a call bound
+ * to another execution still wins.
+ */
+export async function reportSettledPausedCopilotWorkflowTool({
+  executionId,
+  workflowId,
+}: Omit<ReportClientWorkflowToolParams, 'toolCallId'>): Promise<void> {
+  const toolCallId = await getWorkflowExecutionCopilotToolCallId(executionId, workflowId)
+  if (toolCallId) await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
 }
 
 /**

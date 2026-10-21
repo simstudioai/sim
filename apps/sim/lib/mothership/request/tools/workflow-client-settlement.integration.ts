@@ -21,6 +21,7 @@ import {
   copilotAsyncToolCalls,
   copilotChats,
   copilotRuns,
+  pausedExecutions,
   user,
   workflow,
   workflowExecutionLogs,
@@ -42,10 +43,13 @@ import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/cl
 import {
   reportQueuedClientWorkflowTool,
   reportSettledClientWorkflowTool,
+  reportSettledPausedCopilotWorkflowTool,
 } from '@/lib/mothership/request/tools/workflow-client-settlement'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 /** Longer than the waiter's durable poll, far shorter than the hour it used to park for. */
 const WAIT_MS = 10_000
+const APPROVAL_CONTEXT_ID = 'approval'
 
 /**
  * The confirmation a report published for the worker's durable waiter. Reads on the publisher's
@@ -126,6 +130,8 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+    // Deleting a paused execution cascades to its resume queue entries.
+    await db.delete(pausedExecutions).where(eq(pausedExecutions.workflowId, workflowId))
     await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workspaceId, workspaceId))
     if (snapshotIds.length)
       await db
@@ -184,6 +190,45 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     await executionLog(toolCallId, executionId, status)
     await settleClientWorkflowToolExecution(toolCallId, executionId)
     return { toolCallId, executionId }
+  }
+
+  /**
+   * A claimed call whose bound execution paused at a human approval: the execute route settled the
+   * claim and its own report left the call running, as it does for every paused execution.
+   */
+  async function claimedAndPaused() {
+    const { toolCallId, executionId } = await claimed()
+    await executionLog(toolCallId, executionId, 'pending')
+    await db.insert(pausedExecutions).values({
+      id: generateId(),
+      workflowId,
+      executionId,
+      /** Carries no snapshot metadata, so a resume of it fails the run. */
+      executionSnapshot: { snapshot: '{}', triggerIds: [] },
+      pausePoints: {
+        [APPROVAL_CONTEXT_ID]: {
+          contextId: APPROVAL_CONTEXT_ID,
+          blockId: APPROVAL_CONTEXT_ID,
+          response: {},
+          registeredAt: new Date().toISOString(),
+          resumeStatus: 'paused',
+          snapshotReady: true,
+          pauseKind: 'human',
+        },
+      },
+      totalPauseCount: 1,
+    })
+    await settleClientWorkflowToolExecution(toolCallId, executionId)
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+    return { toolCallId, executionId }
+  }
+
+  async function setLogStatus(executionId: string, status: 'completed' | 'failed' | 'cancelled') {
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status, endedAt: new Date() })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
   }
 
   async function toolRow(toolCallId: string) {
@@ -275,13 +320,83 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
   })
 
-  it('leaves a paused execution to the client', async () => {
-    const { toolCallId, executionId } = await claimed()
-    await executionLog(toolCallId, executionId, 'pending')
+  it('keeps a paused execution open while it waits for approval', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
 
-    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
 
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+    expect(await publishedConfirmation(toolCallId)).toBeNull()
+  })
+
+  it('delivers a paused execution resumed to completion exactly once', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    await setLogStatus(executionId, 'completed')
+
+    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
+    const settled = await toolRow(toolCallId)
+    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
+
+    expect(await waiting).toMatchObject({
+      status: 'success',
+      data: { success: true, workflowId, executionId },
+    })
+    expect(settled).toMatchObject({ status: 'completed', claimedBy: null })
+    expect((await toolRow(toolCallId)).completedAt).toEqual(settled.completedAt)
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({
+      status: 'success',
+      executionId,
+    })
+  })
+
+  it('delivers a paused execution whose resume failed the run', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    const started = await PauseResumeManager.enqueueOrStartResume({
+      executionId,
+      workflowId,
+      contextId: APPROVAL_CONTEXT_ID,
+      resumeInput: {},
+      userId,
+    })
+    if (started.status !== 'starting') throw new Error('The resume was queued instead of started')
+
+    await expect(
+      PauseResumeManager.startResumeExecution({
+        resumeEntryId: started.resumeEntryId,
+        resumeExecutionId: started.resumeExecutionId,
+        pausedExecution: started.pausedExecution,
+        contextId: started.contextId,
+        resumeInput: started.resumeInput,
+        userId: started.userId,
+      })
+    ).rejects.toThrow()
+
+    expect(await waiting).toMatchObject({
+      status: 'error',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({ status: 'error', executionId })
+  })
+
+  it('delivers a paused execution cancelled before it resumed', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+
+    expect(await PauseResumeManager.beginPausedCancellation(executionId, workflowId)).toBe(true)
+    expect(await PauseResumeManager.completePausedCancellation(executionId, workflowId)).toBe(true)
+
+    expect(await waiting).toMatchObject({
+      status: 'cancelled',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'cancelled', claimedBy: null })
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({
+      status: 'cancelled',
+      executionId,
+    })
   })
 
   it('moves a queued async run to the background when the browser never reports', async () => {

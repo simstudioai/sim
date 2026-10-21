@@ -126,6 +126,28 @@ async function releaseCancelledResumeReservations(
 }
 
 /**
+ * Reports the Copilot workflow tool bound to a paused execution that has now
+ * settled; a paused run has no browser left to report it. Best effort.
+ */
+async function reportCopilotToolForSettledPause(
+  executionId: string,
+  workflowId: string
+): Promise<void> {
+  try {
+    // Loaded on use: its confirmation channel opens Redis connections at import.
+    const { reportSettledPausedCopilotWorkflowTool } = await import(
+      '@/lib/mothership/request/tools/workflow-client-settlement'
+    )
+    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
+  } catch (error) {
+    logger.warn('Failed to report a settled paused Copilot workflow tool', {
+      executionId,
+      error: toError(error).message,
+    })
+  }
+}
+
+/**
  * A resume attempt that was not admitted, carrying the status the caller should
  * see. Every admission refusal must be raised through this rather than a bare
  * `Error`: the resume surfaces classify a failure by its `statusCode`, so an
@@ -1006,6 +1028,10 @@ export class PauseResumeManager {
             stopAfterBlockReached: result.metadata?.stopAfterBlockReached === true,
           })
         }
+        await reportCopilotToolForSettledPause(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
       }
 
       if (result.status === 'paused') {
@@ -1075,6 +1101,10 @@ export class PauseResumeManager {
           }),
       })
       if (!(error instanceof ResumeAdmissionError)) {
+        await reportCopilotToolForSettledPause(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
           pausedExecution.workflowId
@@ -2855,6 +2885,9 @@ export class PauseResumeManager {
     })
 
     await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    if (transition.cancelled) {
+      await reportCopilotToolForSettledPause(executionId, workflowId)
+    }
     return transition.cancelled
   }
 
