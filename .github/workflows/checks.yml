@@ -591,6 +591,8 @@ jobs:
       - *checkout-mirror
       - *checkout-plain
 
+      # A desktop-live leg that passed may have saved this run's actions/cache entry already; the
+      # suffix gives the emptied cache its own, newer entry for the next run's prefix restore.
       - name: Mount the broken dev cache
         if: steps.broken.outputs.key != ''
         uses: ./.github/actions/cache
@@ -598,6 +600,7 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           key: ${{ steps.broken.outputs.key }}
           path: ./apps/sim/.next/dev
+          save-suffix: -reset
 
       - name: Empty the dev cache
         if: steps.broken.outputs.key != ''
