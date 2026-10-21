@@ -47,7 +47,7 @@ import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/mothership/chat/selection-context'
-import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import { buildMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import {
   getBlock as registryGetBlock,
   getBlockRegistry as registryGetBlockRegistry,
@@ -635,7 +635,9 @@ describe('processContextsServer - MCP contexts', () => {
       },
     ])
     expect(discoverServerTools).not.toHaveBeenCalled()
-    const { tools: catalog } = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
+    const { tools: catalog } = await buildMcpToolSchemas('user-1', 'ws-1', {
+      complete: ['mcp-server-1'],
+    })
     expect(discoverServerTools).toHaveBeenCalledTimes(1)
     expect(discoverServerTools).toHaveBeenCalledWith({
       principal: expect.objectContaining({

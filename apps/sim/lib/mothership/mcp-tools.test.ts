@@ -1,9 +1,5 @@
 import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
-import {
-  permissionCheckMock,
-  permissionCheckMockFns,
-} from '@sim/testing/mocks/permission-check.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { discoverServerTools } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
@@ -13,20 +9,14 @@ vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: discoverServerTools,
 }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
-vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import { buildMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 
-const assertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
 mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase.mockImplementation(async (args: unknown) => ({
   tools: await discoverServerTools(args),
 }))
 
 describe('mothership MCP tool schemas', () => {
-  beforeEach(() => {
-    assertPermissionsAllowed.mockResolvedValue(undefined)
-  })
-
   it('discovers tools only for explicitly tagged servers', async () => {
     discoverServerTools.mockResolvedValue([
       {
@@ -38,7 +28,9 @@ describe('mothership MCP tool schemas', () => {
       },
     ])
 
-    const { tools, failures } = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
+    const { tools, failures } = await buildMcpToolSchemas('user-1', 'ws-1', {
+      complete: ['mcp-server-1'],
+    })
 
     expect(discoverServerTools).toHaveBeenCalledTimes(1)
     expect(discoverServerTools).toHaveBeenCalledWith(
@@ -64,16 +56,28 @@ describe('mothership MCP tool schemas', () => {
       return [{ serverId, name: 'search', inputSchema: { type: 'object' } }]
     })
 
-    const discovery = await buildTaggedMcpToolSchemas('user-1', 'ws-1', [
-      'mcp-down',
-      'mcp-server-1',
-      'mcp-empty',
-    ])
+    const discovery = await buildMcpToolSchemas('user-1', 'ws-1', {
+      complete: ['mcp-down', 'mcp-server-1', 'mcp-empty'],
+    })
 
     expect(discovery.tools.map((tool) => tool.name)).toEqual(['mcp-server-1-search'])
     expect(discovery.failures.map(({ serverId, error }) => [serverId, error.message])).toEqual([
       ['mcp-down', 'connect ECONNREFUSED'],
       ['mcp-empty', 'No permitted MCP operations are available for mcp-empty'],
     ])
+  })
+
+  it('treats a best-effort server with no permitted operations as contributing nothing', async () => {
+    discoverServerTools.mockImplementation(async ({ input: { serverId } }) =>
+      serverId === 'mcp-empty' ? [] : [{ serverId, name: 'search', inputSchema: {} }]
+    )
+
+    const discovery = await buildMcpToolSchemas('user-1', 'ws-1', {
+      complete: [],
+      bestEffort: ['mcp-empty', 'mcp-server-1'],
+    })
+
+    expect(discovery.tools.map((tool) => tool.name)).toEqual(['mcp-server-1-search'])
+    expect(discovery.failures).toEqual([])
   })
 })

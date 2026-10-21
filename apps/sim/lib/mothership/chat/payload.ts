@@ -70,8 +70,8 @@ interface BuildPayloadParams {
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
   /**
-   * MCP servers enabled for this chat — every server tagged on this or any
-   * earlier turn. Servers never tagged in the chat stay unavailable.
+   * MCP servers tagged on this or any earlier turn of the chat. Every usable
+   * workspace server is discoverable without a tag; tagged ones rank first.
    */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>

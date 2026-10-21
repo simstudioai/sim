@@ -11,6 +11,7 @@ import {
   mothershipWorkspaceTargetMockFns,
 } from '@sim/testing/mocks/mothership-workspace-target.mock'
 import {
+  MockMcpToolsNotAllowedError,
   permissionCheckMock,
   permissionCheckMockFns,
 } from '@sim/testing/mocks/permission-check.mock'
@@ -22,7 +23,7 @@ import {
   workspaceContextMock,
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createTrustedCopilotPrincipal,
@@ -72,6 +73,9 @@ const tools = [
     input_schema: { type: 'object' },
   },
 ]
+function usableServer(id: string, overrides: Record<string, unknown> = {}) {
+  return { id, enabled: true, credentialGroupId: null, ...overrides }
+}
 function discoveredServerIds() {
   return mocks.discover.mock.calls.map(([args]) => args.input.serverId)
 }
@@ -96,7 +100,7 @@ beforeEach(() => {
   mocks.discover.mockReset()
   mocks.discover.mockResolvedValue({ tools: [] })
   mocks.mcpPermission.mockResolvedValue(undefined)
-  mocks.listServers.mockResolvedValue({ servers: [{ id: 'mcp-abc' }] })
+  mocks.listServers.mockResolvedValue({ servers: [usableServer('mcp-abc')] })
 })
 describe('integration catalog projection', () => {
   it.each(['google_calendar', 'google-calendar', 'Google Calendar', ' GOOGLE-CALENDAR '])(
@@ -384,7 +388,6 @@ it('ranks query tokens across operation names, descriptions, and service while p
 it('filters organization enabled servers to the authorized target before broad MCP discovery', async () => {
   queueChat('agent')
   mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
-  mocks.listServers.mockResolvedValue({ servers: [{ id: 'mcp-abc' }] })
   await readIntegrationCatalog.execute({
     principal: principal(),
     input: {
@@ -438,7 +441,7 @@ describe('tagged MCP servers that cannot be discovered', () => {
   }
   beforeEach(() => {
     mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
-    mocks.listServers.mockResolvedValue({ servers: serverIds.map((id) => ({ id })) })
+    mocks.listServers.mockResolvedValue({ servers: serverIds.map((id) => usableServer(id)) })
     mocks.discover.mockImplementation(async ({ input: { serverId } }) => {
       const failure = failures[serverId]
       if (failure) return failure()
@@ -465,5 +468,119 @@ describe('tagged MCP servers that cannot be discovered', () => {
   ])('fails a request that targets %s with its own error', async (serverId, message) => {
     await expect(catalog({ service: `mcp:${serverId}` })).rejects.toThrow(message)
     await expect(catalog({ toolId: `${serverId}-send` })).rejects.toThrow(message)
+  })
+})
+
+describe('untagged workspace MCP servers', () => {
+  function catalog(
+    request: Partial<IntegrationCatalogRequest>,
+    mode: IntegrationCatalogRequest['mode'] = 'agent'
+  ) {
+    queueChat(mode)
+    return readIntegrationCatalog.execute({
+      principal: principal(),
+      input: { ...input, mode, workspaceId: 'workspace-1', ...request },
+    })
+  }
+  function toolIds(result: { operations: Array<{ toolId: string }> }) {
+    return result.operations.map((operation) => operation.toolId)
+  }
+  beforeEach(() => {
+    mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
+    mocks.listServers.mockResolvedValue({
+      servers: ['mcp-docs', 'mcp-crm'].map((id) => usableServer(id)),
+    })
+    mocks.discover.mockImplementation(async ({ input: { serverId } }) => ({
+      tools: [{ serverId, name: 'lookup', description: 'Look up a record', inputSchema: {} }],
+    }))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it.each(['agent', 'plan'] as const)(
+    'discovers every usable server without a tag in %s mode, from the discovery cache',
+    async (mode) => {
+      const result = await catalog({ query: 'lookup' }, mode)
+      expect(toolIds(result)).toEqual(['mcp-crm-lookup', 'mcp-docs-lookup'])
+      expect(mocks.discover).toHaveBeenCalledWith({
+        principal: expect.objectContaining({ workspaceId: 'workspace-1', subjectUserId: 'actor' }),
+        input: { workspaceId: 'workspace-1', serverId: 'mcp-docs' },
+      })
+    }
+  )
+
+  it('keeps Search free of MCP even with usable workspace servers', async () => {
+    const result = await catalog({}, 'assistant')
+    expect(toolIds(result)).toEqual(['gmail_send', 'slack_send'])
+    expect(mocks.listServers).not.toHaveBeenCalled()
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('never discovers disabled, deleted, or Credential Group servers', async () => {
+    mocks.listServers.mockResolvedValue({
+      servers: [
+        usableServer('mcp-docs'),
+        usableServer('mcp-off', { enabled: false }),
+        usableServer('mcp-group', { credentialGroupId: 'group-1' }),
+      ],
+    })
+    const result = await catalog({ mcpServerIds: ['mcp-deleted'], query: 'lookup' })
+    expect(toolIds(result)).toEqual(['mcp-docs-lookup'])
+    expect(discoveredServerIds()).toEqual(['mcp-docs'])
+  })
+
+  it('keeps a workflow selection scoped to the operations it selected', async () => {
+    const result = await catalog({ mcpToolIds: ['mcp-docs-lookup'] })
+    expect(toolIds(result)).toEqual(['gmail_send', 'mcp-docs-lookup', 'slack_send'])
+    expect(discoveredServerIds()).toEqual(['mcp-docs'])
+    expect(mocks.listServers).not.toHaveBeenCalled()
+  })
+
+  it('ranks a tagged server ahead of an equally relevant untagged one', async () => {
+    const result = await catalog({ mcpServerIds: ['mcp-docs'], query: 'lookup' })
+    expect(toolIds(result)).toEqual(['mcp-docs-lookup', 'mcp-crm-lookup'])
+  })
+
+  it('skips an untagged server that does not answer in time without failing the query', async () => {
+    vi.useFakeTimers()
+    mocks.discover.mockImplementation(async ({ input: { serverId } }) =>
+      serverId === 'mcp-crm'
+        ? new Promise(() => {})
+        : {
+            tools: [{ serverId, name: 'lookup', description: 'Look up a record', inputSchema: {} }],
+          }
+    )
+    const pending = catalog({ query: 'lookup' })
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(toolIds(await pending)).toEqual(['mcp-docs-lookup'])
+  })
+
+  it('lists native operations when a permission group disables MCP', async () => {
+    mocks.mcpPermission.mockRejectedValue(new MockMcpToolsNotAllowedError())
+    const result = await catalog({ mcpServerIds: ['mcp-docs'] })
+    expect(toolIds(result)).toEqual(['gmail_send', 'slack_send'])
+    expect(mocks.discover).not.toHaveBeenCalled()
+    await expect(catalog({ service: 'mcp:mcp-docs' })).rejects.toThrow('MCP tools are not allowed')
+  })
+
+  it('resolves an untagged server operation by exact ID for execution', async () => {
+    const result = await catalog({ toolId: 'mcp-crm-lookup' })
+    expect(result.operations).toEqual([
+      {
+        toolId: 'mcp-crm-lookup',
+        service: 'mcp:mcp-crm',
+        description: 'Look up a record',
+        inputSchema: {},
+      },
+    ])
+    expect(mocks.discover).toHaveBeenCalledTimes(1)
+    expect(mocks.discover).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { workspaceId: 'workspace-1', serverId: 'mcp-crm', requireComplete: true },
+      })
+    )
+    mocks.discover.mockRejectedValue(new Error('connect ECONNREFUSED'))
+    await expect(catalog({ toolId: 'mcp-crm-lookup' })).rejects.toThrow('connect ECONNREFUSED')
   })
 })
