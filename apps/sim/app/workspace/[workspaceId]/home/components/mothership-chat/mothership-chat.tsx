@@ -40,6 +40,7 @@ import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/c
 import {
   type CredentialSubmissionPayload,
   credentialTagHasVisibleCard,
+  type InteractionAnswerHandler,
   parseCredentialSubmissionProgress,
   parseLastCredentialTag,
   parseLastQuestionTag,
@@ -249,7 +250,7 @@ interface AssistantMessageRowProps {
   /** The user moved on without submitting this message's credential card. */
   credentialAbandoned?: boolean
   rowClassName: string
-  onOptionSelect?: (id: string) => void
+  onOptionSelect?: InteractionAnswerHandler
   onAnimatingChange?: (animating: boolean) => void
 }
 
@@ -767,8 +768,8 @@ export function MothershipChat({
   useEffect(() => {
     onSubmitRef.current = onSubmit
   }, [onSubmit])
-  const stableOnOptionSelect = useCallback((id: string) => {
-    onSubmitRef.current(id)
+  const stableOnOptionSelect = useCallback<InteractionAnswerHandler>((message, contexts) => {
+    onSubmitRef.current(message, undefined, contexts)
   }, [])
 
   const handleSendQueuedHead = useCallback(() => {
