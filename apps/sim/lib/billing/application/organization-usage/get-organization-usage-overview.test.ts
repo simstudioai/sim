@@ -30,6 +30,7 @@ vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
 }))
 vi.mock('@/providers/models', () => providersModelsMock)
 
+import { getOrganizationUsageCalendar } from '@/lib/billing/application/organization-usage/get-organization-usage-calendar'
 import { getOrganizationUsageOverview } from '@/lib/billing/application/organization-usage/get-organization-usage-overview'
 
 const mocks = {
@@ -95,6 +96,22 @@ describe('getOrganizationUsageOverview', () => {
 
   afterAll(() => {
     setEnvFlags({ isBillingEnabled: false, isHosted: false })
+  })
+
+  it('sums repeated daily segments before rounding and retains zero-usage calendar days', async () => {
+    mocks.readUsageDays.mockResolvedValue([
+      [day, [{ key: 'workflow', cost: 0.0017, events: 1 }]],
+      [day, [{ key: 'workflow', cost: 0.0017, events: 1 }]],
+      [day, [{ key: 'copilot', cost: 0.0017, events: 1 }]],
+    ])
+    const result = await getOrganizationUsageCalendar.execute({
+      principal: session,
+      input: { organizationId: 'org-1', timezone: 'UTC' },
+    })
+    expect(result.days).toHaveLength(365)
+    expect(result.days.find((entry) => entry.date === day)?.credits).toBe(1)
+    expect(result.days.reduce((sum, entry) => sum + entry.credits, 0)).toBe(1)
+    expect(result.days.filter((entry) => entry.credits === 0)).toHaveLength(364)
   })
 
   it('reads names only for the kept rows, however large a tie at the cutoff', async () => {

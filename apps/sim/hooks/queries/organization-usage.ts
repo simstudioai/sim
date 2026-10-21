@@ -4,10 +4,12 @@ import { hashKey, keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationUsageBreakdownContract,
+  getOrganizationUsageCalendarContract,
   getOrganizationUsageOverviewContract,
   listOrganizationUsageEventsContract,
   ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   type OrganizationUsageBreakdown,
+  type OrganizationUsageCalendar,
   type OrganizationUsageEventPage,
   type OrganizationUsageOverview,
   type UsageBreakdownDimension,
@@ -23,6 +25,7 @@ export const ORGANIZATION_USAGE_OVERVIEW_STALE_TIME = 60 * 1000
  * some dimensions heap-scan the ledger.
  */
 export const ORGANIZATION_USAGE_BREAKDOWN_STALE_TIME = 5 * 60 * 1000
+const ORGANIZATION_USAGE_CALENDAR_STALE_TIME = 5 * 60 * 1000
 export const ORGANIZATION_USAGE_EVENTS_STALE_TIME = 30 * 1000
 
 const EVENTS_PAGE_SIZE = 50
@@ -80,6 +83,23 @@ export function useOrganizationUsageOverview(
       usageKeyIdentity(previousQuery.queryKey) === usageKeyIdentity(queryKey)
         ? previous
         : undefined,
+  })
+}
+
+export function useOrganizationUsageCalendar(
+  organizationId: string,
+  timezone: string,
+  workspaceId?: string
+) {
+  return useQuery({
+    queryKey: organizationUsageKeys.calendar(organizationId, timezone, workspaceId),
+    queryFn: ({ signal }): Promise<OrganizationUsageCalendar> =>
+      requestJson(getOrganizationUsageCalendarContract, {
+        params: { id: organizationId },
+        query: { timezone, workspaceId },
+        signal,
+      }),
+    staleTime: ORGANIZATION_USAGE_CALENDAR_STALE_TIME,
   })
 }
 
