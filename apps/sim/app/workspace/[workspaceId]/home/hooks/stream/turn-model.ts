@@ -561,9 +561,10 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         )
         const delta = asString(payload.argumentsDelta)
         if (delta) node.streamingArgs = (node.streamingArgs ?? '') + delta
-        // Progressive CLI title: upgrade the placeholder to the specific verb as
-        // soon as enough argv tokens have streamed to name the command — the
-        // browser mirror of the server handler's refinement.
+        // Progressive CLI title: upgrade the row's placeholder to the specific verb
+        // as soon as enough argv tokens have streamed to name the command — the
+        // browser mirror of the server handler's refinement. The activity header
+        // holds it back until the model's description arrives.
         if (delta && (node.name === 'sim_cli' || node.name.startsWith('cli_'))) {
           const refined = refineStreamingCliToolName(node.streamingArgs ?? '')
           if (refined && refined !== node.name) node.name = refined

@@ -37,6 +37,7 @@ import {
   ownsTurnWait,
   type TurnLiveIndicators,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
+import { THINKING_LABEL } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
@@ -935,9 +936,9 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string {
     case 'tool_call':
       return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
         ? 'Dispatching'
-        : 'Thinking'
+        : THINKING_LABEL
     default:
-      return 'Thinking'
+      return THINKING_LABEL
   }
 }
 

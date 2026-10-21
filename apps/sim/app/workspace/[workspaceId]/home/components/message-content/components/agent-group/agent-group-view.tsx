@@ -28,6 +28,7 @@ import {
   getActivityStatusTool,
   getCompletedActivityLabel,
   getInProgressActivityLabel,
+  THINKING_LABEL,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { useToolCallTitle } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-title'
@@ -294,7 +295,7 @@ export function AgentGroupView({
             tools,
             activityDescriptor?.title
           )
-        : 'Thinking'
+        : THINKING_LABEL
       : tools.length > 0
         ? getCompletedActivityLabel(tools, activityDescriptor)
         : agentLabel

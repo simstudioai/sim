@@ -145,8 +145,8 @@ export function getActivityHeaderTool(
   )
 }
 
-/** The turn's wait wording, kept while a first call's own title is still streaming. */
-const AWAITING_TITLE_LABEL = 'Thinking'
+/** The wait wording: the turn between steps, and a first call whose own title is still streaming. */
+export const THINKING_LABEL = 'Thinking'
 
 /**
  * The title of an activity in progress for its header call, with earlier
@@ -161,7 +161,7 @@ export function getInProgressActivityLabel(
   tools: ToolCallData[],
   activityTitle: string | undefined
 ): string {
-  const label = isAwaitingTitle(headerTool) ? activityTitle || AWAITING_TITLE_LABEL : activeLabel
+  const label = isAwaitingTitle(headerTool) ? activityTitle || THINKING_LABEL : activeLabel
   return getActiveToolActivityTitle(label, headerTool, tools)
 }
 
