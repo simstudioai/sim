@@ -1,5 +1,6 @@
 import { toError } from '@sim/utils/errors'
-import { withinDeadline } from '@/lib/core/utils/deadline'
+import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
+import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
@@ -10,11 +11,51 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 import type { ToolSchema } from '@/lib/mothership/chat/payload'
 
 /**
- * How long one best-effort server may hold up a catalog query. A warm server is
- * a cache read; a cold or slow one is skipped for this query while its
- * discovery keeps running and fills the cache for the next one.
+ * How long a catalog query waits on one best-effort server, counted from that
+ * server's own start. A warm server is a cache read; a cold or slow one is
+ * skipped for this query while its discovery keeps running and fills the cache
+ * for the next one.
  */
 const BEST_EFFORT_DISCOVERY_WAIT_MS = 3_000
+/**
+ * Best-effort discoveries a query runs at once. The wait does not cancel a
+ * discovery, so this also caps the connections one query can leave running.
+ */
+const BEST_EFFORT_DISCOVERY_CONCURRENCY = 8
+/**
+ * How long after a query begins it may still start a best-effort discovery.
+ * Servers still queued then are skipped for this query, so with the wait it
+ * bounds the query's latency at about six seconds however many servers the
+ * workspace has.
+ */
+const BEST_EFFORT_DISCOVERY_START_WINDOW_MS = 3_000
+/** How long a requester skips a best-effort server whose discovery failed or outlived the wait. */
+const BEST_EFFORT_RETRY_AFTER_MS = 60_000
+const MAX_RECENT_BEST_EFFORT_FAILURES = 1_000
+
+/**
+ * Best-effort servers that recently failed for a requester, keyed by
+ * `workspaceId:serverId:userId`, oldest first. It lives in this process because
+ * best-effort discovery must leave the server's shared status and cooldown to
+ * the discoveries someone asked for.
+ */
+const recentBestEffortFailures = new Map<string, { error: Error; retryAfter: number }>()
+
+function recentBestEffortFailure(key: string): Error | undefined {
+  const failure = recentBestEffortFailures.get(key)
+  if (!failure) return undefined
+  if (failure.retryAfter > Date.now()) return failure.error
+  recentBestEffortFailures.delete(key)
+  return undefined
+}
+
+function rememberBestEffortFailure(key: string, error: Error): void {
+  recentBestEffortFailures.delete(key)
+  recentBestEffortFailures.set(key, { error, retryAfter: Date.now() + BEST_EFFORT_RETRY_AFTER_MS })
+  if (recentBestEffortFailures.size <= MAX_RECENT_BEST_EFFORT_FAILURES) return
+  const oldest = recentBestEffortFailures.keys().next()
+  if (!oldest.done) recentBestEffortFailures.delete(oldest.value)
+}
 
 interface McpServerDiscoveryFailure {
   serverId: string
@@ -31,8 +72,13 @@ interface McpDiscoveryServers {
   /** Servers the request names: listed live and completely, however long that takes. */
   complete: string[]
   /**
-   * Chat-only: servers available without being named. Served from the discovery
-   * cache when fresh, otherwise skipped after {@link BEST_EFFORT_DISCOVERY_WAIT_MS}.
+   * Chat-only: servers available without being named. At most
+   * {@link BEST_EFFORT_DISCOVERY_CONCURRENCY} are discovered at once, each served
+   * from the discovery cache when fresh and otherwise skipped after
+   * {@link BEST_EFFORT_DISCOVERY_WAIT_MS}; one still queued after
+   * {@link BEST_EFFORT_DISCOVERY_START_WINDOW_MS} is skipped unstarted. One that
+   * failed or outlived its wait is skipped for the same requester for
+   * {@link BEST_EFFORT_RETRY_AFTER_MS}, or until that late discovery succeeds.
    * One with no permitted operations contributes nothing and is not a failure.
    * Their discovery never touches a server's shared status or cooldown, and skips a
    * server the requester cannot authenticate to.
@@ -92,23 +138,39 @@ export async function buildMcpToolSchemas(
     if (!tools.length) throw new Error(`No permitted MCP operations are available for ${serverId}`)
     return tools
   }
+  const startWindowEndsAt = Date.now() + BEST_EFFORT_DISCOVERY_START_WINDOW_MS
   /** Ignores the deadline's signal so a slow server's discovery still finishes and warms the cache. */
   const discoverBestEffort = async (serverId: string) => {
+    const failureKey = `${workspaceId}:${serverId}:${userId}`
+    const recentFailure = recentBestEffortFailure(failureKey)
+    if (recentFailure) throw recentFailure
+    if (Date.now() >= startWindowEndsAt) throw new DeadlineExceededError()
     const discovery = discoverMcpServerToolsUseCase.execute({
       principal: principal(),
       input: { workspaceId, serverId, bestEffort: true },
     })
-    const { tools } = await withinDeadline(
-      () => discovery,
-      Date.now() + BEST_EFFORT_DISCOVERY_WAIT_MS
-    )
-    return tools
+    try {
+      const { tools } = await withinDeadline(
+        () => discovery,
+        Date.now() + BEST_EFFORT_DISCOVERY_WAIT_MS
+      )
+      return tools
+    } catch (error) {
+      rememberBestEffortFailure(failureKey, toError(error))
+      if (error instanceof DeadlineExceededError)
+        discovery.then(
+          () => recentBestEffortFailures.delete(failureKey),
+          (lateError: unknown) => rememberBestEffortFailure(failureKey, toError(lateError))
+        )
+      throw error
+    }
   }
 
-  const outcomes = await Promise.allSettled([
-    ...complete.map(discoverComplete),
-    ...bestEffort.map(discoverBestEffort),
+  const [completeOutcomes, bestEffortOutcomes] = await Promise.all([
+    Promise.allSettled(complete.map(discoverComplete)),
+    mapSettledWithConcurrency(bestEffort, BEST_EFFORT_DISCOVERY_CONCURRENCY, discoverBestEffort),
   ])
+  const outcomes = [...completeOutcomes, ...bestEffortOutcomes]
 
   const seen = new Set<string>()
   const discovery: McpDiscovery = { tools: [], failures: [] }
