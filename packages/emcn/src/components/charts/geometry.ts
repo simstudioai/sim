@@ -47,8 +47,12 @@ export function resolveBarTickValues(peak: number): number[] {
   const magnitude = 10 ** Math.floor(Math.log10(roughStep))
   const multiple = [1, 2, 5, 10].find((candidate) => candidate * magnitude >= roughStep) ?? 10
   const step = Math.max(peak >= 1 ? 1 : 0, multiple * magnitude)
+  if (!Number.isFinite(ceiling) || !Number.isFinite(step) || step <= 0) return [0, peak]
   const intervals = Math.ceil(ceiling / step)
-  return Array.from({ length: intervals + 1 }, (_, index) => Number((index * step).toPrecision(12)))
+  const ticks = Array.from({ length: intervals + 1 }, (_, index) =>
+    Number((index * step).toPrecision(12))
+  )
+  return ticks.every(Number.isFinite) ? ticks : [0, peak]
 }
 
 /** Vertical clamp for plotted geometry, keeping strokes off the axis rules. */
