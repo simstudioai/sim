@@ -42,6 +42,7 @@ import {
   PENDING_CHAT_KEY_PREFIX,
 } from '@/lib/desktop/chat-scope'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import {
@@ -356,6 +357,9 @@ const DETACHED_CHAT_RETRY_MAX_MS = 30_000
 // Stable empty array — sharing one reference keeps the selector from
 // re-rendering on unrelated store writes.
 const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
+
+const UNAVAILABLE_QUEUED_CONTEXT_ERROR =
+  'Some context in this queued message is unavailable. Edit or remove it before sending.'
 
 const logger = createLogger('useChat')
 
@@ -4592,6 +4596,7 @@ export function useChat(
     useMothershipQueueStore.getState().insertAt(chatHistory.id, 0, {
       id: handoff.id,
       ...sendPayload({ ...handoff, content: handoff.message }),
+      ...(handoff.hasUnavailableContexts ? { hasUnavailableContexts: true, hold: 'user' } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -4604,6 +4609,7 @@ export function useChat(
         ? { admissionUnknown: handoff.admissionUnknown }
         : {}),
     })
+    if (handoff.hasUnavailableContexts) setError(UNAVAILABLE_QUEUED_CONTEXT_ERROR)
     clearQueuedSendHandoffState(handoff.id)
     clearQueuedSendHandoffClaim(handoff.id)
   }, [workspaceId, organizationId, scopeKey, chatHistory, queuedHandoffRecoveryEpoch])
@@ -5183,13 +5189,18 @@ export function useChat(
          needed the read cannot be in the editor (editing refuses one possibly
          sent); the editing check covers an entry that skipped it. */
       const afterRead = useMothershipQueueStore.getState()
+      const liveMessage = afterRead.queues[chatKey]?.find((queued) => queued.id === msg.id)
       if (
         chatKeyRef.current !== chatKey ||
         !surfaceMountedRef.current ||
         queuedMessageDispatchIds.has(msg.id) ||
         afterRead.editing[chatKey] === msg.id ||
-        !afterRead.queues[chatKey]?.some((queued) => queued.id === msg.id)
+        !liveMessage
       ) {
+        return
+      }
+      if (liveMessage.hasUnavailableContexts) {
+        setError(UNAVAILABLE_QUEUED_CONTEXT_ERROR)
         return
       }
       const admissionPending = hasPendingChatAdmission()
@@ -5268,6 +5279,7 @@ export function useChat(
     clearQueuedSendHandoffState(id)
     clearQueuedSendHandoffClaim(id)
     useMothershipQueueStore.getState().setEditing(activeChatKey, id)
+    if (msg.hasUnavailableContexts) setError(UNAVAILABLE_CONTEXT_NOTICE)
     return msg
   }, [])
 

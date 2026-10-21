@@ -4,6 +4,7 @@ import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import type { PromptEditorInstance } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
@@ -83,7 +84,7 @@ export function usePromptHistory(props: UsePromptHistoryProps) {
           message.contexts
         )
         if (hasUnavailableContexts) {
-          toast.info('Some context in this message was not saved. Reattach it before sending.')
+          toast.info(UNAVAILABLE_CONTEXT_NOTICE)
         }
         restoreAttachedFiles(files)
         editor.pendingCursorRef.current = direction === -1 ? 0 : value.length

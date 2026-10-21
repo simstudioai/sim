@@ -15,6 +15,7 @@ import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -370,7 +371,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       loadQueuedMessage: (msg: QueuedMessage) => {
         const currentEditor = editorRef.current
         history.reset()
-        currentEditor.restorePrompt(msg.content, msg.contexts)
+        const { hasUnavailableContexts } = currentEditor.restorePrompt(msg.content, msg.contexts)
+        if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
         const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
           id: a.id,
           name: a.filename,

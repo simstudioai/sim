@@ -2261,6 +2261,88 @@ describe('useChat remount send recovery', () => {
     expect(order.indexOf('history')).toBeLessThan(order.indexOf('post'))
   })
 
+  it.each([false, undefined])(
+    'holds a recovered send with lost context without weakening admission protection (%s)',
+    async (admissionUnknown) => {
+      writeQueuedSendHandoffState({
+        id: 'queued-selection',
+        chatId: 'chat-a',
+        workspaceId: 'ws-1',
+        supersededStreamId: 'previous-response',
+        userMessageId: 'prepared-selection-request',
+        message: 'Explain @Browser with @Docs',
+        contexts: [
+          { kind: 'docs', label: 'Docs' },
+          {
+            kind: 'browser_tab',
+            tabId: 'tab-a',
+            label: 'Browser',
+            selection: { text: 'Selected passage', title: 'x'.repeat(513) },
+          },
+        ],
+        stopRequired: true,
+        admissionUnknown,
+        requestedAt: Date.now(),
+      })
+      const history: MothershipChatHistory = {
+        id: 'chat-a',
+        title: 'Selection review',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      mockRequestJson.mockResolvedValue({ chat: history })
+      const { getResult } = renderUseChatInChat('chat-a', history)
+      await waitFor(() => readQueuedSendHandoffState() === null)
+      expect(allQueuedMessages()).toEqual([
+        expect.objectContaining({
+          id: 'queued-selection',
+          content: 'Explain @Browser with @Docs',
+          contexts: [{ kind: 'docs', label: 'Docs' }],
+          hold: 'user',
+          hasUnavailableContexts: true,
+          resumeUserMessageId: 'prepared-selection-request',
+          admissionUnknown: admissionUnknown !== false,
+        }),
+      ])
+      expect(getResult().error).toContain('context')
+      await act(async () => {
+        void getResult().sendNow('queued-selection')
+      })
+      expect(state.abortBodies).toHaveLength(0)
+      expect(state.postBodies).toHaveLength(0)
+
+      await act(async () => {
+        const edited = getResult().editQueuedMessage('queued-selection')
+        if (admissionUnknown === false) {
+          expect(edited?.content).toBe('Explain @Browser with @Docs')
+          await getResult().sendMessage('Explain @Docs', undefined, [
+            { kind: 'docs', label: 'Docs' },
+          ])
+        } else {
+          expect(edited).toBeUndefined()
+        }
+      })
+      if (admissionUnknown === false) {
+        await waitFor(() => state.postBodies.length === 1)
+        expect(state.abortBodies).toEqual([
+          { streamId: 'previous-response', workspaceId: 'ws-1', chatId: 'chat-a' },
+        ])
+        expect(state.postBodies[0]).toMatchObject({
+          message: 'Explain @Docs',
+          contexts: [{ kind: 'docs', label: 'Docs' }],
+        })
+        expect(state.postBodies[0].userMessageId).not.toBe('prepared-selection-request')
+      } else {
+        expect(allQueuedMessages()[0]).toMatchObject({
+          resumeUserMessageId: 'prepared-selection-request',
+          admissionUnknown: true,
+        })
+        expect(state.postBodies).toHaveLength(0)
+      }
+    }
+  )
+
   it.each([false, true])(
     'the remounted handoff reader requires Stop settlement (settled: %s)',
     async (settled) => {

@@ -64,7 +64,6 @@
     "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 3,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/message-reconcile.ts": 1,
-    "apps/sim/app/workspace/[workspaceId]/home/hooks/send-handoff.test.ts": 1,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-span-event.test.ts": 3,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-tool-event.test.ts": 4,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/stream-context.test.ts": 2,

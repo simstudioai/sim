@@ -38,6 +38,8 @@ export interface SendPayload {
 
 export interface QueuedMessage extends SendPayload {
   id: string
+  /** Recovery dropped invalid contexts; the user must review the message before sending. */
+  hasUnavailableContexts?: boolean
   /**
    * An earlier attempt at this message got no answer, so the server may
    * already hold it as sent. It goes out exactly as written, under that

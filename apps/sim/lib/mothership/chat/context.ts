@@ -2,6 +2,9 @@ import { isRecordLike } from '@sim/utils/object'
 import { chatContextSchema } from '@/lib/api/contracts/mothership-chat-context'
 import type { ChatContext } from '@/stores/panel'
 
+export const UNAVAILABLE_CONTEXT_NOTICE =
+  'Some context in this message was not saved. Reattach it before sending.'
+
 /** Requires both send-valid metadata and a resource identity before restoring a stored context. */
 export function isChatContext(value: unknown): value is ChatContext {
   if (!isRecordLike(value) || !chatContextSchema.safeParse(value).success) {

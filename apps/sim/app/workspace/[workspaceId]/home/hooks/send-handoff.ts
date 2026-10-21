@@ -35,6 +35,7 @@ export interface QueuedSendHandoffState extends QueuedSendHandoffSeed {
   message: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
+  hasUnavailableContexts?: boolean
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
@@ -108,6 +109,14 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
+    const contexts = Array.isArray(parsed.contexts)
+      ? parsed.contexts.filter(isChatContext)
+      : undefined
+    const hasUnavailableContexts =
+      parsed.hasUnavailableContexts === true ||
+      (parsed.contexts !== undefined &&
+        (!Array.isArray(parsed.contexts) || contexts?.length !== parsed.contexts.length))
+
     return {
       id: parsed.id,
       ...(chatId ? { chatId } : {}),
@@ -123,9 +132,8 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.fileAttachments)
         ? { fileAttachments: parsed.fileAttachments.filter(isFileAttachmentForApi) }
         : {}),
-      ...(Array.isArray(parsed.contexts)
-        ? { contexts: parsed.contexts.filter(isChatContext) }
-        : {}),
+      ...(contexts ? { contexts } : {}),
+      ...(hasUnavailableContexts ? { hasUnavailableContexts: true } : {}),
       ...(parsed.requestMode === 'assistant' ||
       parsed.requestMode === 'agent' ||
       parsed.requestMode === 'plan'
