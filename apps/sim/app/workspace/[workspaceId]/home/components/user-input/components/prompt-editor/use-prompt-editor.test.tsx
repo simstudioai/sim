@@ -568,7 +568,7 @@ describe('sent prompt history', () => {
       media_type: 'image/png',
       size: 30,
     }
-    const content = '/review, /tools! @Plan.md and /reviewer and path/review'
+    const content = '(/review), [/tools]! (@Plan.md) and /reviewer and path/review'
     const history = renderHistoryEditor([
       { id: 'rich', role: 'user', content, contexts, fileAttachments: [attachment] },
     ])
@@ -580,7 +580,7 @@ describe('sent prompt history', () => {
         { id: attachment.id, key: attachment.key, uploading: false },
       ])
       expect(history.textarea.value).toBe(
-        '\u2003review, \u2003tools! @Plan.md and /reviewer and path/review'
+        '(\u2003review), [\u2003tools]! (@Plan.md) and /reviewer and path/review'
       )
       history.end()
       history.key('ArrowDown')

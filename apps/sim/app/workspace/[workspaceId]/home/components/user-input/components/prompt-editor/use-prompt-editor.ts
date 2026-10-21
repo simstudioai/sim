@@ -36,12 +36,15 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
   areContextsEqual,
+  computeMentionHighlightRanges,
+  extractContextTokens,
   filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
   uniqueContextLabel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
@@ -366,24 +369,36 @@ export function usePromptEditor({
   /** Restores recorded chip identities even before the resource and skill pickers load. */
   const restorePrompt = useCallback(
     (text: string, contexts: ChatMessageContext[] = []) => {
-      const ranges = computeMentionRanges(text, contexts)
       const restoredContexts = new Map<string, ChatContext>()
-      const parts: string[] = []
-      let offset = 0
       let hasUnavailableContexts = false
-      for (const range of ranges) {
-        const context =
-          range.context.kind === 'integration'
-            ? { ...range.context, label: text.slice(range.start + 1, range.end) }
-            : range.context
+      for (const saved of contexts) {
+        const integration =
+          saved.kind === 'integration'
+            ? getIntegrationMatcher().byName.get(saved.label.toLowerCase())
+            : undefined
+        const context = integration ? { ...saved, blockType: integration.blockType } : saved
         if (!isChatContext(context)) {
           hasUnavailableContexts = true
           continue
         }
-        if (!restoredContexts.has(context.label)) {
-          restoredContexts.set(context.label, context)
-        }
-        if (range.context.kind !== 'skill' && range.context.kind !== 'mcp') continue
+        const token = extractContextTokens([context])[0]
+        if (token) restoredContexts.set(restoreSkillTriggerText(token), context)
+      }
+      for (const range of computeMentionRanges(text, [])) {
+        const token = text.slice(range.start, range.end)
+        if (restoredContexts.has(token) || !isChatContext(range.context)) continue
+        restoredContexts.set(token, { ...range.context, label: token.slice(1) })
+      }
+      const parts: string[] = []
+      let offset = 0
+      for (const range of computeMentionHighlightRanges(text, [...restoredContexts.keys()])) {
+        const context = restoredContexts.get(range.token)
+        if (context?.kind !== 'skill' && context?.kind !== 'mcp') continue
+        // Stored slashes need boundaries so a skill never captures a path or a longer name.
+        const before = text[range.start - 1]
+        const after = text.slice(range.end, range.end + 2)
+        if (before && !/[\s([{"'`]/.test(before)) continue
+        if (!/^(?:[\s,;:!?)\]}"'`]|\.(?![\w-])|$)/.test(after)) continue
         parts.push(text.slice(offset, range.start), SKILL_CHIP_TRIGGER)
         offset = range.start + 1
       }
@@ -1196,7 +1211,10 @@ export function usePromptEditor({
 
     const focusPos = textarea.selectionDirection === 'backward' ? start : end
     // Restoring the caret must not open a picker for an unfinished mention in saved text.
-    if (start === end && pendingCursorRef.current === focusPos) return
+    if (pendingCursorRef.current !== null) {
+      if (start === end && pendingCursorRef.current === focusPos) return
+      pendingCursorRef.current = null
+    }
     syncMentionState(textarea, textarea.value, focusPos)
     syncSlashState(textarea, textarea.value, focusPos)
   }, [textareaRef, mentionTokens, adoptDomValue, syncMentionState, syncSlashState, value])
