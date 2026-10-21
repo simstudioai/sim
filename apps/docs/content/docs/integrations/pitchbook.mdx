@@ -1,15 +1,13 @@
 ---
 title: PitchBook
 description: Look up private market data on companies, deals, investors, funds, and people
+integration:
+  type: "pitchbook"
+  color: "#1D5080"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="pitchbook"
-  color="#1D5080"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [PitchBook](https://pitchbook.com/) provides private-market company, deal, investor, fund, limited-partner, and people data. Its API is a separate contracted add-on to a platform subscription, and calls spend purchased credits.
@@ -34,7 +32,6 @@ PitchBook range filters carry their operator inside the value rather than as a s
 
 Amounts are in millions. Codes such as industries, verticals, and deal types are not free text — use **List Lookup Tables** to find the right table, then **Get Lookup Table Codes** to read its values. Any documented filter without a dedicated field can be passed through **Additional Filters** as a JSON object.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

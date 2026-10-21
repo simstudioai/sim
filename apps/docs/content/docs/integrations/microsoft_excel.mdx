@@ -1,15 +1,13 @@
 ---
 title: Microsoft Excel
 description: Manage worksheets, tables, rows, and workbook sessions
+integration:
+  type: "microsoft_excel_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_excel_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Excel](https://www.microsoft.com/microsoft-365/excel) in Sim to manage worksheets, table rows, and cell ranges in `.xlsx` workbooks on OneDrive for Business or SharePoint. Discover worksheets and tables, add or update records, write formulas and number formats, apply formatting, and calculate workbook results.
@@ -18,7 +16,6 @@ Choose a Microsoft account with access to the workbook. SharePoint site browsing
 
 Use **Create Session** when several operations work on the same workbook. Turn on **Save Changes** to persist edits, or leave it off for a temporary copy. Pass the returned `sessionId` to every operation in that sequence, then close the session. Requests without a session ID save their changes directly. List operations return one page and expose `top` and `skip`; increase `skip` by the page count until fewer than `top` items are returned. Range reads should use an explicit bounded range for large worksheets; returned cell values retain the existing trimming of trailing empty rows and columns, while formula and format matrices describe the full returned range.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

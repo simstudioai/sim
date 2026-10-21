@@ -1,15 +1,13 @@
 ---
 title: Microsoft Intune
 description: Manage devices, application inventory, and compliance with Microsoft Intune
+integration:
+  type: "intune"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="intune"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) to inspect managed devices, detected applications, compliance policy statuses, and device configuration metadata. Request device sync, restart, remote lock, or retirement; restart, lock, and retirement require explicit confirmation.
@@ -18,7 +16,6 @@ Connect a Microsoft work or school account with an appropriate Intune role. The 
 
 List operations return one page. Pass `nextLink` to the same operation and resource to continue. Policy and configuration outputs contain common metadata and exclude platform-specific settings. An accepted device action confirms that Intune received the request; it does not confirm completion on the device.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

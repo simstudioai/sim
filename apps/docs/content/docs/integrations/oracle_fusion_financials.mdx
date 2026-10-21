@@ -1,15 +1,13 @@
 ---
 title: Oracle Fusion Financials
 description: Manage receivables and expenses, and report on payables and ledgers
+integration:
+  type: "oracle_fusion_financials"
+  color: "#C74634"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="oracle_fusion_financials"
-  color="#C74634"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Oracle Fusion Cloud Financials](https://www.oracle.com/erp/financials/) manages enterprise accounting, receivables, payables, and employee expenses.
@@ -27,7 +25,6 @@ Use IDs returned by list operations in later steps. Preserve decimal identifiers
 
 Each list returns one page, with `hasMore`, `count`, and `offset`. Advance the offset by the returned count when another page is needed. Lists are capped at 100 records per call. Actions report success only when Oracle returns the documented successful business result; submitting an expense report does not imply approval or payment.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

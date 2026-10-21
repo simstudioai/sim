@@ -1,22 +1,19 @@
 ---
 title: Square
 description: Process payments and manage Square commerce data
+integration:
+  type: "square"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="square"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Square](https://squareup.com/) to take, retrieve, list, cancel, complete, or refund payments; manage customer profiles; create, retrieve, search, or pay for orders; and create, publish, cancel, or delete invoices.
 
 The actions also manage catalog objects and images, read inventory counts, and look up locations. Configure a Square access token and the target environment. Payment and refund actions change live commerce records; use the correct environment and the action's idempotency fields before running them.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

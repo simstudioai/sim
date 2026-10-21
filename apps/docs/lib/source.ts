@@ -128,4 +128,5 @@ export type PageData = DocData &
     title: string
     description?: string
     full?: boolean
+    integration?: { type: string; color: string }
   }

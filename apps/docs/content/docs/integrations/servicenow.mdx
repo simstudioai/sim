@@ -1,20 +1,17 @@
 ---
 title: ServiceNow
 description: Create, read, update, and delete ServiceNow records
+integration:
+  type: "servicenow_v2"
+  color: "#032D42"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="servicenow_v2"
-  color="#032D42"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [ServiceNow](https://www.servicenow.com/) in Sim to create or update incidents and change requests, order catalog items, and process approvals. Read configuration items, knowledge articles, users, and groups, and transfer attachments. Generic record and aggregate operations accept a table name, such as incident, task, change_request, or sys_user, and the fields required by the operation. List Attachments and Upload Attachment also require a table name. Connect with your ServiceNow instance URL, username, and password.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

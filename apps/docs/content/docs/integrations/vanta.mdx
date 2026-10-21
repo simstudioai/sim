@@ -1,15 +1,13 @@
 ---
 title: Vanta
 description: Query compliance status and manage evidence in Vanta
+integration:
+  type: "vanta"
+  color: "#F8F4F3"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="vanta"
-  color="#F8F4F3"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Vanta](https://www.vanta.com/) is a trust management platform that automates security and compliance for frameworks like SOC 2, ISO 27001, HIPAA, and GDPR. It continuously monitors your infrastructure, people, and vendors through automated tests, and centralizes the evidence auditors need.
@@ -33,7 +31,6 @@ The first successful connection sets this application's permissions in Sim. Ever
 
 If your workflow entered credentials directly on a Vanta block, create and select a saved Vanta credential before running it again. Use a dedicated Vanta application for Sim: Vanta allows one active access token per application, so another client obtaining a new token can invalidate Sim's token.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,22 +1,19 @@
 ---
 title: Obsidian
 description: Interact with your Obsidian vault via the Local REST API
+integration:
+  type: "obsidian"
+  color: "#0F0F0F"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="obsidian"
-  color="#0F0F0F"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Obsidian](https://obsidian.md/) to read, create, update, search, or delete notes, manage periodic notes, and run commands.
 
 Install and run the [Obsidian Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin in the vault. Provide its API key and base URL, plus the selected operation's fields. The plugin endpoint must be reachable from the Sim execution runtime; a URL on your own computer is not automatically reachable from Sim Cloud.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

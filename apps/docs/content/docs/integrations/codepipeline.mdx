@@ -1,20 +1,17 @@
 ---
 title: CodePipeline
 description: Run, monitor, and approve AWS CodePipeline pipelines
+integration:
+  type: "codepipeline"
+  color: "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="codepipeline"
-  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS CodePipeline](https://aws.amazon.com/codepipeline/) to inspect release pipelines and execution history, start or stop runs, retry stages, and approve or reject manual approval actions. Stage transitions can be disabled or re-enabled to control pipeline flow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

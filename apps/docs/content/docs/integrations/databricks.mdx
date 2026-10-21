@@ -1,15 +1,13 @@
 ---
 title: Databricks
 description: Run SQL, manage jobs, and ask Genie agents on Databricks
+integration:
+  type: "databricks"
+  color: "#F9F7F4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="databricks"
-  color="#F9F7F4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Databricks](https://www.databricks.com/) to execute parameterized SQL, manage jobs and runs, control compute clusters and SQL warehouses, and work with Genie spaces. Connect with a personal access token and your Databricks workspace host URL.
@@ -22,7 +20,6 @@ Cluster operations support creating, configuring, starting, restarting, resizing
 
 Genie operations create and update spaces, answer natural-language questions, manage conversation history, and retrieve generated SQL, results, and charts. Reuse the conversation ID for follow-ups. Use a space's `etag` when updating it to avoid overwriting concurrent changes. Agent mode supports research reports and response cancellation; it must be enabled in your workspace.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

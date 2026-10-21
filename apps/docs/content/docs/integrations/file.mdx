@@ -1,22 +1,19 @@
 ---
 title: File
 description: Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files
+integration:
+  type: "file_v5"
+  color: "#F5F5F5"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="file_v5"
-  color="#F5F5F5"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the File block to read or extract workspace files, search their contents, fetch files from URLs with custom headers, write or append content, create or extract ZIP archives, and manage share links with public, password, email, or SSO access. Additional actions apply precise text edits, move files, and list, create, move, delete, or restore folders.
 
 Folder selection is optional and supports multiple folders. Choose folders from the workspace, or switch to advanced mode and provide comma-separated paths or a value from an earlier block. Without a folder selection, Search spans the workspace and file pickers are unscoped. Selected folders are expanded when the workflow runs, so newly added files are included.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: Sendblue
 description: Send and receive iMessage and SMS
+integration:
+  type: "sendblue"
+  color: "#008BFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sendblue"
-  color="#008BFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Sendblue connects your agents to iMessage and SMS through your own dedicated phone number. Use it to text one person or a group, attach images and other media, check whether a number can receive iMessage before you send, show a typing indicator, and look up the delivery status of any message.
@@ -31,7 +29,6 @@ Authentication uses a Sendblue **API Key ID** and **API Secret Key**, sent as th
 
 Each trigger generates its own webhook URL — paste the matching URL into the corresponding field in your Sendblue dashboard.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

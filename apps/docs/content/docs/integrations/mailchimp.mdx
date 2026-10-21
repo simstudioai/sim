@@ -1,15 +1,13 @@
 ---
 title: Mailchimp
 description: Manage audiences, campaigns, and marketing automation in Mailchimp
+integration:
+  type: "mailchimp"
+  color: "#FFE01B"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mailchimp"
-  color="#FFE01B"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mailchimp](https://mailchimp.com/) in Sim to manage audiences and members, campaigns, automations, templates, segments, tags, and reports. The actions below also cover merge fields, interest categories, landing pages, signup forms, and batch operations.
@@ -20,7 +18,6 @@ Use [Mailchimp](https://mailchimp.com/) in Sim to manage audiences and members, 
 
 The current permanent-deletion action sends `DELETE`, while [Mailchimp documents `POST` for delete-permanent](https://mailchimp.com/developer/marketing/api/lists/members/create-member-action-delete-permanent). Its compatibility is unverified; do not rely on it for deletion until the request method is corrected and tested.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

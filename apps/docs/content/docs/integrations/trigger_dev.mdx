@@ -1,15 +1,13 @@
 ---
 title: Trigger.dev
 description: Trigger tasks and manage runs and schedules
+integration:
+  type: "trigger_dev"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="trigger_dev"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Trigger.dev](https://trigger.dev/) runs deployed background tasks. Start one task or batch up to 1,000 runs, then poll run status and pass completed output to later workflow steps. You can also inspect and control runs, schedules, queues, and environment resources.
@@ -18,7 +16,6 @@ Connect with a project-scoped secret API key beginning with `tr_`. The key deter
 
 Note: the environment variable operations (List Env Vars, Get Env Var) return variable values in plaintext, and those values appear in workflow outputs and run history. Scope workflows that read environment variables carefully.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

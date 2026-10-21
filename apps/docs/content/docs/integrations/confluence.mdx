@@ -1,20 +1,17 @@
 ---
 title: Confluence
 description: Manage Confluence pages, comments, and attachments
+integration:
+  type: "confluence_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="confluence_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Confluence](https://www.atlassian.com/software/confluence) organizes documentation in spaces and pages. Use this integration to search content and manage pages, blog posts, comments, attachments, and labels. Configure its triggers when a workflow should respond to Confluence events.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

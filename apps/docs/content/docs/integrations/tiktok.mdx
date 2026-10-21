@@ -1,14 +1,11 @@
 ---
 title: TikTok
 description: Access TikTok profiles and videos, and upload inbox drafts
+integration:
+  type: "tiktok"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="tiktok"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [TikTok](https://www.tiktok.com/) to read the authenticated creator's profile and videos, send a video to their inbox as a draft, and track publishing status. The creator reviews and publishes drafts in TikTok; this integration does not publish them unattended. Webhooks can notify workflows about post and authorization changes.

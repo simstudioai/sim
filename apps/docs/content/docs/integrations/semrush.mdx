@@ -1,15 +1,13 @@
 ---
 title: Semrush
 description: Research SEO and paid search data with Semrush
+integration:
+  type: "semrush"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="semrush"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Semrush](https://www.semrush.com/) to query SEO reports for domains, subdomains, URLs, keywords, and backlinks. Choose a regional database and, where supported, a historical month in `YYYYMM15` format. Domain vs. Domain compares up to five domains.
@@ -22,7 +20,6 @@ Requests authenticate with a `key` query parameter and are billed in **API units
 
 The Semrush **Trends**, **Projects** (Site Audit, Position Tracking), and **Listing Management** APIs are separate products with their own endpoints and subscriptions, and are not part of this block. Three SEO API reports are also excluded: **Comparison by Referring Domains** (`backlinks_matrix`) and **Batch Comparison** (`backlinks_comparison`), whose multi-target array parameters do not fit the shared request builder, and **Subdomain Organic Pages** (`subdomain_organic_unique`), whose documented response format is inconsistent with every other report.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

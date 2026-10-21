@@ -1,15 +1,13 @@
 ---
 title: Tailscale
 description: Manage devices and network settings in your Tailscale tailnet
+integration:
+  type: "tailscale"
+  color: "#2E2D2D"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="tailscale"
-  color="#2E2D2D"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Tailscale](https://tailscale.com) to manage devices, DNS, ACLs, auth keys, users, and routes in a tailnet.
@@ -29,7 +27,6 @@ You must have an **Owner**, **Admin**, **IT admin**, or **Network admin** role t
 
 Every operation requires a **tailnet** parameter. This is typically your organization's domain name (e.g., `example.com`). You can also use `"-"` to refer to your default tailnet.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

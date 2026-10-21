@@ -1,15 +1,13 @@
 ---
 title: Microsoft Dynamics 365 CRM
 description: Manage customers, sales pipelines, and support cases in Dynamics 365 CRM
+integration:
+  type: "microsoft_dynamics_365"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_dynamics_365"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Microsoft Dynamics 365 CRM](https://www.microsoft.com/en-us/dynamics-365) stores its sales and customer-service data in Microsoft Dataverse. This integration presents the standard CRM tables and lifecycle actions while keeping the generic Microsoft Dataverse integration available for custom tables and advanced operations.
@@ -21,7 +19,6 @@ Two block operations intentionally reuse the new CRM tools under a simpler CRM l
 
 Connect one credential per Dynamics environment. The credential is bound to that environment during Microsoft OAuth, and CRM requests refuse a different environment. This release supports public-cloud Dataverse hosts only.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

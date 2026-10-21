@@ -1,15 +1,13 @@
 ---
 title: TinyFish
 description: Automate and read the live web
+integration:
+  type: "tinyfish"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="tinyfish"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [TinyFish](https://www.tinyfish.ai/) to run a browser agent from a starting URL and natural-language goal, search the web, or fetch rendered page content.
@@ -56,7 +54,6 @@ When hosted keys are enabled for the deployment, **Run Agent**, **Search**, and 
 
 A failed automation comes back as HTTP 200 with the failure inside the run's own `error` object, so read `status` rather than assuming success. The `category` tells you what to do: `AGENT_FAILURE` means the goal or the site needs attention, `SYSTEM_FAILURE` is worth retrying after `retryAfter` seconds, and `BILLING_FAILURE` means the TinyFish wallet is empty. All of that is on the block's `error` output, so a workflow can branch on it without parsing a message string.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

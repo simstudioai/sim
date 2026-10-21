@@ -1,20 +1,17 @@
 ---
 title: Dropcontact
 description: Enrich B2B contacts with verified email, phone, and company data
+integration:
+  type: "dropcontact"
+  color: "#0ABA9F"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="dropcontact"
-  color="#0ABA9F"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Dropcontact](https://www.dropcontact.com/) to enrich contact data from a name, company, website, or LinkedIn URL. Requests are asynchronous; Sim makes up to 24 polls, waiting five seconds before each attempt, then fails if the result is still pending. Request time adds to that wait budget. With your own API key, [Dropcontact charges one credit](https://developer.dropcontact.com/) when enrichment returns a verified email, or when you supply an existing email for verification. Inspect `qualification` before using a returned address.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

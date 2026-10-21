@@ -1,20 +1,17 @@
 ---
 title: Athena
 description: Run SQL queries on data in Amazon S3 using AWS Athena
+integration:
+  type: "athena"
+  color: "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="athena"
-  color="linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Amazon Athena](https://aws.amazon.com/athena/) queries data in Amazon S3 with SQL. Start a query, check its execution status, then retrieve the results; cancel a query when needed. Run parameterized queries with execution parameters and prepared statements, reuse recent results, and read runtime statistics after a query completes. The integration also manages named queries, browses data catalogs, databases, and table schemas, and inspects workgroup configuration. Connect with an AWS access key and secret access key.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

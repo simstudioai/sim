@@ -1,15 +1,13 @@
 ---
 title: Cloudflare
 description: Manage DNS, WAF, Zero Trust access, and edge infrastructure
+integration:
+  type: "cloudflare"
+  color: "#F5F6FA"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudflare"
-  color="#F5F6FA"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Cloudflare](https://cloudflare.com/) in Sim to manage zones, DNS, cache, WAF rules, rate limits, and Zero Trust Access. Manage Worker routes and tunnels, configure R2 CORS and lifecycle rules, and read certificates, analytics, and Worker settings.
@@ -20,7 +18,6 @@ For structured inputs, enter JSON or connect an upstream block output. DNS recor
 
 Read a resource before replacing it and resend the fields you want to keep. Access applications and policies, rules, tunnel configuration, R2 policies, and Worker routes have replacement semantics. Rulesets operations that expose `dry_run` can validate a request without saving it; successful validation may return empty resource fields. List operations return one page; use page numbers or the returned cursor to continue.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

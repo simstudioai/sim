@@ -1,22 +1,19 @@
 ---
 title: Google Sheets
 description: Read, write, and update data with sheet selection
+integration:
+  type: "google_sheets_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_sheets_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Sheets](https://www.google.com/sheets/about/) to read and write cell ranges, append rows, clear values, and create or inspect spreadsheets. Batch actions read, update, or clear multiple ranges; sheet-copy actions duplicate sheets within or between spreadsheets.
 
 Provide the spreadsheet ID and range required by the selected operation. Read the returned values or update counts before passing data to later workflow steps.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

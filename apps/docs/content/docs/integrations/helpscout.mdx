@@ -1,15 +1,13 @@
 ---
 title: Help Scout
 description: Manage Help Scout conversations, replies, notes, and customers
+integration:
+  type: "helpscout"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="helpscout"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Help Scout](https://www.helpscout.com/) to manage support conversations and customers, or start workflows from conversation and customer events.
@@ -22,7 +20,6 @@ Triggers require an OAuth connection. Select the account and, optionally, an inb
 
 To make past support history searchable, add Help Scout as a [knowledge base source](/knowledgebase/connectors). Sync conversations and threads from one inbox or all inboxes, with internal notes included only when selected.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

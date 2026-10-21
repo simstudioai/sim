@@ -1,22 +1,19 @@
 ---
 title: CloudWatch
 description: Query and monitor AWS CloudWatch logs, metrics, and alarms
+integration:
+  type: "cloudwatch"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudwatch"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS CloudWatch](https://aws.amazon.com/cloudwatch/) to query logs, retrieve log events, inspect log groups and streams, read metrics and alarms, and publish custom metric data. Connect with an AWS access key ID and secret access key.
 
 Choose **Query Logs (Insights)** for a query across log groups, or **Get Log Events** for one stream. Metric statistics use a time range and period; alarm actions report the current state. Pass results to later steps for incident investigation or threshold-based notifications.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: RabbitMQ
 description: Publish and read messages and manage queues in RabbitMQ
+integration:
+  type: "rabbitmq"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="rabbitmq"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [RabbitMQ](https://www.rabbitmq.com/)'s Management HTTP API to publish and inspect messages, manage queue topology, and check broker health. Messages are published to exchanges and routed through bindings into queues.
@@ -25,7 +23,6 @@ The default acknowledgement mode requeues messages after reading them, so an ins
 - Queue statistics such as message and consumer counts are **collected on an interval**, so a queue declared moments ago may report them as empty until the broker's next sample.
 - Reading messages is **bounded per call** so one retrieval cannot exceed Sim's response limit. A batch is capped at 50 messages, payloads are truncated (each message reports whether it was), and a large batch shortens payloads further. AMQP properties and headers are returned in full — the broker offers no way to truncate them — so retrieving several messages carrying very large headers may still hit the limit; lower the count if that happens.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

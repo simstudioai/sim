@@ -1,14 +1,11 @@
 ---
 title: Deployments
 description: Manage workflow deployments
+integration:
+  type: "deployments"
+  color: "#0C0C0C"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="deployments"
-  color="#0C0C0C"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the Deployments block to manage other workflows in the current workspace. Deploy creates a new version; Promote Version to Live makes an existing version live without creating another. Undeploy takes a workflow offline and removes its triggers, webhooks, and schedules.

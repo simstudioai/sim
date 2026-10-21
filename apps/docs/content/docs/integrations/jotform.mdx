@@ -1,15 +1,13 @@
 ---
 title: Jotform
 description: Read submissions, manage forms, and wire up webhooks in Jotform
+integration:
+  type: "jotform"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="jotform"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Jotform](https://www.jotform.com/) to manage forms and submissions, create reports, and configure submission webhooks. Submission answers are available by question ID and question label; writes require the question IDs described below.
@@ -30,7 +28,6 @@ Submissions are keyed by question ID, not by label. Run **List Questions** on a 
 
 [Jotform has deprecated its folder endpoints](https://api.jotform.com/docs/) in favor of labels. This integration implements labels only; if you have existing automations built on folder IDs, migrate them to the label operations.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

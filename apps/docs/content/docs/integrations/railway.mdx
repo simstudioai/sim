@@ -1,22 +1,19 @@
 ---
 title: Railway
 description: Manage Railway projects, services, deployments, and variables
+integration:
+  type: "railway"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="railway"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Railway](https://railway.com/) to list projects, inspect their services and environments, monitor deployments, deploy a service, or roll back a deployment. Read or update service and shared environment variables through Railway's public GraphQL API.
 
 Use project, service, and environment IDs from lookup actions in later release steps. Confirm the target environment before changing variables or starting a deployment.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

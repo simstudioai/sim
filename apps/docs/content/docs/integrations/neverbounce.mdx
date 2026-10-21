@@ -1,14 +1,11 @@
 ---
 title: NeverBounce
 description: Verify email deliverability and check account credits
+integration:
+  type: "neverbounce"
+  color: "#064AF4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="neverbounce"
-  color="#064AF4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use NeverBounce to verify an email address and read remaining paid and free verification credits. Results classify the address as valid, invalid, disposable, catch-all, or unknown and include role-account and free-provider flags. Treat catch-all and unknown results as inconclusive rather than confirmed delivery.

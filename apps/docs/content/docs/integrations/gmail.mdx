@@ -1,20 +1,17 @@
 ---
 title: Gmail
 description: Send, read, search, and move Gmail messages or trigger workflows from Gmail events
+integration:
+  type: "gmail_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="gmail_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Gmail](https://mail.google.com/) to send or draft messages, read and search mail, and manage labels and read status. Gmail triggers can start a workflow when new mail arrives.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

@@ -1,15 +1,13 @@
 ---
 title: ManageEngine ServiceDesk Plus
 description: Manage ServiceDesk Plus Cloud requests, problems, changes, assets, and knowledge base solutions
+integration:
+  type: "manageengine_sdp"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="manageengine_sdp"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [ManageEngine ServiceDesk Plus Cloud](https://www.manageengine.com/products/service-desk/) to manage requests, problems, changes, assets, and knowledge-base solutions through its v3 REST API. The 31 operations cover create, read, list, update, and delete across those modules, plus request, problem, and change notes.
@@ -35,7 +33,6 @@ Three things shape what will work:
 - **Lists cap at 100 rows.** `Row Count` is clamped to the documented maximum; page with `Start Index` and watch `has_more_rows` in the returned `listInfo`. Set **Include Total Count** when you need the true size of a queue rather than the page size.
 - **The standalone Tasks module is not covered.** Its endpoints are documented but the ServiceDesk Plus scope table publishes no `tasks` entry, so requesting one would put an unverified scope on the consent screen.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

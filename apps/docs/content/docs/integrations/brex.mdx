@@ -1,15 +1,13 @@
 ---
 title: Brex
 description: Manage expenses, receipts, transactions, and team data in Brex
+integration:
+  type: "brex"
+  color: "#171717"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="brex"
-  color="#171717"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Brex](https://www.brex.com/) to retrieve spend data, update expense memos, manage budgets and vendors, and create transfers.
@@ -22,7 +20,6 @@ Use [Brex](https://www.brex.com/) to retrieve spend data, update expense memos, 
 
 Authenticate with a Brex user token from **Developer → Settings** in the Brex dashboard. **Create Transfer** can move money from a Brex cash account to a vendor. Set **Approval Type** to `MANUAL` when the transfer should require cash-admin approval, and inspect its returned status before assuming payment completed. Archiving a budget makes its child spend limits unusable for future expenses. The block does not issue cards or expose card numbers.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: PostHog
 description: Product analytics and feature management
+integration:
+  type: "posthog"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="posthog"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [PostHog](https://posthog.com/) to capture events, query analytics, and manage people, insights, feature flags, experiments, cohorts, and surveys. Read session recordings, organize dashboards, and add annotations using the operations below.
@@ -20,7 +18,6 @@ Choose event capture or batch capture to record activity. For reporting, retriev
 
 **Delete Person** submits a person ID to PostHog's bulk-deletion endpoint without requesting event or recording deletion. [PostHog can accept the request and queue it for background deletion](https://posthog.com/docs/privacy/data-storage). Sim currently checks `persons_deleted`, so a queued deletion can appear as a failed block. Verify the person in PostHog before treating that result as unchanged data or retrying.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

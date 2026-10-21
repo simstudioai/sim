@@ -1,15 +1,13 @@
 ---
 title: Ramp
 description: Read spend, bills, cards, and reimbursements, and add transaction memos in Ramp
+integration:
+  type: "ramp"
+  color: "#E4F222"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ramp"
-  color="#E4F222"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Ramp](https://ramp.com/) helps businesses manage corporate cards, expenses, bills, and reimbursements.
@@ -29,7 +27,6 @@ The OAuth deployment settings below apply to the optional browser consent flow. 
 
 List operations return one page at a time, with 2–100 results per page. Pass `nextCursor` as the pagination cursor to continue. Money outputs preserve Ramp's currency and minor-unit fields; avoid combining different currencies.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

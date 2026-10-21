@@ -1,15 +1,13 @@
 ---
 title: Linq
 description: Send iMessage, SMS, and RCS messages and manage conversations with Linq
+integration:
+  type: "linq"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="linq"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Linq](https://linqapp.com/) to send and read messages over iMessage, SMS, and RCS with an API key.
@@ -18,7 +16,6 @@ The 34 operations cover chats, messages, attachments, phone numbers, capability 
 
 Check iMessage or RCS capability before selecting a preferred service. Upload attachments up to the operation's 100 MB limit. Webhook subscriptions cover message, reaction, participant, and call events, with HMAC-SHA256 signature verification.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

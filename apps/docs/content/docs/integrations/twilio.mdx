@@ -1,21 +1,17 @@
 ---
 title: Twilio
 description: Start workflows from Twilio events
+integration:
+  type: "twilio"
+  color: "#6B7280"
 ---
 
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard
-  type="twilio"
-  color="#6B7280"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use Twilio triggers in Sim to start workflows from messaging events. **Message Status** reports status changes for a sent message, including its SID and any error code. **SMS Received** provides the sender, recipient, body, and media from an inbound SMS or MMS.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Triggers
 

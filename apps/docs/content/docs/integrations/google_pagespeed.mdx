@@ -1,15 +1,13 @@
 ---
 title: Google PageSpeed
 description: Analyze webpage performance with Google PageSpeed Insights
+integration:
+  type: "google_pagespeed"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_pagespeed"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google PageSpeed Insights](https://pagespeed.web.dev/) to analyze a public URL with Lighthouse. Choose desktop or mobile strategy and a locale, then retrieve performance, accessibility, SEO, and best-practice results. Performance metrics include First Contentful Paint, Largest Contentful Paint, and Speed Index.
@@ -25,7 +23,6 @@ Pass scores and diagnostics into reporting or alerting steps. An automated acces
 
 See Google's [PageSpeed API setup](https://developers.google.com/speed/docs/insights/v5/get-started) for project and authentication requirements.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

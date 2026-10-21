@@ -1,15 +1,13 @@
 ---
 title: Azure DevOps
 description: Interact with Azure DevOps pipelines, builds, and work items
+integration:
+  type: "azure_devops"
+  color: "#0078D4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="azure_devops"
-  color="#0078D4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Azure DevOps](https://azure.microsoft.com/en-us/products/devops) to inspect pipelines and run history, retrieve build timelines and logs, and manage work items and comments.
@@ -19,7 +17,6 @@ Use [Azure DevOps](https://azure.microsoft.com/en-us/products/devops) to inspect
 - Create or update work items with titles, descriptions, priority, assignees, area paths, iterations, tags, effort, and dates.
 - Start workflows from service hooks when builds fail or work items are created.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

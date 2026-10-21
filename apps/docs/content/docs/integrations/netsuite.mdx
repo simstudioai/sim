@@ -1,15 +1,13 @@
 ---
 title: Oracle NetSuite
 description: Manage NetSuite records, queries, datasets, batches, and async jobs
+integration:
+  type: "netsuite"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="netsuite"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Oracle NetSuite](https://www.netsuite.com/) is a cloud ERP platform for financials, order management, inventory, procurement, CRM, and analytics. Sim connects through SuiteTalk REST Web Services using NetSuite's OAuth 2.0 client-credentials flow; it does not require a RESTlet or a user-interactive login.
@@ -32,7 +30,6 @@ Follow the [Oracle NetSuite service-account setup](/integrations/netsuite-servic
 - **Get Governance Limits** returns data only for roles allowed by NetSuite; Oracle documents Administrator access for that operation.
 - This integration does not include a trigger. SuiteTalk has no generic API for registering record-change webhooks; polling or customer-deployed SuiteScript requires a separate design.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [Service account](/integrations/netsuite-service-account).
 

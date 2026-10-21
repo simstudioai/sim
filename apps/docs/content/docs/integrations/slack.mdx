@@ -1,15 +1,13 @@
 ---
 title: Slack
 description: Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions
+integration:
+  type: "slack_v2"
+  color: "#611f69"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="slack_v2"
-  color="#611f69"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Slack](https://www.slack.com/) to send and manage messages, work with canvases, and inspect channels and users. Custom bots also support Agent Sessions and streamed trigger responses.
@@ -47,7 +45,6 @@ Review model-generated Slack messages where your communication process requires 
 
 For help with the Slack integration, contact [help@sim.ai](mailto:help@sim.ai).
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

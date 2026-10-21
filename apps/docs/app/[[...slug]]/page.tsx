@@ -24,8 +24,8 @@ import { APIExampleSelector } from '@/components/ui/api-example-selector'
 import { APIRequestTabs } from '@/components/ui/api-request-tabs'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
+import { IntegrationIcon } from '@/components/ui/integration-icon'
 import { ResponseSection } from '@/components/ui/response-section'
-import { getIntegrationLandingPage, INTEGRATION_LANDING_LABEL } from '@/lib/integration-landing'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
@@ -209,7 +209,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
-  const integrationLandingPage = getIntegrationLandingPage(slug)
   const isCli = slug?.[0] === 'cli'
   const isMcp = slug?.[0] === 'mcp'
 
@@ -354,7 +353,11 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           component: footer,
         }}
       >
-        <PageHeader title={data.title} className='max-sm:[&>h1]:basis-0 max-sm:[&_a]:size-10'>
+        <PageHeader
+          title={data.title}
+          icon={data.integration && <IntegrationIcon {...data.integration} />}
+          className='max-sm:[&>h1]:basis-0 max-sm:[&_a]:size-10'
+        >
           <div className='hidden sm:flex'>
             <LLMCopyButton content={markdownContent} />
           </div>
@@ -366,12 +369,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
             slug?.[0] === 'integrations' && '[&_td]:[overflow-wrap:normal]'
           )}
         >
-          {integrationLandingPage && (
-            <p>
-              {INTEGRATION_LANDING_LABEL}{' '}
-              <a href={integrationLandingPage.url}>{integrationLandingPage.title}</a>
-            </p>
-          )}
           <MDX
             components={{
               ...defaultMdxComponents,

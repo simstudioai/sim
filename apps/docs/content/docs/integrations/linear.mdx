@@ -1,22 +1,19 @@
 ---
 title: Linear
 description: Interact with Linear issues, projects, and more
+integration:
+  type: "linear_v2"
+  color: "#5E6AD2"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="linear_v2"
-  color="#5E6AD2"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Linear](https://linear.app) to manage issues, labels, comments, projects, cycles, attachments, issue relations, and customers. The actions also list users, teams, workflow states, notifications, and favorites.
 
 Connect an account or [personal API key](/integrations/linear-service-account) with access to the target teams. Use returned IDs to connect issue and project operations, and consult the action reference for archive, unarchive, merge, and delete behavior.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [API keys](/integrations/linear-service-account).
 

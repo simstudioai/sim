@@ -1,22 +1,19 @@
 ---
 title: Dagster
 description: Orchestrate data pipelines and manage job runs with Dagster
+integration:
+  type: "dagster"
+  color: "#ffffff"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="dagster"
-  color="#ffffff"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Dagster](https://dagster.io/) to launch jobs, inspect run status and logs, terminate or delete runs, and reexecute failed runs. List jobs across repositories and start or stop schedules and sensors on the connected instance.
 
 For example, start a job from a workflow, poll its run status, then retrieve logs if it fails. Provide the instance's GraphQL endpoint. [Dagster+ requires an API token](https://docs.dagster.io/api/graphql/graphql-client); authentication for a self-hosted endpoint depends on how you expose it.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

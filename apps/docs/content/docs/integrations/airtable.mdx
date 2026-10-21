@@ -1,22 +1,19 @@
 ---
 title: Airtable
 description: Read, create, and update Airtable
+integration:
+  type: "airtable"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="airtable"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Airtable](https://airtable.com/) to list bases and table schemas, read or write records, and start workflows from record changes. For token setup, see [Personal Access Tokens](/integrations/airtable-service-account).
 
 Trigger mode handles record creation, updates, and deletion. Inspect `payloads` or `latestPayload` for Airtable's raw changes; deleted record IDs are under `changedTablesById[tableId].destroyedRecordIds`. The `airtableChanges` array currently consolidates created and updated records and returns changed cell values in `changedFields`.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [Personal access tokens](/integrations/airtable-service-account).
 

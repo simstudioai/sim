@@ -1,15 +1,13 @@
 ---
 title: Greenhouse
 description: Manage recruiting with Greenhouse Harvest v3
+integration:
+  type: "greenhouse_v2"
+  color: "#469776"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="greenhouse_v2"
-  color="#469776"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Greenhouse](https://www.greenhouse.com/) to manage recruiting through Harvest v3. The current block supports 50 operations covering candidates, applications, notes, attachments, tags, hiring teams, interviews, scorecards, offers, and reference data. Existing webhook triggers remain available.
@@ -38,7 +36,6 @@ When updating candidate contact arrays, tags, or linked users, read the current 
 
 See the [Harvest v3 API reference](https://harvestdocs.greenhouse.io/reference/get_v3-candidates), [list filtering guide](https://harvestdocs.greenhouse.io/docs/list-endpoints), and [write migration guide](https://harvestdocs.greenhouse.io/docs/write-endpoint-migration-guide) for provider behavior.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

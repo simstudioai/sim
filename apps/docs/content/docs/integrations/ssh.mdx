@@ -1,22 +1,19 @@
 ---
 title: SSH
 description: Connect to remote servers via SSH
+integration:
+  type: "ssh_v2"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ssh_v2"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use SSH to execute remote commands or scripts, transfer files, and manage files and directories. Connect to a reachable server with a password or an OpenSSH-format private key.
 
 The actions also check whether commands or paths exist, list directory contents, and retrieve OS, architecture, uptime, disk, and memory information. Provide the remote path, command, or script inputs required by the selected operation.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

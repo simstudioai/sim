@@ -1,22 +1,19 @@
 ---
 title: Amazon SQS
 description: Connect to Amazon SQS
+integration:
+  type: "sqs"
+  color: "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sqs"
-  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Amazon SQS](https://aws.amazon.com/sqs/) to send, receive, and delete messages, extend visibility timeouts, and manage queues, attributes, and tags. Batch message actions accept up to 10 entries. Dead-letter actions list source queues and start, inspect, or cancel message move tasks.
 
 A workflow can long-poll for work, process each message, and delete it after success. Receiving a message does not remove it: if processing fails and it is not deleted, it becomes available again after the visibility timeout.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

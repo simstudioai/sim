@@ -1,20 +1,17 @@
 ---
 title: CloudFormation
 description: Manage and inspect AWS CloudFormation stacks, resources, and drift
+integration:
+  type: "cloudformation"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudformation"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS CloudFormation](https://aws.amazon.com/cloudformation/) to manage template-defined resource stacks. Create or update stacks, preview changes with change sets, inspect resources and events, and check drift or template validity from a workflow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

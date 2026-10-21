@@ -1,22 +1,19 @@
 ---
 title: Splunk
 description: Run SPL searches and manage saved searches and alerts in Splunk
+integration:
+  type: "splunk"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="splunk"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Splunk](https://www.splunk.com/) with a bearer token to search logs, metrics, and events in Splunk Enterprise or Splunk Cloud. **Run Search** returns a synchronous result; for longer searches, create a job, inspect its status, page through its results, and cancel it when needed.
 
 Saved-search actions list, read, and dispatch existing searches. Alert actions inspect fired alerts and their instances. Index and app lookups help identify the data and configuration available to the credential.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

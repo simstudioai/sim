@@ -1,15 +1,13 @@
 ---
 title: Snowflake
 description: Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake
+integration:
+  type: "snowflake"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="snowflake"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Snowflake](https://www.snowflake.com/) stores data in databases and schemas and uses virtual warehouses to run queries. Sim connects over the SQL API with a programmatic access token.
@@ -24,7 +22,6 @@ Use the block to execute SQL, synchronize rows, move staged data, manage warehou
 - Snowflake bills each successful answer, and running the SQL uses warehouse credits on top.
 - Snowflake now recommends Cortex Agents for new builds; Cortex Analyst remains available.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [Programmatic access tokens](/integrations/snowflake-service-account).
 

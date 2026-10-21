@@ -1,22 +1,19 @@
 ---
 title: UptimeRobot
 description: Monitor uptime, manage incidents, maintenance windows, and status pages
+integration:
+  type: "uptimerobot"
+  color: "#111921"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="uptimerobot"
-  color="#111921"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [UptimeRobot](https://uptimerobot.com/) v3 to create, update, pause, start, or delete monitors and inspect incidents. Configure HTTP, keyword, ping, port, heartbeat, DNS, API, or UDP checks using the inputs supported by the selected monitor type.
 
 The actions also manage one-time or recurring maintenance windows, email alert contacts, and public status pages with optional domains, logos, and icons. Use maintenance windows to suppress alerts during planned downtime and inspect incidents when a check fails.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

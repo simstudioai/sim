@@ -1,15 +1,13 @@
 ---
 title: AWS Systems Manager
 description: Run commands, manage parameters, and audit managed nodes
+integration:
+  type: "ssm"
+  color: "#E7157B"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ssm"
-  color="#E7157B"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS Systems Manager](https://aws.amazon.com/systems-manager/) to run commands on managed nodes, read and write Parameter Store values, inspect inventory and compliance, and manage Automation runbooks.
@@ -24,7 +22,6 @@ Reads are exposed the same way. Once you enable decryption the plaintext is ordi
 
 Enable decryption only on the steps that need the plaintext, prefer environment-variable references over typed literals when writing, and treat the run logs of any workflow that touches SecureString values as secret material.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

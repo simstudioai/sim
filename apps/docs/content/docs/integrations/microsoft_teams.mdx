@@ -1,15 +1,13 @@
 ---
 title: Microsoft Teams
 description: Manage messages, reactions, and members in Teams
+integration:
+  type: "microsoft_teams"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_teams"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Teams](https://teams.microsoft.com) to read, send, update, or delete chat and channel messages, reply to threads, and add reactions. List teams, chats, channels, and their members to resolve destinations.
@@ -18,7 +16,6 @@ Switch to trigger mode to start a workflow from message notifications in a selec
 
 Chat subscriptions request creation and update notifications, but Sim deduplicates them by subscription and message ID within a seven-day window. Later edits may not start a separate workflow run.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

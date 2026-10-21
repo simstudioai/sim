@@ -1,22 +1,19 @@
 ---
 title: Claude Managed Agents
 description: Run a Claude Platform Managed Agent
+integration:
+  type: "managed_agent"
+  color: "#DA7756"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="managed_agent"
-  color="#DA7756"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Call a [Claude Managed Agent](https://www.anthropic.com/) hosted on the Claude Platform from a Sim workflow. Select a Claude Platform account, agent, and environment, then send the task message.
 
 Optional inputs attach credential vaults, a memory store with read or write access and usage instructions, files, and metadata tags. The **Run session (create, send, wait for reply)** operation waits for the reply and returns final text and a session ID, with token usage when available, for downstream processing and cost tracking. Outputs from the other operations depend on the selected action. Session actions also create, inspect, interrupt, archive, update, or delete sessions; read events; and submit custom-tool results or confirmation responses. File attachments are supported for cloud environments.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

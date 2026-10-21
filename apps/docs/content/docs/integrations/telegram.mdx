@@ -1,15 +1,13 @@
 ---
 title: Telegram
 description: Interact with Telegram
+integration:
+  type: "telegram"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="telegram"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Telegram](https://telegram.org)'s Bot API to send messages, photos, videos, audio, animations, documents, locations, contacts, or polls. Message actions also edit, forward, copy, pin, delete, and react; chat actions retrieve chat or member details and show status indicators.
@@ -34,7 +32,6 @@ The [webhook setup video](https://www.youtube.com/embed/9oKcJtQ0_IM) also demons
 
 The [group messaging video](https://www.youtube.com/embed/AG55LpUreGI) demonstrates the block configuration. Bot privacy settings affect which group messages Telegram delivers; receiving a command addressed to the bot can help verify the trigger before changing those settings.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

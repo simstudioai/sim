@@ -1,22 +1,19 @@
 ---
 title: Monday
 description: Manage Monday.com boards, items, and groups
+integration:
+  type: "monday"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="monday"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Monday.com](https://monday.com/) to manage boards, groups, columns, items, and subitems. Read or search items by column values, create or update them, duplicate or move them between groups, and archive or delete them. Updates let a workflow post comments.
 
 Webhook triggers start workflows when items are created, deleted, or moved; column or status values change; or updates are posted. Use these events to synchronize board activity with another system.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [API tokens](/integrations/monday-service-account).
 

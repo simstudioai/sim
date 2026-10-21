@@ -1,15 +1,13 @@
 ---
 title: Sportmonks
 description: Access Sportmonks football, motorsport, odds, and reference data
+integration:
+  type: "sportmonks"
+  color: "#171534"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sportmonks"
-  color="#171534"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Sportmonks](https://www.sportmonks.com/) to query sports and reference data.
@@ -21,7 +19,6 @@ Use [Sportmonks](https://www.sportmonks.com/) to query sports and reference data
 
 Use `include` to retrieve supported related data, such as statistics or match details. Available leagues, datasets, and related entities depend on your Sportmonks subscription; an operation's presence in Sim does not grant provider access.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

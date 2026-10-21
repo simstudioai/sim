@@ -1,15 +1,13 @@
 ---
 title: Fivetran
 description: Manage Fivetran connections, syncs, and transformations
+integration:
+  type: "fivetran"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="fivetran"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Fivetran](https://www.fivetran.com/) to manage connections and monitor data syncs.
@@ -30,7 +28,6 @@ Triggers take the API key and secret directly. When you deploy the workflow, Sim
 
 Triggers cover sync start/end, connection success/failure/change, table re-sync, and transformation start/success/failure events.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

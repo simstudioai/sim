@@ -1,15 +1,13 @@
 ---
 title: Dynatrace
 description: Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security
+integration:
+  type: "dynatrace"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="dynatrace"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Dynatrace](https://www.dynatrace.com/) to inspect observability and security data, manage problems and configuration, or submit metrics, logs, and events.
@@ -78,7 +76,6 @@ Most Dynatrace configuration is a *settings object*: a JSON `value` whose shape 
 
 List operations return a `nextPageKey` (a `nextSliceKey` for log search). Feed it back into the next call to read the following page. Dynatrace encodes the original filters into the cursor, so Sim sends the cursor alone and ignores the other filters on that call — which is what the API requires.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

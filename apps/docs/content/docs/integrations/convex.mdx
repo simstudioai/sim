@@ -1,15 +1,13 @@
 ---
 title: Convex
 description: Use Convex database
+integration:
+  type: "convex"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="convex"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Connect to [Convex](https://www.convex.dev/) with a deployment URL and deploy key from that deployment's settings. Grant the key the function and data access required by your operations.
@@ -18,7 +16,6 @@ Use **Run Query**, **Run Mutation**, or **Run Action** to call a function with J
 
 Function calls are available across plans. List Tables, List Documents, and Document Deltas use [streaming export](https://docs.convex.dev/production/integrations/streaming-import-export), which Convex documents as requiring a Pro plan. Its deploy key needs `deployment:data:view`; confirm that your current plan includes streaming export.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

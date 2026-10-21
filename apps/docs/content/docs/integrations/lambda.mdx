@@ -1,15 +1,13 @@
 ---
 title: Lambda
 description: Invoke, deploy, and manage AWS Lambda functions
+integration:
+  type: "lambda"
+  color: "linear-gradient(45deg, #C8511B 0%, #FF9900 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="lambda"
-  color="linear-gradient(45deg, #C8511B 0%, #FF9900 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [AWS Lambda](https://aws.amazon.com/lambda/) is a serverless compute service that runs your code in response to events and scales automatically, with no servers to manage. You package code as a .zip archive or a container image, give it an execution role, and Lambda handles provisioning, scaling, and logging.
@@ -36,7 +34,6 @@ Function code is supplied from Amazon S3 (bucket, key, and optional object versi
 
 Use CloudWatch for function logs and metrics, S3 for deployment archives, and SQS for queue-backed event sources.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
