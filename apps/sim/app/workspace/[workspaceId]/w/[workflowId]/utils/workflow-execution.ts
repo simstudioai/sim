@@ -1155,6 +1155,7 @@ export async function executeWorkflowWithFullLogging(
           finishRunningEntries(wfId, executionIdRef.current)
           executionResult = {
             success: true,
+            status: 'paused',
             output: data.output,
             logs: accumulatedBlockLogs,
             metadata: {
