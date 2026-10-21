@@ -15,6 +15,8 @@ interface ActivityStreamProps extends Omit<ActivityDisclosureProps, 'header'> {
   expandedLabel?: string
   attentionKey: string
   collapsible: boolean
+  /** The label only stands in until the header's call names itself (see `usePacedActivity`). */
+  placeholder?: boolean
 }
 
 /**
@@ -22,39 +24,44 @@ interface ActivityStreamProps extends Omit<ActivityDisclosureProps, 'header'> {
  * interval, and a burst of changes inside it settles on the latest. The label is paced across
  * liveness too: between a run's calls the lane briefly loses its live indicator, and an unpaced
  * label would flash the finished call's title before the next call's. A change of `resetKey`
- * (attention, disclosure) and an expanded group show at once.
+ * (attention, disclosure) and an expanded group show at once, and a placeholder (a call still
+ * awaiting its own title) never holds the header, so the title replaces it as soon as it streams.
  */
 export function usePacedActivity(
   activity: ActivityStatusProps,
   activityKey: string | undefined,
   resetKey: string,
-  immediate: boolean
+  immediate: boolean,
+  placeholder = false
 ): ActivityStatusProps {
   const key = `${activityKey}:${activity.label}`
   const [visible, setVisible] = useState(() => ({
     activity,
     key,
     resetKey,
+    placeholder,
     shownAt: Date.now(),
   }))
 
   if (visible.resetKey !== resetKey) {
-    setVisible({ activity, key, resetKey, shownAt: Date.now() })
+    setVisible({ activity, key, resetKey, placeholder, shownAt: Date.now() })
   }
 
   useEffect(() => {
     if (immediate || key === visible.key) return
-    const remaining = Math.max(0, ACTIVITY_UPDATE_INTERVAL_MS - (Date.now() - visible.shownAt))
-    const flush = () => setVisible({ activity, key, resetKey, shownAt: Date.now() })
+    const remaining = visible.placeholder
+      ? 0
+      : Math.max(0, ACTIVITY_UPDATE_INTERVAL_MS - (Date.now() - visible.shownAt))
+    const flush = () => setVisible({ activity, key, resetKey, placeholder, shownAt: Date.now() })
     if (remaining === 0) {
       flush()
       return
     }
     const timer = setTimeout(flush, remaining)
     return () => clearTimeout(timer)
-  }, [activity, key, resetKey, immediate, visible.key, visible.shownAt])
+  }, [activity, key, resetKey, immediate, placeholder, visible])
 
-  return immediate || key === visible.key ? activity : visible.activity
+  return immediate || key === visible.key || visible.placeholder ? activity : visible.activity
 }
 
 /** Pace only the header; history and interactive tool state continue updating immediately. */
@@ -69,13 +76,15 @@ export function ActivityStream({
   onToggle,
   isStreaming,
   unbounded,
+  placeholder,
 }: ActivityStreamProps) {
   const isExpanded = collapsible && expanded
   const displayed = usePacedActivity(
     activity,
     activityKey,
     `${isExpanded}:${Boolean(activityKey)}:${attentionKey}`,
-    isExpanded
+    isExpanded,
+    placeholder
   )
   const header = (
     <ActivityStatus

@@ -15,17 +15,23 @@ describe('usePacedActivity', () => {
     label,
     isActive,
     callId,
+    placeholder,
   }: {
     label: string
     isActive: boolean
     callId: string
+    placeholder: boolean
   }) {
-    shown = usePacedActivity({ label, isActive, icon: null }, callId, 'reset', false)
+    shown = usePacedActivity({ label, isActive, icon: null }, callId, 'reset', false, placeholder)
     return null
   }
 
-  function show(label: string, isActive: boolean, callId: string) {
-    act(() => root.render(<Harness label={label} isActive={isActive} callId={callId} />))
+  function show(label: string, isActive: boolean, callId: string, placeholder = false) {
+    act(() =>
+      root.render(
+        <Harness label={label} isActive={isActive} callId={callId} placeholder={placeholder} />
+      )
+    )
     return shown?.label
   }
 
@@ -56,5 +62,11 @@ describe('usePacedActivity', () => {
     show('Listed workflows', false, 'call-1')
     act(() => vi.advanceTimersByTime(700))
     expect(shown?.label).toBe('Listed workflows')
+  })
+
+  it("replaces a placeholder with the call's title as soon as it streams", () => {
+    expect(show('Thinking', true, 'call-1', true)).toBe('Thinking')
+    act(() => vi.advanceTimersByTime(100))
+    expect(show('Looking up the failed run', true, 'call-1')).toBe('Looking up the failed run')
   })
 })

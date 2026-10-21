@@ -102,7 +102,7 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
  * A call awaiting approval is never untitled, so its permission card keeps the
  * header, and neither is one the model already described.
  */
-function isAwaitingTitle(tool: ToolCallData): boolean {
+export function isAwaitingTitle(tool: ToolCallData): boolean {
   if (tool.status !== ToolCallStatus.executing || tool.activityDescription) return false
   if (tool.toolName === CallIntegrationTool.id) {
     const description =
@@ -259,6 +259,7 @@ export function ToolActivityGroup({
             icon: status.icon,
           }}
           activityKey={headerTool.id}
+          placeholder={working && isAwaitingTitle(headerTool)}
           attentionKey={attentionKey}
           expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
           collapsible={tools.length > 1 || hasSearchDetails}
