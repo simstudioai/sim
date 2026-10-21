@@ -604,7 +604,9 @@ jobs:
 
       - name: Empty the dev cache
         if: steps.broken.outputs.key != ''
-        run: find apps/sim/.next/dev -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        run: |
+          mkdir -p apps/sim/.next/dev
+          find apps/sim/.next/dev -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
   # Lint, audits, type-check and the schema sync check: about two minutes of mostly cached work,
   # kept off the test shards so neither waits on the other.
