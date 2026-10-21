@@ -299,6 +299,32 @@ function OrganizationHomeContent({
     files.clearAttachedFiles()
   }
 
+  const editQueuedMessage = (id: string) => {
+    const queued = chat.editQueuedMessage(id)
+    if (queued) {
+      const queuedMode = queued.requestMode ?? requestMode
+      setSelectedMode(queuedMode)
+      setDraft(queued.content, queued.contexts)
+      setRestoredContexts(queued.contexts ?? [])
+      files.restoreAttachedFiles(
+        (queued.fileAttachments ?? []).map((file) => ({
+          id: file.id,
+          key: file.key,
+          name: file.filename,
+          type: file.media_type,
+          size: file.size,
+          path:
+            file.path ||
+            getMothershipAttachmentPreviewUrl(file) ||
+            getMothershipAttachmentUrl(file),
+          previewUrl: getMothershipAttachmentPreviewUrl(file),
+          uploading: false,
+        }))
+      )
+    }
+    return queued
+  }
+
   const composer =
     requestMode !== 'assistant' && !canBuild ? (
       <div className='px-4 py-3 text-[var(--text-muted)] text-sm'>
@@ -317,6 +343,11 @@ function OrganizationHomeContent({
         onModeChange={canSelectMode ? changeMode : undefined}
         value={draft}
         restoredContexts={restoredContexts}
+        messages={chat.messages}
+        onEditQueuedTail={() => {
+          const tail = chat.messageQueue.at(-1)
+          return tail ? Boolean(editQueuedMessage(tail.id)) : false
+        }}
         files={files}
         isInitialView={!hasChat}
         isSending={chat.isSending || chat.isReconnecting}
@@ -357,31 +388,7 @@ function OrganizationHomeContent({
           dispatchingHeadId={chat.dispatchingHeadId}
           onRemoveQueuedMessage={chat.removeFromQueue}
           onSendQueuedMessage={chat.sendNow}
-          onEditQueuedMessage={(id) => {
-            const queued = chat.editQueuedMessage(id)
-            if (queued) {
-              const queuedMode = queued.requestMode ?? requestMode
-              setSelectedMode(queuedMode)
-              setDraft(queued.content, queued.contexts)
-              setRestoredContexts(queued.contexts ?? [])
-              files.restoreAttachedFiles(
-                (queued.fileAttachments ?? []).map((file) => ({
-                  id: file.id,
-                  key: file.key,
-                  name: file.filename,
-                  type: file.media_type,
-                  size: file.size,
-                  path:
-                    file.path ||
-                    getMothershipAttachmentPreviewUrl(file) ||
-                    getMothershipAttachmentUrl(file),
-                  previewUrl: getMothershipAttachmentPreviewUrl(file),
-                  uploading: false,
-                }))
-              )
-            }
-            return queued
-          }}
+          onEditQueuedMessage={editQueuedMessage}
           onCancelQueueEdit={chat.cancelQueueEdit}
           userId={session?.user?.id}
           chatId={chat.resolvedChatId}

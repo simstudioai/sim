@@ -194,6 +194,7 @@ export interface ChatMessage {
   origin?: 'task'
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
+  fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatMessageContext[]
   requestId?: string
 }

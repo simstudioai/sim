@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, type ReactNode, useState } from 'react'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
@@ -16,6 +16,9 @@ import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
+import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
+import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
+import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ChatContext } from '@/stores/panel'
 
@@ -526,3 +529,174 @@ it('re-chipifies a seeded draft once skills load', () => {
     act(() => root.unmount())
   }
 })
+
+describe('sent prompt history', () => {
+  it('recalls only user messages, walks both ways, and returns to the empty composer', () => {
+    const history = renderHistoryEditor([
+      { id: 'first', role: 'user', content: 'first\nsecond line' },
+      { id: 'answer', role: 'assistant', content: 'answer' },
+      { id: 'latest', role: 'user', content: 'latest' },
+      { id: 'task', role: 'user', origin: 'task', content: 'background notification' },
+    ])
+    try {
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('latest')
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('first\nsecond line')
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('first\nsecond line')
+      history.end()
+      history.key('ArrowDown')
+      expect(history.textarea.value).toBe('latest')
+      history.key('ArrowDown')
+      expect(history.textarea.value).toBe('')
+    } finally {
+      history.unmount()
+    }
+  })
+
+  it('round trips saved skills, MCP, resource context and attachments without a loaded picker', () => {
+    const contexts: ChatContext[] = [
+      { kind: 'skill', skillId: 'skill-a', workspaceId: 'workspace-a', label: 'review' },
+      { kind: 'mcp', serverId: 'server-a', label: 'tools' },
+      { kind: 'file', fileId: 'file-a', label: 'Plan.md' },
+    ]
+    const attachment = {
+      id: 'attachment-a',
+      key: 'uploads/file-a',
+      filename: 'image.png',
+      media_type: 'image/png',
+      size: 30,
+    }
+    const content = '(/review), [/tools]! (@Plan.md) and /reviewer and path/review'
+    const history = renderHistoryEditor([
+      { id: 'rich', role: 'user', content, contexts, fileAttachments: [attachment] },
+    ])
+    try {
+      history.key('ArrowUp')
+      expect(history.editor().getPlainValue()).toBe(content)
+      expect(history.editor().getActiveContexts()).toEqual(contexts)
+      expect(history.files()).toMatchObject([
+        { id: attachment.id, key: attachment.key, uploading: false },
+      ])
+      expect(history.textarea.value).toBe(
+        '(\u2003review), [\u2003tools]! (@Plan.md) and /reviewer and path/review'
+      )
+      history.end()
+      history.key('ArrowDown')
+      expect(history.editor().getActiveContexts()).toEqual([])
+      expect(history.files()).toEqual([])
+    } finally {
+      history.unmount()
+    }
+  })
+
+  it('does not replace drafts, selections, composing text, or modified arrow navigation', () => {
+    const history = renderHistoryEditor([{ id: 'first', role: 'user', content: 'sent' }])
+    try {
+      for (const modifiers of [
+        { shiftKey: true },
+        { altKey: true },
+        { ctrlKey: true },
+        { metaKey: true },
+        { isComposing: true },
+      ]) {
+        history.key('ArrowUp', modifiers)
+        expect(history.textarea.value).toBe('')
+      }
+      history.setText('my draft')
+      history.textarea.setSelectionRange(0, 0)
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('my draft')
+      history.setText('')
+      history.key('ArrowUp')
+      history.textarea.setSelectionRange(0, 2)
+      expect(history.key('ArrowUp')).toBe(false)
+      expect(history.textarea.value).toBe('sent')
+      history.setText('edited recalled message')
+      history.end()
+      history.key('ArrowDown')
+      expect(history.textarea.value).toBe('edited recalled message')
+    } finally {
+      history.unmount()
+    }
+  })
+
+  it('preserves multiline movement and follows message identity when older history arrives', () => {
+    const history = renderHistoryEditor([{ id: 'latest', role: 'user', content: 'one\ntwo' }])
+    try {
+      history.key('ArrowUp')
+      history.textarea.setSelectionRange(5, 5)
+      expect(history.key('ArrowUp')).toBe(false)
+      expect(history.textarea.value).toBe('one\ntwo')
+      history.prepend({ id: 'older', role: 'user', content: 'older' })
+      history.textarea.setSelectionRange(0, 0)
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('older')
+    } finally {
+      history.unmount()
+    }
+  })
+})
+
+function renderHistoryEditor(initialMessages: ChatMessage[]) {
+  let messages = initialMessages
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  let currentFiles: AttachedFile[] = []
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  function HistoryProbe() {
+    const editor = usePromptEditor({ workspaceId: 'ws-1' })
+    const [attachedFiles, restoreAttachedFiles] = useState<AttachedFile[]>([])
+    const history = usePromptHistory({
+      editor,
+      attachedFiles,
+      restoreAttachedFiles,
+      getMessages: () => messages,
+    })
+    latest = editor
+    currentFiles = attachedFiles
+    return (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        onChange={editor.handleInputChange}
+        onKeyDown={(event) => editor.handleKeyDown(event, { onNavigateHistory: history.navigate })}
+      />
+    )
+  }
+  act(() => root.render(<HistoryProbe />))
+  const textarea = container.querySelector('textarea')
+  if (!textarea) throw new Error('Missing history textarea')
+  const editor = () => {
+    if (!latest) throw new Error('Missing history editor')
+    return latest
+  }
+  return {
+    textarea,
+    editor,
+    files: () => currentFiles,
+    key: (key: string, options: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key,
+        ...options,
+      })
+      act(() => {
+        textarea.dispatchEvent(event)
+      })
+      return event.defaultPrevented
+    },
+    end: () => textarea.setSelectionRange(textarea.value.length, textarea.value.length),
+    setText: (text: string) => act(() => editor().setValue(text)),
+    prepend: (message: ChatMessage) => {
+      messages = [message, ...messages]
+    },
+    unmount: () => {
+      act(() => root.unmount())
+      container.remove()
+    },
+  }
+}

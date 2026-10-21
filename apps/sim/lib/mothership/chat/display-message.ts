@@ -226,6 +226,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
   const attachments = toDisplayAttachment(msg.fileAttachments)
   if (attachments.length > 0) {
     display.attachments = attachments
+    display.fileAttachments = msg.fileAttachments
   }
 
   display.contexts = toDisplayContexts(msg.contexts)

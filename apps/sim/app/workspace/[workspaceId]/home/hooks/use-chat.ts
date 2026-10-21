@@ -3668,45 +3668,13 @@ export function useChat(
       if (queuedSendHandoff) {
         writeQueuedSendHandoff(queuedSendHandoff.chatId)
       }
-      const messageContexts: ChatMessageContext[] | undefined = contexts?.map((c) => ({
-        kind: c.kind,
-        label: c.label,
-        ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
-        ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-        ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
-        ...(c.kind === 'table'
-          ? { viewId: (c.currentView ? c.currentView.viewId : c.viewId) ?? undefined }
-          : {}),
-        ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
-        ...('dashboardId' in c && c.dashboardId ? { dashboardId: c.dashboardId } : {}),
-        ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
-        ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
-        ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
-        ...(c.kind === 'mcp' && 'serverId' in c
+      const messageContexts: ChatMessageContext[] | undefined = contexts?.map((context) => ({
+        ...context,
+        ...(context.kind === 'table'
           ? {
-              serverId: c.serverId,
-              ...(c.managedConnectorId ? { managedConnectorId: c.managedConnectorId } : {}),
+              viewId:
+                (context.currentView ? context.currentView.viewId : context.viewId) ?? undefined,
             }
-          : {}),
-        ...(c.kind === 'file_selection'
-          ? {
-              fileName: c.fileName,
-              text: c.text,
-              ...(c.startLine ? { startLine: c.startLine } : {}),
-              ...(c.endLine ? { endLine: c.endLine } : {}),
-            }
-          : {}),
-        ...(c.kind === 'table_selection'
-          ? {
-              tableName: c.tableName,
-              rowIds: c.rowIds,
-              ...(c.columnIds ? { columnIds: c.columnIds } : {}),
-            }
-          : {}),
-        ...(c.kind === 'browser_tab' ? { tabId: c.tabId } : {}),
-        ...(c.kind === 'terminal_tab' ? { terminalId: c.terminalId } : {}),
-        ...((c.kind === 'browser_tab' || c.kind === 'terminal_tab') && c.selection
-          ? { selection: { ...c.selection } }
           : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
@@ -3734,6 +3702,7 @@ export function useChat(
         requestMode: options?.requestMode ?? 'agent',
         content: message,
         attachments: userAttachments,
+        fileAttachments,
         ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
       }
       const optimisticAssistantMessage: ChatMessage = {
