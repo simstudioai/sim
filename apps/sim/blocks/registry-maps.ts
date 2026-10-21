@@ -245,6 +245,7 @@ import { ModalBlock, ModalBlockMeta } from '@/blocks/blocks/modal'
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
+import { MrScraperBlock, MrScraperBlockMeta } from '@/blocks/blocks/mrscraper'
 import { MSSQLBlock, MSSQLBlockMeta } from '@/blocks/blocks/mssql'
 import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
@@ -617,6 +618,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
+  mrscraper: MrScraperBlock,
   mssql: MSSQLBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
@@ -960,6 +962,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   modal: ModalBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
+  mrscraper: MrScraperBlockMeta,
   mssql: MSSQLBlockMeta,
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
