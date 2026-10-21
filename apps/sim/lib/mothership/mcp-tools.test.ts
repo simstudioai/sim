@@ -98,11 +98,26 @@ describe('mothership MCP best-effort discovery bounds', () => {
   const ids = (prefix: string, count: number) =>
     Array.from({ length: count }, (_, index) => `${prefix}-${index + 1}`)
 
+  let clockStart = 0
+  let clockOffset = 0
+  /**
+   * `lru-cache` captures `performance` at load, so fake timers cannot move the memo's clock: spy it
+   * forward with the faked `Date` and timers.
+   */
+  async function advanceClock(ms: number): Promise<void> {
+    clockOffset += ms
+    vi.spyOn(performance, 'now').mockImplementation(() => clockStart + clockOffset)
+    await vi.advanceTimersByTimeAsync(ms)
+  }
+
   beforeEach(() => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    clockStart = performance.now()
+    clockOffset = 0
     discoverServerTools.mockReset()
   })
   afterEach(() => {
+    vi.runOnlyPendingTimers()
     vi.useRealTimers()
   })
 
@@ -210,7 +225,7 @@ describe('mothership MCP best-effort discovery bounds', () => {
     await query('user-memo-b')
     expect(discoverServerTools).toHaveBeenCalledTimes(2)
 
-    vi.advanceTimersByTime(60_000)
+    await advanceClock(61_000)
     await query('user-memo-a')
     expect(discoverServerTools).toHaveBeenCalledTimes(3)
   })
@@ -236,5 +251,55 @@ describe('mothership MCP best-effort discovery bounds', () => {
     discoverServerTools.mockResolvedValueOnce(toolsOf('mcp-slow'))
     expect((await query()).tools.map((tool) => tool.service)).toEqual(['mcp:mcp-slow'])
     expect(discoverServerTools).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps a newer attempt's failure when an older attempt succeeds late", async () => {
+    discoverServerTools
+      .mockImplementationOnce(
+        () => new Promise((resolve) => setTimeout(() => resolve(toolsOf('mcp-flaky')), 70_000))
+      )
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+    const query = () =>
+      buildMcpToolSchemas('user-race-a', 'ws-race', { complete: [], bestEffort: ['mcp-flaky'] })
+
+    const first = query()
+    await advanceClock(3_000)
+    expect((await first).failures.map(({ serverId }) => serverId)).toEqual(['mcp-flaky'])
+    await advanceClock(61_000)
+    expect((await query()).failures.map(({ error }) => error.message)).toEqual([
+      'connect ECONNREFUSED',
+    ])
+
+    await advanceClock(6_000)
+    const third = query()
+    await flushMicrotasks(10)
+    expect(discoverServerTools).toHaveBeenCalledTimes(2)
+    expect((await third).failures.map(({ error }) => error.message)).toEqual([
+      'connect ECONNREFUSED',
+    ])
+  })
+
+  it('does not remember a server whose older attempt fails late after a newer one succeeded', async () => {
+    discoverServerTools
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) =>
+            setTimeout(() => reject(new Error('connect ETIMEDOUT')), 70_000)
+          )
+      )
+      .mockResolvedValueOnce(toolsOf('mcp-flaky'))
+      .mockResolvedValueOnce(toolsOf('mcp-flaky'))
+    const query = () =>
+      buildMcpToolSchemas('user-race-b', 'ws-race', { complete: [], bestEffort: ['mcp-flaky'] })
+
+    const first = query()
+    await advanceClock(3_000)
+    expect((await first).failures.map(({ serverId }) => serverId)).toEqual(['mcp-flaky'])
+    await advanceClock(61_000)
+    expect((await query()).tools.map((tool) => tool.service)).toEqual(['mcp:mcp-flaky'])
+
+    await advanceClock(6_000)
+    expect((await query()).tools.map((tool) => tool.service)).toEqual(['mcp:mcp-flaky'])
+    expect(discoverServerTools).toHaveBeenCalledTimes(3)
   })
 })

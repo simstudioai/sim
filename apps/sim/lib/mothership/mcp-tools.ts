@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
@@ -33,29 +34,21 @@ const BEST_EFFORT_DISCOVERY_START_WINDOW_MS = 3_000
 const BEST_EFFORT_RETRY_AFTER_MS = 60_000
 const MAX_RECENT_BEST_EFFORT_FAILURES = 1_000
 
+/** One attempt's failure; the entry's identity is that attempt's, so a later attempt's entry is never its to settle. */
+interface BestEffortFailure {
+  error: Error
+}
+
 /**
  * Best-effort servers that recently failed for a requester, keyed by
- * `workspaceId:serverId:userId`, oldest first. It lives in this process because
- * best-effort discovery must leave the server's shared status and cooldown to
- * the discoveries someone asked for.
+ * `workspaceId:serverId:userId`. It lives in this process because best-effort
+ * discovery must leave the server's shared status and cooldown to the
+ * discoveries someone asked for.
  */
-const recentBestEffortFailures = new Map<string, { error: Error; retryAfter: number }>()
-
-function recentBestEffortFailure(key: string): Error | undefined {
-  const failure = recentBestEffortFailures.get(key)
-  if (!failure) return undefined
-  if (failure.retryAfter > Date.now()) return failure.error
-  recentBestEffortFailures.delete(key)
-  return undefined
-}
-
-function rememberBestEffortFailure(key: string, error: Error): void {
-  recentBestEffortFailures.delete(key)
-  recentBestEffortFailures.set(key, { error, retryAfter: Date.now() + BEST_EFFORT_RETRY_AFTER_MS })
-  if (recentBestEffortFailures.size <= MAX_RECENT_BEST_EFFORT_FAILURES) return
-  const oldest = recentBestEffortFailures.keys().next()
-  if (!oldest.done) recentBestEffortFailures.delete(oldest.value)
-}
+const recentBestEffortFailures = new LRUCache<string, BestEffortFailure>({
+  max: MAX_RECENT_BEST_EFFORT_FAILURES,
+  ttl: BEST_EFFORT_RETRY_AFTER_MS,
+})
 
 interface McpServerDiscoveryFailure {
   serverId: string
@@ -142,8 +135,8 @@ export async function buildMcpToolSchemas(
   /** Ignores the deadline's signal so a slow server's discovery still finishes and warms the cache. */
   const discoverBestEffort = async (serverId: string) => {
     const failureKey = `${workspaceId}:${serverId}:${userId}`
-    const recentFailure = recentBestEffortFailure(failureKey)
-    if (recentFailure) throw recentFailure
+    const recentFailure = recentBestEffortFailures.get(failureKey)
+    if (recentFailure) throw recentFailure.error
     if (Date.now() >= startWindowEndsAt) throw new DeadlineExceededError()
     const discovery = discoverMcpServerToolsUseCase.execute({
       principal: principal(),
@@ -156,12 +149,20 @@ export async function buildMcpToolSchemas(
       )
       return tools
     } catch (error) {
-      rememberBestEffortFailure(failureKey, toError(error))
-      if (error instanceof DeadlineExceededError)
+      const failure: BestEffortFailure = { error: toError(error) }
+      recentBestEffortFailures.set(failureKey, failure)
+      if (error instanceof DeadlineExceededError) {
+        const isLatest = () =>
+          recentBestEffortFailures.peek(failureKey, { allowStale: true }) === failure
         discovery.then(
-          () => recentBestEffortFailures.delete(failureKey),
-          (lateError: unknown) => rememberBestEffortFailure(failureKey, toError(lateError))
+          () => {
+            if (isLatest()) recentBestEffortFailures.delete(failureKey)
+          },
+          (lateError: unknown) => {
+            if (isLatest()) recentBestEffortFailures.set(failureKey, { error: toError(lateError) })
+          }
         )
+      }
       throw error
     }
   }
