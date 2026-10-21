@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
+import { useToast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
@@ -741,6 +742,7 @@ export function useChat(
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
+  const { toast } = useToast()
   const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
   const computerUseEnabled = useFeatureFlag('mothership-computer-use')
   const workspaceId = typeof owner === 'string' ? owner : undefined
@@ -4609,10 +4611,10 @@ export function useChat(
         ? { admissionUnknown: handoff.admissionUnknown }
         : {}),
     })
-    if (handoff.hasUnavailableContexts) setError(UNAVAILABLE_QUEUED_CONTEXT_ERROR)
+    if (handoff.hasUnavailableContexts) toast.info(UNAVAILABLE_QUEUED_CONTEXT_ERROR)
     clearQueuedSendHandoffState(handoff.id)
     clearQueuedSendHandoffClaim(handoff.id)
-  }, [workspaceId, organizationId, scopeKey, chatHistory, queuedHandoffRecoveryEpoch])
+  }, [workspaceId, organizationId, scopeKey, chatHistory, queuedHandoffRecoveryEpoch, toast])
 
   const stopGeneration = useCallback(
     async (options?: StopGenerationOptions) => {
@@ -5200,7 +5202,7 @@ export function useChat(
         return
       }
       if (liveMessage.hasUnavailableContexts) {
-        setError(UNAVAILABLE_QUEUED_CONTEXT_ERROR)
+        toast.info(UNAVAILABLE_QUEUED_CONTEXT_ERROR)
         return
       }
       const admissionPending = hasPendingChatAdmission()
@@ -5256,6 +5258,7 @@ export function useChat(
       hasPendingChatAdmission,
       checkResend,
       applyResendVerdict,
+      toast,
     ]
   )
 
@@ -5266,22 +5269,25 @@ export function useChat(
     [sendQueuedMessageImmediately]
   )
 
-  const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
-    // Reject edits on a message already mid-dispatch; the slot is about to be
-    // dropped. UI also disables this via `dispatchingHeadId`.
-    if (queuedMessageDispatchIds.has(id)) return undefined
-    const activeChatKey = chatKeyRef.current
-    const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
-    const msg = queue.find((m) => m.id === id)
-    if (!msg || msg.admissionUnknown) return undefined
-    // Evict any sessionStorage handoff — a failed prior dispatch may have left
-    // a pre-edit content snapshot that the recovery effect would otherwise replay.
-    clearQueuedSendHandoffState(id)
-    clearQueuedSendHandoffClaim(id)
-    useMothershipQueueStore.getState().setEditing(activeChatKey, id)
-    if (msg.hasUnavailableContexts) setError(UNAVAILABLE_CONTEXT_NOTICE)
-    return msg
-  }, [])
+  const editQueuedMessage = useCallback(
+    (id: string): QueuedMessage | undefined => {
+      // Reject edits on a message already mid-dispatch; the slot is about to be
+      // dropped. UI also disables this via `dispatchingHeadId`.
+      if (queuedMessageDispatchIds.has(id)) return undefined
+      const activeChatKey = chatKeyRef.current
+      const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
+      const msg = queue.find((m) => m.id === id)
+      if (!msg || msg.admissionUnknown) return undefined
+      // Evict any sessionStorage handoff — a failed prior dispatch may have left
+      // a pre-edit content snapshot that the recovery effect would otherwise replay.
+      clearQueuedSendHandoffState(id)
+      clearQueuedSendHandoffClaim(id)
+      useMothershipQueueStore.getState().setEditing(activeChatKey, id)
+      if (msg.hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
+      return msg
+    },
+    [toast]
+  )
 
   const cancelQueueEdit = useCallback(() => {
     useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)

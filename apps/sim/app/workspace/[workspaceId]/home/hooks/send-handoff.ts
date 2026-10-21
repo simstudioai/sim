@@ -1,4 +1,5 @@
 import { isChatContext } from '@/lib/mothership/chat/context'
+import { MAX_CHAT_CONTEXTS } from '@/lib/mothership/chat/context-limits'
 /**
  * Queued-send handoff (revamp M6 extraction, behavior-preserving): the sessionStorage
  * claim machinery that carries a queued outgoing message across a chat-scope handoff —
@@ -110,7 +111,7 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
     if (!assistantSearch.success) return null
 
     const contexts = Array.isArray(parsed.contexts)
-      ? parsed.contexts.filter(isChatContext)
+      ? parsed.contexts.filter(isChatContext).slice(0, MAX_CHAT_CONTEXTS)
       : undefined
     const hasUnavailableContexts =
       parsed.hasUnavailableContexts === true ||
