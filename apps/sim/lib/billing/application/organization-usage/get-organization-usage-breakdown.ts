@@ -154,21 +154,13 @@ export async function buildUsageBreakdown({
     : new Map<string, UsageEntity>()
 
   const labelFor = (key: string | null): string => {
-    /**
-     * A null key means something different per dimension, and one shared
-     * "Unattributed" label got both wrong: on Workspaces it is usage owned by no
-     * workspace, on Workflows it is usage that never came from a workflow — which
-     * is most of an organization's spend, and reading it as an attribution failure
-     * is what made that list useless.
-     */
     if (!key) return USAGE_NULL_KEY_LABELS[dimension]
     if (dimension === 'source') {
       return BILLING_USAGE_LOG_SOURCE_LABELS[key as keyof typeof BILLING_USAGE_LOG_SOURCE_LABELS]
     }
     if (dimension === 'byok') return providerLabel(key)
     if (dimension === 'model') return key
-    // A deleted workspace or workflow nulls its id on the ledger row, so a key that
-    // resolves to no name is a live entity we could not read — not a deleted one.
+    // Retain the id if its name is unavailable, including stale cached attribution.
     return entities.get(key)?.name ?? key
   }
 

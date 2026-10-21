@@ -1,5 +1,30 @@
-import { formatTimeTick, resolveSpanMs, resolveTimeTickIndices } from '@sim/emcn'
+import {
+  formatTimeTick,
+  resolveBarTickValues,
+  resolveSpanMs,
+  resolveTimeTickIndices,
+} from '@sim/emcn'
 import { describe, expect, it } from 'vitest'
+
+describe('resolveBarTickValues', () => {
+  it.each([
+    [620_000, [0, 200_000, 400_000, 600_000, 800_000]],
+    [1, [0, 1, 2]],
+    [0.6, [0, 0.2, 0.4, 0.6, 0.8]],
+  ])('keeps readable ticks and headroom above a peak of %s', (peak, expected) => {
+    expect(resolveBarTickValues(peak)).toEqual(expected)
+  })
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'provides a finite, nonzero scale for an empty or invalid peak of %s',
+    (peak) => {
+      const ticks = resolveBarTickValues(peak)
+      expect(ticks[0]).toBe(0)
+      expect(ticks[ticks.length - 1]).toBeGreaterThan(0)
+      expect(ticks.every(Number.isFinite)).toBe(true)
+    }
+  )
+})
 
 describe('resolveTimeTickIndices', () => {
   it('dedupes the collisions rounding produces on a short series', () => {

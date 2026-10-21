@@ -8,10 +8,12 @@ import {
   resolveComparisonWindow,
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
+  resolveUsageCalendarWindow,
   sumUsageDays,
   USAGE_SETTLE_MS,
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
+  usageBucketTimestamps,
   usageWindowLedgerFilter,
   usageWindowSegments,
 } from '@/lib/billing/core/usage-analytics'
@@ -657,4 +659,22 @@ describe('resolveComparisonWindow', () => {
       to: new Date('2026-08-01T00:00:00.000Z'),
     })
   })
+})
+
+describe('resolveUsageCalendarWindow', () => {
+  it.each([
+    ['2026-03-09T06:30:00.000Z', 'America/Los_Angeles', '2025-03-09T08:00:00.000Z', '2026-03-08'],
+    ['2024-03-01T00:00:00.000Z', 'UTC', '2023-03-03T00:00:00.000Z', '2024-03-01'],
+    ['2026-01-01T11:00:00.000Z', 'Pacific/Kiritimati', '2025-01-02T10:00:00.000Z', '2026-01-02'],
+  ])(
+    'keeps 365 calendar days across DST, leap years and midnight (%s, %s)',
+    (instant, timezone, start, lastDay) => {
+      const window = resolveUsageCalendarWindow(timezone, new Date(instant))
+      const days = usageBucketTimestamps(window, 'day', timezone)
+      expect(window.from.toISOString()).toBe(start)
+      expect(days).toHaveLength(365)
+      expect(new Set(days).size).toBe(365)
+      expect(days[364]).toBe(`${lastDay}T00:00:00`)
+    }
+  )
 })
