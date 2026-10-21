@@ -159,9 +159,10 @@ function handleToolArgsDelta(
   if (!toolCall) return
   toolCall.streamingArgs = `${toolCall.streamingArgs ?? ''}${data.argumentsDelta}`
 
-  // Progressive CLI title: the row upgrades from "Running CLI command" to the
-  // specific verb as soon as enough argv tokens have streamed to name it —
-  // no wait for the full (possibly huge) argument payload.
+  // Progressive CLI title: the row upgrades from its placeholder to the specific
+  // verb as soon as enough argv tokens have streamed to name it — no wait for the
+  // full (possibly huge) argument payload. The activity header holds it back until
+  // the model's description arrives (see `isAwaitingTitle`).
   if (toolCall.name === 'sim_cli' || toolCall.name.startsWith('cli_')) {
     const refined = refineStreamingCliToolName(toolCall.streamingArgs)
     if (refined && refined !== toolCall.name) {

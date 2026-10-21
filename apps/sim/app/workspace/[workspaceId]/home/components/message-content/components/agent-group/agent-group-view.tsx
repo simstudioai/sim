@@ -28,6 +28,8 @@ import {
   getActivityStatusTool,
   getCompletedActivityLabel,
   getInProgressActivityLabel,
+  isAwaitingTitle,
+  THINKING_LABEL,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { useToolCallTitle } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-title'
@@ -294,7 +296,7 @@ export function AgentGroupView({
             tools,
             activityDescriptor?.title
           )
-        : 'Thinking'
+        : THINKING_LABEL
       : tools.length > 0
         ? getCompletedActivityLabel(tools, activityDescriptor)
         : agentLabel
@@ -317,6 +319,7 @@ export function AgentGroupView({
         <ActivityStream
           activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
           activityKey={headerTool?.id}
+          placeholder={inProgress && !error && (!headerTool || isAwaitingTitle(headerTool))}
           expandedLabel={pendingInteraction ? undefined : activityDescriptor?.title}
           attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
           collapsible={collapsible}
