@@ -90,6 +90,8 @@ Edit generated prose at its owner, then regenerate:
 
 Do not hand-edit generated pages, JSON specifications, or marked generated regions. Preserve all argument, option, schema, authentication, and confirmation detail. CLI descriptions also feed command discovery; run the existing search-ranking checks after changing help copy. Validate rendered request examples against their canonical input contracts; schema validity alone may still leave a semantic error such as an invalid serialized workflow.
 
+The integration generator refreshes tool metadata before reading it. Its `--check` mode verifies that dependency without writing files and stops if it is stale.
+
 Integration `MANUAL-CONTENT` regions are intentionally authored source: the generator reads and preserves them from the existing MDX. Edit generated descriptions in their block, tool, trigger, or OAuth owner. Edit fully authored credential guides registered in `content/integration-navigation.json` directly. Preserve action names, field names, scopes, conditional requirements and nested output paths. Token validation may verify identity without proving resource access, every permission, or future token validity; state what the actual validator checks. Preserve old heading anchors when standardizing shared generated headings. After regeneration, run it again and confirm no further changes; verify registered guides and all authored regions survive.
 
 ## Review checklist

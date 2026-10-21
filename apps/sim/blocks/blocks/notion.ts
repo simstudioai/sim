@@ -951,7 +951,7 @@ export const NotionV2Block: BlockConfig = {
   description: 'Manage Notion pages',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Choose an operation, select a connected account, and provide the page or database it should use. Use Search to find content, Query Database to retrieve rows, or Append Content to add blocks to a page.',
+    'Choose an operation and select a connected account. Use Search Workspace to find content, Query Database to retrieve rows from a database, or Append Content to add blocks to a page.',
   docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,

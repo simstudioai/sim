@@ -1,4 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env bun
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
@@ -5630,6 +5630,13 @@ function updateMetaJson() {
 
 if (import.meta.main) {
   CHECK_ONLY = process.argv.includes('--check')
+  const metadataProcess = Bun.spawn(
+    ['bun', path.join(__dirname, 'sync-tool-metadata.ts'), ...(CHECK_ONLY ? ['--check'] : [])],
+    { cwd: rootDir, stdout: 'inherit', stderr: 'inherit' }
+  )
+  const metadataExitCode = await metadataProcess.exited
+  if (metadataExitCode !== 0) process.exit(metadataExitCode)
+
   console.log(
     CHECK_ONLY
       ? 'Checking generated documentation freshness...'

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-20",
+  "updatedAt": "2026-10-21",
   "integrations": [
     {
       "type": "onepassword",
@@ -18041,7 +18041,7 @@
       "slug": "notion",
       "name": "Notion",
       "description": "Manage Notion pages",
-      "longDescription": "Choose an operation, select a connected account, and provide the page or database it should use. Use Search to find content, Query Database to retrieve rows, or Append Content to add blocks to a page.",
+      "longDescription": "Choose an operation and select a connected account. Use Search Workspace to find content, Query Database to retrieve rows from a database, or Append Content to add blocks to a page.",
       "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
@@ -18173,7 +18173,7 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base", "content-management"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-10-21"
     },
     {
       "type": "obsidian",
@@ -20869,7 +20869,7 @@
         },
         {
           "name": "Get Project",
-          "description": "Get a PostHog project by ID, including its configuration, capture settings, and integrations."
+          "description": "Get a PostHog project by ID, including its configuration and capture settings."
         },
         {
           "name": "List Organizations",
@@ -20887,7 +20887,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics", "monitoring", "feature-flags"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-10-21"
     },
     {
       "type": "powerbi",

@@ -49,8 +49,7 @@ export interface PostHogGetProjectResponse {
 export const getProjectTool: ToolConfig<PostHogGetProjectParams, PostHogGetProjectResponse> = {
   id: 'posthog_get_project',
   name: 'PostHog Get Project',
-  description:
-    'Get a PostHog project by ID, including its configuration, capture settings, and integrations.',
+  description: 'Get a PostHog project by ID, including its configuration and capture settings.',
   version: '1.0.0',
   errorExtractor: 'posthog-errors',
 
