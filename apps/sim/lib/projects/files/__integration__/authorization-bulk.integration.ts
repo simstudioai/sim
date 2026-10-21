@@ -391,6 +391,33 @@ describe('compound copy owner authority', () => {
   })
 
   check(
+    'copy between workspaces runs with Projects off; a Project owner still needs them',
+    async () => {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async () => false)
+      const f = await fixture()
+      await grant(f.readerId, f.workspaces[1], 'write')
+      const withProject = selection(f)
+      const between = {
+        ...withProject,
+        source: {
+          ...withProject.source,
+          owner: { entityType: 'workspace' as const, entityId: f.workspaces[0] },
+        },
+      }
+      for (const principal of [f.reader, copyPrincipal(f, between)]) {
+        const authorize = await createFileCopyAuthorizer(principal, between)
+        expect(await db.transaction(authorize)).toMatchObject({
+          source: { owner: between.source.owner },
+          destination: { owner: between.destination.owner },
+        })
+      }
+      await expect(createFileCopyAuthorizer(f.reader, withProject)).rejects.toMatchObject({
+        statusCode: 503,
+      })
+    }
+  )
+
+  check(
     'copy locks opposite Project directions consistently in overlapping transactions',
     async () => {
       const f = await fixture()

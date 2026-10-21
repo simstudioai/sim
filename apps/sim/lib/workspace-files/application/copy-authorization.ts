@@ -27,6 +27,7 @@ import {
 import { lockProject, lockProjectBackfillWrites } from '@/lib/projects/membership'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
+  copiesWithinWorkspaces,
   FILE_COPY_DELEGATION_TTL_MS,
   fileCopyOperation,
 } from '@/lib/workspace-files/application/copy-operation'
@@ -149,7 +150,7 @@ export async function createFileCopyAuthorizer(
   input: CopyFileItemsInput
 ): Promise<(tx: DbTransaction) => Promise<FileCopyAuthorizationContext>> {
   requireCopyPrincipal(principal, input)
-  await requireProjectApiEnabled()
+  if (!copiesWithinWorkspaces(input)) await requireProjectApiEnabled()
   // actorless-unsupported: files.copy rejects executors and workspace keys; both owner policies require the acting human.
   const userId = await requireFileSubject(principal)
   const invocationScope =

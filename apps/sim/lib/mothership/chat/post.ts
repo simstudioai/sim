@@ -1408,7 +1408,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         if (!lease || !sendClaim?.claimToken || sendClaim.storageMethod !== 'database') {
           throw new Error('Chat admission requires its controller and durable send claim')
         }
-        const resourceAuthoringVersion = await durableResourceAuthoringVersion(
+        const resourceAuthoringVersion = durableResourceAuthoringVersion(
           executionContext.copilotResourceAdmission !== undefined
         )
         admittedRun = await admitChatTurn.execute({

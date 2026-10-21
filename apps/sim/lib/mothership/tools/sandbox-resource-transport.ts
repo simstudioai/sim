@@ -28,6 +28,7 @@ import {
   type SandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { copiesWithinWorkspaces } from '@/lib/workspace-files/application/copy-operation'
 
 const logger = createLogger('MothershipSandboxResourceTransport')
 
@@ -54,15 +55,20 @@ export async function proxySandboxResourceRequest(
   if (!scope)
     return Response.json({ error: 'Sandbox tool execution is no longer active' }, { status: 403 })
   /**
-   * Paired owners need the negotiated protocol. Without it, only a copy that names a non-workspace
-   * owner is refused there; workspace copies and invalid bodies keep the workspace route and its
+   * Copies bind both owners under the paired grant. Project owners need the negotiated protocol,
+   * and an admitted lease copies between workspaces without it; a copy naming a Project owner is
+   * refused there. Otherwise workspace copies and invalid bodies keep the workspace route and its
    * v2 validation response.
    */
   if (path === v2CopyFileItemsContract.path) {
     const buffered = await bufferCopyRequest(request)
     if (buffered instanceof Response) return buffered
     request = buffered
-    if (scope.fileOwnerProtocolVersion === 1 || (await copiesBeyondWorkspaces(request)))
+    if (
+      scope.fileOwnerProtocolVersion === 1 ||
+      scope.workspaceFileCopy ||
+      (await copiesBeyondWorkspaces(request))
+    )
       return proxySandboxFileCopyRequest(request, token, scope)
   }
   const ownerHeader = request.headers.get('x-mothership-file-owner')
@@ -245,9 +251,5 @@ async function copiesBeyondWorkspaces(request: Request): Promise<boolean> {
     {},
     V2_PARSE_DEFAULTS
   )
-  return (
-    parsed.success &&
-    (parsed.data.body.source.owner.entityType !== 'workspace' ||
-      parsed.data.body.destination.owner.entityType !== 'workspace')
-  )
+  return parsed.success && !copiesWithinWorkspaces(parsed.data.body)
 }
