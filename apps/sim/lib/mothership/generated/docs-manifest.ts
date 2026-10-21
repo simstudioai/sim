@@ -245,6 +245,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/monday-service-account.mdx',
   'integrations/monday.mdx',
   'integrations/mongodb.mdx',
+  'integrations/mrscraper.mdx',
   'integrations/mssql.mdx',
   'integrations/mysql.mdx',
   'integrations/neo4j.mdx',

@@ -7,7 +7,6 @@ import {
   getMrScraperError,
   getMrScraperHeaders,
   getMrScraperNumber,
-  requireMrScraperApiKey,
   requireMrScraperObject,
   validateMrScraperBoolean,
   validateMrScraperInteger,
@@ -42,19 +41,34 @@ function getTargetHeaders(value: MrScraperScrapeParams['headers']): string | und
   return JSON.stringify(headers)
 }
 
+/**
+ * Markdown requests go to the browser scraper, which takes a POST body and answers with JSON.
+ * Everything else goes to the fetch endpoint, which is a GET: it replays the request method
+ * against the target, so a POST there is rejected by sites that only accept GET.
+ */
+function usesBrowserScraper(params: MrScraperScrapeParams): boolean {
+  return validateMrScraperBoolean(params.markdown, 'Markdown') === true
+}
+
 function getScreenshot(value: unknown): ToolFileData | undefined {
   if (value === null || value === undefined || value === '') return undefined
   if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
-    throw new Error('MrScraper returned an invalid base64 JPEG screenshot.')
+    throw new Error('MrScraper returned an invalid base64 screenshot.')
   }
   const size = Buffer.byteLength(value, 'base64')
   assertKnownSizeWithinLimit(size, MAX_BUFFERED_TRANSFER_BYTES, 'MrScraper screenshot')
+  const isPng = value.startsWith('iVBORw0KGgo')
   return {
-    name: 'screenshot.jpg',
-    mimeType: 'image/jpeg',
+    name: isPng ? 'screenshot.png' : 'screenshot.jpg',
+    mimeType: isPng ? 'image/png' : 'image/jpeg',
     data: Buffer.from(value, 'base64'),
     size,
   }
+}
+
+function getHeaderNumber(headers: Headers, name: string): number | null {
+  const value = headers.get(name)
+  return value ? getMrScraperNumber(Number(value)) : null
 }
 
 export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScrapeResponse> = {
@@ -95,7 +109,8 @@ export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScr
       required: false,
       visibility: 'user-or-llm',
       default: false,
-      description: 'Capture a JPEG screenshot as a stored file. Always enables browser rendering.',
+      description:
+        'Capture a full-page screenshot as a stored file. Always enables browser rendering.',
     },
     browserRendering: {
       type: 'string',
@@ -137,13 +152,14 @@ export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScr
       visibility: 'user-or-llm',
       default: 3,
       description:
-        'Maximum retry count as a nonnegative integer. Zero disables retries. Defaults to 3.',
+        'Maximum retry count for Markdown requests. Zero disables retries. Defaults to 3.',
     },
     tokenCap: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Nonnegative retry-token budget. The initial request always runs.',
+      description:
+        'Token budget, at least 1, for a Markdown request and its retries. The initial request always runs.',
     },
     waitForSelector: {
       type: 'string',
@@ -197,18 +213,19 @@ export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScr
     },
   },
   request: {
-    method: 'POST',
+    method: (params) => (usesBrowserScraper(params) ? 'POST' : 'GET'),
     url: (params) => {
       const rendering = params.browserRendering ?? 'auto'
       if (!['auto', 'true', 'false'].includes(rendering)) {
         throw new Error('Browser rendering must be auto, true, or false.')
       }
       const screenshot = validateMrScraperBoolean(params.screenshot, 'Screenshot')
+      const browserScraper = usesBrowserScraper(params)
       const query = filterUndefined({
-        token: requireMrScraperApiKey(params.apiKey),
+        url: browserScraper ? undefined : getTargetUrl(params.url),
         html: validateMrScraperBoolean(params.html, 'HTML') ?? true,
-        markdown: validateMrScraperBoolean(params.markdown, 'Markdown') ?? false,
-        screenshot,
+        markdown: browserScraper,
+        screenshot: screenshot ? 'full' : undefined,
         browserRendering: screenshot
           ? true
           : rendering === 'auto'
@@ -226,7 +243,6 @@ export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScr
         bypassProxy: validateMrScraperBoolean(params.bypassProxy, 'Bypass proxy'),
         cookieJar: params.cookieJar || undefined,
         headers: getTargetHeaders(params.headers),
-        stream: false,
       })
       const search = new URLSearchParams()
       for (const [key, value] of Object.entries(query)) search.set(key, String(value))
@@ -237,25 +253,41 @@ export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScr
       filterUndefined({
         url: getTargetUrl(params.url),
         maxRetries: validateMrScraperInteger(params.maxRetries, 'Maximum retries', 0) ?? 3,
-        tokenCap: validateMrScraperInteger(params.tokenCap, 'Token cap', 0),
+        tokenCap: validateMrScraperInteger(params.tokenCap, 'Token cap', 1),
       }),
   },
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
+    const includeHtml = params?.html !== false
+    const metrics = {
+      tokenUsage: getHeaderNumber(response.headers, 'token_usage'),
+      runtime: getHeaderNumber(response.headers, 'runtime'),
+      retryCount: getHeaderNumber(response.headers, 'retry_count'),
+      targetStatusCode: getHeaderNumber(response.headers, 'x-status-code'),
+    }
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+      return {
+        success: true,
+        output: {
+          html: includeHtml ? await response.text() : null,
+          markdown: null,
+          ...metrics,
+          error: null,
+        },
+      }
+    }
     const data = requireMrScraperObject(await response.json(), 'page response')
     const error = getMrScraperError(data)
-    const statusHeader = response.headers.get('x-status-code')
-    const targetStatusCode = statusHeader ? Number(statusHeader) : null
     return {
       success: !error,
       ...(error ? { error } : {}),
       output: {
-        html: toStringOrNull(data.html),
-        markdown: toStringOrNull(data.markdown),
+        html: includeHtml ? toStringOrNull(data.html) : null,
+        markdown: params?.markdown === true ? toStringOrNull(data.markdown) : null,
         screenshot: error ? undefined : getScreenshot(data.screenshot),
-        tokenUsage: getMrScraperNumber(data.token_usage),
-        runtime: getMrScraperNumber(data.runtime),
-        retryCount: getMrScraperNumber(data.retry_count),
-        targetStatusCode: getMrScraperNumber(targetStatusCode),
+        tokenUsage: getMrScraperNumber(data.token_usage) ?? metrics.tokenUsage,
+        runtime: getMrScraperNumber(data.runtime) ?? metrics.runtime,
+        retryCount: getMrScraperNumber(data.retry_count) ?? metrics.retryCount,
+        targetStatusCode: metrics.targetStatusCode,
         error,
       },
     }
@@ -265,7 +297,7 @@ export const mrScraperScrapeTool: ToolConfig<MrScraperScrapeParams, MrScraperScr
     markdown: { type: 'string', description: 'Page Markdown, when requested.', nullable: true },
     screenshot: {
       type: 'file',
-      description: 'JPEG screenshot stored in execution files.',
+      description: 'Page screenshot (PNG or JPEG) stored in execution files.',
       optional: true,
     },
     tokenUsage: {

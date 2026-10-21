@@ -1,14 +1,13 @@
 ---
 title: MrScraper
 description: Retrieve web pages, search Google, and check account usage
+integration:
+  type: "mrscraper"
+  color: "#102C35"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mrscraper"
-  color="#102C35"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [MrScraper](https://mrscraper.com) to retrieve a page as HTML, Markdown, or a screenshot, search Google, and check your account's remaining tokens. Use a MrScraper block for a configured workflow step, or connect the [MrScraper MCP server](#connect-the-mcp-server) to give its tools to an Agent.
@@ -24,7 +23,6 @@ You need a [MrScraper account](https://app.mrscraper.com) and an API token for t
 
 The API token authenticates requests. Plan tokens measure MrScraper usage; they are a separate balance. Calls use your MrScraper account's quota and limits.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -59,9 +57,11 @@ Retrieve web pages as HTML, Markdown, or screenshots with browser rendering and 
 
 ## Actions
 
-### mrscraper_scrape
+### MrScraper Scrape
 
 Retrieve a web page as HTML, Markdown, or a screenshot with automatic browser fallback, optional real-device routing, geolocation, and retry controls.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,14 +71,14 @@ Retrieve a web page as HTML, Markdown, or a screenshot with automatic browser fa
 | `url` | string | Yes | Absolute HTTP or HTTPS URL of the page to retrieve. |
 | `html` | boolean | No | Include HTML content. Defaults to true. |
 | `markdown` | boolean | No | Include Markdown content. |
-| `screenshot` | boolean | No | Capture a JPEG screenshot as a stored file. Always enables browser rendering. |
+| `screenshot` | boolean | No | Capture a full-page screenshot as a stored file. Always enables browser rendering. |
 | `browserRendering` | string | No | auto uses automatic browser fallback; true forces a browser; false disables it. |
 | `super` | boolean | No | Use real-device routing independently of browser rendering. |
 | `geoCode` | string | No | Proxy country code, such as US, GB, ID, or SG. Defaults to US. |
 | `proxyCountry` | string | No | Compatibility country option sent as proxyCountry. |
 | `timeout` | number | No | Page timeout in seconds, from 1 to 300. Defaults to 120. |
-| `maxRetries` | number | No | Maximum retry count as a nonnegative integer. Zero disables retries. Defaults to 3. |
-| `tokenCap` | number | No | Nonnegative retry-token budget. The initial request always runs. |
+| `maxRetries` | number | No | Maximum retry count for Markdown requests. Zero disables retries. Defaults to 3. |
+| `tokenCap` | number | No | Token budget, at least 1, for a Markdown request and its retries. The initial request always runs. |
 | `waitForSelector` | string | No | CSS selector to wait for when browser rendering is enabled. |
 | `blockResources` | boolean | No | Block images, CSS, and fonts to reduce bandwidth. |
 | `homePage` | boolean | No | Visit the site root before loading the target URL. |
@@ -94,16 +94,20 @@ Retrieve a web page as HTML, Markdown, or a screenshot with automatic browser fa
 | --------- | ---- | ----------- |
 | `html` | string | Page HTML, when requested. |
 | `markdown` | string | Page Markdown, when requested. |
-| `screenshot` | file | JPEG screenshot stored in execution files. |
+| `screenshot` | file | Page screenshot \(PNG or JPEG\) stored in execution files. |
 | `tokenUsage` | number | Plan tokens consumed by the page request. |
 | `runtime` | number | Page request runtime in seconds. |
 | `retryCount` | number | Number of retries performed. |
 | `targetStatusCode` | number | Target page HTTP status from x-status-code. |
 | `error` | string | Page retrieval error, when reported by MrScraper. |
 
-### mrscraper_search
+</ReferenceDetails>
+
+### MrScraper Search
 
 Search Google from query text or a Google search URL and return organic results, search metadata, pagination, or the raw results-page HTML.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -149,7 +153,9 @@ Search Google from query text or a Google search URL and return organic results,
 |     ↳ `link` | string | Google result-page URL. |
 | `tokenUsage` | number | Plan tokens consumed by the search request. |
 
-### mrscraper_get_account
+</ReferenceDetails>
+
+### MrScraper Get Account
 
 Check account identity, subscription status, token usage, remaining quota, and rate limits.
 
@@ -183,7 +189,7 @@ Check account identity, subscription status, token usage, remaining quota, and r
 
 The action tables above describe Sim's outputs. For scraping, `html` and `markdown` contain the requested page content. When requested, `screenshot` is a stored file that you can pass to a later file-compatible block. Request it only when you need an image; screenshots can be large.
 
-Check `targetStatusCode`, `error`, and the returned content before processing a scrape. The target page can return an error or a challenge page even when MrScraper accepted the request. `tokenUsage`, `runtime`, and `retryCount` help explain how the request completed. Format and site behavior determine which content fields are populated.
+Check `targetStatusCode`, `error`, and the returned content before processing a scrape. The target page can return an error or a challenge page even when MrScraper accepted the request. `tokenUsage`, `runtime`, and `retryCount` help explain how the request completed. An HTML-only request uses MrScraper's fetch endpoint, which reports `tokenUsage` but leaves `runtime`, `retryCount`, and `targetStatusCode` empty; enable Markdown to get all of them.
 
 For JSON search results, use `searchResults` for organic results, `general` for query metadata, and `pagination` for available result pages. An empty results array is a valid outcome. For HTML search, use the `html` output. These are search results, not a guarantee that each linked page is accessible.
 
@@ -191,9 +197,9 @@ The account action returns a selected summary. API tokens and billing identifier
 
 ## Control time and token usage
 
-Scrape `timeout` is a page-loading timeout in seconds, from `1` to `300`, with a default of `120`. It is separate from workflow execution limits. `maxRetries` defaults to `3`; set it to `0` to disable retries.
+Scrape `timeout` is a page-loading timeout in seconds, from `1` to `300`, with a default of `120`. It is separate from workflow execution limits. `maxRetries` and `tokenCap` apply to Markdown requests; the HTML-only fetch endpoint retries on its own. `maxRetries` defaults to `3`; set it to `0` to disable retries.
 
-`tokenCap` stops further retries when the running token total reaches the cap. The first attempt still runs even if it exceeds the cap, so this setting does not guarantee a maximum charge. Web fetching uses runtime and bandwidth: one plan token per 30 seconds and one per 0.25 MB, rounded up for each component. See MrScraper's [Token Plan](https://docs.mrscraper.com/docs/getting-started/api-token) for the maintained calculation.
+`tokenCap` must be at least `1` and stops further retries when the running token total reaches the cap. The first attempt still runs even if it exceeds the cap, so this setting does not guarantee a maximum charge. Web fetching uses runtime and bandwidth: one plan token per 30 seconds and one per 0.25 MB, rounded up for each component. See MrScraper's [Token Plan](https://docs.mrscraper.com/docs/getting-started/api-token) for the maintained calculation.
 
 The combined API response must fit Sim's 10 MiB tool response limit, including the screenshot's base64 representation before it is stored as a file. If the response is too large, request fewer formats or omit the screenshot.
 

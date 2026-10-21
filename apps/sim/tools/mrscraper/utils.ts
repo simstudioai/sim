@@ -1,7 +1,7 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike } from '@sim/utils/object'
 
-export function requireMrScraperApiKey(apiKey: string): string {
+function requireMrScraperApiKey(apiKey: string): string {
   if (typeof apiKey !== 'string' || !apiKey.trim()) {
     throw new Error('A MrScraper API key is required.')
   }

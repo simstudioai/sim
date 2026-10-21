@@ -17881,6 +17881,38 @@
       "updatedAt": "2026-10-14"
     },
     {
+      "type": "mrscraper",
+      "slug": "mrscraper",
+      "name": "MrScraper",
+      "description": "Retrieve web pages, search Google, and check account usage",
+      "longDescription": "Retrieve web pages as HTML, Markdown, or screenshots with browser rendering and geographic routing. Search Google for research and SEO workflows, and check your MrScraper token balance.",
+      "bgColor": "#102C35",
+      "iconName": "MrScraperIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mrscraper",
+      "operations": [
+        {
+          "name": "Scrape Page",
+          "description": "Retrieve a web page as HTML, Markdown, or a screenshot with automatic browser fallback, optional real-device routing, geolocation, and retry controls."
+        },
+        {
+          "name": "Google Search",
+          "description": "Search Google from query text or a Google search URL and return organic results, search metadata, pagination, or the raw results-page HTML."
+        },
+        {
+          "name": "Get Account",
+          "description": "Check account identity, subscription status, token usage, remaining quota, and rate limits."
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "seo", "automation"],
+      "updatedAt": "2026-10-21"
+    },
+    {
       "type": "mysql",
       "slug": "mysql",
       "name": "MySQL",

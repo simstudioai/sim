@@ -103,12 +103,16 @@ export const mrScraperSearchTool: ToolConfig<MrScraperSearchParams, MrScraperSea
     headers: (params) => getMrScraperHeaders(params.apiKey),
     body: getSearchInput,
   },
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const body = requireMrScraperObject(await response.json(), 'search response')
     const error = getMrScraperError(body)
     const data = error ? toRecord(body.data) : requireMrScraperObject(body.data, 'search data')
     const general = toRecordOrNull(data.general)
     const pagination = toRecordOrNull(data.pagination)
+    // The API reports current_page as 1 for every page, so trust the page that was requested.
+    const requestedPage = params ? getMrScraperNumber(getSearchInput(params).page) : null
+    const currentPage = requestedPage ?? getMrScraperNumber(pagination?.current_page)
+    const reportedNextPage = getMrScraperNumber(pagination?.next_page)
     return {
       success: !error,
       ...(error ? { error } : {}),
@@ -139,8 +143,11 @@ export const mrScraperSearchTool: ToolConfig<MrScraperSearchParams, MrScraperSea
           : null,
         pagination: pagination
           ? {
-              currentPage: getMrScraperNumber(pagination.current_page),
-              nextPage: getMrScraperNumber(pagination.next_page),
+              currentPage,
+              nextPage:
+                reportedNextPage !== null && currentPage !== null
+                  ? currentPage + 1
+                  : reportedNextPage,
               nextPageStart: getMrScraperNumber(pagination.next_page_start),
               nextPageLink: toStringOrNull(pagination.next_page_link),
               pages: toArray(pagination.pages).map((value) => {
