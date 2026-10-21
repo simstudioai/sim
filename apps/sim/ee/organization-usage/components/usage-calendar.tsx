@@ -22,7 +22,7 @@ export function UsageCalendar({ organizationId, timezone, workspaceId }: UsageCa
       {calendar.isError || !calendar.data ? (
         <ChartFrame
           height={172}
-          loading={calendar.isLoading}
+          loading={calendar.isPending}
           error={calendar.isError ? 'Could not load daily usage' : undefined}
           onRetry={() => void calendar.refetch()}
         >
