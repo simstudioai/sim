@@ -46,6 +46,10 @@ export function usePacedActivity(
 
   if (visible.resetKey !== resetKey) {
     setVisible({ activity, key, resetKey, placeholder, shownAt: Date.now() })
+  } else if (key === visible.key && placeholder !== visible.placeholder) {
+    // The same text now names the call itself (an activity title its description matches), so
+    // it holds the header from here.
+    setVisible({ ...visible, activity, placeholder, shownAt: Date.now() })
   }
 
   useEffect(() => {

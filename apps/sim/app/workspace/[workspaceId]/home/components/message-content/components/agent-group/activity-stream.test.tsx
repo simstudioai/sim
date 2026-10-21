@@ -70,4 +70,14 @@ describe('usePacedActivity', () => {
     act(() => vi.advanceTimersByTime(100))
     expect(show('Looking up the failed run', true, 'call-1')).toBe('Looking up the failed run')
   })
+
+  it('holds a title that matched its placeholder text once the call names itself', () => {
+    show('Reading Gauge', true, 'call-1', true)
+    act(() => vi.advanceTimersByTime(100))
+    expect(show('Reading Gauge', true, 'call-1')).toBe('Reading Gauge')
+    act(() => vi.advanceTimersByTime(300))
+    expect(show('Read Gauge', false, 'call-1')).toBe('Reading Gauge')
+    act(() => vi.advanceTimersByTime(700))
+    expect(shown?.label).toBe('Read Gauge')
+  })
 })
