@@ -47,6 +47,7 @@ import {
   type ExecutionEvent,
   LIVE_ONLY_EXECUTION_EVENT_TYPES,
 } from '@/lib/workflows/executor/execution-events'
+import { getWorkflowExecutionCopilotToolCallId } from '@/lib/workflows/executor/execution-state'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -134,14 +135,17 @@ async function reportCopilotToolForSettledPause(
   workflowId: string
 ): Promise<void> {
   try {
-    // Loaded on use: its confirmation channel opens Redis connections at import.
-    const { reportSettledPausedCopilotWorkflowTool } = await import(
+    const toolCallId = await getWorkflowExecutionCopilotToolCallId(executionId, workflowId)
+    if (!toolCallId) return
+    // Loaded only for a Copilot-bound run: its confirmation channel opens Redis connections at import.
+    const { reportSettledClientWorkflowTool } = await import(
       '@/lib/mothership/request/tools/workflow-client-settlement'
     )
-    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
   } catch (error) {
     logger.warn('Failed to report a settled paused Copilot workflow tool', {
       executionId,
+      workflowId,
       error: toError(error).message,
     })
   }

@@ -43,7 +43,6 @@ import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/cl
 import {
   reportQueuedClientWorkflowTool,
   reportSettledClientWorkflowTool,
-  reportSettledPausedCopilotWorkflowTool,
 } from '@/lib/mothership/request/tools/workflow-client-settlement'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
@@ -327,36 +326,6 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
   })
 
-  it('keeps a paused execution open while it waits for approval', async () => {
-    const { toolCallId, executionId } = await claimedAndPaused()
-
-    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
-
-    expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
-    expect(await publishedConfirmation(toolCallId)).toBeNull()
-  })
-
-  it('delivers a paused execution resumed to completion exactly once', async () => {
-    const { toolCallId, executionId } = await claimedAndPaused()
-    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
-    await setLogStatus(executionId, 'completed')
-
-    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
-    const settled = await toolRow(toolCallId)
-    await reportSettledPausedCopilotWorkflowTool({ executionId, workflowId })
-
-    expect(await waiting).toMatchObject({
-      status: 'success',
-      data: { success: true, workflowId, executionId },
-    })
-    expect(settled).toMatchObject({ status: 'completed', claimedBy: null })
-    expect((await toolRow(toolCallId)).completedAt).toEqual(settled.completedAt)
-    expect(await publishedConfirmation(toolCallId)).toMatchObject({
-      status: 'success',
-      executionId,
-    })
-  })
-
   it('delivers a paused execution a resume completes', async () => {
     const { toolCallId, executionId } = await claimedAndPaused(
       JSON.stringify({
@@ -385,18 +354,18 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     })
     if (started.status !== 'starting') throw new Error('The resume was queued instead of started')
     // Only the engine stands in: it completes the parent's log as a finished resume does.
-    const engine = vi
-      .spyOn(PauseResumeManager as unknown as ResumeEngine, 'runResumeExecution')
-      .mockImplementationOnce(async () => {
-        await setLogStatus(executionId, 'completed')
-        return {
-          success: true,
-          status: 'completed',
-          output: {},
-          logs: [],
-          metadata: { executionId, duration: 1, startTime: 'start' },
-        }
-      })
+    // double-cast-allowed: runResumeExecution is private; the test stands in only for the resume engine
+    const resumeEngine = PauseResumeManager as unknown as ResumeEngine
+    const engine = vi.spyOn(resumeEngine, 'runResumeExecution').mockImplementationOnce(async () => {
+      await setLogStatus(executionId, 'completed')
+      return {
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+        metadata: { executionId, duration: 1, startTime: 'start' },
+      }
+    })
 
     try {
       await PauseResumeManager.startResumeExecution({
