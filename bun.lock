@@ -113,6 +113,7 @@
         "zod": "4.3.6",
       },
       "devDependencies": {
+        "@playwright/test": "1.61.1",
         "@sim/tsconfig": "workspace:*",
         "@tailwindcss/postcss": "^4.3.3",
         "@types/node": "24.19.2",

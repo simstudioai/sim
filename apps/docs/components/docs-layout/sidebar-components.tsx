@@ -112,7 +112,7 @@ export function SidebarFolder({ item, children }: SidebarFolderProps) {
       )}
       {hasChildren && (
         <div id={contentId} hidden={!open}>
-          <div className='mt-px ml-4 flex flex-col gap-px'>{children}</div>
+          {open && <div className='mt-px ml-4 flex flex-col gap-px'>{children}</div>}
         </div>
       )}
     </div>
