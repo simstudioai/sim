@@ -10,7 +10,7 @@ import {
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { getToolMetadata, getToolParams } from '@/tools/metadata'
+import { getToolMetadata } from '@/tools/metadata'
 import { slackGetUserTool } from '@/tools/slack/get_user'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
@@ -304,40 +304,6 @@ describe('copilot tool executor fallback', () => {
       { code: 'return 1', arguments: { activity: 'business input' } },
       context
     )
-  })
-
-  it('keeps display activity out of integration and MCP execution parameters', async () => {
-    isKnownTool.mockReturnValue(false)
-    isClientExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true })
-    await executeTool(
-      'mcp-server-get_overview',
-      { activity: { id: 'gauge-read' }, category_id: null },
-      { userId: 'person', workflowId: '', workspaceId: 'workspace', requestMode: 'agent' }
-    )
-    const appParams = executeAppTool.mock.calls[0]?.[1]
-    expect(appParams).not.toHaveProperty('activity')
-    expect(appParams).toMatchObject({ category_id: null })
-  })
-
-  it.each([
-    ['a tool that declares it', 'azure_devops_create_work_item', { id: 'Development' }],
-    ['a value that is not a display label', 'mcp-server-log_time', 'Development'],
-  ])("keeps a tool's own activity for %s", async (_case, toolId, activity) => {
-    vi.mocked(getToolParams).mockImplementation((id) =>
-      id === 'azure_devops_create_work_item'
-        ? { activity: { type: 'string', required: false, visibility: 'user-or-llm' } }
-        : undefined
-    )
-    isKnownTool.mockReturnValue(false)
-    isClientExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true })
-    await executeTool(
-      toolId,
-      { activity },
-      { userId: 'person', workflowId: '', workspaceId: 'workspace', requestMode: 'agent' }
-    )
-    expect(executeAppTool.mock.calls[0]?.[1]).toMatchObject({ activity })
   })
 
   it('projects resolved secrets before logging registered handler failures', async () => {

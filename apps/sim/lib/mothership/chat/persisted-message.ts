@@ -24,6 +24,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type {
   ContentBlock,
   LocalToolCallStatus,
@@ -273,6 +274,14 @@ export function displayContentOf(content: PersistedMessage): PersistedMessage | 
 
 // Write: OrchestratorResult → PersistedMessage
 
+/** A call's arguments as history reads them, with an inherited display grouping restored. */
+function persistedParams(
+  params: Record<string, unknown>,
+  activity: ToolActivity | undefined
+): Record<string, unknown> {
+  return activity && params.activity === undefined ? { ...params, activity } : params
+}
+
 function resolveToolState(block: ContentBlock): PersistedToolState {
   const tc = block.toolCall
   if (!tc) return 'pending'
@@ -391,7 +400,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         ...(isSubagentTool && isNonTerminal
           ? {}
           : block.toolCall.params
-            ? { params: block.toolCall.params }
+            ? { params: persistedParams(block.toolCall.params, block.toolCall.activity) }
             : {}),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
         ...(block.toolCall.displayTitle

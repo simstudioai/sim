@@ -20,6 +20,7 @@ import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
@@ -144,6 +145,11 @@ function applyToolDisplay(toolCall: ToolCallState | undefined): void {
 }
 
 const INTEGRATION_GATEWAY_TOOL = 'call_integration_tool'
+
+/** A call's display grouping: carried in its own arguments, or inherited and held beside them. */
+function toolCallActivity(toolCall: ToolCallState | undefined): ToolActivity | undefined {
+  return toolCall?.activity ?? readToolActivity(toolCall?.params)
+}
 
 function handleToolArgsDelta(
   data: { argumentsDelta: string; toolCallId: string; toolName: string },
@@ -580,17 +586,18 @@ async function handleCallPhase(
   }
   /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
   const argsActivity = readToolActivity(args)
-  const suppliedActivity = argsActivity ?? readToolActivity(existing?.params)
+  const suppliedActivity = argsActivity ?? toolCallActivity(existing)
   const activity = suppliedActivity?.completedTitle
     ? suppliedActivity
     : suppliedActivity &&
       Array.from(context.toolCalls.values())
         .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
-        .map((tool) => readToolActivity(tool.params))
+        .map(toolCallActivity)
         .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
-  // A tool's own `activity` argument (any value that is not a display label) is never replaced.
-  const ownsActivity = args?.activity !== undefined && !argsActivity
-  const displayArgs = activity && !ownsActivity ? { ...args, activity } : args
+  // Only a label the frame's own arguments carry is completed in place. An inherited one stays
+  // off the arguments, which execute as given (an MCP schema refuses keys it never declared).
+  const displayArgs = activity && argsActivity ? { ...args, activity } : args
+  if (existing && activity && !argsActivity) existing.activity = activity
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
