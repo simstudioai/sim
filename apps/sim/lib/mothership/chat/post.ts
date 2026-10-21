@@ -514,11 +514,12 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
  * reloads and reopened chats with no extra state to keep in sync. There is
  * deliberately no off switch: history is append-only.
  *
- * Only the ids travel forward, not the contexts themselves. The tools ride the
- * tool array on every turn, so the model always sees their names and schemas;
- * re-expanding the prompt listing each turn would just duplicate that. Keeping
- * inherited servers out of the persisted contexts also keeps the `/name` chips
- * on a sent message showing only what the user actually typed that turn.
+ * Only the ids travel forward, not the contexts themselves. The ids scope the
+ * request's integration catalog, and the agent discovers these servers'
+ * operations on demand, so re-expanding the prompt listing each turn adds
+ * nothing. Keeping inherited servers out of the persisted contexts also keeps
+ * the `/name` chips on a sent message showing only what the user actually typed
+ * that turn.
  */
 function collectChatMcpServerIds(
   chatMcpServerIds: string[],

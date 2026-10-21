@@ -7,6 +7,7 @@ import {
   resolvePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
+import { createLogger } from '@sim/logger'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -32,6 +33,8 @@ import type {
 } from '@/lib/mothership/generated/integration-catalog'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+
+const logger = createLogger('IntegrationCatalog')
 
 export const INTEGRATION_CATALOG_AUDIENCE = 'sim:integration-catalog'
 export const readIntegrationCatalogOperation = defineWorkspaceOperation({
@@ -227,12 +230,25 @@ const catalogUseCase = defineAuthorizedChatUseCase({
       const executorContext = input.mcpExecution
         ? catalogExecutorContext(input, context.userId, workspaceId)
         : undefined
-      const mcpTools = await buildTaggedMcpToolSchemas(
+      const { tools: mcpTools, failures } = await buildTaggedMcpToolSchemas(
         context.userId,
         workspaceId,
         candidates,
         executorContext
       )
+      const targetFailure = failures.find(
+        ({ serverId }) =>
+          input.service === `mcp:${serverId}` ||
+          (input.toolId?.startsWith(`${serverId}-`) &&
+            !mcpTools.some((tool) => tool.name === input.toolId))
+      )
+      if (targetFailure) throw targetFailure.error
+      for (const { serverId, error } of failures) {
+        logger.warn('Omitting an undiscoverable tagged MCP server from the integration catalog', {
+          serverId,
+          reason: error.message,
+        })
+      }
       tools.push(
         ...mcpTools.filter(
           (tool) => selectedIds.has(tool.name) || serverIds.has(tool.service?.slice(4) ?? '')

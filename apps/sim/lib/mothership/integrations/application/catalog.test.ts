@@ -11,6 +11,10 @@ import {
   mothershipWorkspaceTargetMockFns,
 } from '@sim/testing/mocks/mothership-workspace-target.mock'
 import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
@@ -19,6 +23,7 @@ import {
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
@@ -30,9 +35,11 @@ import {
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
 
-const hoisted = vi.hoisted(() => ({ mcp: vi.fn(), flag: vi.fn(async () => true) }))
+const hoisted = vi.hoisted(() => ({ flag: vi.fn(async () => true) }))
 const mocks = {
   ...hoisted,
+  discover: mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase,
+  mcpPermission: permissionCheckMockFns.mockAssertPermissionsAllowed,
   build: mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas,
   banned: authBanMockFns.mockGetActivelyBannedUserIds,
   target: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
@@ -42,7 +49,8 @@ const mocks = {
 }
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
-vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: hoisted.mcp }))
+vi.mock('@/lib/internal/mcp/discover-tools', () => ({ discoverMcpServerToolsAsExecutor: vi.fn() }))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
@@ -64,6 +72,9 @@ const tools = [
     input_schema: { type: 'object' },
   },
 ]
+function discoveredServerIds() {
+  return mocks.discover.mock.calls.map(([args]) => args.input.serverId)
+}
 function principal() {
   return createTrustedOrganizationCopilotPrincipal(
     { userId: 'actor', organizationId: 'org-1', chatId: 'chat-1', delegationId: 'catalog-1' },
@@ -82,7 +93,9 @@ beforeEach(() => {
   mocks.banned.mockResolvedValue([])
   mocks.config.mockResolvedValue(null)
   mocks.build.mockResolvedValue([...tools])
-  mocks.mcp.mockResolvedValue([])
+  mocks.discover.mockReset()
+  mocks.discover.mockResolvedValue({ tools: [] })
+  mocks.mcpPermission.mockResolvedValue(undefined)
   mocks.listServers.mockResolvedValue({ servers: [{ id: 'mcp-abc' }] })
 })
 describe('integration catalog projection', () => {
@@ -238,7 +251,9 @@ describe('catalog authorization', () => {
 
   it('does not discover MCP operations in Search even with selected servers', async () => {
     queueChat()
-    mocks.mcp.mockResolvedValue([{ ...tools[0], name: 'mcp-abc-send', service: 'mcp:mcp-abc' }])
+    mocks.discover.mockResolvedValue({
+      tools: [{ serverId: 'mcp-abc', name: 'send', description: 'Send', inputSchema: {} }],
+    })
     const result = await readIntegrationCatalog.execute({
       principal: principal(),
       input: { ...input, service: 'mcp:mcp-abc', mcpServerIds: ['mcp-abc'] },
@@ -297,10 +312,12 @@ it.each([undefined, 'mcp-abc-write'])(
   async (toolId) => {
     queueChat('agent')
     mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
-    mocks.mcp.mockResolvedValue([
-      { name: 'mcp-abc-read', service: 'mcp:mcp-abc', description: 'Read', input_schema: {} },
-      { name: 'mcp-abc-write', service: 'mcp:mcp-abc', description: 'Write', input_schema: {} },
-    ])
+    mocks.discover.mockResolvedValue({
+      tools: [
+        { serverId: 'mcp-abc', name: 'read', description: 'Read', inputSchema: {} },
+        { serverId: 'mcp-abc', name: 'write', description: 'Write', inputSchema: {} },
+      ],
+    })
     const result = await readIntegrationCatalog.execute({
       principal: principal(),
       input: {
@@ -312,7 +329,7 @@ it.each([undefined, 'mcp-abc-write'])(
         ...(toolId ? { toolId } : {}),
       },
     })
-    expect(mocks.mcp).toHaveBeenCalledWith('actor', 'workspace-1', ['mcp-abc'], undefined)
+    expect(discoveredServerIds()).toEqual(['mcp-abc'])
     expect(result.operations.map((operation) => operation.toolId)).toEqual(
       toolId ? [] : ['mcp-abc-read']
     )
@@ -325,7 +342,7 @@ it('keeps native discovery available in organization chats with tagged MCP serve
     input: { ...input, mode: 'agent', mcpServerIds: ['mcp-abc'], toolId: 'gmail_send' },
   })
   expect(result.operations.map((operation) => operation.toolId)).toEqual(['gmail_send'])
-  expect(mocks.mcp).not.toHaveBeenCalled()
+  expect(mocks.discover).not.toHaveBeenCalled()
 })
 it('requires an explicit workspace target for organization MCP discovery', async () => {
   queueChat('agent')
@@ -335,7 +352,7 @@ it('requires an explicit workspace target for organization MCP discovery', async
       input: { ...input, mode: 'agent', mcpServerIds: ['mcp-abc'], toolId: 'mcp-abc-read' },
     })
   ).rejects.toThrow('explicit workspace ID')
-  expect(mocks.mcp).not.toHaveBeenCalled()
+  expect(mocks.discover).not.toHaveBeenCalled()
 })
 
 it('ranks query tokens across operation names, descriptions, and service while prioritizing exact IDs', () => {
@@ -381,7 +398,7 @@ it('filters organization enabled servers to the authorized target before broad M
     principal: expect.objectContaining({ workspaceId: 'workspace-1', subjectUserId: 'actor' }),
     input: { workspaceId: 'workspace-1' },
   })
-  expect(mocks.mcp).toHaveBeenCalledWith('actor', 'workspace-1', ['mcp-abc'], undefined)
+  expect(discoveredServerIds()).toEqual(['mcp-abc'])
 })
 
 it('removes previously discoverable Search operations when the runtime flag turns off', async () => {
@@ -393,4 +410,60 @@ it('removes previously discoverable Search operations when the runtime flag turn
       enabled ? ['gmail_send', 'slack_send'] : []
     )
   }
+})
+
+describe('tagged MCP servers that cannot be discovered', () => {
+  const failures: Record<string, () => Promise<never> | Promise<{ tools: never[] }>> = {
+    'mcp-deleted': async () => {
+      throw new OrchestrationError('not_found', 'MCP server not found')
+    },
+    'mcp-down': async () => {
+      throw new Error('connect ECONNREFUSED')
+    },
+    'mcp-empty': async () => ({ tools: [] }),
+  }
+  const serverIds = ['mcp-abc', ...Object.keys(failures)]
+  function catalog(request: Partial<IntegrationCatalogRequest>) {
+    queueChat('agent')
+    return readIntegrationCatalog.execute({
+      principal: principal(),
+      input: {
+        ...input,
+        mode: 'agent',
+        workspaceId: 'workspace-1',
+        mcpServerIds: serverIds,
+        ...request,
+      },
+    })
+  }
+  beforeEach(() => {
+    mocks.target.mockResolvedValue({ workspaceId: 'workspace-1' })
+    mocks.listServers.mockResolvedValue({ servers: serverIds.map((id) => ({ id })) })
+    mocks.discover.mockImplementation(async ({ input: { serverId } }) => {
+      const failure = failures[serverId]
+      if (failure) return failure()
+      return { tools: [{ serverId, name: 'send', description: 'Send a note', inputSchema: {} }] }
+    })
+  })
+
+  it.each([undefined, 'send'])(
+    'still lists native and healthy MCP operations (query: %s)',
+    async (query) => {
+      const result = await catalog(query ? { query } : {})
+      expect(result.operations.map((operation) => operation.toolId)).toEqual(
+        expect.arrayContaining(['gmail_send', 'slack_send', 'mcp-abc-send'])
+      )
+      expect(result.operations).toHaveLength(3)
+      expect(discoveredServerIds().sort()).toEqual([...serverIds].sort())
+    }
+  )
+
+  it.each([
+    ['mcp-deleted', 'MCP server not found'],
+    ['mcp-down', 'connect ECONNREFUSED'],
+    ['mcp-empty', 'No permitted MCP operations are available for mcp-empty'],
+  ])('fails a request that targets %s with its own error', async (serverId, message) => {
+    await expect(catalog({ service: `mcp:${serverId}` })).rejects.toThrow(message)
+    await expect(catalog({ toolId: `${serverId}-send` })).rejects.toThrow(message)
+  })
 })
