@@ -13,14 +13,13 @@
     "test": "vitest run",
     "test:negotiation:e2e": "bun scripts/test-negotiation-e2e.ts",
     "test:headers:e2e": "bun scripts/test-header-merge-e2e.ts",
-    "test:llms:e2e": "bun scripts/test-llms-full-e2e.ts",
-    "measure:performance": "bun scripts/measure-performance.ts",
     "type-check": "fumadocs-mdx && tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "llms-full:generate": "bun scripts/generate-llms-full.ts"
+    "llms-full:generate": "fumadocs-mdx && bun scripts/generate-llms-full.ts",
+    "test:navigation:e2e": "bun scripts/test-navigation-e2e.ts"
   },
   "dependencies": {
     "@sim/db": "workspace:*",
@@ -29,7 +28,6 @@
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-renderer": "workspace:*",
-    "@vercel/speed-insights": "2.0.0",
     "@xyflow/react": "12.12.0",
     "class-variance-authority": "^0.7.1",
     "drizzle-orm": "^0.45.4",
@@ -49,7 +47,6 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@mdx-js/mdx": "3.1.1",
     "@playwright/test": "1.61.1",
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
@@ -60,7 +57,6 @@
     "postcss": "^8.5.30",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4",
-    "vfile": "6.0.3"
+    "vitest": "^5.0.4"
   }
 }

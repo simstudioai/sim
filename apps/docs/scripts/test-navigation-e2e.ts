@@ -4,32 +4,15 @@ import { type Browser, chromium, expect } from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
-const logger = createLogger('DocsPerformance', { logLevel: 'INFO' })
-const origin = process.env.DOCS_PERFORMANCE_BASE_URL ?? process.env.DOCS_E2E_BASE_URL
-const reportPath = process.env.DOCS_PERFORMANCE_REPORT_PATH
+const logger = createLogger('DocsNavigationE2E', { logLevel: 'INFO' })
+const origin = process.env.DOCS_E2E_BASE_URL
+const reportPath = process.env.DOCS_NAVIGATION_REPORT_PATH
 if (!origin || !reportPath) {
-  throw new Error('A docs base URL and DOCS_PERFORMANCE_REPORT_PATH are required')
+  throw new Error('A docs base URL and DOCS_NAVIGATION_REPORT_PATH are required')
 }
 const target = new URL(origin)
-if (
-  target.protocol !== 'https:' &&
-  !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)
-) {
-  throw new Error('Remote measurements require HTTPS')
-}
-
-interface BrowserMetrics {
-  lcpMs: number | null
-  layoutShiftSum: number
-  longTasks: number
-  blockingMs: number
-  tabPaintMs: number[]
-}
-
-declare global {
-  interface Window {
-    docsPerformance: BrowserMetrics
-  }
+if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) {
+  throw new Error('The documentation server must use a loopback origin')
 }
 
 const pages = [
@@ -55,60 +38,12 @@ try {
       const context = await browser.newContext({ viewport, reducedMotion: 'reduce' })
       const page = await context.newPage()
       const errors: string[] = []
+      const markdownRequests: string[] = []
       page.on('pageerror', (error) => errors.push(error.message))
-      await page.addInitScript(() => {
-        const metrics: BrowserMetrics = {
-          lcpMs: null,
-          layoutShiftSum: 0,
-          longTasks: 0,
-          blockingMs: 0,
-          tabPaintMs: [],
+      page.on('request', (request) => {
+        if (new URL(request.url()).pathname.startsWith('/llms.mdx')) {
+          markdownRequests.push(request.url())
         }
-        window.docsPerformance = metrics
-        for (const type of ['largest-contentful-paint', 'layout-shift', 'longtask']) {
-          if (!PerformanceObserver.supportedEntryTypes.includes(type)) continue
-          new PerformanceObserver((list) => {
-            for (const entry of list.getEntries()) {
-              if (entry.entryType === 'largest-contentful-paint') metrics.lcpMs = entry.startTime
-              if (entry.entryType === 'layout-shift' && 'value' in entry) {
-                if ('hadRecentInput' in entry && entry.hadRecentInput) continue
-                metrics.layoutShiftSum += Number(entry.value)
-              }
-              if (entry.entryType === 'longtask') {
-                metrics.longTasks += 1
-                metrics.blockingMs += Math.max(0, entry.duration - 50)
-              }
-            }
-          }).observe({ type, buffered: true })
-        }
-        document.addEventListener(
-          'pointerdown',
-          (event) => {
-            if (!(event.target instanceof Element)) return
-            const tab = event.target.closest('[role="tab"]')
-            if (!tab || !tab.closest('[aria-label="Request language"]')) return
-            const started = performance.now()
-            const measurePaint = () => {
-              const panelId = tab.getAttribute('aria-controls')
-              const panel = panelId ? document.getElementById(panelId) : null
-              if (
-                tab.getAttribute('aria-selected') === 'true' &&
-                panel &&
-                panel.getBoundingClientRect().height > 0 &&
-                panel.querySelector('code')?.textContent?.trim()
-              ) {
-                requestAnimationFrame(() => {
-                  if (metrics.tabPaintMs.length < 20)
-                    metrics.tabPaintMs.push(performance.now() - started)
-                })
-              } else if (performance.now() - started < 10000) {
-                requestAnimationFrame(measurePaint)
-              }
-            }
-            requestAnimationFrame(measurePaint)
-          },
-          true
-        )
       })
       try {
         const response = await page.goto(new URL(path, origin).toString(), {
@@ -118,24 +53,6 @@ try {
         await page.getByRole('heading', { level: 1 }).waitFor()
         await page.evaluate(async () => {
           await document.fonts.ready
-        })
-        const initial = await page.evaluate(() => {
-          const navigation = performance.getEntriesByType('navigation')[0] as
-            | PerformanceNavigationTiming
-            | undefined
-          const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[]
-          return {
-            ...window.docsPerformance,
-            fcpMs: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
-            ttfbMs: navigation?.responseStart ?? null,
-            loadMs: navigation?.loadEventEnd ?? null,
-            htmlBytes: navigation?.decodedBodySize ?? null,
-            scriptBytes: resources
-              .filter((entry) => entry.initiatorType === 'script')
-              .reduce((total, entry) => total + entry.encodedBodySize, 0),
-            requests: resources.length,
-            domElements: document.querySelectorAll('*').length,
-          }
         })
         if (path.startsWith('/api-reference/')) {
           const tabs = page.getByRole('tablist', { name: 'Request language' }).getByRole('tab')
@@ -161,18 +78,35 @@ try {
                   panel.querySelector('code')?.textContent?.trim()
               )
             })
-            await page.evaluate(
-              () =>
-                new Promise<void>((resolve) =>
-                  requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-                )
-            )
           }
-          const recorded = await page.evaluate(() => window.docsPerformance.tabPaintMs.length)
-          if (recorded !== count)
-            throw new Error(`Expected ${count} tab measurements; recorded ${recorded}`)
         }
-        const tabPaintMs = await page.evaluate(() => window.docsPerformance.tabPaintMs)
+        if (viewport.name === 'desktop') {
+          const markdownUrl = new URL(`/llms.mdx${path}`, origin).toString()
+          const markdown = await page.request.get(markdownUrl)
+          expect(markdown.ok()).toBe(true)
+          const expected = await markdown.text()
+          const copy = page.getByRole('button', { name: 'Copy page content', exact: true })
+          await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+          expect(markdownRequests).toEqual([])
+          await copy.click()
+          await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+          expect(markdownRequests).toEqual([markdownUrl])
+          await expect
+            .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+            .toBe(expected)
+          await page.route(markdownUrl, (route) =>
+            route.fulfill({ status: 503, body: 'Unavailable' })
+          )
+          await page.getByRole('button', { name: 'Copied to clipboard' }).click()
+          await expect(page.getByRole('status')).toHaveText('Could not copy. Try again.')
+          await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toHaveCount(0)
+          await expect
+            .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+            .toBe(expected)
+          await page.unroute(markdownUrl)
+          await copy.click()
+          await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+        }
         await page.screenshot({
           path: join(dirname(reportPath), `${viewport.name}${path.replaceAll('/', '-')}.png`),
         })
@@ -207,14 +141,23 @@ try {
           }
           await expect(costs).toHaveAttribute('aria-current', 'page')
           await expect(platform).toHaveAttribute('aria-expanded', 'true')
+          if (!mobile) {
+            const markdown = await page.request.get(
+              new URL('/llms.mdx/platform/costs', origin).toString()
+            )
+            expect(markdown.ok()).toBe(true)
+            await page.getByRole('button', { name: 'Copy page content', exact: true }).click()
+            await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+            await expect
+              .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+              .toBe(await markdown.text())
+          }
         }
         results.push({
           path,
           viewport: viewport.name,
           status: errors.length ? 'failed' : 'passed',
           durationMs: Math.round(performance.now() - started),
-          ...initial,
-          tabPaintMs,
           errors,
         })
         if (errors.length) failed = true
@@ -240,8 +183,8 @@ try {
   await browser?.close()
   await writeFile(
     reportPath,
-    `${JSON.stringify({ measuredAt: new Date().toISOString(), origin: target.origin, results }, null, 2)}\n`
+    `${JSON.stringify({ checkedAt: new Date().toISOString(), origin: target.origin, results }, null, 2)}\n`
   )
 }
-logger.info('Recorded documentation performance', { pages: results.length, reportPath })
+logger.info('Verified documentation navigation', { pages: results.length, reportPath })
 if (failed) process.exitCode = 1

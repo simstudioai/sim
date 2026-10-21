@@ -26,7 +26,7 @@ import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { IntegrationIcon } from '@/components/ui/integration-icon'
 import { ResponseSection } from '@/components/ui/response-section'
-import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
+import { getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
@@ -266,11 +266,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
 
   if (isOpenAPI && data.getAPIPageProps) {
     const apiProps = data.getAPIPageProps()
-    const apiPageContent = getApiSpecContent(
-      data.title,
-      data.description,
-      apiProps.operations ?? []
-    )
 
     return (
       <>
@@ -306,7 +301,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         >
           <PageHeader title={data.title} className='api-page-header'>
             <div className='hidden sm:flex'>
-              <LLMCopyButton content={apiPageContent} />
+              <LLMCopyButton
+                key={page.url}
+                markdownUrl={`/llms.mdx${page.url === '/' ? '' : page.url}`}
+              />
             </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </PageHeader>
@@ -318,8 +316,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
     )
   }
 
-  const MDX = data.body
-  const markdownContent = await data.getText('processed')
+  const { body: MDX, toc } = await data.load()
 
   return (
     <>
@@ -334,7 +331,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         className={DOCS_PAGE_CLASS_NAME}
         role='main'
         tabIndex={-1}
-        toc={data.toc.filter(
+        toc={toc.filter(
           (item) => isContentHeading(item) && (slug?.[0] !== 'integrations' || item.depth <= 3)
         )}
         full={data.full}
@@ -359,7 +356,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           className='max-sm:[&>h1]:basis-0 max-sm:[&_a]:size-10'
         >
           <div className='hidden sm:flex'>
-            <LLMCopyButton content={markdownContent} />
+            <LLMCopyButton
+              key={page.url}
+              markdownUrl={`/llms.mdx${page.url === '/' ? '' : page.url}`}
+            />
           </div>
           <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
         </PageHeader>
