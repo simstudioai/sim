@@ -196,4 +196,19 @@ describe('findMissingMcpConfigEnvVars', () => {
     ).toEqual([])
     expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledTimes(1)
   })
+
+  it('counts a variable that failed to decrypt as missing', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { MCP_HOST: 'host-encrypted', MCP_TOKEN: 'token-encrypted' },
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_HOST: 'api.example.com', MCP_TOKEN: '' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: ['MCP_TOKEN'],
+    })
+
+    expect(await findMissingMcpConfigEnvVars(BASE_CONFIG, 'user-b', 'workspace-1')).toEqual([
+      'MCP_TOKEN',
+    ])
+  })
 })

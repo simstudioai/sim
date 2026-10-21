@@ -516,6 +516,7 @@ describe('McpService best-effort discovery', () => {
     mockFindMissingEnvVars.mockReset()
     mockFindMissingEnvVars.mockResolvedValue([])
     mcpOauthMockFns.mockLoadOauthRow.mockReset()
+    mcpOauthMockFns.mockHasDecryptableOauthTokens.mockReset()
     mcpOauthMockFns.mockGetOrCreateOauthRow.mockReset()
     await mcpService.clearCache()
     mockCacheAdapter.set.mockClear()
@@ -593,7 +594,7 @@ describe('McpService best-effort discovery', () => {
 
   it('skips an OAuth server nobody authorized without creating its OAuth row or marking it pending', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
-    mcpOauthMockFns.mockLoadOauthRow.mockResolvedValue(null)
+    mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(false)
 
     await expect(
       mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
@@ -601,6 +602,8 @@ describe('McpService best-effort discovery', () => {
       })
     ).rejects.toBeInstanceOf(McpOauthAuthorizationRequiredError)
     expect(mcpOauthMockFns.mockGetOrCreateOauthRow).not.toHaveBeenCalled()
+    // loadOauthRow clears a column it cannot decrypt; the gate must not risk that.
+    expect(mcpOauthMockFns.mockLoadOauthRow).not.toHaveBeenCalled()
     expect(mockConnect).not.toHaveBeenCalled()
     expectNoSharedStateWrites()
   })

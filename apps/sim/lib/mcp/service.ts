@@ -26,7 +26,7 @@ import {
 } from '@/lib/mcp/domain-check'
 import {
   getOrCreateOauthRow,
-  loadOauthRow,
+  hasDecryptableOauthTokens,
   loadPreregisteredClient,
   McpOauthRedirectRequired,
   SimMcpOauthProvider,
@@ -1326,7 +1326,7 @@ class McpService {
         `Missing environment variables for this user: ${missing.join(', ')}`,
         config.name
       )
-    if (config.authType === 'oauth' && !(await loadOauthRow({ mcpServerId: config.id }))?.tokens)
+    if (config.authType === 'oauth' && !(await hasDecryptableOauthTokens(config.id)))
       throw new McpOauthAuthorizationRequiredError(config.id, config.name)
     return config
   }

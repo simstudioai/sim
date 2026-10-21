@@ -6,6 +6,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
@@ -165,7 +166,12 @@ export async function findMissingMcpConfigEnvVars(
   )
   if (!values.some((value) => createEnvVarPattern().test(value))) return []
   const env = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
-  const envVars = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+  const merged = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+  // A value that failed to decrypt arrives as '', which would connect with no credential.
+  const envVars = omit(
+    merged,
+    Object.keys(merged).filter((key) => merged[key] === '')
+  )
   const missingKeys: string[] = []
   for (const value of values) resolveEnvVarReferences(value, envVars, { missingKeys })
   return [...new Set(missingKeys)]
