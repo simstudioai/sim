@@ -141,8 +141,12 @@ try {
           const tabs = page.getByRole('tablist', { name: 'Request language' }).getByRole('tab')
           const count = await tabs.count()
           if (count < 2) throw new Error('API request-language controls are missing')
-          for (let index = 0; index < count; index += 1) {
-            const tab = tabs.nth(index)
+          const selectedIndex = await tabs.evaluateAll((elements) =>
+            elements.findIndex((element) => element.getAttribute('aria-selected') === 'true')
+          )
+          if (selectedIndex < 0) throw new Error('API request language has no selected tab')
+          for (let offset = 1; offset <= count; offset += 1) {
+            const tab = tabs.nth((selectedIndex + offset) % count)
             await tab.click()
             await expect(tab).toHaveAttribute('aria-selected', 'true')
             await page.waitForFunction(() => {
@@ -172,6 +176,38 @@ try {
         await page.screenshot({
           path: join(dirname(reportPath), `${viewport.name}${path.replaceAll('/', '-')}.png`),
         })
+        if (path === '/introduction') {
+          const mobile = viewport.name === 'mobile'
+          if (mobile) await page.getByRole('button', { name: 'Open Sidebar', exact: true }).click()
+          const navigation = page.getByRole(mobile ? 'dialog' : 'complementary', {
+            name: 'Documentation navigation',
+          })
+          const platform = navigation.getByRole('button', { name: 'Platform', exact: true })
+          const costs = navigation.getByRole('link', {
+            name: 'Credits, billing and limits',
+            exact: true,
+          })
+          await platform.click()
+          await expect(costs).toBeVisible()
+          await platform.press('Enter')
+          await expect(costs).toBeHidden()
+          await platform.press('Enter')
+          await costs.click()
+          await expect(page).toHaveURL(new URL('/platform/costs', origin).toString())
+          await expect(
+            page.getByRole('heading', {
+              level: 1,
+              name: 'Credits, billing and limits',
+              exact: true,
+            })
+          ).toBeVisible()
+          if (mobile) {
+            await expect(navigation).not.toBeVisible()
+            await page.getByRole('button', { name: 'Open Sidebar', exact: true }).click()
+          }
+          await expect(costs).toHaveAttribute('aria-current', 'page')
+          await expect(platform).toHaveAttribute('aria-expanded', 'true')
+        }
         results.push({
           path,
           viewport: viewport.name,

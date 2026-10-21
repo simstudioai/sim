@@ -17,17 +17,35 @@ const MAX_LLM_TEXT_BYTES = 64 * 1024 * 1024
 const logger = createLogger('DocsLlmsFullAsset', { logLevel: 'INFO' })
 
 const started = performance.now()
+const slowestPages: { path: string; parseMs: number; durationMs: number }[] = []
+let parseMs = 0
+let transformMs = 0
+function measureParsing() {
+  return (_tree: unknown, file: VFile) => {
+    file.data.parsedAt = performance.now()
+  }
+}
 const options = await applyMdxPreset(
   typeof config.mdxOptions === 'function' ? await config.mdxOptions() : config.mdxOptions
 )('bundler')
 // Keep MDX's built-in remark transforms without loading Shiki or the rendered component graph.
 const mdxProcessor = createProcessor({
   format: 'mdx',
-  remarkPlugins: [remarkInclude, ...(options.remarkPlugins ?? []), [remarkLLMs, { _data: true }]],
+  remarkPlugins: [
+    measureParsing,
+    remarkInclude,
+    ...(options.remarkPlugins ?? []),
+    [remarkLLMs, { _data: true }],
+  ],
 })
 const markdownProcessor = createProcessor({
   format: 'md',
-  remarkPlugins: [remarkInclude, ...(options.remarkPlugins ?? []), [remarkLLMs, { _data: true }]],
+  remarkPlugins: [
+    measureParsing,
+    remarkInclude,
+    ...(options.remarkPlugins ?? []),
+    [remarkLLMs, { _data: true }],
+  ],
 })
 const files = await readdir(docs.dir, { recursive: true })
 const pages: VirtualFile[] = []
@@ -54,7 +72,19 @@ async function* generateText(): AsyncGenerator<string> {
       data: { frontmatter: parsed.data },
     })
     const processor = filePath.endsWith('.mdx') ? mdxProcessor : markdownProcessor
-    await processor.run(processor.parse(file), file)
+    const pageStarted = performance.now()
+    await processor.process(file)
+    const pageEnded = performance.now()
+    const parsedAt = typeof file.data.parsedAt === 'number' ? file.data.parsedAt : pageStarted
+    parseMs += parsedAt - pageStarted
+    transformMs += pageEnded - parsedAt
+    slowestPages.push({
+      path: page.path,
+      parseMs: Math.round(parsedAt - pageStarted),
+      durationMs: Math.round(pageEnded - pageStarted),
+    })
+    slowestPages.sort((left, right) => right.durationMs - left.durationMs)
+    slowestPages.length = Math.min(slowestPages.length, 5)
     if (typeof file.data.markdown !== 'string') {
       throw new Error(`No processed Markdown was generated for ${page.path}`)
     }
@@ -76,6 +106,9 @@ try {
   logger.info('Generated full documentation static asset', {
     pages: source.getPages().length,
     durationMs: Math.round(performance.now() - started),
+    parseMs: Math.round(parseMs),
+    transformMs: Math.round(transformMs),
+    slowestPages,
     peakMemoryMiB: Math.round(process.resourceUsage().maxRSS / 1024),
   })
 } finally {
