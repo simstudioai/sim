@@ -204,14 +204,14 @@ try {
     })
     const page = await context.newPage()
     const markdownUrl = new URL('/llms.mdx/introduction', origin).toString()
-    let requests = 0
-    await page.route(markdownUrl, async (route) => {
-      requests += 1
+    const requests: string[] = []
+    await page.route('**/llms.mdx/**', async (route) => {
+      requests.push(route.request().url())
       await page.waitForFunction(() => !navigator.userActivation.isActive)
       await route.continue()
     })
     await page.goto(new URL('/introduction', origin).toString(), { waitUntil: 'networkidle' })
-    const copy = page.getByRole('button', { name: 'Copy page content', exact: true })
+    const copy = page.getByRole('button', { name: /^(Copy page content|Copied to clipboard)$/ })
     const loaded = page.waitForResponse(markdownUrl)
     await copy.click()
     await (await loaded).finished()
@@ -220,12 +220,36 @@ try {
     await copy.click()
     await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('data-clipboard-activation', 'true')
-    expect(requests).toBe(1)
+    expect(requests).toEqual([markdownUrl])
     await context.grantPermissions(['clipboard-read'])
     const copied = await page.evaluate(() => navigator.clipboard.readText())
     expect(copied).toContain('# Introduction (/introduction)')
     expect(copied).toContain('## Models and integrations')
     await page.screenshot({ path: join(dirname(reportPath), 'legacy-clipboard.png') })
+    await context.clearPermissions()
+    const navigation = page.getByRole('complementary', { name: 'Documentation navigation' })
+    await navigation.getByRole('button', { name: 'Platform', exact: true }).click()
+    await navigation.getByRole('link', { name: 'Credits, billing and limits', exact: true }).click()
+    await expect(page).toHaveURL(new URL('/platform/costs', origin).toString())
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Credits, billing and limits', exact: true })
+    ).toBeVisible()
+    const nextMarkdownUrl = new URL('/llms.mdx/platform/costs', origin).toString()
+    const nextLoaded = page.waitForResponse(nextMarkdownUrl)
+    await copy.click()
+    await (await nextLoaded).finished()
+    await expect(copy).toBeEnabled()
+    await context.grantPermissions(['clipboard-read'])
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(copied)
+    await context.clearPermissions()
+    await copy.click()
+    await expect(page.getByRole('button', { name: 'Copied to clipboard' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-clipboard-activation', 'true')
+    expect(requests).toEqual([markdownUrl, nextMarkdownUrl])
+    await context.grantPermissions(['clipboard-read'])
+    const nextCopied = await page.evaluate(() => navigator.clipboard.readText())
+    expect(nextCopied).toContain('# Credits, billing and limits (/platform/costs)')
+    expect(nextCopied).toContain('## What a workflow run costs')
     results.push({
       path: '/introduction',
       viewport: 'legacy-clipboard',
