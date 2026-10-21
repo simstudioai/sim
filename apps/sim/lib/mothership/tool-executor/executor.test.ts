@@ -306,6 +306,20 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
+  it('keeps display activity out of integration and MCP execution parameters', async () => {
+    isKnownTool.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true })
+    await executeTool(
+      'mcp-server-get_overview',
+      { activity: { id: 'gauge-read' }, category_id: null },
+      { userId: 'person', workspaceId: 'workspace', requestMode: 'agent' }
+    )
+    const [, appParams] = executeAppTool.mock.calls[0]
+    expect(appParams).not.toHaveProperty('activity')
+    expect(appParams).toMatchObject({ category_id: null })
+  })
+
   it('projects resolved secrets before logging registered handler failures', async () => {
     const secret = 'mounted-secret-value'
     const registry = new ResolvedSecretTraceRegistry([

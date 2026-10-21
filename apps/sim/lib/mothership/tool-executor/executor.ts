@@ -42,9 +42,11 @@ export function clearHandlers(): void {
 
 export async function executeTool(
   toolId: string,
-  params: Record<string, unknown>,
+  args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  /** `activity` is the chat's display label for the call; no tool takes it as an argument. */
+  const { activity: _activity, ...params } = args
   if (
     context.benchmark &&
     !(context.benchmark === 'distill'
@@ -293,8 +295,7 @@ async function executeGatedTool(
     }
 
     try {
-      const { activity: _activity, ...executionParams } = params
-      return await handler(executionParams, context)
+      return await handler(params, context)
     } catch (error) {
       const message = toError(error).message
       logger.error('Tool execution failed', {
