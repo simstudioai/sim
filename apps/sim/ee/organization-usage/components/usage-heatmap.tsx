@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { cn, scrollFadeAttributes, scrollFadeXClass, Tooltip, useScrollEdges } from '@sim/emcn'
 import type { OrganizationUsageCalendar } from '@/lib/api/contracts/organization-usage'
-import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
 import { USAGE_PALETTE_CLASS } from '@/ee/organization-usage/constants'
 
 const LEVEL_CLASSES = [
@@ -34,7 +34,7 @@ interface UsageHeatmapProps {
 }
 
 function formatDayUsage(day: OrganizationUsageCalendar['days'][number]) {
-  return `${formatCreditsLabel(day.credits)} on ${DAY_FORMAT.format(new Date(`${day.date}T00:00:00Z`))}`
+  return `${formatApportionedCreditCost(day.credits, day.hasCost)} on ${DAY_FORMAT.format(new Date(`${day.date}T00:00:00Z`))}`
 }
 
 /** Calendar dates stay in UTC for layout; they already describe the viewer's local days. */
@@ -52,6 +52,7 @@ export function UsageHeatmap({ days }: UsageHeatmapProps) {
   const weeks = Math.ceil((offset + days.length) / 7)
   const peak = Math.max(...days.map((day) => day.credits), 1)
   const total = days.reduce((sum, day) => sum + day.credits, 0)
+  const hasCost = days.some((day) => day.hasCost)
   const months = days.flatMap((day, index) => {
     const date = new Date(`${day.date}T00:00:00Z`)
     if (date.getUTCDate() !== 1) return []
@@ -99,8 +100,9 @@ export function UsageHeatmap({ days }: UsageHeatmapProps) {
             >
               {days.map((day, index) => {
                 const position = index + offset
-                const level =
-                  day.credits === 0 ? 0 : Math.min(4, Math.ceil(Math.sqrt(day.credits / peak) * 4))
+                const level = day.hasCost
+                  ? Math.max(1, Math.min(4, Math.ceil(Math.sqrt(day.credits / peak) * 4)))
+                  : 0
                 const label = formatDayUsage(day)
                 return (
                   <Tooltip.Root key={day.date}>
@@ -160,7 +162,7 @@ export function UsageHeatmap({ days }: UsageHeatmapProps) {
         <span aria-live='polite'>
           {selectedDay
             ? formatDayUsage(selectedDay)
-            : `${formatCreditsLabel(total)} in the last 365 days`}
+            : `${formatApportionedCreditCost(total, hasCost)} in the last 365 days`}
         </span>
         <div
           className='flex items-center gap-1'

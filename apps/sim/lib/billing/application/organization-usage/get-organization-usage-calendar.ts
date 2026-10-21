@@ -38,6 +38,12 @@ export const getOrganizationUsageCalendar = defineAuthorizedOrganizationUsageUse
     const credits = apportionCredits(
       days.map((day) => ({ key: day, dollars: dollars.get(day) ?? 0 }))
     )
-    return { days: days.map((date) => ({ date, credits: credits[date] ?? 0 })) }
+    return {
+      days: days.map((date) => ({
+        date,
+        credits: credits[date] ?? 0,
+        hasCost: (dollars.get(date) ?? 0) > 0,
+      })),
+    }
   },
 })

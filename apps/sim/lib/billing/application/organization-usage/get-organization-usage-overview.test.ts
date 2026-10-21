@@ -114,6 +114,25 @@ describe('getOrganizationUsageOverview', () => {
     expect(result.days.filter((entry) => entry.credits === 0)).toHaveLength(364)
   })
 
+  it('distinguishes paid calendar days from empty days when credits round to zero', async () => {
+    const previousDay = new Date(NOW.getTime() - 86_400_000).toISOString().slice(0, 10)
+    mocks.readUsageDays.mockResolvedValue([
+      [previousDay, [{ key: 'workflow', cost: 0.002, events: 1 }]],
+      [day, [{ key: 'workflow', cost: 0.002, events: 1 }]],
+    ])
+    const result = await getOrganizationUsageCalendar.execute({
+      principal: session,
+      input: { organizationId: 'org-1', timezone: 'UTC' },
+    })
+    expect(result.days.find((entry) => entry.date === day)).toEqual({
+      date: day,
+      credits: 0,
+      hasCost: true,
+    })
+    expect(result.days[0]).toMatchObject({ credits: 0, hasCost: false })
+    expect(result.days.reduce((sum, entry) => sum + entry.credits, 0)).toBe(1)
+  })
+
   it('reads names only for the kept rows, however large a tie at the cutoff', async () => {
     mocks.readUsageGroups.mockResolvedValue(
       Array.from({ length: 12 }, (_, index) => ({

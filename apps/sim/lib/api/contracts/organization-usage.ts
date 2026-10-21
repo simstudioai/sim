@@ -310,7 +310,13 @@ export type OrganizationUsageEventPage = z.output<typeof organizationUsageEvents
 
 const organizationUsageCalendarResponseSchema = z.object({
   days: z
-    .array(z.object({ date: z.iso.date(), credits: z.number().int().nonnegative() }))
+    .array(
+      z.object({
+        date: z.iso.date(),
+        credits: z.number().int().nonnegative(),
+        hasCost: z.boolean(),
+      })
+    )
     .length(365),
 })
 export type OrganizationUsageCalendar = z.output<typeof organizationUsageCalendarResponseSchema>

@@ -127,7 +127,7 @@ function BarChartComponent(props: BarChartProps) {
   const tickValues = resolveBarTickValues(Math.max(...totals, 0))
   const maxValue = tickValues[tickValues.length - 1]
   const tickLabels = tickValues.map((value) =>
-    unit ? formatBarValue(value, unit) : formatChartCompactNumber(value)
+    value === 0 ? '0' : unit ? formatBarValue(value, unit) : formatChartCompactNumber(value)
   )
   const padding = resolveChartPadding(tickLabels)
   const chartWidth = width - padding.left - padding.right
