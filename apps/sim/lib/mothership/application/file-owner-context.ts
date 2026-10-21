@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { omit, toArray } from '@sim/utils/object'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'
 import {
@@ -35,13 +35,14 @@ export async function withFileOwnerContext(
   const clean = omit(payload, ['project', 'fileOwnerCapabilities', 'fileOwnerProtocolVersion'])
   if (!['/api/copilot', '/api/mothership'].includes(route)) return clean
   const admitted = context.requestMode !== 'assistant' && hasCopilotResourceAdmission(context)
-  const declared = (Array.isArray(clean.clientCapabilities) ? clean.clientCapabilities : []).filter(
+  const declared = toArray(clean.clientCapabilities).filter(
     (capability) => capability !== WORKSPACE_FILE_COPY_CAPABILITY
   )
-  const turn = {
-    ...clean,
-    clientCapabilities: admitted ? [...declared, WORKSPACE_FILE_COPY_CAPABILITY] : declared,
-  }
+  const turn = admitted
+    ? { ...clean, clientCapabilities: [...declared, WORKSPACE_FILE_COPY_CAPABILITY] }
+    : clean.clientCapabilities === undefined
+      ? clean
+      : { ...clean, clientCapabilities: declared }
   if (!admitted || !(await isProjectsEnabled()) || !(await supportsFileOwnerProtocol(baseURL)))
     return turn
 

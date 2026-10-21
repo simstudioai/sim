@@ -419,7 +419,7 @@ describe('Mothership origin navigation and independent Project authority', () =>
               workerURL,
               '/api/mothership'
             )
-          ).toEqual({ message: 'hello', clientCapabilities: [] })
+          ).toEqual({ message: 'hello' })
           expect(
             await withFileOwnerContext(forged, context(f), workerURL, '/api/tools/resume')
           ).toEqual({ message: 'hello' })
