@@ -3,11 +3,22 @@ title: Editor
 description: Format Markdown documents, edit their source, and download them from Files.
 ---
 
-Open a Markdown file in **Files** to read or edit it. Select **New file** to create a document. Rich editing requires edit access and supported document size and syntax; files remain stored as Markdown.
+import { Image } from '@/components/ui/image'
+
+Open a Markdown document beside [Chat](/chat/files) or from **Files** to read or edit it. Ask Sim to create a document, or select **New file** in Files. Rich editing requires edit access and supported document size and syntax; files remain stored as Markdown.
 
 ## Formatting text
 
 Select text to open the formatting toolbar for bold, italic, strikethrough, inline code, and links. You can also type Markdown, such as `**bold**` and `*italic*`. A link's hover card lets you open, copy, edit, or remove it.
+
+<Image
+  src="/static/docs-captures/files-formatting.webp"
+  alt="Selected text in the Markdown editor with the text style, bold, italic, link, and more formatting controls"
+  width={900}
+  height={340}
+  variant="detail"
+  background="architecture"
+/>
 
 | Action | Shortcut or Markdown |
 | --- | --- |
@@ -28,9 +39,29 @@ Type `/` at the start of a block or after whitespace to open the insertion menu.
 
 Insert a table from the slash menu. Select a cell to open the table toolbar, then add or remove rows and columns, or delete the table. The header row stays in place; you can edit its text. Column resizing and merged cells are not supported.
 
+<Image
+  src="/static/docs-captures/files-table.webp"
+  alt="A Markdown owner table with controls for adding a row, managing columns, and deleting the table"
+  width={1200}
+  height={460}
+  variant="detail"
+  background="architecture"
+/>
+
 ## Code blocks
 
-Fenced code blocks have syntax highlighting and a language picker. Choose `mermaid` to render a diagram. Select **Show source** when you need to edit its definition.
+Fenced code blocks have syntax highlighting, a language picker, line wrapping, and a copy button. Hover over the block or focus a control to reveal its toolbar.
+
+<Image
+  src="/static/docs-captures/files-code.webp"
+  alt="A highlighted JSON code block with language, line wrap, and copy controls"
+  width={1200}
+  height={400}
+  variant="detail"
+  background="architecture"
+/>
+
+Choose `mermaid` to render a diagram. Select **Show source** when you need to edit its definition.
 
 ## Images
 

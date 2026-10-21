@@ -4,6 +4,7 @@ description: Invoke, deploy, and manage AWS Lambda functions
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="lambda"
@@ -47,6 +48,8 @@ Invoke functions and read their response payload, create and update functions fr
 
 Invoke a Lambda function synchronously for its response payload, asynchronously to queue execution, or as a dry run to check permissions.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -71,9 +74,13 @@ Invoke a Lambda function synchronously for its response payload, asynchronously 
 | `logResult` | string | Decoded execution log tail, present only when logType is Tail |
 | `executedVersion` | string | The function version that was executed |
 
+</ReferenceDetails>
+
 ### Lambda List Functions
 
 List Lambda functions with the version-specific configuration of each
+
+<ReferenceDetails>
 
 #### Input
 
@@ -94,9 +101,13 @@ List Lambda functions with the version-specific configuration of each
 | `functions` | array | Lambda functions with their runtime, handler, memory, and state |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Get Function
 
 Get a function's configuration, code location, tags, and reserved concurrency
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +129,13 @@ Get a function's configuration, code location, tags, and reserved concurrency
 | `tags` | json | The function's tags |
 | `reservedConcurrentExecutions` | number | Concurrency reserved for this function, if any |
 
+</ReferenceDetails>
+
 ### Lambda Get Function Configuration
 
 Get a function's version-specific configuration
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +153,13 @@ Get a function's version-specific configuration
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
 
+</ReferenceDetails>
+
 ### Lambda Create Function
 
 Create a Lambda function from a deployment package in Amazon S3 or a container image
+
+<ReferenceDetails>
 
 #### Input
 
@@ -183,9 +202,13 @@ Create a Lambda function from a deployment package in Amazon S3 or a container i
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
 
+</ReferenceDetails>
+
 ### Lambda Update Function Code
 
 Update a function's deployment package from Amazon S3 or a container image
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +234,13 @@ Update a function's deployment package from Amazon S3 or a container image
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
 
+</ReferenceDetails>
+
 ### Lambda Update Function Configuration
 
 Update a function's settings such as memory, timeout, role, and environment variables
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +275,13 @@ Update a function's settings such as memory, timeout, role, and environment vari
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
 
+</ReferenceDetails>
+
 ### Lambda Delete Function
 
 Delete a Lambda function, or a single published version of it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +299,13 @@ Delete a Lambda function, or a single published version of it
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda Publish Version
 
 Publish an immutable version from the current code and configuration of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -290,9 +325,13 @@ Publish an immutable version from the current code and configuration of a functi
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
 
+</ReferenceDetails>
+
 ### Lambda List Function Versions
 
 List the published versions of a Lambda function, plus $LATEST
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +351,13 @@ List the published versions of a Lambda function, plus $LATEST
 | `versions` | array | Published versions of the function, plus the unpublished $LATEST version |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Create Alias
 
 Create an alias that points to a published function version
+
+<ReferenceDetails>
 
 #### Input
 
@@ -335,9 +378,13 @@ Create an alias that points to a published function version
 | --------- | ---- | ----------- |
 | `alias` | json | The alias with its ARN, target version, and routing configuration |
 
+</ReferenceDetails>
+
 ### Lambda Get Alias
 
 Get details about a Lambda function alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -355,9 +402,13 @@ Get details about a Lambda function alias
 | --------- | ---- | ----------- |
 | `alias` | json | The alias with its ARN, target version, and routing configuration |
 
+</ReferenceDetails>
+
 ### Lambda Update Alias
 
 Update the target version, description, or traffic weights of an alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -379,9 +430,13 @@ Update the target version, description, or traffic weights of an alias
 | --------- | ---- | ----------- |
 | `alias` | json | The alias with its ARN, target version, and routing configuration |
 
+</ReferenceDetails>
+
 ### Lambda Delete Alias
 
 Delete a Lambda function alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -399,9 +454,13 @@ Delete a Lambda function alias
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda List Aliases
 
 List the aliases of a Lambda function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,9 +481,13 @@ List the aliases of a Lambda function
 | `aliases` | array | Aliases with their ARNs, target versions, and routing configuration |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Add Permission
 
 Grant an AWS service, account, or organization permission to use a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -451,9 +514,13 @@ Grant an AWS service, account, or organization permission to use a function
 | --------- | ---- | ----------- |
 | `statement` | string | The permission statement that was added, as a JSON document string |
 
+</ReferenceDetails>
+
 ### Lambda Remove Permission
 
 Remove a statement from a function's resource-based policy
+
+<ReferenceDetails>
 
 #### Input
 
@@ -473,9 +540,13 @@ Remove a statement from a function's resource-based policy
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda Get Policy
 
 Get the resource-based IAM policy attached to a function, version, or alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -494,9 +565,13 @@ Get the resource-based IAM policy attached to a function, version, or alias
 | `policy` | string | The resource-based policy, as a JSON document string |
 | `revisionId` | string | Current revision ID of the policy |
 
+</ReferenceDetails>
+
 ### Lambda Create Event Source Mapping
 
 Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -540,9 +615,13 @@ Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a functi
 | --------- | ---- | ----------- |
 | `eventSourceMapping` | json | The event source mapping with its UUID, state, batching, and filter settings |
 
+</ReferenceDetails>
+
 ### Lambda Get Event Source Mapping
 
 Get details about an event source mapping
+
+<ReferenceDetails>
 
 #### Input
 
@@ -559,9 +638,13 @@ Get details about an event source mapping
 | --------- | ---- | ----------- |
 | `eventSourceMapping` | json | The event source mapping with its UUID, state, batching, and filter settings |
 
+</ReferenceDetails>
+
 ### Lambda Update Event Source Mapping
 
 Update the batching, retry, filtering, or enabled state of an event source mapping
+
+<ReferenceDetails>
 
 #### Input
 
@@ -599,9 +682,13 @@ Update the batching, retry, filtering, or enabled state of an event source mappi
 | --------- | ---- | ----------- |
 | `eventSourceMapping` | json | The event source mapping with its UUID, state, batching, and filter settings |
 
+</ReferenceDetails>
+
 ### Lambda Delete Event Source Mapping
 
 Delete an event source mapping
+
+<ReferenceDetails>
 
 #### Input
 
@@ -618,9 +705,13 @@ Delete an event source mapping
 | --------- | ---- | ----------- |
 | `eventSourceMapping` | json | The deleted event source mapping, whose state transitions to Deleting |
 
+</ReferenceDetails>
+
 ### Lambda List Event Source Mappings
 
 List event source mappings, optionally filtered by function or event source
+
+<ReferenceDetails>
 
 #### Input
 
@@ -641,9 +732,13 @@ List event source mappings, optionally filtered by function or event source
 | `eventSourceMappings` | array | Event source mappings with their UUIDs, state, and batching settings |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Get Function Concurrency
 
 Get the reserved concurrency configured for a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -660,9 +755,13 @@ Get the reserved concurrency configured for a function
 | --------- | ---- | ----------- |
 | `reservedConcurrentExecutions` | number | Concurrency reserved for this function, or null when none is reserved |
 
+</ReferenceDetails>
+
 ### Lambda Set Function Concurrency
 
 Reserve a share of the account concurrency limit for a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -680,9 +779,13 @@ Reserve a share of the account concurrency limit for a function
 | --------- | ---- | ----------- |
 | `reservedConcurrentExecutions` | number | Concurrency now reserved for this function |
 
+</ReferenceDetails>
+
 ### Lambda Delete Function Concurrency
 
 Remove the reserved concurrency configuration from a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -699,9 +802,13 @@ Remove the reserved concurrency configuration from a function
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda Get Provisioned Concurrency
 
 Get the provisioned concurrency configuration of a function version or alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -719,9 +826,13 @@ Get the provisioned concurrency configuration of a function version or alias
 | --------- | ---- | ----------- |
 | `provisionedConcurrency` | json | Requested, available, and allocated provisioned concurrency with its status |
 
+</ReferenceDetails>
+
 ### Lambda Set Provisioned Concurrency
 
 Allocate provisioned concurrency to a function version or alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -740,9 +851,13 @@ Allocate provisioned concurrency to a function version or alias
 | --------- | ---- | ----------- |
 | `provisionedConcurrency` | json | Requested, available, and allocated provisioned concurrency with its status |
 
+</ReferenceDetails>
+
 ### Lambda Delete Provisioned Concurrency
 
 Remove the provisioned concurrency configuration from a function version or alias
+
+<ReferenceDetails>
 
 #### Input
 
@@ -760,9 +875,13 @@ Remove the provisioned concurrency configuration from a function version or alia
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda List Provisioned Concurrency
 
 List the provisioned concurrency configurations of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -782,9 +901,13 @@ List the provisioned concurrency configurations of a function
 | `provisionedConcurrencyConfigs` | array | Provisioned concurrency configurations with their allocation status |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Create Function URL
 
 Create a dedicated HTTPS endpoint for a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -810,9 +933,13 @@ Create a dedicated HTTPS endpoint for a function
 | --------- | ---- | ----------- |
 | `functionUrlConfig` | json | The function URL with its auth type, invoke mode, and CORS settings |
 
+</ReferenceDetails>
+
 ### Lambda Get Function URL
 
 Get details about a function URL
+
+<ReferenceDetails>
 
 #### Input
 
@@ -830,9 +957,13 @@ Get details about a function URL
 | --------- | ---- | ----------- |
 | `functionUrlConfig` | json | The function URL with its auth type, invoke mode, and CORS settings |
 
+</ReferenceDetails>
+
 ### Lambda Update Function URL
 
 Update the auth type, invoke mode, or CORS settings of a function URL
+
+<ReferenceDetails>
 
 #### Input
 
@@ -858,9 +989,13 @@ Update the auth type, invoke mode, or CORS settings of a function URL
 | --------- | ---- | ----------- |
 | `functionUrlConfig` | json | The function URL with its auth type, invoke mode, and CORS settings |
 
+</ReferenceDetails>
+
 ### Lambda Delete Function URL
 
 Delete the URL configuration of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -878,9 +1013,13 @@ Delete the URL configuration of a function
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda List Function URLs
 
 List the URL configurations of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -900,9 +1039,13 @@ List the URL configurations of a function
 | `functionUrlConfigs` | array | Function URLs with their auth types, invoke modes, and CORS settings |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Get Async Invoke Config
 
 Get the asynchronous invocation retry and destination settings of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -920,9 +1063,13 @@ Get the asynchronous invocation retry and destination settings of a function
 | --------- | ---- | ----------- |
 | `eventInvokeConfig` | json | Asynchronous invocation retry limits and success/failure destinations |
 
+</ReferenceDetails>
+
 ### Lambda Set Async Invoke Config
 
 Configure retry limits and destinations for asynchronous invocations of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -944,9 +1091,13 @@ Configure retry limits and destinations for asynchronous invocations of a functi
 | --------- | ---- | ----------- |
 | `eventInvokeConfig` | json | Asynchronous invocation retry limits and success/failure destinations |
 
+</ReferenceDetails>
+
 ### Lambda Delete Async Invoke Config
 
 Remove the asynchronous invocation configuration of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -964,9 +1115,13 @@ Remove the asynchronous invocation configuration of a function
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda List Async Invoke Configs
 
 List the asynchronous invocation configurations of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -986,9 +1141,13 @@ List the asynchronous invocation configurations of a function
 | `eventInvokeConfigs` | array | Asynchronous invocation configurations for the function versions and aliases |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda List Layers
 
 List Lambda layers and the latest version of each
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1009,9 +1168,13 @@ List Lambda layers and the latest version of each
 | `layers` | array | Layers with their ARNs and latest matching version |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda List Layer Versions
 
 List the versions of a Lambda layer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1033,9 +1196,13 @@ List the versions of a Lambda layer
 | `layerVersions` | array | Layer versions with their ARNs, compatible runtimes, and license info |
 | `nextMarker` | string | Pagination token to pass as marker on the next request |
 
+</ReferenceDetails>
+
 ### Lambda Get Layer Version
 
 Get details and a download link for a specific layer version
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1053,9 +1220,13 @@ Get details and a download link for a specific layer version
 | --------- | ---- | ----------- |
 | `layerVersion` | json | The layer version with its ARN, compatible runtimes, and a presigned content download URL |
 
+</ReferenceDetails>
+
 ### Lambda List Tags
 
 List the tags applied to a Lambda function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1072,9 +1243,13 @@ List the tags applied to a Lambda function
 | --------- | ---- | ----------- |
 | `tags` | json | The resource's tags as a key/value object |
 
+</ReferenceDetails>
+
 ### Lambda Tag Resource
 
 Add tags to a Lambda function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1092,9 +1267,13 @@ Add tags to a Lambda function
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda Untag Resource
 
 Remove tags from a Lambda function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1112,9 +1291,13 @@ Remove tags from a Lambda function
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### Lambda Get Account Settings
 
 Get the Lambda limits and usage of the current AWS account and region
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1131,9 +1314,13 @@ Get the Lambda limits and usage of the current AWS account and region
 | `accountLimit` | json | Account-level storage and concurrency limits |
 | `accountUsage` | json | Current code storage used and number of functions deployed |
 
+</ReferenceDetails>
+
 ### Lambda Get Recursion Config
 
 Get the recursive loop detection setting of a function
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1150,9 +1337,13 @@ Get the recursive loop detection setting of a function
 | --------- | ---- | ----------- |
 | `recursiveLoop` | string | Terminate stops the function after 16 recursive invocations, Allow permits recursion |
 
+</ReferenceDetails>
+
 ### Lambda Set Recursion Config
 
 Set whether Lambda stops a function that invokes itself recursively
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1170,9 +1361,13 @@ Set whether Lambda stops a function that invokes itself recursively
 | --------- | ---- | ----------- |
 | `recursiveLoop` | string | The recursion setting now in effect for the function |
 
+</ReferenceDetails>
+
 ### Lambda Get Runtime Management Config
 
 Get the runtime update policy of a function version
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1192,9 +1387,13 @@ Get the runtime update policy of a function version
 | `runtimeVersionArn` | string | ARN of the pinned runtime version, when the policy is Manual |
 | `functionArn` | string | ARN of the function the policy applies to |
 
+</ReferenceDetails>
+
 ### Lambda Set Runtime Management Config
 
 Set how and when Lambda applies runtime updates to a function version
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1215,5 +1414,7 @@ Set how and when Lambda applies runtime updates to a function version
 | `updateRuntimeOn` | string | The runtime update policy now in effect |
 | `runtimeVersionArn` | string | ARN of the pinned runtime version, when the policy is Manual |
 | `functionArn` | string | ARN of the function the policy applies to |
+
+</ReferenceDetails>
 
 

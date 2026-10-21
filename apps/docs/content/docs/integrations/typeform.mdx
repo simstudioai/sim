@@ -4,6 +4,7 @@ description: Interact with Typeform
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="typeform"
@@ -24,6 +25,8 @@ Retrieve responses, download files, and get form insights. Use trigger mode to s
 ### Typeform Responses
 
 Retrieve form responses from Typeform
+
+<ReferenceDetails>
 
 #### Input
 
@@ -46,9 +49,13 @@ Retrieve form responses from Typeform
 | `page_count` | number | Total number of pages available |
 | `items` | array | Array of response objects with response_id, submitted_at, answers, and metadata |
 
+</ReferenceDetails>
+
 ### Typeform Files
 
 Download files uploaded in Typeform responses
+
+<ReferenceDetails>
 
 #### Input
 
@@ -70,9 +77,13 @@ Download files uploaded in Typeform responses
 | `contentType` | string | MIME type of the uploaded file |
 | `filename` | string | Original filename of the uploaded file |
 
+</ReferenceDetails>
+
 ### Typeform Insights
 
 Retrieve insights and analytics for Typeform forms
+
+<ReferenceDetails>
 
 #### Input
 
@@ -108,9 +119,13 @@ Retrieve insights and analytics for Typeform forms
 |     ↳ `total_visits` | number | Total number of visits |
 |     ↳ `unique_visits` | number | Total number of unique visits |
 
+</ReferenceDetails>
+
 ### Typeform List Forms
 
 Retrieve a list of all forms in your Typeform account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,9 +145,13 @@ Retrieve a list of all forms in your Typeform account
 | `page_count` | number | Total number of pages available |
 | `items` | array | Array of form objects with id, title, created_at, last_updated_at, settings, theme, and _links |
 
+</ReferenceDetails>
+
 ### Typeform Get Form
 
 Retrieve complete details and structure of a specific form
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +178,13 @@ Retrieve complete details and structure of a specific form
 | `published_at` | string | Form publication timestamp \(ISO 8601 format\) |
 | `_links` | object | Related resource links including public form URL |
 
+</ReferenceDetails>
+
 ### Typeform Create Form
 
 Create a new form with fields and settings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -190,9 +213,13 @@ Create a new form with fields and settings
 | `thankyou_screens` | array | Array of thank you screens |
 | `_links` | object | Related resource links including public form URL |
 
+</ReferenceDetails>
+
 ### Typeform Update Form
 
 Update an existing form using JSON Patch operations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -208,9 +235,13 @@ Update an existing form using JSON Patch operations
 | --------- | ---- | ----------- |
 | `message` | string | Success confirmation message |
 
+</ReferenceDetails>
+
 ### Typeform Delete Form
 
 Permanently delete a form and all its responses
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,6 +257,8 @@ Permanently delete a form and all its responses
 | `deleted` | boolean | Whether the form was successfully deleted |
 | `message` | string | Deletion confirmation message |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -235,6 +268,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### Typeform Webhook
 
 Trigger workflow when a Typeform submission is received
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -293,4 +328,6 @@ Trigger workflow when a Typeform submission is received
 |   ↳ `id` | string | Ending screen ID |
 |   ↳ `ref` | string | Ending screen reference |
 | `raw` | object | Complete original webhook payload from Typeform |
+
+</ReferenceDetails>
 

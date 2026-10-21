@@ -4,6 +4,7 @@ description: Manage Cal.com bookings, event types, schedules, and availability
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="calcom"
@@ -15,6 +16,10 @@ Use [Cal.com](https://cal.com/) to manage bookings, event types, schedules, and 
 {/* MANUAL-CONTENT-END */}
 
 
+Connection guides: [API keys](/integrations/calcom-service-account).
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
+
 ## OAuth scopes [#oauth-scopes]
 
 Sim requests no OAuth scopes for Cal.com. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
@@ -23,6 +28,8 @@ Sim requests no OAuth scopes for Cal.com. For a self-hosted deployment, register
 | ------- | ----- |
 | Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/calcom` |
 | Environment variables | `CALCOM_CLIENT_ID` |
+
+</ReferenceDetails>
 
 ## Use the block [#usage-instructions]
 
@@ -33,6 +40,8 @@ Create, list, confirm, decline, reschedule, or cancel bookings; manage event typ
 ### Cal.com Create Booking
 
 Create a new booking on Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +95,13 @@ Create a new booking on Cal.com
 |   ↳ `icsUid` | string | ICS calendar UID |
 |   ↳ `createdAt` | string | When the booking was created |
 
+</ReferenceDetails>
+
 ### Cal.com Get Booking
 
 Get details of a specific booking by its UID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +159,13 @@ Get details of a specific booking by its UID
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `updatedAt` | string | When the booking was last updated |
 
+</ReferenceDetails>
+
 ### Cal.com List Bookings
 
 List all bookings with optional status filter
+
+<ReferenceDetails>
 
 #### Input
 
@@ -217,9 +234,13 @@ List all bookings with optional status filter
 |   ↳ `hasNextPage` | boolean | Whether there is a next page |
 |   ↳ `hasPreviousPage` | boolean | Whether there is a previous page |
 
+</ReferenceDetails>
+
 ### Cal.com Cancel Booking
 
 Cancel an existing booking
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +287,13 @@ Cancel an existing booking
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `status` | string | Booking status \(should be cancelled\) |
 
+</ReferenceDetails>
+
 ### Cal.com Reschedule Booking
 
 Reschedule an existing booking to a new time
+
+<ReferenceDetails>
 
 #### Input
 
@@ -320,9 +345,13 @@ Reschedule an existing booking to a new time
 |   ↳ `start` | string | New start time in ISO 8601 format |
 |   ↳ `end` | string | New end time in ISO 8601 format |
 
+</ReferenceDetails>
+
 ### Cal.com Confirm Booking
 
 Confirm a pending booking that requires confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +398,13 @@ Confirm a pending booking that requires confirmation
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `status` | string | Booking status \(should be accepted/confirmed\) |
 
+</ReferenceDetails>
+
 ### Cal.com Decline Booking
 
 Decline a pending booking request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -417,9 +450,13 @@ Decline a pending booking request
 |   ↳ `createdAt` | string | When the booking was created |
 |   ↳ `status` | string | Booking status \(should be cancelled/rejected\) |
 
+</ReferenceDetails>
+
 ### Cal.com Create Event Type
 
 Create a new event type in Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -456,9 +493,13 @@ Create a new event type in Cal.com
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Cal.com Get Event Type
 
 Get detailed information about a specific event type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -486,9 +527,13 @@ Get detailed information about a specific event type
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Cal.com List Event Types
 
 Retrieve a list of all event types
+
+<ReferenceDetails>
 
 #### Input
 
@@ -516,9 +561,13 @@ Retrieve a list of all event types
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Cal.com Update Event Type
 
 Update an existing event type in Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,9 +605,13 @@ Update an existing event type in Cal.com
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Cal.com Delete Event Type
 
 Delete an event type from Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -577,9 +630,13 @@ Delete an event type from Cal.com
 |   ↳ `title` | string | Event type title |
 |   ↳ `slug` | string | Event type slug |
 
+</ReferenceDetails>
+
 ### Cal.com Create Schedule
 
 Create a new availability schedule in Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -610,9 +667,13 @@ Create a new availability schedule in Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
+</ReferenceDetails>
+
 ### Cal.com Get Schedule
 
 Get a specific schedule by ID from Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -640,9 +701,13 @@ Get a specific schedule by ID from Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
+</ReferenceDetails>
+
 ### Cal.com List Schedules
 
 List all availability schedules from Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -669,9 +734,13 @@ List all availability schedules from Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
+</ReferenceDetails>
+
 ### Cal.com Update Schedule
 
 Update an existing schedule in Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -703,9 +772,13 @@ Update an existing schedule in Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
+</ReferenceDetails>
+
 ### Cal.com Delete Schedule
 
 Delete a schedule from Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -719,9 +792,13 @@ Delete a schedule from Cal.com
 | --------- | ---- | ----------- |
 | `status` | string | Response status \(success or error\) |
 
+</ReferenceDetails>
+
 ### Cal.com Get Default Schedule
 
 Get the default availability schedule from Cal.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -748,9 +825,13 @@ Get the default availability schedule from Cal.com
 |     ↳ `startTime` | string | Start time in HH:MM format |
 |     ↳ `endTime` | string | End time in HH:MM format |
 
+</ReferenceDetails>
+
 ### Cal.com Get Slots
 
 Get available booking slots for a Cal.com event type within a time range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -771,6 +852,8 @@ Get available booking slots for a Cal.com event type within a time range
 | `status` | string | Response status |
 | `data` | json | Available time slots grouped by date \(YYYY-MM-DD keys\). Each date maps to an array of slot objects with start time, optional end time, and seated event info. |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -780,6 +863,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### CalCom Booking Cancelled
 
 Trigger workflow when a booking is cancelled in Cal.com
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -818,12 +903,13 @@ Trigger workflow when a booking is cancelled in Cal.com
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Booking Created
 
 Trigger workflow when a new booking is created in Cal.com
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -862,12 +948,13 @@ Trigger workflow when a new booking is created in Cal.com
 |   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic - user-defined key-value pairs\) |
 |   ↳ `videoCallData` | json | Video call details \(structure varies by provider\) |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Booking Paid
 
 Trigger workflow when payment is completed for a paid booking
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -909,12 +996,13 @@ Trigger workflow when payment is completed for a paid booking
 |     ↳ `language` | string | Attendee language preference |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Booking Rejected
 
 Trigger workflow when a booking request is rejected by the host
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -951,12 +1039,13 @@ Trigger workflow when a booking request is rejected by the host
 |     ↳ `language` | string | Attendee language preference |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Booking Requested
 
 Trigger workflow when a booking request is submitted (pending confirmation)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -994,12 +1083,13 @@ Trigger workflow when a booking request is submitted (pending confirmation)
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Booking Rescheduled
 
 Trigger workflow when a booking is rescheduled in Cal.com
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1041,12 +1131,13 @@ Trigger workflow when a booking is rescheduled in Cal.com
 |   ↳ `responses` | json | Booking form responses |
 |   ↳ `metadata` | json | Custom metadata attached to the booking |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Meeting Ended
 
 Trigger workflow when a Cal.com meeting ends
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1081,12 +1172,13 @@ Trigger workflow when a Cal.com meeting ends
 |     ↳ `language` | string | Attendee language preference |
 |   ↳ `videoCallData` | json | Video call details |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Recording Ready
 
 Trigger workflow when a meeting recording is ready for download
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1121,12 +1213,13 @@ Trigger workflow when a meeting recording is ready for download
 |     ↳ `timeZone` | string | Attendee timezone |
 |     ↳ `language` | string | Attendee language preference |
 
-
----
+</ReferenceDetails>
 
 ### CalCom Webhook (All Events)
 
 Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1141,4 +1234,6 @@ Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
 | `triggerEvent` | string | The webhook event type \(e.g., BOOKING_CREATED, MEETING_ENDED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
+
+</ReferenceDetails>
 

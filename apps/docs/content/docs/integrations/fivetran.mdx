@@ -4,6 +4,7 @@ description: Manage Fivetran connections, syncs, and transformations
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="fivetran"
@@ -40,6 +41,8 @@ List, create, update, pause, resume, and delete connections, trigger syncs and h
 ### Fivetran List Connections
 
 List Fivetran connections with their sync state, schedule, and last success or failure, optionally filtered by group or schema name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -106,9 +109,13 @@ List Fivetran connections with their sync state, schedule, and last success or f
 |   ↳ `config` | json | Connector-specific setup configuration |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran Get Connection
 
 Get a Fivetran connection, including its setup, sync, and update state, open tasks and warnings, and schedule.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +178,13 @@ Get a Fivetran connection, including its setup, sync, and update state, open tas
 |     ↳ `details` | json | Additional diagnostic details |
 |   ↳ `config` | json | Connector-specific setup configuration |
 
+</ReferenceDetails>
+
 ### Fivetran Create Connection
 
 Create a Fivetran connection in a group. The config object holds the connector-specific settings and the destination naming: schema for most connectors, schema_prefix for databases, or schema and table for file connectors.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -250,9 +261,13 @@ Create a Fivetran connection in a group. The config object holds the connector-s
 |     ↳ `details` | json | Additional diagnostic details |
 |   ↳ `config` | json | Connector-specific setup configuration |
 
+</ReferenceDetails>
+
 ### Fivetran Update Connection
 
 Update a Fivetran connection: pause or resume it, change its sync frequency or schedule, or update its configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -328,9 +343,13 @@ Update a Fivetran connection: pause or resume it, change its sync frequency or s
 |     ↳ `details` | json | Additional diagnostic details |
 |   ↳ `config` | json | Connector-specific setup configuration |
 
+</ReferenceDetails>
+
 ### Fivetran Delete Connection
 
 Delete a Fivetran connection. This cannot be undone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -345,9 +364,13 @@ Delete a Fivetran connection. This cannot be undone.
 | `code` | string | Fivetran response code, e.g. Success |
 | `message` | string | Fivetran response message |
 
+</ReferenceDetails>
+
 ### Fivetran Sync Connection
 
 Start an incremental sync of a Fivetran connection now, without changing its schedule.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,9 +386,13 @@ Start an incremental sync of a Fivetran connection now, without changing its sch
 | `result` | string | Sync start result \(STARTED, PAUSED, INCOMPLETE, ALREADY_RUNNING, NOT_STARTED\) |
 | `message` | string | Fivetran response message |
 
+</ReferenceDetails>
+
 ### Fivetran Re-sync Connection
 
 Run a full historical re-sync of a Fivetran connection, or only of the tables listed in scope. Fivetran returns 409 if a running sync cannot finish first.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,9 +408,13 @@ Run a full historical re-sync of a Fivetran connection, or only of the tables li
 | `code` | string | Fivetran response code, e.g. Success |
 | `message` | string | Fivetran response message |
 
+</ReferenceDetails>
+
 ### Fivetran Re-sync Tables
 
 Run a historical re-sync of specific tables in a Fivetran connection without changing its schedule.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -399,9 +430,13 @@ Run a historical re-sync of specific tables in a Fivetran connection without cha
 | `code` | string | Fivetran response code, e.g. Success |
 | `message` | string | Fivetran response message |
 
+</ReferenceDetails>
+
 ### Fivetran Run Connection Setup Tests
 
 Run the setup tests of a Fivetran connection without changing its configuration, and return each test result.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -466,9 +501,13 @@ Run the setup tests of a Fivetran connection without changing its configuration,
 |     ↳ `details` | json | Additional diagnostic details |
 |   ↳ `config` | json | Connector-specific setup configuration |
 
+</ReferenceDetails>
+
 ### Fivetran Get Sync History
 
 List the recent syncs of a Fivetran connection with their outcome, failure reason, and data volume per stage. The time window is at most 7 days and defaults to the last hour.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -495,9 +534,13 @@ List the recent syncs of a Fivetran connection with their outcome, failure reaso
 |   ↳ `loadVolumeMb` | number | Data loaded into the destination, in MB |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran Get Connection Warnings
 
 List the active warnings on a Fivetran connection, grouped by destination table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -518,9 +561,13 @@ List the active warnings on a Fivetran connection, grouped by destination table.
 |     ↳ `errorMessage` | string | Additional error details |
 |     ↳ `createdAt` | string | When the warning was raised |
 
+</ReferenceDetails>
+
 ### Fivetran Get Connection Schema Config
 
 Get the schemas, tables, and columns a Fivetran connection syncs, and whether each is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -537,9 +584,13 @@ Get the schemas, tables, and columns a Fivetran connection syncs, and whether ea
 | `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
 | `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
 
+</ReferenceDetails>
+
 ### Fivetran Reload Connection Schema
 
 Reload the schema config of a Fivetran connection from its source to pick up new schemas, tables, and columns. Large sources can take a long time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -557,9 +608,13 @@ Reload the schema config of a Fivetran connection from its source to pick up new
 | `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
 | `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
 
+</ReferenceDetails>
+
 ### Fivetran Update Connection Table
 
 Enable or disable syncing of one table in a Fivetran connection, and optionally change its sync mode.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -580,9 +635,13 @@ Enable or disable syncing of one table in a Fivetran connection, and optionally 
 | `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
 | `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
 
+</ReferenceDetails>
+
 ### Fivetran Create Connect Card
 
 Generate a Connect Card link that lets someone authorize and finish setting up a Fivetran connection in a Fivetran-hosted form.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -602,9 +661,13 @@ Generate a Connect Card link that lets someone authorize and finish setting up a
 | `token` | string | Short-lived Connect Card token |
 | `redirectUri` | string | Where the user is sent after setup |
 
+</ReferenceDetails>
+
 ### Fivetran List Groups
 
 List the groups in the Fivetran account. Each group pairs with one destination, so the group ID is also the destination ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -623,9 +686,13 @@ List the groups in the Fivetran account. Each group pairs with one destination, 
 |   ↳ `createdAt` | string | When the group was created |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran Get Group
 
 Get a Fivetran group by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -642,9 +709,13 @@ Get a Fivetran group by ID.
 |   ↳ `name` | string | Group name |
 |   ↳ `createdAt` | string | When the group was created |
 
+</ReferenceDetails>
+
 ### Fivetran List Destinations
 
 List the destinations in the Fivetran account, such as Databricks or Snowflake, with their region and setup status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -676,9 +747,13 @@ List the destinations in the Fivetran account, such as Databricks or Snowflake, 
 |     ↳ `details` | json | Additional diagnostic details |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran Get Destination
 
 Get a Fivetran destination with its region, time zone, and setup status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -708,9 +783,13 @@ Get a Fivetran destination with its region, time zone, and setup status.
 |     ↳ `message` | string | Result message |
 |     ↳ `details` | json | Additional diagnostic details |
 
+</ReferenceDetails>
+
 ### Fivetran Run Destination Setup Tests
 
 Run the setup tests of a Fivetran destination, such as a Databricks workspace, and return each test result.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -742,9 +821,13 @@ Run the setup tests of a Fivetran destination, such as a Databricks workspace, a
 |     ↳ `message` | string | Result message |
 |     ↳ `details` | json | Additional diagnostic details |
 
+</ReferenceDetails>
+
 ### Fivetran List Transformations
 
 List Fivetran transformations (dbt Core and Quickstart) with their status, schedule, and last run times.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -781,9 +864,13 @@ List Fivetran transformations (dbt Core and Quickstart) with their status, sched
 |     ↳ `smartSyncing` | boolean | Whether Smart Syncing is enabled |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran Get Transformation
 
 Get a Fivetran transformation with its status, schedule, and output models.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -815,9 +902,13 @@ Get a Fivetran transformation with its status, schedule, and output models.
 |     ↳ `transformationIds` | array | Transformations used for integrated scheduling |
 |     ↳ `smartSyncing` | boolean | Whether Smart Syncing is enabled |
 
+</ReferenceDetails>
+
 ### Fivetran Run Transformation
 
 Start a run of a Fivetran transformation now.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -833,9 +924,13 @@ Start a run of a Fivetran transformation now.
 | `code` | string | Fivetran response code, e.g. Success |
 | `message` | string | Fivetran response message |
 
+</ReferenceDetails>
+
 ### Fivetran Cancel Transformation
 
 Cancel a running Fivetran transformation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -850,9 +945,13 @@ Cancel a running Fivetran transformation.
 | `code` | string | Fivetran response code, e.g. Success |
 | `message` | string | Fivetran response message |
 
+</ReferenceDetails>
+
 ### Fivetran Get Account Info
 
 Get the Fivetran account and the user or system key that the API key belongs to.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -868,9 +967,13 @@ Get the Fivetran account and the user or system key that the API key belongs to.
 | `userId` | string | User ID, returned when a user API key is used |
 | `systemKeyId` | string | System key ID, returned when a system key is used |
 
+</ReferenceDetails>
+
 ### Fivetran List Users
 
 List the users and service accounts in the Fivetran account with their role, status, and last login, for access reviews.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -902,9 +1005,13 @@ List the users and service accounts in the Fivetran account with their role, sta
 |   ↳ `createdAt` | string | When the user was created |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran List Connector Types
 
 List the source connector types available in Fivetran, with the service ID to use when creating a connection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -931,9 +1038,13 @@ List the source connector types available in Fivetran, with the service ID to us
 |   ↳ `supportedFeatures` | array | Supported feature IDs, e.g. RE_SYNC or HISTORY |
 | `nextCursor` | string | Cursor for the next page; null on the last page |
 
+</ReferenceDetails>
+
 ### Fivetran Get Connector Type
 
 Get the configuration and authorization fields a Fivetran connector type takes, to build the config for Create Connection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -960,9 +1071,13 @@ Get the configuration and authorization fields a Fivetran connector type takes, 
 | `config` | json | JSON Schema of the configuration fields the connector takes in config |
 | `auth` | json | JSON Schema of the authorization fields the connector takes in auth, if any |
 
+</ReferenceDetails>
+
 ### Fivetran Update Schema Config
 
 Update how a Fivetran connection handles new schemas, tables, and columns, and enable or disable schemas and tables in one call.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -981,9 +1096,13 @@ Update how a Fivetran connection handles new schemas, tables, and columns, and e
 | `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
 | `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
 
+</ReferenceDetails>
+
 ### Fivetran Update Connection Schema
 
 Enable or disable syncing of one schema in a Fivetran connection, optionally changing several of its tables at once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1003,9 +1122,13 @@ Enable or disable syncing of one schema in a Fivetran connection, optionally cha
 | `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
 | `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
 
+</ReferenceDetails>
+
 ### Fivetran Create Group
 
 Create a Fivetran group. Each group holds one destination, so create the group first, then its destination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1022,9 +1145,13 @@ Create a Fivetran group. Each group holds one destination, so create the group f
 |   ↳ `name` | string | Group name |
 |   ↳ `createdAt` | string | When the group was created |
 
+</ReferenceDetails>
+
 ### Fivetran Create Destination
 
 Create the destination for a Fivetran group, such as a Databricks workspace. The config object holds the destination-specific connection settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1062,6 +1189,8 @@ Create the destination for a Fivetran group, such as a Databricks workspace. The
 |     ↳ `message` | string | Result message |
 |     ↳ `details` | json | Additional diagnostic details |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -1071,6 +1200,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### Fivetran All Events
 
 Trigger workflow on any Fivetran sync, connection, or transformation event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1094,13 +1225,14 @@ Trigger workflow on any Fivetran sync, connection, or transformation event
 | `destinationGroupId` | string | Group ID of the destination |
 | `data` | json | Event-specific payload; its fields depend on the event |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Created
 
 Trigger workflow when a connection is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1125,13 +1257,14 @@ Trigger workflow when a connection is created
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Deleted
 
 Trigger workflow when a connection is deleted
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1156,12 +1289,13 @@ Trigger workflow when a connection is deleted
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Edited
 
 Trigger workflow when connection credentials, sync frequency, or other settings change
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1189,12 +1323,13 @@ Trigger workflow when connection credentials, sync frequency, or other settings 
 |   ↳ `editType` | string | What was edited, e.g. CREDENTIALS |
 |   ↳ `oldProperties` | json | Connector-specific properties before the edit, with secrets masked |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Failed
 
 Trigger workflow when Fivetran fails to connect to a source
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1222,12 +1357,13 @@ Trigger workflow when Fivetran fails to connect to a source
 |   ↳ `testName` | string | Name of the setup test |
 |   ↳ `message` | string | Test result message |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Paused
 
 Trigger workflow when a connection is paused, by a user or automatically
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1254,13 +1390,14 @@ Trigger workflow when a connection is paused, by a user or automatically
 |   ↳ `id` | string | Connection ID |
 |   ↳ `reason` | string | Why the connection was paused automatically |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Re-sync Triggered
 
 Trigger workflow when a historical re-sync of a connection is triggered
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1285,13 +1422,14 @@ Trigger workflow when a historical re-sync of a connection is triggered
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Resumed
 
 Trigger workflow when a connection is resumed
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1316,12 +1454,13 @@ Trigger workflow when a connection is resumed
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Connection Succeeded
 
 Trigger workflow when Fivetran connects to a source successfully
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1349,12 +1488,13 @@ Trigger workflow when Fivetran connects to a source successfully
 |   ↳ `testName` | string | Name of the setup test |
 |   ↳ `message` | string | Test result message |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Manual Sync Triggered
 
 Trigger workflow when someone triggers a manual sync of a connection
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1380,12 +1520,13 @@ Trigger workflow when someone triggers a manual sync of a connection
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Sync Ended
 
 Trigger workflow when a connection sync finishes, succeeds, fails, or is rescheduled
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1416,12 +1557,13 @@ Trigger workflow when a connection sync finishes, succeeds, fails, or is resched
 |   ↳ `rescheduledAt` | string | When a rescheduled sync resumes |
 |   ↳ `isRoutine` | boolean | Whether a reschedule is routine rather than error-driven |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Sync Started
 
 Trigger workflow when a connection starts syncing
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1446,12 +1588,13 @@ Trigger workflow when a connection starts syncing
 | `data` | object |  |
 |   ↳ `sync_type` | string | HISTORICAL or INCREMENTAL |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Table Re-sync Triggered
 
 Trigger workflow when a historical re-sync of a table is triggered
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1479,13 +1622,14 @@ Trigger workflow when a historical re-sync of a table is triggered
 |   ↳ `schema` | string | Schema name |
 |   ↳ `table` | string | Table name |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Transformation Failed
 
 Trigger workflow when a transformation run fails
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1514,13 +1658,14 @@ Trigger workflow when a transformation run fails
 |   ↳ `endTime` | string | When the run ended |
 |   ↳ `result` | json | Run result with stepResults \(step, success, start and end times, commandResult\) |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Transformation Started
 
 Trigger workflow when a transformation run starts
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1547,12 +1692,13 @@ Trigger workflow when a transformation run starts
 |   ↳ `transformationType` | string | Job type \(DBT_CORE, QUICKSTART, DBT_CLOUD, COALESCE\) |
 |   ↳ `schedule` | json | Job schedule \(type and entries\) |
 
-
----
+</ReferenceDetails>
 
 ### Fivetran Transformation Succeeded
 
 Trigger workflow when a transformation run succeeds
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1581,4 +1727,6 @@ Trigger workflow when a transformation run succeeds
 |   ↳ `schedule` | json | Job schedule \(type and entries\) |
 |   ↳ `endTime` | string | When the run ended |
 |   ↳ `result` | json | Run result with stepResults \(step, success, start and end times, commandResult\) |
+
+</ReferenceDetails>
 

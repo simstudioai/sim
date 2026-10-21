@@ -21,6 +21,7 @@ import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-a
 import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
 import { APIExampleSelector } from '@/components/ui/api-example-selector'
+import { APIRequestTabs } from '@/components/ui/api-request-tabs'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
@@ -36,7 +37,7 @@ const BASE_URL = DOCS_BASE_URL
  * Pages close with related-documentation links or legacy next-step links.
  * That heading is navigation, not content, so it is kept out of the table of
  * contents — the ToC should say what the page covers, not where to go after it.
- * The heading itself still renders above the cards.
+ * The heading itself still renders above the onward links.
  *
  * Matched on the slug rather than the rendered title because a ToC title is a
  * `ReactNode`; the trailing group tolerates the slugger's dedupe suffix.
@@ -50,6 +51,9 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
 
 const DOCS_BODY_CLASS_NAME =
   '[overflow-wrap:anywhere] [&_:not(pre)>code:not([class])]:rounded! [&_:not(pre)>code:not([class])]:px-1! [&_:not(pre)>code:not([class])]:py-px! [&_:not(pre)>code:not([class])]:font-normal! [&_:not(pre)>code:not([class])]:text-[var(--text-primary)]! [&_:not(pre)>code:not([class])]:[font-size:inherit]! [&_:not(pre)>code:not([class])]:bg-[var(--surface-5)]! dark:[&_:not(pre)>code:not([class])]:bg-[var(--surface-4)]!'
+
+const DOCS_PAGE_CLASS_NAME =
+  '[&#nd-page_h1]:font-medium! [&#nd-page_h1]:text-3xl! [&#nd-page_h1]:leading-10 [&#nd-page_h2]:font-medium! [&#nd-page_p]:text-[var(--text-body)]'
 
 function isContentHeading(item: { url: string }): boolean {
   return !ONWARD_NAV_SLUG.test(item.url)
@@ -83,7 +87,17 @@ function labelAuthSelectors(node: React.ReactNode): React.ReactNode {
     props.children === undefined ? undefined : Children.map(props.children, labelAuthSelectors)
 
   if (node.type === 'code') {
-    return <span className='font-normal text-sm [&>span]:font-normal'>{children}</span>
+    const scheme = Children.toArray(props.children).find(
+      (child) =>
+        isValidElement<ApiSlotElementProps>(child) &&
+        typeof child.props.children === 'string' &&
+        AUTH_SCHEME_LABELS[child.props.children]
+    )
+    return (
+      <span className='font-normal text-sm [&>span]:font-normal'>
+        {scheme ? labelAuthSelectors(scheme) : children}
+      </span>
+    )
   }
 
   if (Array.isArray(props.items)) {
@@ -125,16 +139,36 @@ const APIPage = createAPIPage(openapi, {
     operation: { APIExampleSelector },
   },
   content: {
-    renderOperationLayout: (slots) => {
+    renderAPIExampleUsageTabs: (registry, context) => (
+      <APIRequestTabs registry={registry} context={context} />
+    ),
+    renderOperationLayout: (slots, context, method) => {
+      const introduction =
+        'x-sim-docs-intro' in method && typeof method['x-sim-docs-intro'] === 'string'
+          ? method['x-sim-docs-intro']
+          : undefined
+      const details =
+        'x-sim-docs-details' in method && typeof method['x-sim-docs-details'] === 'string'
+          ? method['x-sim-docs-details']
+          : undefined
+      const oauthScope =
+        'x-oauth-scope' in method && typeof method['x-oauth-scope'] === 'string'
+          ? method['x-oauth-scope']
+          : undefined
       return (
-        <div className='grid @4xl:grid-cols-[minmax(0,1fr)_400px] grid-cols-1 @4xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:var(--text-primary)] [--badge-blue-text:var(--text-primary)] [--badge-error-text:var(--text-primary)] [--badge-orange-text:var(--text-primary)] [--badge-success-text:var(--text-primary)] [&_button[aria-haspopup=dialog]]:min-h-6'>
-          <div className='@4xl:col-start-1 @4xl:row-start-1 min-w-0 flex-1'>
+        <div className='grid @3xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] grid-cols-1 @3xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:var(--text-primary)] [--badge-blue-text:var(--text-primary)] [--badge-error-text:var(--text-primary)] [--badge-orange-text:var(--text-primary)] [--badge-success-text:var(--text-primary)] [&_button[aria-haspopup=dialog]]:min-h-6'>
+          <div className='@3xl:col-start-1 @3xl:row-start-1 min-w-0 flex-1'>
             {slots.header}
-            {slots.description}
+            {introduction ? context.renderMarkdown(introduction) : slots.description}
             {slots.apiPlayground}
             {slots.authSchemes && (
               <div className='api-section-divider [&>div:first-child]:flex-wrap [&>div:first-child]:gap-y-3'>
                 {labelAuthSelectors(slots.authSchemes)}
+                {introduction && oauthScope && (
+                  <p className='text-[var(--text-muted)] text-sm'>
+                    Required OAuth scope: <code>{oauthScope}</code>.
+                  </p>
+                )}
                 <p className='text-[var(--text-muted)] text-sm'>
                   Request examples use an API key. For OAuth, replace the <code>X-API-Key</code>{' '}
                   header with <code>Authorization: Bearer YOUR_ACCESS_TOKEN</code>.
@@ -142,12 +176,18 @@ const APIPage = createAPIPage(openapi, {
               </div>
             )}
           </div>
-          <div className='@4xl:sticky @4xl:top-[calc(var(--fd-docs-row-1,2rem)+1rem)] @4xl:col-start-2 @4xl:row-span-2 @4xl:row-start-1 min-w-0'>
+          <div className='@3xl:sticky @3xl:top-[calc(var(--fd-docs-row-1,2rem)+1rem)] @3xl:col-start-2 @3xl:row-span-2 @3xl:row-start-1 min-w-0'>
             {slots.apiExample}
           </div>
-          <div className='@4xl:col-start-1 @4xl:row-start-2 min-w-0 flex-1'>
+          <div className='@3xl:col-start-1 @3xl:row-start-2 min-w-0 flex-1'>
             {slots.parameters}
             {slots.body && <div className='api-section-divider'>{slots.body}</div>}
+            {details && (
+              <section className='api-section-divider'>
+                <h2>Behavior</h2>
+                {context.renderMarkdown(details)}
+              </section>
+            )}
             <ResponseSection>{slots.responses}</ResponseSection>
             {slots.callbacks}
           </div>
@@ -242,7 +282,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           breadcrumb={breadcrumbs}
         />
         <DocsPage
-          className='min-w-0 max-md:col-[main]! max-md:px-4!'
+          className={cn(
+            DOCS_PAGE_CLASS_NAME,
+            'min-w-0 max-md:col-[main]! max-md:px-4! [&>.api-page-header]:max-w-full! [&>div:last-child]:max-w-full!'
+          )}
           role='main'
           tabIndex={-1}
           toc={data.toc.filter(isContentHeading)}
@@ -289,9 +332,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         breadcrumb={breadcrumbs}
       />
       <DocsPage
+        className={DOCS_PAGE_CLASS_NAME}
         role='main'
         tabIndex={-1}
-        toc={data.toc.filter(isContentHeading)}
+        toc={data.toc.filter(
+          (item) => isContentHeading(item) && (slug?.[0] !== 'integrations' || item.depth <= 3)
+        )}
         full={data.full}
         breadcrumb={{
           enabled: false,
@@ -308,7 +354,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           component: footer,
         }}
       >
-        <PageHeader title={data.title}>
+        <PageHeader title={data.title} className='max-sm:[&>h1]:basis-0 max-sm:[&_a]:size-10'>
           <div className='hidden sm:flex'>
             <LLMCopyButton content={markdownContent} />
           </div>

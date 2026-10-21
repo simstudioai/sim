@@ -4,7 +4,7 @@ description: Reference block outputs with normalized names, nested fields, and a
 ---
 
 import { Tab, Tabs } from '@/components/ui/tabs'
-import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
 
 Connections determine when blocks run. **Connection tags** read values from blocks that have already run. This page covers tag syntax and common output shapes; [data flow](/workflows/data-flow) explains how those values become available.
 
@@ -20,7 +20,15 @@ Connections determine when blocks run. **Connection tags** read values from bloc
 
 Type `<` in a supported field to open the reference picker, or drag an available output into the field:
 
-<Video src="connections.mp4" />
+<Image
+  variant="detail"
+  background="ridges"
+  src="/static/docs-captures/connections-picker.webp"
+  alt="Typing a less-than sign in an Agent message opens the reference picker with the connected Start block"
+  width={636}
+  height={550}
+  className="mx-auto w-full max-w-xl"
+/>
 
 ## Nested and array fields
 

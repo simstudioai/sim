@@ -4,6 +4,7 @@ description: Create and manage Google Meet meetings
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="google_meet"
@@ -14,6 +15,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 [Google Meet](https://meet.google.com/) provides meeting spaces and conference records. Create or configure a meeting space, inspect participants and past conferences, or end an active conference. Select the space or conference identifier required by the operation.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -30,6 +33,8 @@ Sim requests these scopes when someone connects a Google Meet account. For a sel
 | `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
 | `https://www.googleapis.com/auth/meetings.space.created` | Create and manage Google Meet meeting spaces created by Sim |
 | `https://www.googleapis.com/auth/meetings.space.readonly` | View information about your Google Meet conferences |
+
+</ReferenceDetails>
 
 ## Use the block [#usage-instructions]
 

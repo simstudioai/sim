@@ -4,6 +4,7 @@ description: Manage recruiting with Greenhouse Harvest v3
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="greenhouse_v2"
@@ -38,6 +39,8 @@ When updating candidate contact arrays, tags, or linked users, read the current 
 See the [Harvest v3 API reference](https://harvestdocs.greenhouse.io/reference/get_v3-candidates), [list filtering guide](https://harvestdocs.greenhouse.io/docs/list-endpoints), and [write migration guide](https://harvestdocs.greenhouse.io/docs/write-endpoint-migration-guide) for provider behavior.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -97,6 +100,8 @@ Sim requests these scopes when someone connects a Greenhouse account. For a self
 | `harvest:sources:list` | View Greenhouse sources |
 | `harvest:users:list` | View Greenhouse users |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Read and manage candidates, applications, notes, attachments, and tags with Harvest v3 OAuth. Retrieve jobs, hiring teams, interviews, scorecards, offers, and configuration resources with cursor pagination. Existing Greenhouse webhooks remain available.
@@ -106,6 +111,8 @@ Read and manage candidates, applications, notes, attachments, and tags with Harv
 ### Greenhouse List Candidates
 
 Lists one page of candidates with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -161,9 +168,13 @@ Lists one page of candidates with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Get Candidate
 
 Retrieves one candidate by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +216,13 @@ Retrieves one candidate by ID using the v3 list endpoint.
 |   ↳ `value` | string | Value |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse Create Candidate
 
 Creates a candidate profile and optionally its first application.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -292,9 +307,13 @@ Creates a candidate profile and optionally its first application.
 |     ↳ `answer` | string | Answer |
 |   ↳ `prospective_job_ids` | array | Prospective job IDs |
 
+</ReferenceDetails>
+
 ### Greenhouse Update Candidate
 
 Updates selected candidate fields. Read the current candidate first: supplied arrays replace the entire existing collection. Send the complete desired array, or [] to remove all entries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -352,9 +371,13 @@ Updates selected candidate fields. Read the current candidate first: supplied ar
 |   ↳ `value` | string | Value |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse Delete Candidate
 
 Delete candidate using Greenhouse Harvest v3.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -368,9 +391,13 @@ Delete candidate using Greenhouse Harvest v3.
 | --------- | ---- | ----------- |
 | `message` | string | Deletion confirmation returned by Greenhouse |
 
+</ReferenceDetails>
+
 ### Greenhouse List Applications
 
 Lists one page of applications with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -431,9 +458,13 @@ Lists one page of applications with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Get Application
 
 Retrieves one application by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -472,9 +503,13 @@ Retrieves one application by ID using the v3 list endpoint.
 | `prospective_job_ids` | array | Prospective job IDs |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse Create Application
 
 Creates a job application or prospect application for an existing candidate.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -528,9 +563,13 @@ Creates a job application or prospect application for an existing candidate.
 | `prospective_job_ids` | array | Prospective job IDs |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse Update Application
 
 Update application using Greenhouse Harvest v3.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -578,9 +617,13 @@ Update application using Greenhouse Harvest v3.
 | `prospective_job_ids` | array | Prospective job IDs |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse Move Application
 
 Moves or advances an application using its current stage as a guard; configured stage rules may send emails.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -596,9 +639,13 @@ Moves or advances an application using its current stage as a guard; configured 
 
 No output fields.
 
+</ReferenceDetails>
+
 ### Greenhouse Convert Prospect
 
 Converts a prospect application into a new candidate application on a job already associated with the prospect.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -639,9 +686,13 @@ Converts a prospect application into a new candidate application on a job alread
 | `prospective_job_ids` | array | Prospective job IDs |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse Reject Application
 
 Rejects an application; optionally sends or schedules the configured rejection email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -657,9 +708,13 @@ Rejects an application; optionally sends or schedules the configured rejection e
 
 No output fields.
 
+</ReferenceDetails>
+
 ### Greenhouse Unreject Application
 
 Restores a rejected application to its previous stage and clears its rejection reason and notes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -671,9 +726,13 @@ Restores a rejected application to its previous stage and clears its rejection r
 
 No output fields.
 
+</ReferenceDetails>
+
 ### Greenhouse Hire Application
 
 Marks an application hired and closes its opening; provide opening_id when the job has multiple open openings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -688,9 +747,13 @@ Marks an application hired and closes its opening; provide opening_id when the j
 
 No output fields.
 
+</ReferenceDetails>
+
 ### Greenhouse Delete Application
 
 Delete application using Greenhouse Harvest v3.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -704,9 +767,13 @@ Delete application using Greenhouse Harvest v3.
 | --------- | ---- | ----------- |
 | `message` | string | Deletion confirmation returned by Greenhouse |
 
+</ReferenceDetails>
+
 ### Greenhouse List Jobs
 
 Lists one page of jobs with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -753,9 +820,13 @@ Lists one page of jobs with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Get Job
 
 Retrieves one job by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -785,9 +856,13 @@ Retrieves one job by ID using the v3 list endpoint.
 | `external_office_ids` | array | External office IDs |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse List Job Interview Stages
 
 Lists one page of job interview stages with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -818,9 +893,13 @@ Lists one page of job interview stages with cursor pagination and documented fil
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Application Stages
 
 Lists one page of application stages with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -854,9 +933,13 @@ Lists one page of application stages with cursor pagination and documented filte
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Job Hiring Managers
 
 Lists one page of job hiring managers with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -885,9 +968,13 @@ Lists one page of job hiring managers with cursor pagination and documented filt
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Job Owners
 
 Lists one page of job owners with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -919,9 +1006,13 @@ Lists one page of job owners with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Openings
 
 Lists one page of openings with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -964,9 +1055,13 @@ Lists one page of openings with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Interviews
 
 Lists one page of interviews with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1015,9 +1110,13 @@ Lists one page of interviews with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Scorecards
 
 Lists one page of scorecards with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1063,9 +1162,13 @@ Lists one page of scorecards with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Offers
 
 Lists one page of offers with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1110,9 +1213,13 @@ Lists one page of offers with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Notes
 
 Lists one page of notes with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1155,9 +1262,13 @@ Lists one page of notes with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Create Note
 
 Creates a candidate note or activity entry, or logs an email without sending it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1195,9 +1306,13 @@ Creates a candidate note or activity entry, or logs an email without sending it.
 | `visibility` | string | Visibility Allowed: admin_only_visible, privately_visible, publicly_visible. |
 | `email_attachment_file_names` | string | Email attachment file names |
 
+</ReferenceDetails>
+
 ### Greenhouse List Attachments
 
 Lists one page of attachments with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1230,9 +1345,13 @@ Lists one page of attachments with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Create Attachment
 
 Attaches a file to an application. A new resume or cover letter reclassifies the previous attachment of that type as other.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1258,9 +1377,13 @@ Attaches a file to an application. A new resume or cover letter reclassifies the
 | `filename` | string | Filename |
 | `url` | string | Provider URL; attachment download URLs are temporary. |
 
+</ReferenceDetails>
+
 ### Greenhouse Delete Attachment
 
 Delete attachment using Greenhouse Harvest v3.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1274,9 +1397,13 @@ Delete attachment using Greenhouse Harvest v3.
 | --------- | ---- | ----------- |
 | `message` | string | Deletion confirmation returned by Greenhouse |
 
+</ReferenceDetails>
+
 ### Greenhouse List Candidate Tags
 
 Lists one page of candidate tags with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1302,9 +1429,13 @@ Lists one page of candidate tags with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Create Candidate Tag
 
 Create candidate tag using Greenhouse Harvest v3.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1321,9 +1452,13 @@ Create candidate tag using Greenhouse Harvest v3.
 | `updated_at` | string | Last update time in ISO 8601 format |
 | `name` | string | Name |
 
+</ReferenceDetails>
+
 ### Greenhouse List Applied Candidate Tags
 
 Lists one page of applied candidate tags with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1352,9 +1487,13 @@ Lists one page of applied candidate tags with cursor pagination and documented f
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Apply Candidate Tag
 
 Apply candidate tag using Greenhouse Harvest v3.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1373,9 +1512,13 @@ Apply candidate tag using Greenhouse Harvest v3.
 | `candidate_tag_id` | number | Candidate tag ID |
 | `candidate_id` | number | Candidate ID |
 
+</ReferenceDetails>
+
 ### Greenhouse Remove Candidate Tag
 
 Removes an applied tag by its applied_candidate_tags row ID, leaving the tag dictionary intact.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1389,9 +1532,13 @@ Removes an applied tag by its applied_candidate_tags row ID, leaving the tag dic
 | --------- | ---- | ----------- |
 | `message` | string | Deletion confirmation returned by Greenhouse |
 
+</ReferenceDetails>
+
 ### Greenhouse List Candidate Educations
 
 Lists one page of candidate educations with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1431,9 +1578,13 @@ Lists one page of candidate educations with cursor pagination and documented fil
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Candidate Employments
 
 Lists one page of candidate employments with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1466,9 +1617,13 @@ Lists one page of candidate employments with cursor pagination and documented fi
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Users
 
 Lists one page of users with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1524,9 +1679,13 @@ Lists one page of users with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse Get User
 
 Retrieves one user by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1561,9 +1720,13 @@ Retrieves one user by ID using the v3 list endpoint.
 | `emails` | array | Emails |
 | `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
+</ReferenceDetails>
+
 ### Greenhouse List Departments
 
 Lists one page of departments with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1594,9 +1757,13 @@ Lists one page of departments with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Offices
 
 Lists one page of offices with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1629,9 +1796,13 @@ Lists one page of offices with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Sources
 
 Lists one page of sources with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1660,9 +1831,13 @@ Lists one page of sources with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Referrers
 
 Lists one page of referrers with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1690,9 +1865,13 @@ Lists one page of referrers with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Rejection Reasons
 
 Lists one page of rejection reasons with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1723,9 +1902,13 @@ Lists one page of rejection reasons with cursor pagination and documented filter
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Close Reasons
 
 Lists one page of close reasons with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1751,9 +1934,13 @@ Lists one page of close reasons with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Prospect Pools
 
 Lists one page of prospect pools with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1788,9 +1975,13 @@ Lists one page of prospect pools with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Prospect Pool Stages
 
 Lists one page of prospect pool stages with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1819,9 +2010,13 @@ Lists one page of prospect pool stages with cursor pagination and documented fil
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Custom Fields
 
 Lists one page of custom fields with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1871,9 +2066,13 @@ Lists one page of custom fields with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Custom Field Options
 
 Lists one page of custom field options with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1906,9 +2105,13 @@ Lists one page of custom field options with cursor pagination and documented fil
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 ### Greenhouse List Email Templates
 
 Lists one page of email templates with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1948,6 +2151,8 @@ Lists one page of email templates with cursor pagination and documented filters.
 | `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
 | `hasMore` | boolean | Whether another page is available |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -1957,6 +2162,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### Greenhouse Candidate Hired
 
 Trigger workflow when a candidate is hired
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2004,12 +2211,13 @@ Trigger workflow when a candidate is hired
 |       ↳ `custom_fields` | json | Offer custom fields |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Candidate Rejected
 
 Trigger workflow when a candidate is rejected
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2047,12 +2255,13 @@ Trigger workflow when a candidate is rejected
 |     ↳ `rejection_details` | json | Rejection details with custom fields |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Candidate Stage Change
 
 Trigger workflow when a candidate changes interview stages
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2094,12 +2303,13 @@ Trigger workflow when a candidate changes interview stages
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Job Created
 
 Trigger workflow when a new job is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2131,12 +2341,13 @@ Trigger workflow when a new job is created
 |     ↳ `openings` | json | Job openings |
 |     ↳ `custom_fields` | json | Custom field values |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Job Updated
 
 Trigger workflow when a job is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2168,12 +2379,13 @@ Trigger workflow when a job is updated
 |     ↳ `openings` | json | Job openings |
 |     ↳ `custom_fields` | json | Custom field values |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse New Application
 
 Trigger workflow when a new application is submitted
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2218,12 +2430,13 @@ Trigger workflow when a new application is submitted
 |     ↳ `attachments` | json | Application attachments |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Offer Created
 
 Trigger workflow when a new offer is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2252,12 +2465,13 @@ Trigger workflow when a new offer is created
 |   ↳ `offer_status` | string | Offer status |
 |   ↳ `custom_fields` | json | Custom field values |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Webhook (Endpoint Events)
 
 Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2274,4 +2488,6 @@ Trigger on whichever event types you select for this URL in Greenhouse. Sim does
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
 | `payload` | json | Full event payload |
+
+</ReferenceDetails>
 

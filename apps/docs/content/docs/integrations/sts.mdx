@@ -4,6 +4,7 @@ description: Connect to AWS Security Token Service
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="sts"
@@ -24,6 +25,8 @@ Assume roles, get temporary credentials, verify caller identity, and look up acc
 ### STS Assume Role
 
 Assume an IAM role and receive temporary security credentials
+
+<ReferenceDetails>
 
 #### Input
 
@@ -55,6 +58,8 @@ Assume an IAM role and receive temporary security credentials
 | `assumedRoleId` | string | Assumed role ID with session name |
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
+
+</ReferenceDetails>
 
 ### STS Assume Role With Web Identity
 

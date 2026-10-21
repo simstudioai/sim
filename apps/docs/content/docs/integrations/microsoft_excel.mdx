@@ -4,6 +4,7 @@ description: Manage worksheets, tables, rows, and workbook sessions
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="microsoft_excel_v2"
@@ -18,6 +19,8 @@ Choose a Microsoft account with access to the workbook. SharePoint site browsing
 Use **Create Session** when several operations work on the same workbook. Turn on **Save Changes** to persist edits, or leave it off for a temporary copy. Pass the returned `sessionId` to every operation in that sequence, then close the session. Requests without a session ID save their changes directly. List operations return one page and expose `top` and `skip`; increase `skip` by the page count until fewer than `top` items are returned. Range reads should use an explicit bounded range for large worksheets; returned cell values retain the existing trimming of trailing empty rows and columns, while formula and format matrices describe the full returned range.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -38,6 +41,8 @@ Sim requests these scopes when someone connects a Microsoft Excel account. For a
 | `Sites.Read.All` | Read documents and list items in all SharePoint sites |
 | `offline_access` | Access account when not using the application |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Read and write values and formulas, manage worksheets and table rows, format ranges, and calculate workbooks with persistent or temporary sessions.
@@ -47,6 +52,8 @@ Read and write values and formulas, manage worksheets and table rows, format ran
 ### Add to Microsoft Excel Table
 
 Add new rows to a Microsoft Excel table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -69,9 +76,13 @@ Add new rows to a Microsoft Excel table
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Add Worksheet to Microsoft Excel
 
 Create a new worksheet (sheet) in a Microsoft Excel workbook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +106,13 @@ Create a new worksheet (sheet) in a Microsoft Excel workbook
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Microsoft Excel List Worksheets
 
 List Worksheets in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +136,13 @@ List Worksheets in a Microsoft Excel workbook.
 | `nextLink` | string | Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically. |
 | `count` | number | Number of items returned in this page, not a total count. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Get Worksheet
 
 Get Worksheet in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +163,13 @@ Get Worksheet in a Microsoft Excel workbook.
 |   ↳ `position` | number | Zero-based position in the workbook. |
 |   ↳ `visibility` | string | Visible, Hidden, or VeryHidden. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Update Worksheet
 
 Update Worksheet in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,9 +193,13 @@ Update Worksheet in a Microsoft Excel workbook.
 |   ↳ `position` | number | Zero-based position in the workbook. |
 |   ↳ `visibility` | string | Visible, Hidden, or VeryHidden. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel List Tables
 
 List Tables in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -203,9 +230,13 @@ List Tables in a Microsoft Excel workbook.
 | `nextLink` | string | Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically. |
 | `count` | number | Number of items returned in this page, not a total count. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Get Table
 
 Get Table in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +264,13 @@ Get Table in a Microsoft Excel workbook.
 |   ↳ `showFilterButton` | boolean | Whether header filter buttons are visible. |
 |   ↳ `legacyId` | string | Opaque legacy identifier used by older Excel clients. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Update Table
 
 Update Table in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +302,13 @@ Update Table in a Microsoft Excel workbook.
 |   ↳ `showFilterButton` | boolean | Whether header filter buttons are visible. |
 |   ↳ `legacyId` | string | Opaque legacy identifier used by older Excel clients. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Delete Table
 
 Delete Table in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -286,9 +325,13 @@ Delete Table in a Microsoft Excel workbook.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the table was deleted. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel List Table Rows
 
 List Table Rows in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,9 +354,13 @@ List Table Rows in a Microsoft Excel workbook.
 | `nextLink` | string | Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically. |
 | `count` | number | Number of items returned in this page, not a total count. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Get Table Row
 
 Get Table Row in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -332,9 +379,13 @@ Get Table Row in a Microsoft Excel workbook.
 | `index` | number | Zero-based table row index. |
 | `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Update Table Row
 
 Update Table Row in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +405,13 @@ Update Table Row in a Microsoft Excel workbook.
 | `index` | number | Zero-based table row index. |
 | `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Delete Table Row
 
 Delete Table Row in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -374,9 +429,13 @@ Delete Table Row in a Microsoft Excel workbook.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the table row was deleted. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Create Session
 
 Create Session in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -393,9 +452,13 @@ Create Session in a Microsoft Excel workbook.
 | `sessionId` | string | Pass this ID as sessionId on subsequent workbook operations. |
 | `persistChanges` | boolean | Whether changes in this session are saved. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Refresh Session
 
 Refresh Session in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -411,9 +474,13 @@ Refresh Session in a Microsoft Excel workbook.
 | --------- | ---- | ----------- |
 | `refreshed` | boolean | Whether the workbook session was refreshed. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Close Session
 
 Close Session in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -429,9 +496,13 @@ Close Session in a Microsoft Excel workbook.
 | --------- | ---- | ----------- |
 | `closed` | boolean | Whether the workbook session was closed. |
 
+</ReferenceDetails>
+
 ### Microsoft Excel Calculate
 
 Calculate in a Microsoft Excel workbook.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -448,9 +519,13 @@ Calculate in a Microsoft Excel workbook.
 | --------- | ---- | ----------- |
 | `calculated` | boolean | Whether workbook calculation completed. |
 
+</ReferenceDetails>
+
 ### Read from Microsoft Excel V2
 
 Read data from a specific sheet in a Microsoft Excel spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -488,9 +563,13 @@ Read data from a specific sheet in a Microsoft Excel spreadsheet
 |   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Write to Microsoft Excel V2
 
 Write data to a specific sheet in a Microsoft Excel spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -537,9 +616,13 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 |   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Clear Microsoft Excel Range
 
 Clear the values and/or formatting of a range in a Microsoft Excel worksheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -563,9 +646,13 @@ Clear the values and/or formatting of a range in a Microsoft Excel worksheet
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Format Microsoft Excel Range
 
 Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -603,9 +690,13 @@ Apply fill color and/or font formatting to a range in a Microsoft Excel workshee
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Create Microsoft Excel Table
 
 Create a new table over a range of cells in a Microsoft Excel workbook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -637,9 +728,13 @@ Create a new table over a range of cells in a Microsoft Excel workbook
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Excel Worksheet
 
 Delete a worksheet (sheet) from a Microsoft Excel workbook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -660,9 +755,13 @@ Delete a worksheet (sheet) from a Microsoft Excel workbook
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Sort Microsoft Excel Range
 
 Sort a range or table by one or more fields in a Microsoft Excel worksheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -693,5 +792,7 @@ Sort a range or table by one or more fields in a Microsoft Excel worksheet
 | `metadata` | object | Spreadsheet metadata |
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+</ReferenceDetails>
 
 

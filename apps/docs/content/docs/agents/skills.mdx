@@ -4,7 +4,6 @@ description: Write reusable instructions for workflow Agents to load on demand o
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Image } from '@/components/ui/image'
 
 A skill is reusable Markdown guidance, such as a scoring rubric, support procedure, or writing style guide. Sim workspace skills use the name, description, and instructions from the open [Agent Skills format](https://agentskills.io/specification).
 
@@ -15,8 +14,6 @@ Skills supply guidance. Tools perform actions, and each action still requires it
 1. Open an **Agent** block with a model that supports tools and skills.
 2. In **Skills**, select **Add skill...** and choose the skills it should have available.
 3. Run a task that matches a selected skill, then inspect the Agent's tool calls.
-
-<Image src="/static/skills/add-skill.png" alt="The Agent Skills menu with Add skill and Create Skill controls" width={756} height={428} className="mx-auto h-auto w-full max-w-sm" />
 
 Selected skills appear as cards that you can open or remove. Editing depends on your access to the skill.
 

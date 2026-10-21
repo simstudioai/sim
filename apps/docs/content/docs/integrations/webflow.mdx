@@ -4,6 +4,7 @@ description: Manage Webflow CMS collections
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="webflow"
@@ -14,6 +15,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 Use [Webflow](https://webflow.com/) in Sim to create, retrieve, list, update, and delete CMS collection items. Webflow event triggers can start workflows when collection items change or forms are submitted. See [Site Tokens](/integrations/webflow-service-account) for token setup.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [Site tokens](/integrations/webflow-service-account).
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -31,6 +36,8 @@ Sim requests these scopes when someone connects a Webflow account. For a self-ho
 | `sites:read` | View Webflow sites |
 | `sites:write` | Manage webhooks and site settings |
 | `forms:read` | View form submissions |
+
+</ReferenceDetails>
 
 ## Use the block [#usage-instructions]
 

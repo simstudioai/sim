@@ -3,7 +3,18 @@ title: Workflows
 description: Create, edit, run, debug, and deploy workflows from Chat.
 ---
 
+import { Image } from '@/components/ui/image'
+
 Ask Sim to build a workflow or change an existing one. Open the workflow in Chat's resource panel to inspect the result in the workflow builder. Creation, editing, execution, and deployment require the relevant workspace access.
+
+<Image
+  variant="overview"
+  src="/static/getting-started/first-run.webp"
+  alt="Sim showing a successful summary in Chat beside the two-block workflow"
+  width={2400}
+  height={1200}
+  background="ridges"
+/>
 
 ## Create a workflow [#creating-workflows]
 
@@ -11,18 +22,16 @@ Describe the trigger, inputs, processing steps, integrations, and expected outpu
 
 - "Build a workflow that takes a URL, reads the page, summarizes it with Claude, and sends the summary to a Slack channel."
 - "Create a webhook workflow that extracts invoice data from a PDF and writes it to the billing table."
-- "Build an outbound workflow: enrich a company name and domain, score the fit, and draft a personalized email."
 - "Create a lead enrichment workflow that takes an email from a form submission, looks up the company, and writes the enriched record to the leads table."
-- "When a new customer signs up, send a welcome email, create a HubSpot contact, and notify #new-customers in Slack."
 
 Sim can create the blocks and connections and help configure the required accounts. Inspect the workflow and resolve any missing credentials or inputs before running it.
 
 ## Edit the draft [#editing-workflows]
 
-Open the workflow with an `@`-mention or the **+** menu, then name the change:
+Select the workflow through an `@`-mention or the **+** menu. It opens beside the conversation so you can inspect the draft. Name the change:
 
 - "Add a branch for confidence scores below 0.7."
-- "Replace GPT-4o with Claude Opus 5 on the summarizer block."
+- "Use the same model as the research workflow on the summarizer block."
 - "Add a Slack notification containing the final output."
 
 Sim reads the existing structure before applying changes. Editing a deployed workflow changes its draft; the active deployment remains a snapshot until you successfully redeploy or activate another version.

@@ -4,6 +4,7 @@ description: Manage Help Scout conversations, replies, notes, and customers
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="helpscout"
@@ -11,27 +12,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Help Scout](https://www.helpscout.com/) is a customer support platform with shared inboxes, a help center, and live chat.
+Use [Help Scout](https://www.helpscout.com/) to manage support conversations and customers, or start workflows from conversation and customer events.
 
-With the Help Scout block, you can:
+## Connect Help Scout
 
-- **Work the queue**: List and search conversations by inbox, folder, status, tag, assignee, or search query, and read conversations with their threads.
-- **Respond to customers**: Open conversations, send replies or save them as drafts, and add internal notes.
-- **Route and organize**: Change a conversation's status, assignee, inbox, subject, and tags, delete conversations, and run manual workflows.
-- **Manage customers**: Search, read, create, and update customer profiles.
-- **Look up your account**: List inboxes, folders, users, teams, tags, and workflows.
-- **React to events**: Start workflows when conversations are created, replied to, assigned, tagged, moved, merged, or deleted, or when customers are created or updated.
-- **Build a support knowledge base**: Sync conversations into a knowledge base so agents can search how past issues were resolved.
+Connect through OAuth, or save your own Help Scout app as a credential. For an app credential, open **Your Profile > My Apps**, create an app, and save its **App ID** and **App Secret** in Sim. The client-credentials flow does not use the redirect URL. The connected user needs **Access API** permission. See [Help Scout authentication](https://developer.helpscout.com/mailbox-api/overview/authentication/).
 
-Connect your Help Scout account through OAuth, or save your own Help Scout app as a credential: create an app under **Your Profile > My Apps** (a placeholder redirect URL is fine) and paste its App ID and App Secret. Either way, Sim acts with the permissions of the Help Scout user behind the connection, who needs the **Access API** permission.
+Triggers require an OAuth connection. Select the account and, optionally, an inbox, then deploy the workflow. Sim creates a webhook with a signing secret, validates each delivery's `X-HelpScout-Signature`, and removes the webhook when the workflow is undeployed.
 
-Triggers need a Help Scout account connected through OAuth. Pick the account (and optionally an inbox) in the trigger and deploy: Sim creates the Help Scout webhook with its own signing secret, verifies every delivery's `X-HelpScout-Signature`, and deletes the webhook when the workflow is undeployed.
-
-To search past support history from agents, add Help Scout as a knowledge base source: it syncs conversations and their threads (optionally including internal notes) from one inbox or all of them.
-
-In Sim, the Help Scout block lets your agents triage new conversations, draft replies from your knowledge base, keep customer records current, and report on what your support team is handling.
+To make past support history searchable, add Help Scout as a [knowledge base source](/knowledgebase/connectors). Sync conversations and threads from one inbox or all inboxes, with internal notes included only when selected.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -42,6 +35,8 @@ Sim requests no OAuth scopes for Help Scout. For a self-hosted deployment, regis
 | Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/helpscout` |
 | Environment variables | `HELPSCOUT_CLIENT_ID`, `HELPSCOUT_CLIENT_SECRET` |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes and customer messages, change status, assignee, inbox, subject, customer, tags, and custom fields, and snooze conversations. Manage customers and their properties, look up organizations and saved replies, list inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.
@@ -51,6 +46,8 @@ Connect Help Scout to search and read conversations and their threads, open new 
 ### Help Scout List Conversations
 
 List and search Help Scout conversations by inbox, folder, status, tag, assignee, or search query. Returns 25 conversations per page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -131,9 +128,13 @@ List and search Help Scout conversations by inbox, folder, status, tag, assignee
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout Get Conversation
 
 Get a Help Scout conversation by ID, optionally with its threads.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -240,9 +241,13 @@ Get a Help Scout conversation by ID, optionally with its threads.
 |     ↳ `size` | number | Size in bytes |
 |     ↳ `state` | string | valid or virus |
 
+</ReferenceDetails>
+
 ### Help Scout Create Conversation
 
 Create a Help Scout conversation in an inbox with a first customer message, reply, or note. A new customer is created when the email is not already known.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -270,9 +275,13 @@ Create a Help Scout conversation in an inbox with a first customer message, repl
 | `id` | number | ID of the new conversation |
 | `webUrl` | string | Link to the new conversation in Help Scout |
 
+</ReferenceDetails>
+
 ### Help Scout Reply to Conversation
 
 Send a reply to the customer on a Help Scout conversation, or save it as a draft.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +304,13 @@ Send a reply to the customer on a Help Scout conversation, or save it as a draft
 | `conversationId` | number | Conversation ID |
 | `threadId` | number | ID of the new thread |
 
+</ReferenceDetails>
+
 ### Help Scout Add Note
 
 Add an internal note to a Help Scout conversation. Customers never see notes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,9 +328,13 @@ Add an internal note to a Help Scout conversation. Customers never see notes.
 | `conversationId` | number | Conversation ID |
 | `threadId` | number | ID of the new thread |
 
+</ReferenceDetails>
+
 ### Help Scout Update Conversation Status
 
 Change the status of a Help Scout conversation to active, open, pending, closed, or spam.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -332,9 +349,13 @@ Change the status of a Help Scout conversation to active, open, pending, closed,
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Assign Conversation
 
 Assign a Help Scout conversation to a user or team.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -349,9 +370,13 @@ Assign a Help Scout conversation to a user or team.
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Unassign Conversation
 
 Remove the assignee from a Help Scout conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,9 +390,13 @@ Remove the assignee from a Help Scout conversation.
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Update Conversation Subject
 
 Change the subject of a Help Scout conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +411,13 @@ Change the subject of a Help Scout conversation.
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Move Conversation
 
 Move a Help Scout conversation to another inbox.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -399,9 +432,13 @@ Move a Help Scout conversation to another inbox.
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Set Conversation Tags
 
 Replace the full tag list on a Help Scout conversation. Tags left out are removed, an empty list removes every tag, and unknown tags are created.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -416,9 +453,13 @@ Replace the full tag list on a Help Scout conversation. Tags left out are remove
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Delete Conversation
 
 Delete a Help Scout conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -432,9 +473,13 @@ Delete a Help Scout conversation.
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the deleted conversation |
 
+</ReferenceDetails>
+
 ### Help Scout List Threads
 
 List the threads (customer messages, replies, notes, and activity) of a Help Scout conversation, newest first, including full chat threads.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -495,9 +540,13 @@ List the threads (customer messages, replies, notes, and activity) of a Help Sco
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout List Customers
 
 List and search Help Scout customers by inbox, name, modification date, or search query (for example by email). Returns 50 customers per page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -566,9 +615,13 @@ List and search Help Scout customers by inbox, name, modification date, or searc
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout Get Customer
 
 Get a Help Scout customer by ID, including emails, phones, websites, social profiles, and properties.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -624,9 +677,13 @@ Get a Help Scout customer by ID, including emails, phones, websites, social prof
 |     ↳ `value` | string | Stored value |
 |     ↳ `text` | string | Display text |
 
+</ReferenceDetails>
+
 ### Help Scout Create Customer
 
 Create a Help Scout customer with a profile, email address, and phone number.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -652,9 +709,13 @@ Create a Help Scout customer with a profile, email address, and phone number.
 | --------- | ---- | ----------- |
 | `id` | number | ID of the new customer |
 
+</ReferenceDetails>
+
 ### Help Scout Update Customer
 
 Update profile fields on a Help Scout customer and add an email address or phone number. Only the fields you provide are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -680,9 +741,13 @@ Update profile fields on a Help Scout customer and add an email address or phone
 | --------- | ---- | ----------- |
 | `customerId` | number | ID of the updated customer |
 
+</ReferenceDetails>
+
 ### Help Scout List Inboxes
 
 List the Help Scout inboxes (mailboxes) the connected user can access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -708,9 +773,13 @@ List the Help Scout inboxes (mailboxes) the connected user can access.
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout List Folders
 
 List the folders in a Help Scout inbox with their conversation counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -738,9 +807,13 @@ List the folders in a Help Scout inbox with their conversation counts.
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout List Users
 
 List Help Scout users, optionally filtered by exact email or by inbox.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -777,9 +850,13 @@ List Help Scout users, optionally filtered by exact email or by inbox.
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout Get Current User
 
 Get the Help Scout user the connection acts as, and its company ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -808,9 +885,13 @@ Get the Help Scout user the connection acts as, and its company ID.
 |   ↳ `updatedAt` | string | When the user was updated |
 | `companyId` | number | Help Scout company ID |
 
+</ReferenceDetails>
+
 ### Help Scout List Tags
 
 List the tags used across all Help Scout inboxes, in alphabetical order.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -836,9 +917,13 @@ List the tags used across all Help Scout inboxes, in alphabetical order.
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout List Teams
 
 List the teams in the Help Scout account. Team IDs can be used to assign conversations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -866,9 +951,13 @@ List the teams in the Help Scout account. Team IDs can be used to assign convers
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout List Workflows
 
 List Help Scout workflows, optionally filtered by inbox or by type (manual or automatic).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -898,9 +987,13 @@ List Help Scout workflows, optionally filtered by inbox or by type (manual or au
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout Run Workflow
 
 Run a manual Help Scout workflow on up to 50 conversations. The conversations must be in the same inbox as the workflow.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -916,9 +1009,13 @@ Run a manual Help Scout workflow on up to 50 conversations. The conversations mu
 | `workflowId` | number | ID of the workflow that ran |
 | `conversationIds` | array | Conversations the workflow ran on |
 
+</ReferenceDetails>
+
 ### Help Scout Update Custom Fields
 
 Replace the custom field values on a Help Scout conversation. Fields left out are cleared, except Help Scout-managed fields such as Topic and Sentiment, which keep their value. Dropdowns take the option ID and dates use YYYY-MM-DD.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -933,9 +1030,13 @@ Replace the custom field values on a Help Scout conversation. Fields left out ar
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout List Custom Fields
 
 List the custom fields defined for a Help Scout inbox, with their IDs, types, and dropdown options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -966,9 +1067,13 @@ List the custom fields defined for a Help Scout inbox, with their IDs, types, an
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout Snooze Conversation
 
 Snooze a Help Scout conversation until a future time, optionally waking it when the customer replies. A new snooze replaces the previous one.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -984,9 +1089,13 @@ Snooze a Help Scout conversation until a future time, optionally waking it when 
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout Unsnooze Conversation
 
 End the snooze on a Help Scout conversation. It returns to its folder (Mine, Team, or Unassigned) and is reactivated if needed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1000,9 +1109,13 @@ End the snooze on a Help Scout conversation. It returns to its folder (Mine, Tea
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout List Saved Replies
 
 List the saved replies (canned responses) in a Help Scout inbox with a preview of each.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1021,9 +1134,13 @@ List the saved replies (canned responses) in a Help Scout inbox with a preview o
 |   ↳ `preview` | string | Preview of the email text |
 |   ↳ `chatPreview` | string | Preview of the chat text |
 
+</ReferenceDetails>
+
 ### Help Scout Get Saved Reply
 
 Get the full text of a Help Scout saved reply for email and chat.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1042,9 +1159,13 @@ Get the full text of a Help Scout saved reply for email and chat.
 |   ↳ `text` | string | Email reply text \(HTML\) |
 |   ↳ `chatText` | string | Chat reply text |
 
+</ReferenceDetails>
+
 ### Help Scout List Customer Properties
 
 List the customer property definitions in Help Scout (slug, type, and dropdown options) used by Update Customer Properties.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1063,9 +1184,13 @@ List the customer property definitions in Help Scout (slug, type, and dropdown o
 |     ↳ `id` | string | Option ID |
 |     ↳ `label` | string | Option label |
 
+</ReferenceDetails>
+
 ### Help Scout Update Customer Properties
 
 Set or remove customer property values (for example plan or MRR) on a Help Scout customer, keyed by property slug.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1080,9 +1205,13 @@ Set or remove customer property values (for example plan or MRR) on a Help Scout
 | --------- | ---- | ----------- |
 | `customerId` | number | ID of the updated customer |
 
+</ReferenceDetails>
+
 ### Help Scout Add Customer Message
 
 Add a message from the customer to an existing Help Scout conversation, for example one received on another channel. This reopens the conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1102,9 +1231,13 @@ Add a message from the customer to an existing Help Scout conversation, for exam
 | `conversationId` | number | Conversation ID |
 | `threadId` | number | ID of the new thread |
 
+</ReferenceDetails>
+
 ### Help Scout Change Conversation Customer
 
 Change the primary customer of a Help Scout conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1119,9 +1252,13 @@ Change the primary customer of a Help Scout conversation.
 | --------- | ---- | ----------- |
 | `conversationId` | number | ID of the updated conversation |
 
+</ReferenceDetails>
+
 ### Help Scout List Organizations
 
 List Help Scout organizations (companies), 50 per page, most recently active first by default.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1161,9 +1298,13 @@ List Help Scout organizations (companies), 50 per page, most recently active fir
 |   ↳ `totalPages` | number | Total number of pages |
 | `nextPage` | number | Page number to request next, or null on the last page |
 
+</ReferenceDetails>
+
 ### Help Scout Get Organization
 
 Get a Help Scout organization by ID, optionally with its customer and conversation counts and property values.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1198,6 +1339,8 @@ Get a Help Scout organization by ID, optionally with its customer and conversati
 |     ↳ `value` | string | Property value |
 |     ↳ `options` | array | Option labels \(dropdown properties\) |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -1208,6 +1351,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1250,13 +1395,14 @@ Trigger workflow when a user replies to a Help Scout conversation (auto replies 
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Assigned
 
 Trigger workflow when a Help Scout conversation is assigned
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1299,13 +1445,14 @@ Trigger workflow when a Help Scout conversation is assigned
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Created
 
 Trigger workflow when a conversation is created in Help Scout
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1348,12 +1495,13 @@ Trigger workflow when a conversation is created in Help Scout
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Deleted
 
 Trigger workflow when a Help Scout conversation is deleted
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1371,13 +1519,14 @@ Trigger workflow when a Help Scout conversation is deleted
 | `conversationId` | number | ID of the deleted conversation |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Merged
 
 Trigger workflow when Help Scout conversations are merged
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1420,13 +1569,14 @@ Trigger workflow when Help Scout conversations are merged
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Moved
 
 Trigger workflow when a Help Scout conversation is moved to another inbox
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1469,13 +1619,14 @@ Trigger workflow when a Help Scout conversation is moved to another inbox
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Status Changed
 
 Trigger workflow when the status of a Help Scout conversation changes
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1518,13 +1669,14 @@ Trigger workflow when the status of a Help Scout conversation changes
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Conversation Tags Updated
 
 Trigger workflow when the tags on a Help Scout conversation change
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1567,13 +1719,14 @@ Trigger workflow when the tags on a Help Scout conversation change
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Customer Created
 
 Trigger workflow when a customer is created in Help Scout (fires for every inbox)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1610,13 +1763,14 @@ Trigger workflow when a customer is created in Help Scout (fires for every inbox
 |   ↳ `chats` | array | Chat handles \(id, value, type\) |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Customer Replied
 
 Trigger workflow when a customer replies to a Help Scout conversation
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1659,12 +1813,13 @@ Trigger workflow when a customer replies to a Help Scout conversation
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Customer Updated
 
 Trigger workflow when a Help Scout customer is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1702,12 +1857,13 @@ Trigger workflow when a Help Scout customer is updated
 |   ↳ `chats` | array | Chat handles \(id, value, type\) |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Note Created
 
 Trigger workflow when a note is added to a Help Scout conversation
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1751,12 +1907,13 @@ Trigger workflow when a note is added to a Help Scout conversation
 |   ↳ `webUrl` | string | Link to the conversation in Help Scout |
 | `payload` | json | Raw Help Scout webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Help Scout Webhook (All Events)
 
 Trigger on every supported Help Scout conversation and customer event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1772,4 +1929,6 @@ Trigger on every supported Help Scout conversation and customer event
 | --------- | ---- | ----------- |
 | `eventType` | string | Help Scout event name, e.g. convo.created |
 | `payload` | json | Raw Help Scout webhook payload |
+
+</ReferenceDetails>
 

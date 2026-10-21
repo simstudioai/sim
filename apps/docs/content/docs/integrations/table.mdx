@@ -4,6 +4,7 @@ description: User-defined data tables
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="table_v2"
@@ -41,6 +42,8 @@ Create and manage custom data tables. Store, query, and update structured data w
 
 Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -56,9 +59,13 @@ Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not
 | `row` | json | Inserted row data |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Batch Insert Rows
 
 Insert multiple rows into a table at once (up to 1000 rows)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +83,13 @@ Insert multiple rows into a table at once (up to 1000 rows)
 | `insertedCount` | number | Number of rows inserted |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Upsert Row
 
 Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +108,13 @@ Insert or update a row based on unique column constraints. If a row with matchin
 | `operation` | string | Operation performed: insert or update |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Update Row
 
 Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +132,13 @@ Update an existing row in a table. Supports partial updates - only include the f
 | `row` | json | Updated row data |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Update Rows by Filter
 
 Update multiple rows that match filter criteria. Data is merged with existing row data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,9 +158,13 @@ Update multiple rows that match filter criteria. Data is merged with existing ro
 | `updatedRowIds` | array | IDs of updated rows |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Delete Row
 
 Delete a row from a table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -158,9 +181,13 @@ Delete a row from a table
 | `deletedCount` | number | Number of rows deleted |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Delete Rows by Filter
 
 Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +206,13 @@ Delete multiple rows that match filter criteria. Use with caution - supports opt
 | `deletedRowIds` | array | IDs of deleted rows |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Query Rows
 
 Query rows with a typed predicate filter and cursor pagination. A single filter can be a plain condition: `\{"field":"wins","op":"gte","value":10\}`. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec, e.g. `[\{"field":"wins","direction":"desc"\}]`. Omit limit to return the entire result — the query fails if it exceeds the fixed 5 MiB row-data budget (narrow with a filter or set a limit). With a limit, a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back as cursor to continue; never infer completion from page size.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +236,13 @@ Query rows with a typed predicate filter and cursor pagination. A single filter 
 | `limit` | number | Limit used in the query |
 | `nextCursor` | string | Cursor to fetch the next page, or null on the last page |
 
+</ReferenceDetails>
+
 ### Get Row
 
 Get a single row by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +259,13 @@ Get a single row by ID
 | `row` | json | Row data |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Get Schema
 
 Get the schema configuration of a table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,6 +284,8 @@ Get the schema configuration of a table
 | `rowCount` | number | Number of rows in the table |
 | `maxRows` | number | Max rows per table for the workspace's plan |
 | `message` | string | Status message |
+
+</ReferenceDetails>
 
 {/* MANUAL-CONTENT-START:notes */}
 ## Filter operators [#filter-operators]

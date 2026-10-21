@@ -4,6 +4,7 @@ description: Use Pinecone vector database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="pinecone"
@@ -25,6 +26,8 @@ Generate embeddings, upsert and update text records, delete vectors, search with
 
 Generate embeddings from text using Pinecone's hosted models
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -42,9 +45,13 @@ Generate embeddings from text using Pinecone's hosted models
 | `vector_type` | string | Type of vector generated \(dense/sparse\) |
 | `usage` | object | Usage statistics for embeddings generation |
 
+</ReferenceDetails>
+
 ### Pinecone Upsert Text
 
 Insert or update text records in a Pinecone index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +68,13 @@ Insert or update text records in a Pinecone index
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the upsert operation |
 
+</ReferenceDetails>
+
 ### Pinecone Update Vector
 
 Update the values, sparse values, or metadata of a vector in a Pinecone namespace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +94,13 @@ Update the values, sparse values, or metadata of a vector in a Pinecone namespac
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the update operation |
 
+</ReferenceDetails>
+
 ### Pinecone Delete Vectors
 
 Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +119,13 @@ Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete a
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the delete operation |
 
+</ReferenceDetails>
+
 ### Pinecone Search Text
 
 Search for similar text in a Pinecone index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +153,13 @@ Search for similar text in a Pinecone index
 |   ↳ `read_units` | number | Read units consumed |
 |   ↳ `rerank_units` | number | Rerank units used |
 
+</ReferenceDetails>
+
 ### Pinecone Search Vector
 
 Search for similar vectors in a Pinecone index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -158,9 +181,13 @@ Search for similar vectors in a Pinecone index
 | `matches` | array | Vector search results with ID, score, values, and metadata |
 | `namespace` | string | Namespace where the search was performed |
 
+</ReferenceDetails>
+
 ### Pinecone Fetch
 
 Fetch vectors by ID from a Pinecone index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +213,13 @@ Fetch vectors by ID from a Pinecone index
 | `usage` | object | Usage statistics including total read units |
 |   ↳ `total_tokens` | number | Read units consumed |
 
+</ReferenceDetails>
+
 ### Pinecone List Vector IDs
 
 List vector IDs in a Pinecone namespace by prefix (serverless indexes only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -212,9 +243,13 @@ List vector IDs in a Pinecone namespace by prefix (serverless indexes only)
 | `usage` | object | Usage statistics including read units |
 |   ↳ `total_tokens` | number | Read units consumed |
 
+</ReferenceDetails>
+
 ### Pinecone Describe Index Stats
 
 Get statistics about a Pinecone index, including per-namespace vector counts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +268,13 @@ Get statistics about a Pinecone index, including per-namespace vector counts
 | `indexFullness` | number | Fullness of the index \(pod-based indexes only\) |
 | `totalVectorCount` | number | Total number of vectors across all namespaces |
 
+</ReferenceDetails>
+
 ### Pinecone List Indexes
 
 List all Pinecone indexes in the project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -258,9 +297,13 @@ List all Pinecone indexes in the project
 |   ↳ `spec` | object | Index spec \(serverless or pod configuration\) |
 |   ↳ `status` | object | Index status with ready and state |
 
+</ReferenceDetails>
+
 ### Pinecone Describe Index
 
 Get the configuration and status of a Pinecone index by name
+
+<ReferenceDetails>
 
 #### Input
 
@@ -283,5 +326,7 @@ Get the configuration and status of a Pinecone index by name
 |   ↳ `tags` | object | Custom user tags on the index |
 |   ↳ `spec` | object | Index spec \(serverless or pod configuration\) |
 |   ↳ `status` | object | Index status with ready and state |
+
+</ReferenceDetails>
 
 

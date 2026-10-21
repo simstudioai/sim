@@ -4,6 +4,7 @@ description: Look up brand assets, logos, colors, and company info
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="brandfetch"
@@ -24,6 +25,8 @@ Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name
 ### Brandfetch Get Brand
 
 Retrieve brand assets including logos, colors, fonts, and company info by domain, ticker, ISIN, or crypto symbol
+
+<ReferenceDetails>
 
 #### Input
 
@@ -60,6 +63,8 @@ Retrieve brand assets including logos, colors, fonts, and company info by domain
 | `company` | json | Company firmographic data including employees, location, and industries |
 | `qualityScore` | number | Data quality score from 0 to 1 |
 | `isNsfw` | boolean | Whether the brand contains adult content |
+
+</ReferenceDetails>
 
 ### Brandfetch Search
 

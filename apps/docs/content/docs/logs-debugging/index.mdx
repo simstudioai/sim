@@ -14,11 +14,12 @@ Each run has a unique execution ID, a trigger, status, duration, and recorded co
 Select a run to open **Log Details**. **Overview** contains run metadata and available workflow input, output, cost, and files. **Trace** shows timed spans for blocks, nested workflows, model requests, and tool calls. Access settings can hide trace, snapshot, or cost details.
 
 <Image
-  src="/static/logs/log-trace.png"
-  alt="Log Details Trace tab with nested workflow, agent, model, and tool spans and their durations"
-  width={518}
-  height={540}
-  className="mx-auto h-auto w-full max-w-md"
+  variant="detail"
+  background="canyon"
+  src="/static/docs-captures/log-trace.webp"
+  alt="Trace for the summarizer workflow, showing Start and Summarize update with their durations"
+  width={1036}
+  height={650}
 />
 
 Select a span to read its collapsible **Input**, **Output** or **Error**, and any **Thinking** or **Error message** sections. Input shows the values after references resolve; output shows what that step returned. Compare these values with the [data references](/workflows/data-flow) in your workflow.
@@ -55,7 +56,7 @@ When available on a failed run, select **Troubleshoot in Chat** to give Sim its 
 
 ## Retention
 
-Sim Cloud Free defaults to 30 days of log retention. Paid plans and billing-disabled deployments have no plan-based default expiry; configured policies can still remove older logs. See [Data retention](/enterprise/data-retention) for the effective policy and cleanup behavior.
+Sim Cloud Free defaults to 30 days of log retention. Paid plans and billing-disabled deployments have no plan-based default expiry; configured policies can still remove older logs. See [Data retention](/platform/enterprise/data-retention) for the effective policy and cleanup behavior.
 
 ## Related docs
 

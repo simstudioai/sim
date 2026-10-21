@@ -34,7 +34,7 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
     id: 'posthog_get_event_definition',
     name: 'PostHog Get Event Definition',
     description:
-      'Get details of a specific event definition in PostHog. Returns comprehensive information about the event including metadata, usage statistics, and verification status.',
+      'Get a PostHog event definition, including its metadata, last-seen timestamp, and verification status.',
     version: '1.0.0',
     errorExtractor: 'posthog-errors',
 

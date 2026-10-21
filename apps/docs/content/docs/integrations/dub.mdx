@@ -4,6 +4,7 @@ description: Link management with Dub
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="dub_v2"
@@ -26,6 +27,8 @@ Create, update, delete, or list short links with custom domains, slugs, link-pre
 ### Dub Create Link
 
 Create a new short link with Dub. Supports custom domains, slugs, UTM parameters, and more.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -85,9 +88,13 @@ Create a new short link with Dub. Supports custom domains, slugs, UTM parameters
 | `utm_term` | string | UTM term parameter |
 | `utm_content` | string | UTM content parameter |
 
+</ReferenceDetails>
+
 ### Dub Upsert Link
 
 Create or update a short link by its URL. If a link with the same URL already exists, update it. Otherwise, create a new link.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -147,9 +154,13 @@ Create or update a short link by its URL. If a link with the same URL already ex
 | `utm_term` | string | UTM term parameter |
 | `utm_content` | string | UTM content parameter |
 
+</ReferenceDetails>
+
 ### Dub Get Link
 
 Retrieve information about a short link by its link ID, external ID, or domain + key combination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,9 +204,13 @@ Retrieve information about a short link by its link ID, external ID, or domain +
 | `utm_term` | string | UTM term parameter |
 | `utm_content` | string | UTM content parameter |
 
+</ReferenceDetails>
+
 ### Dub Update Link
 
 Update an existing short link's destination URL, domain, slug, link-preview title and description, UTM parameters, and other supported settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,9 +271,13 @@ Update an existing short link's destination URL, domain, slug, link-preview titl
 | `utm_term` | string | UTM term parameter |
 | `utm_content` | string | UTM content parameter |
 
+</ReferenceDetails>
+
 ### Dub Delete Link
 
 Delete a short link by its link ID or external ID (prefixed with ext_).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +292,13 @@ Delete a short link by its link ID or external ID (prefixed with ext_).
 | --------- | ---- | ----------- |
 | `id` | string | ID of the deleted link |
 
+</ReferenceDetails>
+
 ### Dub List Links
 
 Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +323,13 @@ Retrieve a paginated list of short links for the authenticated workspace. Suppor
 | `links` | json | Array of link objects \(id, domain, key, url, shortLink, clicks, tags, createdAt\) |
 | `count` | number | Number of links returned |
 
+</ReferenceDetails>
+
 ### Dub Count Links
 
 Retrieve the number of short links for the authenticated workspace, optionally filtered and grouped by domain, tag, user, or folder.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -324,9 +351,13 @@ Retrieve the number of short links for the authenticated workspace, optionally f
 | `count` | number | Total number of links matching the filters |
 | `groups` | json | Per-group counts when groupBy is set \(e.g. \[\{ domain, count \}\]\) |
 
+</ReferenceDetails>
+
 ### Dub Bulk Create Links
 
 Create up to 100 short links in a single request. Returns the created links alongside any per-link errors.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -343,9 +374,13 @@ Create up to 100 short links in a single request. Returns the created links alon
 | `errors` | json | Array of per-link errors \(\{ link, error, code \}\) for links that failed |
 | `count` | number | Number of links successfully created |
 
+</ReferenceDetails>
+
 ### Dub Bulk Update Links
 
 Apply the same set of field updates to up to 100 links at once, selected by link IDs or external IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,9 +398,13 @@ Apply the same set of field updates to up to 100 links at once, selected by link
 | `updated` | json | Array of updated link objects |
 | `count` | number | Number of links updated |
 
+</ReferenceDetails>
+
 ### Dub Bulk Delete Links
 
 Delete up to 100 short links in a single request by their link IDs. Non-existing IDs are ignored.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -380,9 +419,13 @@ Delete up to 100 short links in a single request by their link IDs. Non-existing
 | --------- | ---- | ----------- |
 | `deletedCount` | number | Number of links that were deleted |
 
+</ReferenceDetails>
+
 ### Dub Get Analytics
 
 Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -410,9 +453,13 @@ Retrieve analytics for links including clicks, leads, and sales. Supports filter
 | `saleAmount` | number | Total sale amount in cents |
 | `data` | json | Grouped analytics data \(timeseries, countries, devices, etc.\) |
 
+</ReferenceDetails>
+
 ### Dub List Events
 
 Retrieve a paginated stream of individual click, lead, and sale events for links, with filtering by link, time range, and location.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -439,9 +486,13 @@ Retrieve a paginated stream of individual click, lead, and sale events for links
 | `events` | json | Array of event objects \(event, timestamp, click, link, and customer/sale data when applicable\) |
 | `count` | number | Number of events returned |
 
+</ReferenceDetails>
+
 ### Dub Get QR Code
 
 Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +514,13 @@ Generate a customizable QR code (PNG) for a short link, with control over size, 
 | --------- | ---- | ----------- |
 | `file` | file | Generated QR code image stored in execution files |
 
+</ReferenceDetails>
+
 ### Dub List Domains
 
 Retrieve the custom domains registered in the workspace, so links can be created against the right domain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +539,13 @@ Retrieve the custom domains registered in the workspace, so links can be created
 | `domains` | json | Array of domain objects \(slug, verified, primary, archived\) |
 | `count` | number | Number of domains returned |
 
+</ReferenceDetails>
+
 ### Dub List Tags
 
 Retrieve the tags defined in the workspace, so the right tag IDs can be assigned to links.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -506,9 +565,13 @@ Retrieve the tags defined in the workspace, so the right tag IDs can be assigned
 | `tags` | json | Array of tag objects \(id, name, color\) |
 | `count` | number | Number of tags returned |
 
+</ReferenceDetails>
+
 ### Dub Create Tag
 
 Create a new tag in the workspace for organizing and filtering short links.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -526,9 +589,13 @@ Create a new tag in the workspace for organizing and filtering short links.
 | `name` | string | Name of the tag |
 | `color` | string | Color assigned to the tag |
 
+</ReferenceDetails>
+
 ### Dub List Folders
 
 Retrieve the folders defined in the workspace, so the right folder ID can be used to organize links.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -545,5 +612,7 @@ Retrieve the folders defined in the workspace, so the right folder ID can be use
 | --------- | ---- | ----------- |
 | `folders` | json | Array of folder objects \(id, name, accessLevel\) |
 | `count` | number | Number of folders returned |
+
+</ReferenceDetails>
 
 

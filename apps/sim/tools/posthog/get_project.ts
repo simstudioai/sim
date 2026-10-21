@@ -50,7 +50,7 @@ export const getProjectTool: ToolConfig<PostHogGetProjectParams, PostHogGetProje
   id: 'posthog_get_project',
   name: 'PostHog Get Project',
   description:
-    'Get detailed information about a specific project by ID. Returns comprehensive project configuration, settings, and feature flags.',
+    'Get a PostHog project by ID, including its configuration, capture settings, and integrations.',
   version: '1.0.0',
   errorExtractor: 'posthog-errors',
 

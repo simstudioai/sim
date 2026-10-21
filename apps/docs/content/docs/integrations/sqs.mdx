@@ -4,6 +4,7 @@ description: Connect to Amazon SQS
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="sqs"
@@ -26,6 +27,8 @@ Send and receive messages one at a time or in batches of ten, delete messages, e
 ### SQS Send Message
 
 Send a message to an Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -51,9 +54,13 @@ Send a message to an Amazon SQS queue
 | `md5OfMessageAttributes` | string | MD5 digest of the message attributes |
 | `sequenceNumber` | string | Large, non-consecutive sequence number assigned by a FIFO queue |
 
+</ReferenceDetails>
+
 ### SQS Send Message Batch
 
 Send up to 10 messages to an Amazon SQS queue in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -84,9 +91,13 @@ Send up to 10 messages to an Amazon SQS queue in a single request
 | `successCount` | number | Number of messages accepted |
 | `failureCount` | number | Number of messages rejected |
 
+</ReferenceDetails>
+
 ### SQS Receive Message
 
 Receive up to 10 messages from an Amazon SQS queue, with optional long polling
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +128,13 @@ Receive up to 10 messages from an Amazon SQS queue, with optional long polling
 |   ↳ `messageAttributes` | json | Requested user-defined attributes, each with dataType, stringValue, and stringListValues |
 | `count` | number | Number of messages returned |
 
+</ReferenceDetails>
+
 ### SQS Delete Message
 
 Delete a received message from an Amazon SQS queue using its receipt handle
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +152,13 @@ Delete a received message from an Amazon SQS queue using its receipt handle
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SQS Delete Message Batch
 
 Delete up to 10 received messages from an Amazon SQS queue in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +185,13 @@ Delete up to 10 received messages from an Amazon SQS queue in a single request
 | `successCount` | number | Number of messages deleted |
 | `failureCount` | number | Number of messages rejected |
 
+</ReferenceDetails>
+
 ### SQS Change Message Visibility
 
 Change how long a received Amazon SQS message stays hidden from other consumers
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +210,13 @@ Change how long a received Amazon SQS message stays hidden from other consumers
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SQS Change Message Visibility Batch
 
 Change the visibility timeout of up to 10 received Amazon SQS messages at once
+
+<ReferenceDetails>
 
 #### Input
 
@@ -216,9 +243,13 @@ Change the visibility timeout of up to 10 received Amazon SQS messages at once
 | `successCount` | number | Number of messages updated |
 | `failureCount` | number | Number of messages rejected |
 
+</ReferenceDetails>
+
 ### SQS List Queues
 
 List Amazon SQS queue URLs in a region, optionally filtered by name prefix
+
+<ReferenceDetails>
 
 #### Input
 
@@ -239,9 +270,13 @@ List Amazon SQS queue URLs in a region, optionally filtered by name prefix
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of queue URLs returned |
 
+</ReferenceDetails>
+
 ### SQS Get Queue URL
 
 Resolve an Amazon SQS queue name to its queue URL
+
+<ReferenceDetails>
 
 #### Input
 
@@ -259,9 +294,13 @@ Resolve an Amazon SQS queue name to its queue URL
 | --------- | ---- | ----------- |
 | `queueUrl` | string | URL of the queue |
 
+</ReferenceDetails>
+
 ### SQS Get Queue Attributes
 
 Read configuration and message-count attributes of an Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +318,13 @@ Read configuration and message-count attributes of an Amazon SQS queue
 | --------- | ---- | ----------- |
 | `attributes` | json | Queue attributes as string values keyed by attribute name \(e.g., ApproximateNumberOfMessages, QueueArn, VisibilityTimeout, RedrivePolicy\) |
 
+</ReferenceDetails>
+
 ### SQS Set Queue Attributes
 
 Update configuration attributes of an existing Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -299,9 +342,13 @@ Update configuration attributes of an existing Amazon SQS queue
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SQS Create Queue
 
 Create a standard or FIFO Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -321,9 +368,13 @@ Create a standard or FIFO Amazon SQS queue
 | `message` | string | Operation status message |
 | `queueUrl` | string | URL of the created queue |
 
+</ReferenceDetails>
+
 ### SQS Delete Queue
 
 Delete an Amazon SQS queue and every message still in it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,11 +390,15 @@ Delete an Amazon SQS queue and every message still in it
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
+
+</ReferenceDetails>
 
 ### SQS Purge Queue
 
 Delete every message in an Amazon SQS queue while keeping the queue itself
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -359,9 +414,13 @@ Delete every message in an Amazon SQS queue while keeping the queue itself
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SQS List Dead-Letter Source Queues
 
 List the Amazon SQS queues that use a given queue as their dead-letter queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +441,13 @@ List the Amazon SQS queues that use a given queue as their dead-letter queue
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of source queues returned |
 
+</ReferenceDetails>
+
 ### SQS List Queue Tags
 
 List the cost-allocation tags attached to an Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -401,9 +464,13 @@ List the cost-allocation tags attached to an Amazon SQS queue
 | --------- | ---- | ----------- |
 | `tags` | json | Tags attached to the queue, as string values keyed by tag key |
 
+</ReferenceDetails>
+
 ### SQS Tag Queue
 
 Add or overwrite cost-allocation tags on an Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -421,9 +488,13 @@ Add or overwrite cost-allocation tags on an Amazon SQS queue
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SQS Untag Queue
 
 Remove cost-allocation tags from an Amazon SQS queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -441,9 +512,13 @@ Remove cost-allocation tags from an Amazon SQS queue
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SQS Start Message Move Task
 
 Start redriving messages out of an Amazon SQS dead-letter queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +538,13 @@ Start redriving messages out of an Amazon SQS dead-letter queue
 | `message` | string | Operation status message |
 | `taskHandle` | string | Handle identifying the move task, accepted by sqs_cancel_message_move_task |
 
+</ReferenceDetails>
+
 ### SQS List Message Move Tasks
 
 List the most recent message move tasks for an Amazon SQS source queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -493,9 +572,13 @@ List the most recent message move tasks for an Amazon SQS source queue
 |   ↳ `startedTimestamp` | number | Epoch milliseconds when the task started |
 | `count` | number | Number of move tasks returned |
 
+</ReferenceDetails>
+
 ### SQS Cancel Message Move Task
 
 Cancel an in-progress Amazon SQS message move task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -512,5 +595,7 @@ Cancel an in-progress Amazon SQS message move task
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `approximateNumberOfMessagesMoved` | number | Approximate number of messages already moved before the task was cancelled |
+
+</ReferenceDetails>
 
 

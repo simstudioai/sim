@@ -4,6 +4,7 @@ description: Scrape, crawl, search, extract, and enrich web and brand data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="context_dev"
@@ -30,6 +31,8 @@ Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire
 
 Scrape any URL and return clean, LLM-ready markdown content.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -53,9 +56,13 @@ Scrape any URL and return clean, LLM-ready markdown content.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Scrape HTML
 
 Scrape any URL and return the raw HTML content of the page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +86,13 @@ Scrape any URL and return the raw HTML content of the page.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Scrape Images
 
 Discover every image asset on a page, with optional dimension and type enrichment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -111,9 +122,13 @@ Discover every image asset on a page, with optional dimension and type enrichmen
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Screenshot
 
 Capture a screenshot of any web page and store it as a downloadable image file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -142,9 +157,13 @@ Capture a screenshot of any web page and store it as a downloadable image file.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Crawl
 
 Crawl an entire website and return each discovered page as clean markdown.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +194,13 @@ Crawl an entire website and return each discovered page as clean markdown.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Map
 
 Build a sitemap of a domain and return every discovered page URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -199,9 +222,13 @@ Build a sitemap of a domain and return every discovered page URL.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Search
 
 Search the web with natural language and optionally scrape results to markdown.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +259,13 @@ Search the web with natural language and optionally scrape results to markdown.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Extract
 
 Crawl a website and extract structured data matching a provided JSON schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -264,9 +295,13 @@ Crawl a website and extract structured data matching a provided JSON schema.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Extract Product
 
 Detect and extract structured product details from a single product page URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -301,9 +336,13 @@ Detect and extract structured product details from a single product page URL.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Extract Products
 
 Extract the product catalog from a brand's website by domain (beta).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +376,13 @@ Extract the product catalog from a brand's website by domain (beta).
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Scrape Fonts
 
 Extract the font families, usage stats, and font files used by a domain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -368,9 +411,13 @@ Extract the font families, usage stats, and font files used by a domain.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Scrape Styleguide
 
 Extract a domain's design system: colors, typography, spacing, shadows, and UI components.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -391,9 +438,13 @@ Extract a domain's design system: colors, typography, spacing, shadows, and UI c
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Classify NAICS
 
 Classify a brand into NAICS industry codes from its domain or company name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -419,9 +470,13 @@ Classify a brand into NAICS industry codes from its domain or company name.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Classify SIC
 
 Classify a brand into SIC industry codes from its domain or company name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +507,13 @@ Classify a brand into SIC industry codes from its domain or company name.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Get Brand
 
 Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -492,9 +551,13 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Get Brand by Name
 
 Retrieve brand data by company name: logos, colors, socials, address, and industry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -533,9 +596,13 @@ Retrieve brand data by company name: logos, colors, socials, address, and indust
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Get Brand by Email
 
 Retrieve brand data from a work email address. Free/disposable emails are rejected (422).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -573,9 +640,13 @@ Retrieve brand data from a work email address. Free/disposable emails are reject
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Get Brand by Ticker
 
 Retrieve brand data for a public company by its stock ticker symbol.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -614,9 +685,13 @@ Retrieve brand data for a public company by its stock ticker symbol.
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
 
+</ReferenceDetails>
+
 ### Context.dev Identify Transaction
 
 Identify the brand behind a raw bank/card transaction descriptor and return its brand data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -657,5 +732,7 @@ Identify the brand behind a raw bank/card transaction descriptor and return its 
 |   ↳ `primary_language` | string | Primary language of the brand site |
 | `creditsConsumed` | number | Credits consumed by this request |
 | `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 

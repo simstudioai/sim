@@ -4,6 +4,7 @@ description: Connect directly to an Oracle Database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="oracledb"
@@ -169,6 +170,8 @@ Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE,
 
 Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -207,5 +210,7 @@ Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and ta
 |     ↳ `columns` | array | Indexed columns in column-position order |
 |     ↳ `unique` | boolean | Whether the index is declared UNIQUE |
 | `schemas` | array | Table-owning schemas visible through ALL_TABLES, plus the selected or current schema |
+
+</ReferenceDetails>
 
 

@@ -4,6 +4,7 @@ description: Agent memory management
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="mem0"
@@ -77,6 +78,8 @@ Search for memories in Mem0 using semantic search
 
 Retrieve memories from Mem0 by ID or filter criteria
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -109,5 +112,7 @@ Retrieve memories from Mem0 by ID or filter criteria
 | `count` | number | Total number of memories matching the filters |
 | `next` | string | URL for the next page of results |
 | `previous` | string | URL for the previous page of results |
+
+</ReferenceDetails>
 
 

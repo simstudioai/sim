@@ -18,7 +18,7 @@ Open `http://localhost:3001`. Build the site with `bun run build` and run the bu
 - API operation pages: generated `openapi*.json`, owned by `apps/sim/lib/api/contracts/v2/**` and `scripts/openapi/generator.ts`.
 - CLI reference pages: generated from the command tree by `scripts/generate-cli-docs.ts`.
 - Interactive workflow examples: `components/workflow-preview/**`.
-- Local media: `public/static/**`. Videos resolved through `getAssetUrl` may be hosted remotely.
+- Local media: `public/static/**`. Product captures use the shared `Image` component and branded backgrounds.
 
 Use the owner and generation commands listed in the editorial guide. Do not hand-edit generated reference pages. The build also generates `llms-full.txt` from the current content.
 

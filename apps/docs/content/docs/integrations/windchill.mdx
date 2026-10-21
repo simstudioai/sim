@@ -4,6 +4,7 @@ description: Manage documents, revisions, and content in PTC Windchill
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="windchill"
@@ -38,6 +39,8 @@ Integrate PTC Windchill REST Services 2.7 document management into your workflow
 ### Windchill List Documents
 
 List documents with an OData query, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -80,9 +83,13 @@ List documents with an OData query, sorting, and pagination
 |   ↳ `totalCount` | number | Total matching items |
 |   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
+</ReferenceDetails>
+
 ### Windchill Get Document
 
 Get a WT.Document by OID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -115,9 +122,13 @@ Get a WT.Document by OID
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Get Document Structure
 
 Retrieve recursive document usage links and their parent and child documents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -173,9 +184,13 @@ Retrieve recursive document usage links and their parent and child documents
 |   ↳ `totalCount` | number | Total matching items |
 |   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
+</ReferenceDetails>
+
 ### Windchill Get Valid State Transitions
 
 Get lifecycle states a document can transition to from its current state
+
+<ReferenceDetails>
 
 #### Input
 
@@ -195,9 +210,13 @@ Get lifecycle states a document can transition to from its current state
 |   ↳ `value` | string | Internal state value |
 |   ↳ `display` | string | Displayed state value |
 
+</ReferenceDetails>
+
 ### Windchill Get Primary Content
 
 Get primary-content metadata for a document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -225,9 +244,13 @@ Get primary-content metadata for a document
 |   ↳ `urlLocation` | string | URL-data location |
 |   ↳ `externalLocation` | string | External-storage location |
 
+</ReferenceDetails>
+
 ### Windchill List Attachments
 
 List attachment metadata for a document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -260,9 +283,13 @@ List attachment metadata for a document
 |   ↳ `totalCount` | number | Total matching items |
 |   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
+</ReferenceDetails>
+
 ### Windchill Create Document
 
 Create one WT.Document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -301,9 +328,13 @@ Create one WT.Document
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Create Documents
 
 Create several documents in one atomic Windchill request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -336,9 +367,13 @@ Create several documents in one atomic Windchill request
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Document
 
 Update one document's editable attributes
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +407,13 @@ Update one document's editable attributes
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Common Properties
 
 Update a document's Name, Number, and other common properties
+
+<ReferenceDetails>
 
 #### Input
 
@@ -408,9 +447,13 @@ Update a document's Name, Number, and other common properties
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Documents
 
 Update several documents' editable attributes in one atomic request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +486,13 @@ Update several documents' editable attributes in one atomic request
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Delete Document
 
 Delete one document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -462,11 +509,15 @@ Delete one document
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
+
+</ReferenceDetails>
 
 ### Windchill Delete Documents
 
 Delete multiple documents atomically
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -482,11 +533,15 @@ Delete multiple documents atomically
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
+
+</ReferenceDetails>
 
 ### Windchill Check Out Document
 
 Check out one document
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -518,11 +573,15 @@ Check out one document
 |   ↳ `checkoutState` | string | Checkout state |
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
+
+</ReferenceDetails>
 
 ### Windchill Check Out Documents
 
 Check out multiple documents atomically
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -554,11 +613,15 @@ Check out multiple documents atomically
 |   ↳ `checkoutState` | string | Checkout state |
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
+
+</ReferenceDetails>
 
 ### Windchill Check In Document
 
 Check in one document
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -592,11 +655,15 @@ Check in one document
 |   ↳ `checkoutState` | string | Checkout state |
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
+
+</ReferenceDetails>
 
 ### Windchill Check In Documents
 
 Check in multiple documents atomically
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -631,9 +698,13 @@ Check in multiple documents atomically
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Undo Check Out Document
 
 Undo checkout for one document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -666,9 +737,13 @@ Undo checkout for one document
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Undo Check Out Documents
 
 Undo checkout for multiple documents atomically
+
+<ReferenceDetails>
 
 #### Input
 
@@ -701,9 +776,13 @@ Undo checkout for multiple documents atomically
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Revise Document
 
 Create a new revision of one document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -737,9 +816,13 @@ Create a new revision of one document
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Revise Documents
 
 Create new revisions of multiple documents atomically
+
+<ReferenceDetails>
 
 #### Input
 
@@ -772,9 +855,13 @@ Create new revisions of multiple documents atomically
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Set Lifecycle State
 
 Transition a document to a valid lifecycle state
+
+<ReferenceDetails>
 
 #### Input
 
@@ -809,9 +896,13 @@ Transition a document to a valid lifecycle state
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Document Security Labels
 
 Update installed security-label attributes for one or more documents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -844,9 +935,13 @@ Update installed security-label attributes for one or more documents
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Download Primary Content
 
 Download primary content into a canonical UserFile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -867,9 +962,13 @@ Download primary content into a canonical UserFile
 | `fileName` | string | Downloaded file name |
 | `mimeType` | string | Downloaded content MIME type |
 
+</ReferenceDetails>
+
 ### Windchill Upload Primary Content
 
 Upload a primary-content file to a document that has none
+
+<ReferenceDetails>
 
 #### Input
 
@@ -889,9 +988,13 @@ Upload a primary-content file to a document that has none
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
 
+</ReferenceDetails>
+
 ### Windchill Download Attachment
 
 Download a document attachment into a canonical UserFile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -913,9 +1016,13 @@ Download a document attachment into a canonical UserFile
 | `fileName` | string | Downloaded file name |
 | `mimeType` | string | Downloaded content MIME type |
 
+</ReferenceDetails>
+
 ### Windchill Upload Attachments
 
 Upload one or more files as document attachments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -934,5 +1041,7 @@ Upload one or more files as document attachments
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
+
+</ReferenceDetails>
 
 

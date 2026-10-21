@@ -4,6 +4,7 @@ description: Access TikTok profiles and videos, and upload inbox drafts
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="tiktok"
@@ -14,6 +15,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 Use [TikTok](https://www.tiktok.com/) to read the authenticated creator's profile and videos, send a video to their inbox as a draft, and track publishing status. The creator reviews and publishes drafts in TikTok; this integration does not publish them unattended. Webhooks can notify workflows about post and authorization changes.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -31,6 +34,8 @@ Sim requests these scopes when someone connects a TikTok account. For a self-hos
 | `user.info.stats` | Read a user's stats \(follower, following, likes, and video counts\) |
 | `video.upload` | Share content to a creator's account as a draft for further edit and post |
 | `video.list` | Read a user's public TikTok videos |
+
+</ReferenceDetails>
 
 ## Use the block [#usage-instructions]
 

@@ -4,6 +4,7 @@ description: Manage files, notebooks, kernels, and sessions on a Jupyter server
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="jupyter_v2"
@@ -31,6 +32,8 @@ Browse, read, create, upload, rename, copy, and delete files and notebooks; star
 
 List files, notebooks, and subdirectories at a path on a Jupyter server
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -55,9 +58,13 @@ List files, notebooks, and subdirectories at a path on a Jupyter server
 |   ↳ `format` | string | json, text, or base64 |
 | `path` | string | The listed directory path |
 
+</ReferenceDetails>
+
 ### Jupyter Get Content
 
 Download a file as a stored file, or read structured notebook and directory content
+
+<ReferenceDetails>
 
 #### Input
 
@@ -77,9 +84,13 @@ Download a file as a stored file, or read structured notebook and directory cont
 | `path` | string | Notebook or directory path |
 | `mimetype` | string | Notebook or directory MIME type |
 
+</ReferenceDetails>
+
 ### Jupyter Create File
 
 Create a file, notebook, or directory on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -101,9 +112,13 @@ Create a file, notebook, or directory on a Jupyter server
 | `createdAt` | string | Creation timestamp |
 | `lastModified` | string | Last modified timestamp |
 
+</ReferenceDetails>
+
 ### Jupyter Upload File
 
 Upload a file to a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -124,9 +139,13 @@ Upload a file to a Jupyter server
 | `size` | number | File size in bytes |
 | `lastModified` | string | Last modified timestamp |
 
+</ReferenceDetails>
+
 ### Jupyter Rename Content
 
 Rename or move a file, notebook, or directory on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,9 +164,13 @@ Rename or move a file, notebook, or directory on a Jupyter server
 | `path` | string | New entry path |
 | `lastModified` | string | Last modified timestamp |
 
+</ReferenceDetails>
+
 ### Jupyter Delete Content
 
 Delete a file, notebook, or directory on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +187,13 @@ Delete a file, notebook, or directory on a Jupyter server
 | `success` | boolean | Whether the entry was deleted |
 | `path` | string | Deleted entry path |
 
+</ReferenceDetails>
+
 ### Jupyter Copy Content
 
 Duplicate a file or notebook into a directory on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -185,9 +212,13 @@ Duplicate a file or notebook into a directory on a Jupyter server
 | `path` | string | Path of the copied entry |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Jupyter List Kernels
 
 List running kernels on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -207,9 +238,13 @@ List running kernels on a Jupyter server
 |   ↳ `executionState` | string | Kernel execution state |
 |   ↳ `connections` | number | Active connection count |
 
+</ReferenceDetails>
+
 ### Jupyter Start Kernel
 
 Start a new kernel on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -229,9 +264,13 @@ Start a new kernel on a Jupyter server
 | `executionState` | string | Kernel execution state |
 | `connections` | number | Active connection count |
 
+</ReferenceDetails>
+
 ### Jupyter Stop Kernel
 
 Shut down a running kernel on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +287,13 @@ Shut down a running kernel on a Jupyter server
 | `success` | boolean | Whether the kernel was shut down |
 | `kernelId` | string | Shut down kernel ID |
 
+</ReferenceDetails>
+
 ### Jupyter Restart Kernel
 
 Restart a running kernel on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -270,9 +313,13 @@ Restart a running kernel on a Jupyter server
 | `executionState` | string | Kernel execution state |
 | `connections` | number | Active connection count |
 
+</ReferenceDetails>
+
 ### Jupyter Interrupt Kernel
 
 Interrupt a running kernel on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -289,9 +336,13 @@ Interrupt a running kernel on a Jupyter server
 | `success` | boolean | Whether the interrupt was sent |
 | `kernelId` | string | Interrupted kernel ID |
 
+</ReferenceDetails>
+
 ### Jupyter List Kernel Specs
 
 List available kernel specs (languages/runtimes) on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +363,13 @@ List available kernel specs (languages/runtimes) on a Jupyter server
 |   ↳ `argv` | array | Launch command arguments |
 |   ↳ `interruptMode` | string | Interrupt mode |
 
+</ReferenceDetails>
+
 ### Jupyter List Sessions
 
 List active sessions (notebook-to-kernel bindings) on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,9 +394,13 @@ List active sessions (notebook-to-kernel bindings) on a Jupyter server
 |     ↳ `executionState` | string | Kernel execution state |
 |     ↳ `connections` | number | Active connection count |
 
+</ReferenceDetails>
+
 ### Jupyter Create Session
 
 Create a session that binds a notebook path to a (new or existing) kernel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +428,13 @@ Create a session that binds a notebook path to a (new or existing) kernel
 |   ↳ `executionState` | string | Kernel execution state |
 |   ↳ `connections` | number | Active connection count |
 
+</ReferenceDetails>
+
 ### Jupyter Delete Session
 
 Delete a session and shut down its associated kernel on a Jupyter server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -387,5 +450,7 @@ Delete a session and shut down its associated kernel on a Jupyter server
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the session was deleted |
 | `sessionId` | string | Deleted session ID |
+
+</ReferenceDetails>
 
 

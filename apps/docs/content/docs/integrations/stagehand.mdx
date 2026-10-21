@@ -4,6 +4,7 @@ description: Web automation and data extraction
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="stagehand"
@@ -45,6 +46,8 @@ Extract structured data from a webpage using Stagehand
 
 Run an autonomous web agent to complete tasks and extract structured data
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -79,5 +82,7 @@ Run an autonomous web agent to complete tasks and extract structured data
 | `structuredOutput` | object | Extracted data matching the provided output schema |
 | `liveViewUrl` | string | Embeddable Browserbase live view URL \(active only while the session is running\) |
 | `sessionId` | string | Browserbase session identifier |
+
+</ReferenceDetails>
 
 

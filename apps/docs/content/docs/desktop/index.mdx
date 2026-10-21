@@ -10,10 +10,12 @@ import { Image } from '@/components/ui/image'
 Sim Desktop opens your Sim workspace in a macOS app. It adds a built-in browser, terminal sessions, local file tools, and native notifications. Available builds and deployments can also provide native Mac app control. Your account, workspaces, and workflows are shared with the web app.
 
 <Image
-  src="/static/desktop/sim-desktop.png"
-  alt="Sim Desktop with Chat on the left and a built-in browser tab on the right"
-  width={1600}
-  height={892}
+  variant="overview"
+  background="san-francisco"
+  src="/static/getting-started/first-run.webp"
+  alt="Sim Desktop with Chat showing a workflow result beside the open workflow"
+  width={2400}
+  height={1200}
 />
 
 ## Download and requirements
@@ -35,7 +37,9 @@ See [Desktop app on your deployment](/platform/self-hosting/desktop) for server 
 ## Install and sign in
 
 <Steps>
-<Step title="Install in Applications">
+<Step>
+
+### Install in Applications
 
 Open the disk image and drag Sim to **Applications**. Launch it from there.
 
@@ -44,12 +48,16 @@ Open the disk image and drag Sim to **Applications**. Launch it from there.
 </Callout>
 
 </Step>
-<Step title="Choose your server">
+<Step>
+
+### Choose your server
 
 Fresh official installs open sim.ai. If you self-host, choose **Sim → Server…** in the menu bar and enter your deployment's origin before signing in.
 
 </Step>
-<Step title="Sign in">
+<Step>
+
+### Sign in
 
 Sign in with your existing Sim account. Google, Microsoft, and SSO sign-ins finish in your default browser, which hands the session back to the app.
 
@@ -123,6 +131,15 @@ Desktop settings appear under **Settings → Account** when the app exposes the 
 This section also shows the installed version and a downloaded version waiting for restart.
 
 ### Browser
+
+<Image
+  src="/static/docs-captures/browser-settings.webp"
+  alt="Browser settings with web access, search suggestions, theme, and zoom controls"
+  width={1640}
+  height={560}
+  variant="overview"
+  background="san-francisco"
+/>
 
 | Setting or action | Behavior |
 | --- | --- |

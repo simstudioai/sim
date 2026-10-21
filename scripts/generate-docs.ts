@@ -153,7 +153,10 @@ const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
 
 const integrationNavigation = JSON.parse(
   fs.readFileSync(path.join(rootDir, 'apps/docs/content/integration-navigation.json'), 'utf-8')
-) as { guides: Record<string, unknown>; redirects: Record<string, string> }
+) as {
+  guides: Record<string, { integration?: string; title: string }>
+  redirects: Record<string, string>
+}
 
 /**
  * Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must
@@ -4555,6 +4558,7 @@ async function generateMarkdownForBlock(
   } = blockConfig
 
   let toolsSection = ''
+  let hasReferenceDetails = false
   const inputSchemas = new Map<string, string>()
   if (tools.access?.length) {
     toolsSection = '## Actions\n\n'
@@ -4601,9 +4605,10 @@ async function generateMarkdownForBlock(
           toolsSection += `${escapedToolDescription}\n\n`
         }
 
-        toolsSection += `${fieldHeading} Input\n\n`
-        toolsSection += '| Parameter | Type | Required | Description |\n'
-        toolsSection += '| --------- | ---- | -------- | ----------- |\n'
+        let fields = ''
+        fields += `${fieldHeading} Input\n\n`
+        fields += '| Parameter | Type | Required | Description |\n'
+        fields += '| --------- | ---- | -------- | ----------- |\n'
 
         if (toolInfo.params.length > 0) {
           for (const param of toolInfo.params) {
@@ -4618,25 +4623,25 @@ async function generateMarkdownForBlock(
               description = description ? escapeMdxCell(description) : ''
             }
 
-            toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${description} |\n`
+            fields += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${description} |\n`
           }
         }
 
-        toolsSection += `\n${fieldHeading} Output\n\n`
+        fields += `\n${fieldHeading} Output\n\n`
 
         if (Object.keys(toolInfo.outputs).length > 0) {
-          toolsSection += '| Parameter | Type | Description |\n'
-          toolsSection += '| --------- | ---- | ----------- |\n'
+          fields += '| Parameter | Type | Description |\n'
+          fields += '| --------- | ---- | ----------- |\n'
 
-          toolsSection += formatOutputStructure(toolInfo.outputs)
+          fields += formatOutputStructure(toolInfo.outputs)
         } else if (
           Object.hasOwn(await loadToolOutputs(), tool) &&
           Object.keys((await loadToolOutputs())[tool]).length === 0
         ) {
-          toolsSection += 'No output fields.\n'
+          fields += 'No output fields.\n'
         } else if (Object.keys(outputs).length > 0) {
-          toolsSection += '| Parameter | Type | Description |\n'
-          toolsSection += '| --------- | ---- | ----------- |\n'
+          fields += '| Parameter | Type | Description |\n'
+          fields += '| --------- | ---- | ----------- |\n'
 
           for (const [key, output] of Object.entries(outputs)) {
             let type = 'string'
@@ -4655,10 +4660,16 @@ async function generateMarkdownForBlock(
 
             const escapedDescription = escapeMdxCell(description)
 
-            toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
+            fields += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
           }
         } else {
-          toolsSection += 'No output fields are documented for this action.\n'
+          fields += 'No output fields are documented for this action.\n'
+        }
+        if (tools.access.length > 6 || (fields.match(/^\|/gm)?.length ?? 0) > 24) {
+          hasReferenceDetails = true
+          toolsSection += `<ReferenceDetails>\n\n${fields}\n</ReferenceDetails>\n`
+        } else {
+          toolsSection += fields
         }
       }
 
@@ -4683,6 +4694,15 @@ async function generateMarkdownForBlock(
   const oauthScopesSection = oauthCredential
     ? await buildOAuthScopesSection(oauthCredential, tools.access ?? [])
     : ''
+  const connectionGuides = Object.entries(integrationNavigation.guides)
+    .filter(([, guide]) => guide.integration === stripVersionSuffix(type))
+    .map(([slug, guide]) => `[${guide.title}](/integrations/${slug})`)
+  const connectionSection = connectionGuides.length
+    ? `Connection guides: ${connectionGuides.join(' · ')}.\n\n`
+    : ''
+  const oauthReference = oauthScopesSection
+    ? `<ReferenceDetails label="OAuth scopes and self-hosting">\n\n${oauthScopesSection}</ReferenceDetails>\n\n`
+    : ''
 
   return `---
 title: ${name}
@@ -4690,13 +4710,13 @@ description: ${description}
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
-
+${hasReferenceDetails || oauthReference ? 'import { ReferenceDetails } from "@/components/ui/reference-details"\n' : ''}
 <BlockInfoCard 
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />
 
-${oauthScopesSection}${usageInstructions}${toolsSection}
+${connectionSection}${oauthReference}${usageInstructions}${toolsSection}
 `
 }
 
@@ -5304,10 +5324,6 @@ function toSemanticType(uiType: string): string {
 }
 
 /**
- * Generate MDX content for a single trigger provider page.
- * Matches the structure of tool docs: ## Triggers, ### `trigger_id`, #### Configuration / Output.
- */
-/**
  * Build the "## Triggers" section for an integration page. A trigger is a block
  * that starts a workflow, so this is appended to the service's actions page (or
  * used as the body of a trigger-only service page).
@@ -5349,13 +5365,17 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
       outputSection += '\n'
     }
 
-    const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
+    const fields = configSection + outputSection
+    const foldFields =
+      fields.length > 0 && (triggers.length > 6 || (fields.match(/^\|/gm)?.length ?? 0) > 24)
+    const separator = !foldFields && i < triggers.length - 1 ? '\n---\n\n' : ''
 
     triggersSection += `### ${trigger.name}\n\n`
     const escapedTriggerDescription = escapeMdxProse(trigger.description)
     triggersSection += `${escapedTriggerDescription}\n\n`
-    triggersSection += configSection
-    triggersSection += outputSection
+    triggersSection += foldFields
+      ? `<ReferenceDetails label="Configuration and outputs">\n\n${fields}</ReferenceDetails>\n\n`
+      : fields
     triggersSection += separator
   }
 
@@ -5364,6 +5384,17 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
 A trigger starts a workflow when a supported event occurs in this service.
 ${typeNote}
 ${triggersSection}`
+}
+
+function withReferenceDetailsImport(markdown: string): string {
+  if (!markdown.includes('<ReferenceDetails') || markdown.includes('import { ReferenceDetails }')) {
+    return markdown
+  }
+
+  return markdown.replace(
+    /^(---\n[\s\S]*?\n---\n)/,
+    '$1\nimport { ReferenceDetails } from "@/components/ui/reference-details"\n'
+  )
 }
 
 /** Standalone page for a trigger-only service (no actions block). */
@@ -5502,7 +5533,9 @@ async function generateAllTriggerDocs(): Promise<void> {
             : existing.length
           emitGeneratedFile(
             outputFilePath,
-            `${existing.slice(0, insertionIndex)}\n${triggersSection}${existing.slice(insertionIndex)}`
+            withReferenceDetailsImport(
+              `${existing.slice(0, insertionIndex)}\n${triggersSection}${existing.slice(insertionIndex)}`
+            )
           )
         }
       } else {
@@ -5519,7 +5552,7 @@ async function generateAllTriggerDocs(): Promise<void> {
           Object.keys(manualSections).length > 0
             ? mergeWithManualContent(markdown, existing, manualSections)
             : markdown
-        emitGeneratedFile(outputFilePath, finalContent)
+        emitGeneratedFile(outputFilePath, withReferenceDetailsImport(finalContent))
       }
 
       generatedProviders.push(blockType)

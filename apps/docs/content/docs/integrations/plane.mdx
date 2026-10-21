@@ -4,6 +4,7 @@ description: Manage projects and work items in Plane
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="plane"
@@ -40,6 +41,8 @@ Connect Plane Cloud or a self-hosted Plane instance. API v2 is the default; choo
 
 Archive a project in Plane. Supports API v1 compatibility.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -56,9 +59,13 @@ Archive a project in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Archive a work item
 
 Archive a work item in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -124,9 +131,13 @@ Archive a work item in Plane. Requires API v2.
 |   ↳ `module_ids` | array | Module ids |
 |   ↳ `project_id` | string | Project id |
 
+</ReferenceDetails>
+
 ### Plane Confirm a work item attachment upload
 
 Confirm a work item attachment upload in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +173,13 @@ Confirm a work item attachment upload in Plane. Supports API v1 compatibility.
 |   ↳ `work_item_id` | string | Work item id |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Create a work item attachment upload
 
 Create a work item attachment upload in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -238,9 +253,13 @@ Create a work item attachment upload in Plane. Supports API v1 compatibility.
 |     ↳ `deleted_by` | json | Deleted by |
 |   ↳ `detail` | string | Provider confirmation message. |
 
+</ReferenceDetails>
+
 ### Plane Create a comment
 
 Create a comment in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +326,13 @@ Create a comment in Plane. Supports API v1 compatibility.
 |   ↳ `hidden_by` | json | Hidden by |
 |   ↳ `source` | json | Source |
 
+</ReferenceDetails>
+
 ### Plane Create a cycle
 
 Create a cycle in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -375,9 +398,13 @@ Create a cycle in Plane. Supports API v1 compatibility.
 |   ↳ `status` | string | Status |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Create a label
 
 Create a label in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,9 +449,13 @@ Create a label in Plane. Supports API v1 compatibility.
 |   ↳ `parent` | string | Parent |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Create a link
 
 Create a link in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -465,9 +496,13 @@ Create a link in Plane. Supports API v1 compatibility.
 |   ↳ `issue` | string | Issue |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Create a module
 
 Create a module in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -532,9 +567,13 @@ Create a module in Plane. Supports API v1 compatibility.
 |   ↳ `workspace` | string | Workspace |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Create a project
 
 Create a project in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -641,9 +680,13 @@ Create a project in Plane. Supports API v1 compatibility.
 |   ↳ `auto_reminder_days` | number | Auto reminder days |
 |   ↳ `state` | string | State |
 
+</ReferenceDetails>
+
 ### Plane Create a project page
 
 Create a project page in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -721,9 +764,13 @@ Create a project page in Plane. Supports API v1 compatibility.
 |         ↳ `text` | string | Asset Id |
 |         ↳ `type` | string | Asset Id |
 
+</ReferenceDetails>
+
 ### Plane Create a state
 
 Create a state in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -774,9 +821,13 @@ Create a state in Plane. Supports API v1 compatibility.
 |   ↳ `slug` | string | Slug |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Create a webhook
 
 Create a webhook in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -811,9 +862,13 @@ Create a webhook in Plane. Requires API v2.
 |   ↳ `version` | string | Version |
 |   ↳ `secret_key` | string | Secret key |
 
+</ReferenceDetails>
+
 ### Plane Create a work item
 
 Create a work item in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -950,9 +1005,13 @@ Create a work item in Plane. Supports API v1 compatibility.
 |   ↳ `priority_rank` | number | Priority rank |
 |   ↳ `state_group` | string | State group |
 
+</ReferenceDetails>
+
 ### Plane Delete an attachment
 
 Delete an attachment in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -972,9 +1031,13 @@ Delete an attachment in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a comment
 
 Delete a comment in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -994,9 +1057,13 @@ Delete a comment in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a cycle
 
 Delete a cycle in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1015,9 +1082,13 @@ Delete a cycle in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a label
 
 Delete a label in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1036,9 +1107,13 @@ Delete a label in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a link
 
 Delete a link in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1058,9 +1133,13 @@ Delete a link in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a module
 
 Delete a module in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1079,9 +1158,13 @@ Delete a module in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a project
 
 Delete a project in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1099,9 +1182,13 @@ Delete a project in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a project page
 
 Delete a project page in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1120,9 +1207,13 @@ Delete a project page in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a state
 
 Delete a state in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1141,9 +1232,13 @@ Delete a state in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a webhook
 
 Delete a webhook in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1161,9 +1256,13 @@ Delete a webhook in Plane. Requires API v2.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Delete a work item
 
 Delete a work item in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1182,9 +1281,13 @@ Delete a work item in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Get an attachment
 
 Get an attachment in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1217,9 +1320,13 @@ Get an attachment in Plane. Requires API v2.
 |   ↳ `size` | json | Size |
 |   ↳ `work_item_id` | string | Work item id |
 
+</ReferenceDetails>
+
 ### Plane Get a comment
 
 Get a comment in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1279,9 +1386,13 @@ Get a comment in Plane. Supports API v1 compatibility.
 |   ↳ `hidden_by` | json | Hidden by |
 |   ↳ `source` | json | Source |
 
+</ReferenceDetails>
+
 ### Plane Get current user
 
 Get current user in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1306,9 +1417,13 @@ Get current user in Plane. Supports API v1 compatibility.
 |   ↳ `avatar` | string | Avatar |
 |   ↳ `avatar_url` | string | Avatar URL |
 
+</ReferenceDetails>
+
 ### Plane Get a cycle
 
 Get a cycle in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1364,9 +1479,13 @@ Get a cycle in Plane. Supports API v1 compatibility.
 |   ↳ `status` | string | Status |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Get a label
 
 Get a label in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1404,9 +1523,13 @@ Get a label in Plane. Supports API v1 compatibility.
 |   ↳ `parent` | string | Parent |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Get a link
 
 Get a link in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1465,9 +1588,13 @@ Get a link in Plane. Supports API v1 compatibility.
 |     ↳ `created_at` | string | Asset Id |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Get a module
 
 Get a module in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1521,9 +1648,13 @@ Get a module in Plane. Supports API v1 compatibility.
 |   ↳ `workspace` | string | Workspace |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Get a project
 
 Get a project in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1600,9 +1731,13 @@ Get a project in Plane. Supports API v1 compatibility.
 |   ↳ `auto_reminder_days` | number | Auto reminder days |
 |   ↳ `state` | string | State |
 
+</ReferenceDetails>
+
 ### Plane Get a project page
 
 Get a project page in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1667,9 +1802,13 @@ Get a project page in Plane. Supports API v1 compatibility.
 |         ↳ `text` | string | Asset Id |
 |         ↳ `type` | string | Asset Id |
 
+</ReferenceDetails>
+
 ### Plane Get a project summary
 
 Get a project summary in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1703,9 +1842,13 @@ Get a project summary in Plane. Supports API v1 compatibility.
 |   ↳ `identifier` | string | Identifier |
 |   ↳ `name` | string | Name |
 
+</ReferenceDetails>
+
 ### Plane Get a state
 
 Get a state in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1746,9 +1889,13 @@ Get a state in Plane. Supports API v1 compatibility.
 |   ↳ `slug` | string | Slug |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Get a webhook
 
 Get a webhook in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1776,9 +1923,13 @@ Get a webhook in Plane. Requires API v2.
 |   ↳ `url` | string | Url |
 |   ↳ `version` | string | Version |
 
+</ReferenceDetails>
+
 ### Plane Get a work item
 
 Get a work item in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1888,9 +2039,13 @@ Get a work item in Plane. Supports API v1 compatibility.
 |   ↳ `priority_rank` | number | Priority rank |
 |   ↳ `state_group` | string | State group |
 
+</ReferenceDetails>
+
 ### Plane Get a work item by identifier
 
 Get a work item by identifier in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1955,9 +2110,13 @@ Get a work item by identifier in Plane. Requires API v2.
 |   ↳ `cycle_id` | string | Cycle id |
 |   ↳ `module_ids` | array | Module ids |
 
+</ReferenceDetails>
+
 ### Plane List attachments
 
 List attachments in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2040,9 +2199,13 @@ List attachments in Plane. Supports API v1 compatibility.
 |   ↳ `deleted_by` | json | Deleted by |
 | `detail` | string | Provider message when no records are returned. |
 
+</ReferenceDetails>
+
 ### Plane List comments
 
 List comments in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2140,9 +2303,13 @@ List comments in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List cycles
 
 List cycles in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2253,9 +2420,13 @@ List cycles in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List labels
 
 List labels in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2367,9 +2538,13 @@ List labels in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List links
 
 List links in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2450,9 +2625,13 @@ List links in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List modules
 
 List modules in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2557,9 +2736,13 @@ List modules in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List project pages
 
 List project pages in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2686,9 +2869,13 @@ List project pages in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List projects
 
 List projects in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2837,9 +3024,13 @@ List projects in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List states
 
 List states in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2928,9 +3119,13 @@ List states in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List webhooks
 
 List webhooks in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2975,9 +3170,13 @@ List webhooks in Plane. Requires API v2.
 |   ↳ `next_cursor` | string | Next cursor |
 |   ↳ `has_more` | boolean | Has more |
 
+</ReferenceDetails>
+
 ### Plane List work items
 
 List work items in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3180,9 +3379,13 @@ List work items in Plane. Supports API v1 compatibility.
 |   ↳ `sub_total_groups` | number | Total secondary groups. |
 |   ↳ `sub_next_group_offset` | number | Next secondary group offset. |
 
+</ReferenceDetails>
+
 ### Plane List work items across a workspace
 
 List work items across a workspace in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3298,9 +3501,13 @@ List work items across a workspace in Plane. Requires API v2.
 |   ↳ `next_cursor` | string | Next cursor |
 |   ↳ `has_more` | boolean | Has more |
 
+</ReferenceDetails>
+
 ### Plane Add or remove cycle work items
 
 Add or remove cycle work items in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3339,9 +3546,13 @@ Add or remove cycle work items in Plane. Supports API v1 compatibility.
 |   ↳ `deleted_by` | json | Deleted by |
 | `detail` | string | Provider message when no records are returned. |
 
+</ReferenceDetails>
+
 ### Plane Add or remove module work items
 
 Add or remove module work items in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3439,9 +3650,13 @@ Add or remove module work items in Plane. Supports API v1 compatibility.
 |   ↳ `deleted_by` | json | Deleted by |
 | `detail` | string | Provider message when no records are returned. |
 
+</ReferenceDetails>
+
 ### Plane Regenerate a webhook secret
 
 Regenerate a webhook secret in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3470,9 +3685,13 @@ Regenerate a webhook secret in Plane. Requires API v2.
 |   ↳ `url` | string | Url |
 |   ↳ `version` | string | Version |
 
+</ReferenceDetails>
+
 ### Plane Transfer work items between cycles
 
 Transfer work items between cycles in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3495,9 +3714,13 @@ Transfer work items between cycles in Plane. Supports API v1 compatibility.
 |   ↳ `new_cycle_id` | string | New cycle id |
 |   ↳ `message` | string | Message |
 
+</ReferenceDetails>
+
 ### Plane Unarchive a project
 
 Unarchive a project in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3515,9 +3738,13 @@ Unarchive a project in Plane. Supports API v1 compatibility.
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation completed successfully. |
 
+</ReferenceDetails>
+
 ### Plane Unarchive a work item
 
 Unarchive a work item in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3583,9 +3810,13 @@ Unarchive a work item in Plane. Requires API v2.
 |   ↳ `module_ids` | array | Module ids |
 |   ↳ `project_id` | string | Project id |
 
+</ReferenceDetails>
+
 ### Plane Update a comment
 
 Update a comment in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3651,9 +3882,13 @@ Update a comment in Plane. Supports API v1 compatibility.
 |   ↳ `hidden_by` | json | Hidden by |
 |   ↳ `source` | json | Source |
 
+</ReferenceDetails>
+
 ### Plane Update a cycle
 
 Update a cycle in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3720,9 +3955,13 @@ Update a cycle in Plane. Supports API v1 compatibility.
 |   ↳ `status` | string | Status |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Update a label
 
 Update a label in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3768,9 +4007,13 @@ Update a label in Plane. Supports API v1 compatibility.
 |   ↳ `parent` | string | Parent |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Update a link
 
 Update a link in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3815,9 +4058,13 @@ Update a link in Plane. Supports API v1 compatibility.
 |   ↳ `issue` | string | Issue |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Update a module
 
 Update a module in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3883,9 +4130,13 @@ Update a module in Plane. Supports API v1 compatibility.
 |   ↳ `workspace` | string | Workspace |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Update a project
 
 Update a project in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3993,9 +4244,13 @@ Update a project in Plane. Supports API v1 compatibility.
 |   ↳ `auto_reminder_days` | number | Auto reminder days |
 |   ↳ `state` | string | State |
 
+</ReferenceDetails>
+
 ### Plane Update a project page
 
 Update a project page in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4074,9 +4329,13 @@ Update a project page in Plane. Supports API v1 compatibility.
 |         ↳ `text` | string | Asset Id |
 |         ↳ `type` | string | Asset Id |
 
+</ReferenceDetails>
+
 ### Plane Update a state
 
 Update a state in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4128,9 +4387,13 @@ Update a state in Plane. Supports API v1 compatibility.
 |   ↳ `slug` | string | Slug |
 |   ↳ `deleted_by` | json | Deleted by |
 
+</ReferenceDetails>
+
 ### Plane Update a webhook
 
 Update a webhook in Plane. Requires API v2.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4165,9 +4428,13 @@ Update a webhook in Plane. Requires API v2.
 |   ↳ `url` | string | Url |
 |   ↳ `version` | string | Version |
 
+</ReferenceDetails>
+
 ### Plane Update a work item
 
 Update a work item in Plane. Supports API v1 compatibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4304,6 +4571,8 @@ Update a work item in Plane. Supports API v1 compatibility.
 |   ↳ `priority_rank` | number | Priority rank |
 |   ↳ `state_group` | string | State group |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -4314,6 +4583,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger a workflow for any signed Plane event.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4345,13 +4616,14 @@ Trigger a workflow for any signed Plane event.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Cycle Archived
 
 Trigger a workflow for Plane cycle archived events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4383,13 +4655,14 @@ Trigger a workflow for Plane cycle archived events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Cycle Created
 
 Trigger a workflow for Plane cycle created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4421,13 +4694,14 @@ Trigger a workflow for Plane cycle created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Cycle Deleted
 
 Trigger a workflow for Plane cycle deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4459,13 +4733,14 @@ Trigger a workflow for Plane cycle deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Cycle Updated
 
 Trigger a workflow for Plane cycle updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4497,13 +4772,14 @@ Trigger a workflow for Plane cycle updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Milestone Created
 
 Trigger a workflow for Plane milestone created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4535,13 +4811,14 @@ Trigger a workflow for Plane milestone created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Milestone Deleted
 
 Trigger a workflow for Plane milestone deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4573,13 +4850,14 @@ Trigger a workflow for Plane milestone deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Milestone Updated
 
 Trigger a workflow for Plane milestone updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4611,13 +4889,14 @@ Trigger a workflow for Plane milestone updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Module Archived
 
 Trigger a workflow for Plane module archived events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4649,13 +4928,14 @@ Trigger a workflow for Plane module archived events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Module Created
 
 Trigger a workflow for Plane module created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4687,13 +4967,14 @@ Trigger a workflow for Plane module created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Module Deleted
 
 Trigger a workflow for Plane module deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4725,13 +5006,14 @@ Trigger a workflow for Plane module deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Module Updated
 
 Trigger a workflow for Plane module updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4763,13 +5045,14 @@ Trigger a workflow for Plane module updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Archived
 
 Trigger a workflow for Plane page archived events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4801,13 +5084,14 @@ Trigger a workflow for Plane page archived events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Comment Created
 
 Trigger a workflow for Plane page comment created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4839,13 +5123,14 @@ Trigger a workflow for Plane page comment created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Comment Deleted
 
 Trigger a workflow for Plane page comment deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4877,13 +5162,14 @@ Trigger a workflow for Plane page comment deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Comment Updated
 
 Trigger a workflow for Plane page comment updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4915,13 +5201,14 @@ Trigger a workflow for Plane page comment updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Created
 
 Trigger a workflow for Plane page created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4953,13 +5240,14 @@ Trigger a workflow for Plane page created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Deleted
 
 Trigger a workflow for Plane page deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4991,13 +5279,14 @@ Trigger a workflow for Plane page deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Page Updated
 
 Trigger a workflow for Plane page updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5029,13 +5318,14 @@ Trigger a workflow for Plane page updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Project Archived
 
 Trigger a workflow for Plane project archived events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5067,13 +5357,14 @@ Trigger a workflow for Plane project archived events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Project Created
 
 Trigger a workflow for Plane project created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5105,13 +5396,14 @@ Trigger a workflow for Plane project created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Project Deleted
 
 Trigger a workflow for Plane project deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5143,13 +5435,14 @@ Trigger a workflow for Plane project deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Project Updated
 
 Trigger a workflow for Plane project updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5181,13 +5474,14 @@ Trigger a workflow for Plane project updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Archived
 
 Trigger a workflow for Plane work item archived events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5219,13 +5513,14 @@ Trigger a workflow for Plane work item archived events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Attachment Created
 
 Trigger a workflow for Plane work item attachment created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5257,13 +5552,14 @@ Trigger a workflow for Plane work item attachment created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Attachment Deleted
 
 Trigger a workflow for Plane work item attachment deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5295,13 +5591,14 @@ Trigger a workflow for Plane work item attachment deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Attachment Updated
 
 Trigger a workflow for Plane work item attachment updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5333,13 +5630,14 @@ Trigger a workflow for Plane work item attachment updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Comment Created
 
 Trigger a workflow for Plane work item comment created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5371,13 +5669,14 @@ Trigger a workflow for Plane work item comment created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Comment Deleted
 
 Trigger a workflow for Plane work item comment deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5409,13 +5708,14 @@ Trigger a workflow for Plane work item comment deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Comment Updated
 
 Trigger a workflow for Plane work item comment updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5447,13 +5747,14 @@ Trigger a workflow for Plane work item comment updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Created
 
 Trigger a workflow for Plane work item created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5485,13 +5786,14 @@ Trigger a workflow for Plane work item created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Deleted
 
 Trigger a workflow for Plane work item deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5523,13 +5825,14 @@ Trigger a workflow for Plane work item deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Dependency Created
 
 Trigger a workflow for Plane work item dependency created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5561,13 +5864,14 @@ Trigger a workflow for Plane work item dependency created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Dependency Deleted
 
 Trigger a workflow for Plane work item dependency deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5599,13 +5903,14 @@ Trigger a workflow for Plane work item dependency deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Link Created
 
 Trigger a workflow for Plane work item link created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5637,13 +5942,14 @@ Trigger a workflow for Plane work item link created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Link Deleted
 
 Trigger a workflow for Plane work item link deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5675,13 +5981,14 @@ Trigger a workflow for Plane work item link deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Link Updated
 
 Trigger a workflow for Plane work item link updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5713,13 +6020,14 @@ Trigger a workflow for Plane work item link updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Page Link Created
 
 Trigger a workflow for Plane work item page link created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5751,13 +6059,14 @@ Trigger a workflow for Plane work item page link created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Page Link Deleted
 
 Trigger a workflow for Plane work item page link deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5789,13 +6098,14 @@ Trigger a workflow for Plane work item page link deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Relation Created
 
 Trigger a workflow for Plane work item relation created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5827,13 +6137,14 @@ Trigger a workflow for Plane work item relation created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Relation Deleted
 
 Trigger a workflow for Plane work item relation deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5865,13 +6176,14 @@ Trigger a workflow for Plane work item relation deleted events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Updated
 
 Trigger a workflow for Plane work item updated events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5903,13 +6215,14 @@ Trigger a workflow for Plane work item updated events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Vote Created
 
 Trigger a workflow for Plane work item vote created events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5941,13 +6254,14 @@ Trigger a workflow for Plane work item vote created events.
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
 
-
----
+</ReferenceDetails>
 
 ### Plane Work Item Vote Deleted
 
 Trigger a workflow for Plane work item vote deleted events.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -5978,4 +6292,6 @@ Trigger a workflow for Plane work item vote deleted events.
 | `data` | json | Complete entity payload, including resource-specific fields. v2 deletions send an empty object. |
 | `activity` | json | v1 changed field, old/new values, actor and identifiers; null for v2. |
 | `previous_attributes` | json | v2 previous changed values or full deleted record; null for v1. |
+
+</ReferenceDetails>
 

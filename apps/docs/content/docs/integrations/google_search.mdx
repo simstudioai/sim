@@ -4,6 +4,7 @@ description: Search the web
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="google_search"
@@ -26,6 +27,8 @@ Retrieve web or image results through Google Custom Search with a search engine 
 ### Google Search
 
 Search the web with the Custom Search API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,5 +79,7 @@ Search the web with the Custom Search API
 |   ↳ `formattedSearchTime` | string | Formatted search time for display |
 |   ↳ `formattedTotalResults` | string | Formatted total results count for display |
 | `nextPageStartIndex` | number | Start index for the next page of results \(null if no further results\) |
+
+</ReferenceDetails>
 
 

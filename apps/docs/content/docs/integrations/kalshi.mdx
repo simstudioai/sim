@@ -4,6 +4,7 @@ description: Access prediction markets and trade on Kalshi
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="kalshi_v2"
@@ -24,6 +25,8 @@ Integrate Kalshi prediction markets into the workflow. Can get markets, market, 
 ### Get Markets from Kalshi V2
 
 Retrieve a list of prediction markets from Kalshi with all filtering options
+
+<ReferenceDetails>
 
 #### Input
 
@@ -78,9 +81,13 @@ Retrieve a list of prediction markets from Kalshi with all filtering options
 |   ↳ `category` | string | Market category |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Market from Kalshi V2
 
 Retrieve details of a specific prediction market by ticker
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,9 +152,13 @@ Retrieve details of a specific prediction market by ticker
 |   ↳ `no_bid_fp` | number | No bid \(fixed-point\) |
 |   ↳ `no_ask_fp` | number | No ask \(fixed-point\) |
 
+</ReferenceDetails>
+
 ### Get Events from Kalshi V2
 
 Retrieve a list of events from Kalshi with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +198,13 @@ Retrieve a list of events from Kalshi with optional filtering
 |   ↳ `last_updated_ts` | string | Last updated time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Event from Kalshi V2
 
 Retrieve details of a specific event by ticker
+
+<ReferenceDetails>
 
 #### Input
 
@@ -216,9 +231,13 @@ Retrieve details of a specific event by ticker
 |   ↳ `product_metadata` | object | Product metadata |
 |   ↳ `markets` | array | Nested markets \(if requested\) |
 
+</ReferenceDetails>
+
 ### Get Balance from Kalshi V2
 
 Retrieve your account balance and portfolio value from Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -235,9 +254,13 @@ Retrieve your account balance and portfolio value from Kalshi
 | `portfolio_value` | number | Portfolio value in cents |
 | `updated_ts` | number | Unix timestamp of last update \(seconds\) |
 
+</ReferenceDetails>
+
 ### Get Positions from Kalshi V2
 
 Retrieve your open positions from Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -274,9 +297,13 @@ Retrieve your open positions from Kalshi
 |   ↳ `total_cost` | number | Total cost basis in cents |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Orders from Kalshi V2
 
 Retrieve your orders from Kalshi with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +345,13 @@ Retrieve your orders from Kalshi with optional filtering
 |   ↳ `last_update_time` | string | Last order update time |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Order from Kalshi V2
 
 Retrieve details of a specific order by ID from Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +400,13 @@ Retrieve details of a specific order by ID from Kalshi
 |   ↳ `order_group_id` | string | Order group ID |
 |   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
 
+</ReferenceDetails>
+
 ### Get Market Orderbook from Kalshi V2
 
 Retrieve the orderbook (yes and no bids) for a specific market with depth and fixed-point fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -393,9 +428,13 @@ Retrieve the orderbook (yes and no bids) for a specific market with depth and fi
 |   ↳ `yes_dollars` | array | Yes side bids as tuples \[dollars_string, fp_count_string\] |
 |   ↳ `no_dollars` | array | No side bids as tuples \[dollars_string, fp_count_string\] |
 
+</ReferenceDetails>
+
 ### Get Trades from Kalshi V2
 
 Retrieve recent trades with additional filtering options with trade identifiers and fixed-point counts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -420,9 +459,13 @@ Retrieve recent trades with additional filtering options with trade identifiers 
 |   ↳ `created_time` | string | Trade time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Market Candlesticks from Kalshi V2
 
 Retrieve OHLC candlestick data for a specific market
+
+<ReferenceDetails>
 
 #### Input
 
@@ -441,9 +484,13 @@ Retrieve OHLC candlestick data for a specific market
 | `ticker` | string | Market ticker |
 | `candlesticks` | array | Array of OHLC candlestick data with nested bid/ask/price objects |
 
+</ReferenceDetails>
+
 ### Get Event Candlesticks from Kalshi V2
 
 Retrieve OHLC candlestick data aggregated across all markets in an event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +510,13 @@ Retrieve OHLC candlestick data aggregated across all markets in an event
 | `adjusted_end_ts` | number | Adjusted end timestamp used for the candlestick range \(Unix seconds\) |
 | `market_candlesticks` | array | Array of event-level aggregated OHLC candlestick data with nested bid/ask/price |
 
+</ReferenceDetails>
+
 ### Get Fills from Kalshi V2
 
 Retrieve your portfolio's fills/trades from Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -498,9 +549,13 @@ Retrieve your portfolio's fills/trades from Kalshi
 |   ↳ `created_time` | string | Trade execution time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Settlements from Kalshi V2
 
 Retrieve your portfolio settlement history from Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -534,9 +589,13 @@ Retrieve your portfolio settlement history from Kalshi
 |   ↳ `value` | number | Single yes contract payout in cents |
 | `cursor` | string | Pagination cursor for fetching more results |
 
+</ReferenceDetails>
+
 ### Get Series by Ticker from Kalshi V2
 
 Retrieve details of a specific market series by ticker
+
+<ReferenceDetails>
 
 #### Input
 
@@ -565,9 +624,13 @@ Retrieve details of a specific market series by ticker
 |   ↳ `volume` | number | Series volume |
 |   ↳ `volume_fp` | number | Volume \(fixed-point\) |
 
+</ReferenceDetails>
+
 ### Get Series List from Kalshi V2
 
 Retrieve a list of market series from Kalshi with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -591,9 +654,13 @@ Retrieve a list of market series from Kalshi with optional filtering
 |   ↳ `tags` | array | Series tags |
 |   ↳ `contract_url` | string | Contract rules URL |
 
+</ReferenceDetails>
+
 ### Get Exchange Status from Kalshi V2
 
 Retrieve the current status of the Kalshi exchange
+
+<ReferenceDetails>
 
 #### Input
 
@@ -608,9 +675,13 @@ Retrieve the current status of the Kalshi exchange
 | `trading_active` | boolean | Whether trading is active |
 | `exchange_estimated_resume_time` | string | Estimated time when exchange will resume \(if inactive\) |
 
+</ReferenceDetails>
+
 ### Get Exchange Schedule from Kalshi V2
 
 Retrieve the Kalshi exchange trading schedule and maintenance windows
+
+<ReferenceDetails>
 
 #### Input
 
@@ -625,9 +696,13 @@ Retrieve the Kalshi exchange trading schedule and maintenance windows
 |   ↳ `standard_hours` | array | Weekly schedules with per-day open/close trading sessions |
 |   ↳ `maintenance_windows` | array | Scheduled maintenance windows with start_datetime and end_datetime |
 
+</ReferenceDetails>
+
 ### Get Exchange Announcements from Kalshi V2
 
 Retrieve exchange-wide announcements from Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -644,9 +719,13 @@ Retrieve exchange-wide announcements from Kalshi
 |   ↳ `delivery_time` | string | Delivery time \(ISO 8601\) |
 |   ↳ `status` | string | Announcement status \(active, inactive\) |
 
+</ReferenceDetails>
+
 ### Create Order on Kalshi V2
 
 Create a new order on a Kalshi prediction market
+
+<ReferenceDetails>
 
 #### Input
 
@@ -714,9 +793,13 @@ Create a new order on a Kalshi prediction market
 |   ↳ `order_group_id` | string | Order group ID |
 |   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
 
+</ReferenceDetails>
+
 ### Cancel Order on Kalshi V2
 
 Cancel an existing order on Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -767,9 +850,13 @@ Cancel an existing order on Kalshi
 | `reduced_by` | number | Number of contracts canceled |
 | `reduced_by_fp` | string | Number of contracts canceled in fixed-point format |
 
+</ReferenceDetails>
+
 ### Amend Order on Kalshi V2
 
 Modify the price or quantity of an existing order on Kalshi
+
+<ReferenceDetails>
 
 #### Input
 
@@ -852,5 +939,7 @@ Modify the price or quantity of an existing order on Kalshi
 |   ↳ `stop_loss_order_id` | string | Stop loss order ID |
 |   ↳ `amend_count` | number | Amend count |
 |   ↳ `amend_taker_fill_count` | number | Amend taker fill count |
+
+</ReferenceDetails>
 
 

@@ -4,6 +4,7 @@ description: Interact with your Obsidian vault via the Local REST API
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="obsidian"
@@ -27,6 +28,8 @@ Read, create, update, search, and delete notes in your Obsidian vault. Manage pe
 
 Append content to the currently active file in Obsidian
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -41,9 +44,13 @@ Append content to the currently active file in Obsidian
 | --------- | ---- | ----------- |
 | `appended` | boolean | Whether content was successfully appended |
 
+</ReferenceDetails>
+
 ### Obsidian Append to Note
 
 Append content to an existing note in your Obsidian vault
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +68,13 @@ Append content to an existing note in your Obsidian vault
 | `filename` | string | Path of the note |
 | `appended` | boolean | Whether content was successfully appended |
 
+</ReferenceDetails>
+
 ### Obsidian Append to Periodic Note
 
 Append content to the current periodic note (daily, weekly, monthly, quarterly, or yearly). Creates the note if it does not exist.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +92,13 @@ Append content to the current periodic note (daily, weekly, monthly, quarterly, 
 | `period` | string | Period type of the note |
 | `appended` | boolean | Whether content was successfully appended |
 
+</ReferenceDetails>
+
 ### Obsidian Create Note
 
 Create or replace a note in your Obsidian vault
+
+<ReferenceDetails>
 
 #### Input
 
@@ -101,9 +116,13 @@ Create or replace a note in your Obsidian vault
 | `filename` | string | Path of the created note |
 | `created` | boolean | Whether the note was successfully created |
 
+</ReferenceDetails>
+
 ### Obsidian Delete Note
 
 Delete a note from your Obsidian vault
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +139,13 @@ Delete a note from your Obsidian vault
 | `filename` | string | Path of the deleted note |
 | `deleted` | boolean | Whether the note was successfully deleted |
 
+</ReferenceDetails>
+
 ### Obsidian Execute Command
 
 Execute a command in Obsidian (e.g. open daily note, toggle sidebar)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,9 +162,13 @@ Execute a command in Obsidian (e.g. open daily note, toggle sidebar)
 | `commandId` | string | ID of the executed command |
 | `executed` | boolean | Whether the command was successfully executed |
 
+</ReferenceDetails>
+
 ### Obsidian Get Active File
 
 Retrieve the content of the currently active file in Obsidian
+
+<ReferenceDetails>
 
 #### Input
 
@@ -157,9 +184,13 @@ Retrieve the content of the currently active file in Obsidian
 | `content` | string | Markdown content of the active file |
 | `filename` | string | Path to the active file |
 
+</ReferenceDetails>
+
 ### Obsidian Get Note
 
 Retrieve the content of a note from your Obsidian vault
+
+<ReferenceDetails>
 
 #### Input
 
@@ -176,9 +207,13 @@ Retrieve the content of a note from your Obsidian vault
 | `content` | string | Markdown content of the note |
 | `filename` | string | Path to the note |
 
+</ReferenceDetails>
+
 ### Obsidian Get Periodic Note
 
 Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -195,9 +230,13 @@ Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly
 | `content` | string | Markdown content of the periodic note |
 | `period` | string | Period type of the note |
 
+</ReferenceDetails>
+
 ### Obsidian List Commands
 
 List all available commands in Obsidian
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,9 +253,13 @@ List all available commands in Obsidian
 |   ↳ `id` | string | Command identifier |
 |   ↳ `name` | string | Human-readable command name |
 
+</ReferenceDetails>
+
 ### Obsidian List Files
 
 List files and directories in your Obsidian vault
+
+<ReferenceDetails>
 
 #### Input
 
@@ -234,9 +277,13 @@ List files and directories in your Obsidian vault
 |   ↳ `path` | string | File or directory path |
 |   ↳ `type` | string | Whether the entry is a file or directory |
 
+</ReferenceDetails>
+
 ### Obsidian Open File
 
 Open a file in the Obsidian UI (creates the file if it does not exist)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -254,9 +301,13 @@ Open a file in the Obsidian UI (creates the file if it does not exist)
 | `filename` | string | Path of the opened file |
 | `opened` | boolean | Whether the file was successfully opened |
 
+</ReferenceDetails>
+
 ### Obsidian Patch Active File
 
 Insert or replace content at a specific heading, block reference, or frontmatter field in the active file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -277,9 +328,13 @@ Insert or replace content at a specific heading, block reference, or frontmatter
 | --------- | ---- | ----------- |
 | `patched` | boolean | Whether the active file was successfully patched |
 
+</ReferenceDetails>
+
 ### Obsidian Patch Note
 
 Insert or replace content at a specific heading, block reference, or frontmatter field in a note
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +357,13 @@ Insert or replace content at a specific heading, block reference, or frontmatter
 | `filename` | string | Path of the patched note |
 | `patched` | boolean | Whether the note was successfully patched |
 
+</ReferenceDetails>
+
 ### Obsidian Search
 
 Search for text across notes in your Obsidian vault
+
+<ReferenceDetails>
 
 #### Input
 
@@ -324,5 +383,7 @@ Search for text across notes in your Obsidian vault
 |   ↳ `score` | number | Relevance score |
 |   ↳ `matches` | json | Matching text contexts |
 |     ↳ `context` | string | Text surrounding the match |
+
+</ReferenceDetails>
 
 

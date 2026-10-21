@@ -4,6 +4,7 @@ description: Query traces, logs, and metrics in Pydantic Logfire
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="logfire"
@@ -58,6 +59,8 @@ Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the r
 
 Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -98,9 +101,13 @@ Search Logfire spans and logs using structured filters for message text, service
 | `rowCount` | number | Number of rows returned |
 | `sql` | string | SQL query that was executed against Logfire |
 
+</ReferenceDetails>
+
 ### Logfire Get Trace
 
 Fetch every span and log belonging to a Logfire trace, ordered from earliest to latest, so a single request can be reconstructed end to end.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,6 +143,8 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 |   ↳ `exceptionMessage` | string | Exception message |
 | `rowCount` | number | Number of rows returned |
 | `sql` | string | SQL query that was executed against Logfire |
+
+</ReferenceDetails>
 
 ### Logfire Get Token Info
 

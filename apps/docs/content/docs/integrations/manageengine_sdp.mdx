@@ -4,6 +4,7 @@ description: Manage ServiceDesk Plus Cloud requests, problems, changes, assets, 
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="manageengine_sdp"
@@ -35,6 +36,8 @@ Three things shape what will work:
 - **The standalone Tasks module is not covered.** Its endpoints are documented but the ServiceDesk Plus scope table publishes no `tasks` entry, so requesting one would put an unverified scope on the consent screen.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -69,6 +72,8 @@ Sim requests these scopes when someone connects a ManageEngine ServiceDesk Plus 
 | `SDPOnDemand.solutions.DELETE` | Delete knowledge base solutions |
 | `aaaserver.profile.READ` | View your Zoho profile |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, search, update and delete requests, problems, changes, assets and knowledge base solutions, and add notes to requests, problems and changes. Supports multi-portal accounts. Connecting requires a Zoho account in the US data center.
@@ -78,6 +83,8 @@ Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, searc
 ### ManageEngine SDP Create Request
 
 Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject, description, requester and classification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -176,9 +183,13 @@ Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject,
 |   ↳ `has_notes` | boolean | Whether the request has notes |
 |   ↳ `udf_fields` | json | Portal-defined custom fields |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Get Request
 
 Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -265,9 +276,13 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID.
 |   ↳ `has_notes` | boolean | Whether the request has notes |
 |   ↳ `udf_fields` | json | Portal-defined custom fields |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Requests
 
 List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria, sorting and paging.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +384,13 @@ List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Update Request
 
 Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priority, assignment, classification or description.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -469,9 +488,13 @@ Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priorit
 |   ↳ `has_notes` | boolean | Whether the request has notes |
 |   ↳ `udf_fields` | json | Portal-defined custom fields |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Delete Request
 
 Move a ManageEngine ServiceDesk Plus Cloud request to the trash. Deleting a request also removes its notes, tasks and worklogs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -487,9 +510,13 @@ Move a ManageEngine ServiceDesk Plus Cloud request to the trash. Deleting a requ
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the request was deleted |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Add Request Note
 
 Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making it visible to the requester.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -532,9 +559,13 @@ Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making i
 |     ↳ `display_id` | string | Request number |
 |     ↳ `subject` | string | Request subject |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Request Notes
 
 List the notes on a ManageEngine ServiceDesk Plus Cloud request.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -588,9 +619,13 @@ List the notes on a ManageEngine ServiceDesk Plus Cloud request.
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Create Problem
 
 Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, description and classification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -680,9 +715,13 @@ Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, des
 |   ↳ `known_error_details` | json | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Get Problem
 
 Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -760,9 +799,13 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID.
 |   ↳ `known_error_details` | json | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Problems
 
 List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria, sorting and paging.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -855,9 +898,13 @@ List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Update Problem
 
 Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, assignment or classification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -948,9 +995,13 @@ Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, 
 |   ↳ `known_error_details` | json | Known-error record details |
 |   ↳ `notes_present` | boolean | Whether the problem has notes |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Delete Problem
 
 Delete a ManageEngine ServiceDesk Plus Cloud problem and its associated notes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -966,9 +1017,13 @@ Delete a ManageEngine ServiceDesk Plus Cloud problem and its associated notes.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the problem was deleted |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Add Problem Note
 
 Add a note to a ManageEngine ServiceDesk Plus Cloud problem.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -999,9 +1054,13 @@ Add a note to a ManageEngine ServiceDesk Plus Cloud problem.
 |     ↳ `display_value` | string | Human-readable timestamp in the portal timezone |
 |     ↳ `value` | string | Epoch milliseconds as a string |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Problem Notes
 
 List the notes on a ManageEngine ServiceDesk Plus Cloud problem.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1047,9 +1106,13 @@ List the notes on a ManageEngine ServiceDesk Plus Cloud problem.
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Create Change
 
 Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stage, status and schedule.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1155,9 +1218,13 @@ Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stag
 |   ↳ `roll_out_plan` | json | Roll-out plan |
 |   ↳ `close_details` | json | Closure details |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Get Change
 
 Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1246,9 +1313,13 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID.
 |   ↳ `roll_out_plan` | json | Roll-out plan |
 |   ↳ `close_details` | json | Closure details |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Changes
 
 List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria, sorting and paging.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1352,9 +1423,13 @@ List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria,
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Update Change
 
 Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, reschedule it, or change its assignment. ServiceDesk Plus requires a comment whenever the status changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1461,9 +1536,13 @@ Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, r
 |   ↳ `roll_out_plan` | json | Roll-out plan |
 |   ↳ `close_details` | json | Closure details |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Delete Change
 
 Delete a ManageEngine ServiceDesk Plus Cloud change and its associated notes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1479,9 +1558,13 @@ Delete a ManageEngine ServiceDesk Plus Cloud change and its associated notes.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the change was deleted |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Add Change Note
 
 Add a note to a ManageEngine ServiceDesk Plus Cloud change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1512,9 +1595,13 @@ Add a note to a ManageEngine ServiceDesk Plus Cloud change.
 |     ↳ `display_value` | string | Human-readable timestamp in the portal timezone |
 |     ↳ `value` | string | Epoch milliseconds as a string |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Change Notes
 
 List the notes on a ManageEngine ServiceDesk Plus Cloud change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1560,9 +1647,13 @@ List the notes on a ManageEngine ServiceDesk Plus Cloud change.
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Create Asset
 
 Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a name and an existing product.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1644,9 +1735,13 @@ Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Get Asset
 
 Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1713,9 +1808,13 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID.
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Assets
 
 List ManageEngine ServiceDesk Plus Cloud assets, with optional search criteria, sorting and paging.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1797,9 +1896,13 @@ List ManageEngine ServiceDesk Plus Cloud assets, with optional search criteria, 
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Update Asset
 
 Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its state, or correct its inventory details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1882,9 +1985,13 @@ Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its stat
 |   ↳ `is_loaned` | boolean | Whether the asset is on loan |
 |   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Delete Asset
 
 Delete an asset from the ManageEngine ServiceDesk Plus Cloud inventory.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1900,9 +2007,13 @@ Delete an asset from the ManageEngine ServiceDesk Plus Cloud inventory.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the asset was deleted |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Create Solution
 
 Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under an existing topic.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1972,9 +2083,13 @@ Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under a
 |     ↳ `job_title` | string | Job title |
 |   ↳ `udf_fields` | json | Portal-defined custom fields |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Get Solution
 
 Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2039,9 +2154,13 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by
 |     ↳ `job_title` | string | Job title |
 |   ↳ `udf_fields` | json | Portal-defined custom fields |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP List Solutions
 
 Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional search criteria, sorting and paging.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2121,9 +2240,13 @@ Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional sea
 |   ↳ `sort_order` | string | Sort direction |
 |   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Update Solution
 
 Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its body, retitle it, or move it to another topic.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2194,9 +2317,13 @@ Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its
 |     ↳ `job_title` | string | Job title |
 |   ↳ `udf_fields` | json | Portal-defined custom fields |
 
+</ReferenceDetails>
+
 ### ManageEngine SDP Delete Solution
 
 Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, along with its comments and versions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2211,5 +2338,7 @@ Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the solution was deleted |
+
+</ReferenceDetails>
 
 

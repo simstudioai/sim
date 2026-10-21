@@ -4,6 +4,7 @@ description: Manage files, folders, and e-signatures with Box
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="box_v2"
@@ -14,6 +15,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 Use [Box](https://www.box.com/) to manage files and folders, search content, and send documents for e-signature through Box Sign. The actions below cover file metadata and signing status as well as uploads and downloads.
 {/* MANUAL-CONTENT-END */}
 
+
+Connection guides: [Service accounts](/integrations/box-service-account).
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -29,6 +34,8 @@ Sim requests these scopes when someone connects a Box account. For a self-hosted
 | `root_readwrite` | Read and write all files and folders in Box account |
 | `sign_requests.readwrite` | Create and manage Box Sign e-signature requests |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.
@@ -38,6 +45,8 @@ Manage files, folders, and e-signatures. Upload and download files, search conte
 ### Box Upload File
 
 Upload a file to a Box folder
+
+<ReferenceDetails>
 
 #### Input
 
@@ -60,9 +69,13 @@ Upload a file to a Box folder
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 
+</ReferenceDetails>
+
 ### Box Download File
 
 Download a file from Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +89,13 @@ Download a file from Box
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
+</ReferenceDetails>
+
 ### Box Get File Info
 
 Get detailed information about a file in Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -115,9 +132,13 @@ Get detailed information about a file in Box
 | `tags` | array | File tags |
 | `commentCount` | number | Number of comments |
 
+</ReferenceDetails>
+
 ### Box List Folder Items
 
 List files and folders in a Box folder
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +165,13 @@ List files and folders in a Box folder
 | `offset` | number | Current pagination offset |
 | `limit` | number | Current pagination limit |
 
+</ReferenceDetails>
+
 ### Box Create Folder
 
 Create a new folder in Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +191,13 @@ Create a new folder in Box
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 
+</ReferenceDetails>
+
 ### Box Delete File
 
 Delete a file from Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -183,9 +212,13 @@ Delete a file from Box
 | `deleted` | boolean | Whether the file was successfully deleted |
 | `message` | string | Success confirmation message |
 
+</ReferenceDetails>
+
 ### Box Delete Folder
 
 Delete a folder from Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +234,13 @@ Delete a folder from Box
 | `deleted` | boolean | Whether the folder was successfully deleted |
 | `message` | string | Success confirmation message |
 
+</ReferenceDetails>
+
 ### Box Copy File
 
 Copy a file to another folder in Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +263,13 @@ Copy a file to another folder in Box
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 
+</ReferenceDetails>
+
 ### Box Search
 
 Search for files and folders in Box
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,9 +297,13 @@ Search for files and folders in Box
 |   ↳ `parentName` | string | Parent folder name |
 | `totalCount` | number | Total number of matching results |
 
+</ReferenceDetails>
+
 ### Box Update File
 
 Update file info in Box (rename, move, change description, add tags)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -299,9 +344,13 @@ Update file info in Box (rename, move, change description, add tags)
 | `tags` | array | File tags |
 | `commentCount` | number | Number of comments |
 
+</ReferenceDetails>
+
 ### Box Sign Create Request
 
 Create a new Box Sign request to send documents for e-signature
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,9 +400,13 @@ Create a new Box Sign request to send documents for e-signature
 | `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
 | `senderEmail` | string | Email of the sender |
 
+</ReferenceDetails>
+
 ### Box Sign Get Request
 
 Get the details and status of a Box Sign request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -388,9 +441,13 @@ Get the details and status of a Box Sign request
 | `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
 | `senderEmail` | string | Email of the sender |
 
+</ReferenceDetails>
+
 ### Box Sign List Requests
 
 List all Box Sign requests
+
+<ReferenceDetails>
 
 #### Input
 
@@ -429,9 +486,13 @@ List all Box Sign requests
 | `count` | number | Number of sign requests returned in this page |
 | `nextMarker` | string | Marker for next page of results |
 
+</ReferenceDetails>
+
 ### Box Sign Cancel Request
 
 Cancel a pending Box Sign request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -466,9 +527,13 @@ Cancel a pending Box Sign request
 | `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
 | `senderEmail` | string | Email of the sender |
 
+</ReferenceDetails>
+
 ### Box Sign Resend Request
 
 Resend a Box Sign request to signers who have not yet signed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -481,5 +546,7 @@ Resend a Box Sign request to signers who have not yet signed
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success confirmation message |
+
+</ReferenceDetails>
 
 

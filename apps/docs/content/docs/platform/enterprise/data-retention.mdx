@@ -44,7 +44,7 @@ An override can target one or more workspaces, and a workspace can belong to onl
 
 PII settings use **Inherit** or **Override** for the whole policy. Override replaces the organization's redaction policy for that workspace; stages are not merged. Removing an override restores organization defaults.
 
-<Image src="/static/enterprise/data-retention-override.png" alt="Workspace override with Log retention set to 30 days, other retention fields inherited, and a PII Inherit or Override choice" width={900} height={537} />
+<Image src="/static/enterprise/data-retention-override.png" alt="Workspace override with Log retention set to 30 days, other retention fields inherited, and a PII Inherit or Override choice" width={2000} height={1194} />
 
 ## What each retention field removes
 
@@ -87,7 +87,7 @@ A stored policy must enable a redaction stage and select entity types or custom 
 | **Workflow input** | Masks inputs before execution, so the workflow computes on masked values. |
 | **Block outputs** | Masks outputs before downstream blocks consume them. |
 
-<Image src="/static/enterprise/data-retention-pii.png" alt="PII redaction controls with Block outputs selected and entity types grouped by region" width={900} height={537} />
+<Image src="/static/enterprise/data-retention-pii.png" alt="PII redaction controls with Block outputs selected and entity types grouped by region" width={2000} height={1194} />
 
 <Callout type="warn">
 Workflow input and Block outputs redaction alter computation. Test affected workflows with representative values before applying these stages: masking can change outputs and add execution latency.

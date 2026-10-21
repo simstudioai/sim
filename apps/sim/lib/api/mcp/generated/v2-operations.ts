@@ -854,7 +854,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CreateWorkflowContract,
     summary: 'Create workflow',
     description:
-      'Create an undeployed workflow at the workspace root or in a workflow folder. Requires workspace write access. The response includes the seeded start block and its ID for connecting other blocks. A name already used in the destination folder returns `409`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
+      'Create an undeployed workflow at the workspace root or in a workflow folder. Requires workspace write access.\n\nThe response includes the seeded start block and its ID for connecting other blocks. A name already used in the destination folder returns `409`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/route').then((route) => route.POST),
   },
   createWorkflowFolder: {
@@ -2134,7 +2134,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListWorkflowsContract,
     summary: 'List workflows',
     description:
-      'List active workflows in a workspace with workspace read access. Use `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
+      'List active workflows in a workspace. Requires workspace read access.\n\nUse `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/route').then((route) => route.GET),
   },
   listWorkflowVersions: {

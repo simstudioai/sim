@@ -21,11 +21,11 @@ export function BlockInfoCard({
   return (
     <div
       aria-hidden='true'
-      className='mb-6 flex items-center justify-center overflow-hidden rounded-lg p-8'
-      style={{ background: color }}
+      className='mb-6 flex size-12 items-center justify-center overflow-hidden rounded-xl'
+      style={{ backgroundColor: color }}
     >
       {ResolvedIcon ? (
-        <ResolvedIcon className={`size-10 ${iconColorClass}`} />
+        <ResolvedIcon className={`size-6 ${iconColorClass}`} />
       ) : (
         <div className={`font-mono text-xl opacity-70 ${iconColorClass}`}>
           {type.substring(0, 2)}

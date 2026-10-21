@@ -65,6 +65,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'files/passing-files.mdx',
   'files/using-in-workflows.mdx',
   'getting-started.mdx',
+  'getting-started/research-agent.mdx',
   'integrations.mdx',
   'integrations/a2a.mdx',
   'integrations/affinity.mdx',

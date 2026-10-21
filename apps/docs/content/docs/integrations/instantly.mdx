@@ -4,6 +4,7 @@ description: Manage Instantly leads, campaigns, emails, and lead lists
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="instantly"
@@ -26,6 +27,8 @@ Create, update, and list leads, manage lead interest status, delete leads in bul
 ### Instantly List Leads
 
 Retrieves Instantly V2 leads with search, campaign, list, and pagination filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +77,13 @@ Retrieves Instantly V2 leads with search, campaign, list, and pagination filters
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Get Lead
 
 Retrieves an Instantly V2 lead by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +116,13 @@ Retrieves an Instantly V2 lead by ID.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Create Lead
 
 Creates an Instantly V2 lead in a campaign or lead list.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -163,9 +174,13 @@ Creates an Instantly V2 lead in a campaign or lead list.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Patch Lead
 
 Updates fields on an existing Instantly V2 lead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +224,13 @@ Updates fields on an existing Instantly V2 lead.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Delete Leads
 
 Deletes Instantly V2 leads in bulk from a campaign or lead list.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,9 +249,13 @@ Deletes Instantly V2 leads in bulk from a campaign or lead list.
 | --------- | ---- | ----------- |
 | `count` | number | Number of leads deleted |
 
+</ReferenceDetails>
+
 ### Instantly Update Lead Interest Status
 
 Submits an Instantly V2 background job to update a lead interest status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -252,9 +275,13 @@ Submits an Instantly V2 background job to update a lead interest status.
 | --------- | ---- | ----------- |
 | `message` | string | Background job submission message |
 
+</ReferenceDetails>
+
 ### Instantly List Campaigns
 
 Retrieves Instantly V2 campaigns with search, status, tag, and pagination filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -292,9 +319,13 @@ Retrieves Instantly V2 campaigns with search, status, tag, and pagination filter
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Create Campaign
 
 Creates an Instantly V2 campaign using the documented campaign schedule schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +369,13 @@ Creates an Instantly V2 campaign using the documented campaign schedule schema.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Patch Campaign
 
 Updates documented Instantly V2 campaign fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -385,9 +420,13 @@ Updates documented Instantly V2 campaign fields.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Activate Campaign
 
 Activates, starts, or resumes an Instantly V2 campaign.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -419,11 +458,15 @@ Activates, starts, or resumes an Instantly V2 campaign.
 | `subject` | string | Email subject |
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
+
+</ReferenceDetails>
 
 ### Instantly Pause Campaign
 
 Pauses a running Instantly V2 campaign, stopping further email sends.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -454,11 +497,15 @@ Pauses a running Instantly V2 campaign, stopping further email sends.
 | `subject` | string | Email subject |
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
+
+</ReferenceDetails>
 
 ### Instantly Delete Campaign
 
 Permanently deletes an Instantly V2 campaign.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -490,9 +537,13 @@ Permanently deletes an Instantly V2 campaign.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly List Emails
 
 Retrieves Instantly V2 Unibox emails with search and pagination filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -533,9 +584,13 @@ Retrieves Instantly V2 Unibox emails with search and pagination filters.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Reply To Email
 
 Sends an Instantly V2 reply to an existing Unibox email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -573,9 +628,13 @@ Sends an Instantly V2 reply to an existing Unibox email.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly List Lead Lists
 
 Retrieves Instantly V2 lead lists with search and pagination filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -611,9 +670,13 @@ Retrieves Instantly V2 lead lists with search and pagination filters.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+</ReferenceDetails>
+
 ### Instantly Create Lead List
 
 Creates an Instantly V2 lead list.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -647,5 +710,7 @@ Creates an Instantly V2 lead list.
 | `subject` | string | Email subject |
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
+
+</ReferenceDetails>
 
 

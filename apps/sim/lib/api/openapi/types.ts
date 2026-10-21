@@ -103,6 +103,8 @@ export interface OpenApiOperationMetadata {
   operationId: string
   summary: string
   description: string
+  /** Additional behavior rendered below inputs in docs and retained in the OpenAPI description. */
+  descriptionDetails?: string
   tags: readonly [string, ...string[]]
   errors: readonly string[]
   success: OpenApiOperationSuccess

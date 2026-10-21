@@ -4,6 +4,7 @@ description: Read, write, and update data with sheet selection
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="google_sheets_v2"
@@ -16,6 +17,8 @@ Use [Google Sheets](https://www.google.com/sheets/about/) to read and write cell
 Provide the spreadsheet ID and range required by the selected operation. Read the returned values or update counts before passing data to later workflow steps.
 {/* MANUAL-CONTENT-END */}
 
+
+<ReferenceDetails label="OAuth scopes and self-hosting">
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -33,6 +36,8 @@ Sim requests these scopes when someone connects a Google Sheets account. For a s
 | `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
 | `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Select a sheet to read, write, append, update, or clear cell values. Create spreadsheets, inspect their metadata, copy sheets, and run batch range operations.
@@ -42,6 +47,8 @@ Select a sheet to read, write, append, update, or clear cell values. Create spre
 ### Read from Google Sheets V2
 
 Read data from a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -65,9 +72,13 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Write to Google Sheets V2
 
 Write data to a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +102,13 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Update Google Sheets V2
 
 Update data in a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +132,13 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Append to Google Sheets V2
 
 Append data to the end of a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +163,13 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Clear Google Sheets Range V2
 
 Clear values from a specific range in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +189,13 @@ Clear values from a specific range in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Get Spreadsheet Info V2
 
 Get metadata about a Google Sheets spreadsheet including title and sheet list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -194,9 +221,13 @@ Get metadata about a Google Sheets spreadsheet including title and sheet list
 |   ↳ `columnCount` | number | Number of columns in the sheet |
 |   ↳ `hidden` | boolean | Whether the sheet is hidden |
 
+</ReferenceDetails>
+
 ### Create Spreadsheet V2
 
 Create a new Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +250,13 @@ Create a new Google Sheets spreadsheet
 |   ↳ `title` | string | The sheet title/name |
 |   ↳ `index` | number | The sheet index \(position\) |
 
+</ReferenceDetails>
+
 ### Batch Read Google Sheets V2
 
 Read multiple ranges from a Google Sheets spreadsheet in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +280,13 @@ Read multiple ranges from a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Batch Update Google Sheets V2
 
 Update multiple ranges in a Google Sheets spreadsheet in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +315,13 @@ Update multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Batch Clear Google Sheets V2
 
 Clear multiple ranges in a Google Sheets spreadsheet in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -297,9 +340,13 @@ Clear multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Copy Sheet V2
 
 Copy a sheet from one spreadsheet to another
+
+<ReferenceDetails>
 
 #### Input
 
@@ -320,9 +367,13 @@ Copy a sheet from one spreadsheet to another
 | `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
 | `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
 
+</ReferenceDetails>
+
 ### Delete Rows from Google Sheets V2
 
 Delete rows from a sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -344,9 +395,13 @@ Delete rows from a sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Delete Sheet V2
 
 Delete a sheet/tab from a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,9 +420,13 @@ Delete a sheet/tab from a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Delete Spreadsheet V2
 
 Permanently delete a Google Sheets spreadsheet using the Google Drive API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,6 +440,8 @@ Permanently delete a Google Sheets spreadsheet using the Google Drive API
 | --------- | ---- | ----------- |
 | `spreadsheetId` | string | The ID of the deleted spreadsheet |
 | `deleted` | boolean | Whether the spreadsheet was successfully deleted |
+
+</ReferenceDetails>
 
 
 

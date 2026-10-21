@@ -8034,7 +8034,7 @@
         },
         {
           "name": "Get Company Last 15 Minutes",
-          "description": "Get the number of outage reports for a Downdetector company over the last 15 minutes. A convenient near-real-time signal for threshold-based alerting."
+          "description": "Get the number of outage reports for a Downdetector company over the last 15 minutes."
         },
         {
           "name": "Get Company Indicators",
@@ -8084,7 +8084,7 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "incident-management"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "dropbox_v2",
@@ -8595,7 +8595,7 @@
         },
         {
           "name": "Cluster Stats",
-          "description": "Get comprehensive statistics about the Elasticsearch cluster."
+          "description": "Get Elasticsearch cluster health, node counts, and index statistics."
         }
       ],
       "operationCount": 13,
@@ -8605,7 +8605,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["vector-search", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "elevenlabs",
@@ -8929,7 +8929,7 @@
         },
         {
           "name": "Company Lookup",
-          "description": "Look up comprehensive company information by name or domain including funding, location, and social profiles."
+          "description": "Look up company information by name or domain, including funding, location, and social profiles."
         },
         {
           "name": "Company Funding & Traffic",
@@ -9015,7 +9015,7 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "enrow",
@@ -9240,7 +9240,7 @@
       "operations": [
         {
           "name": "Scrape",
-          "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
+          "description": "Convert web pages to Markdown or HTML, including SEO metadata, Open Graph tags, and page information."
         },
         {
           "name": "Batch Scrape",
@@ -9272,7 +9272,7 @@
         },
         {
           "name": "Extract",
-          "description": "Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction."
+          "description": "Extract structured data from web pages using natural language prompts and JSON Schema."
         },
         {
           "name": "Extract Status",
@@ -9298,7 +9298,7 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "fireflies_v2",
@@ -9696,7 +9696,7 @@
         },
         {
           "name": "Get repository info",
-          "description": "Retrieve comprehensive GitHub repository metadata including stars, forks, issues, and primary language. Supports both public and private repositories with optional authentication."
+          "description": "Read GitHub repository metadata, including stars, forks, issues, and primary language. Requires a GitHub token with access to the repository."
         },
         {
           "name": "Get latest commit",
@@ -10098,7 +10098,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd"],
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "gitlab",
@@ -16655,7 +16655,7 @@
       "slug": "mailgun",
       "name": "Mailgun",
       "description": "Send emails and manage mailing lists with Mailgun",
-      "longDescription": "Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.",
+      "longDescription": "Send text or HTML emails, manage mailing lists and members, inspect domains, and track email events with tags.",
       "bgColor": "#C12126",
       "iconName": "MailgunIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mailgun",
@@ -16700,7 +16700,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "email-marketing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "manageengine_sdp",
@@ -18041,7 +18041,7 @@
       "slug": "notion",
       "name": "Notion",
       "description": "Manage Notion pages",
-      "longDescription": "Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.",
+      "longDescription": "Choose an operation, select a connected account, and provide the page or database it should use. Use Search to find content, Query Database to retrieve rows, or Append Content to add blocks to a page.",
       "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
@@ -18173,7 +18173,7 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base", "content-management"],
-      "updatedAt": "2026-10-02"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "obsidian",
@@ -19167,7 +19167,7 @@
       "operations": [
         {
           "name": "Search",
-          "description": "Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction."
+          "description": "Search the web with Parallel AI and return matching pages with content excerpts."
         },
         {
           "name": "Extract from URLs",
@@ -19175,7 +19175,7 @@
         },
         {
           "name": "Deep Research",
-          "description": "Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete."
+          "description": "Research the web with Parallel AI and synthesize findings from multiple sources with citations. Can take up to 45 minutes to complete."
         }
       ],
       "operationCount": 3,
@@ -19185,7 +19185,7 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "llm", "agentic"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "peopledatalabs",
@@ -20845,7 +20845,7 @@
         },
         {
           "name": "Get Event Definition",
-          "description": "Get details of a specific event definition in PostHog. Returns comprehensive information about the event including metadata, usage statistics, and verification status."
+          "description": "Get a PostHog event definition, including its metadata, last-seen timestamp, and verification status."
         },
         {
           "name": "Update Event Definition",
@@ -20857,7 +20857,7 @@
         },
         {
           "name": "Get Property Definition",
-          "description": "Get details of a specific property definition in PostHog. Returns comprehensive information about the property including metadata, type, usage statistics, and verification status."
+          "description": "Get a PostHog property definition, including its metadata, type, and verification status."
         },
         {
           "name": "Update Property Definition",
@@ -20869,7 +20869,7 @@
         },
         {
           "name": "Get Project",
-          "description": "Get detailed information about a specific project by ID. Returns comprehensive project configuration, settings, and feature flags."
+          "description": "Get a PostHog project by ID, including its configuration, capture settings, and integrations."
         },
         {
           "name": "List Organizations",
@@ -20877,7 +20877,7 @@
         },
         {
           "name": "Get Organization",
-          "description": "Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information."
+          "description": "Get a PostHog organization by ID, including its settings, features, usage, and teams."
         }
       ],
       "operationCount": 48,
@@ -20887,7 +20887,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics", "monitoring", "feature-flags"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "powerbi",
@@ -22458,7 +22458,7 @@
         {
           "id": "resend_webhook",
           "name": "Resend Webhook (All Events)",
-          "description": "Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload."
+          "description": "Start a workflow for subscribed Resend email, contact, and domain events. Flattened email fields may be null for non-email events; use `data` for the full payload."
         }
       ],
       "triggerCount": 8,
@@ -22466,7 +22466,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "revenuecat",
@@ -24584,7 +24584,7 @@
       "slug": "sendgrid",
       "name": "SendGrid",
       "description": "Send emails and manage contacts, lists, and templates with SendGrid",
-      "longDescription": "Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.",
+      "longDescription": "Send transactional emails with dynamic templates and attachments. Manage marketing contacts, lists, and email templates.",
       "bgColor": "#1A82E2",
       "iconName": "SendgridIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sendgrid",
@@ -24661,7 +24661,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "sentry",
@@ -25245,7 +25245,7 @@
       "operations": [
         {
           "name": "Website Overview",
-          "description": "Get comprehensive website analytics including traffic, rankings, engagement, and traffic sources"
+          "description": "Get website traffic, rankings, engagement, and traffic sources."
         },
         {
           "name": "Traffic Visits",
@@ -25275,7 +25275,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["marketing", "data-analytics", "seo"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "sixtyfour",

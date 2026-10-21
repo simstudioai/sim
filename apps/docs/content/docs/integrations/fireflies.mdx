@@ -4,6 +4,7 @@ description: Interact with Fireflies.ai meeting transcripts and recordings
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="fireflies_v2"
@@ -27,6 +28,8 @@ List, search, retrieve, or delete meeting transcripts, submit media for transcri
 
 List meeting transcripts from Fireflies.ai with optional filtering
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -47,9 +50,13 @@ List meeting transcripts from Fireflies.ai with optional filtering
 | `transcripts` | array | List of transcripts |
 | `count` | number | Number of transcripts returned |
 
+</ReferenceDetails>
+
 ### Fireflies Get Transcript
 
 Get a single transcript with full details including summary, action items, and analytics
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +83,13 @@ Get a single transcript with full details including summary, action items, and a
 |   ↳ `summary` | object | Meeting summary and action items |
 |   ↳ `analytics` | object | Meeting analytics and sentiment |
 
+</ReferenceDetails>
+
 ### Fireflies Get User
 
 Get user information from Fireflies.ai. Returns current user if no ID specified.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -102,9 +113,13 @@ Get user information from Fireflies.ai. Returns current user if no ID specified.
 |   ↳ `recent_transcript` | string | Most recent transcript ID |
 |   ↳ `recent_meeting` | string | Most recent meeting date |
 
+</ReferenceDetails>
+
 ### Fireflies List Users
 
 List all users within your Fireflies.ai team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +133,13 @@ List all users within your Fireflies.ai team
 | --------- | ---- | ----------- |
 | `users` | array | List of team users |
 
+</ReferenceDetails>
+
 ### Fireflies Upload Audio
 
 Upload an audio file URL to Fireflies.ai for transcription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +162,13 @@ Upload an audio file URL to Fireflies.ai for transcription
 | `title` | string | Title of the uploaded meeting |
 | `message` | string | Status message from Fireflies |
 
+</ReferenceDetails>
+
 ### Fireflies Delete Transcript
 
 Delete a transcript from Fireflies.ai
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,9 +190,13 @@ Delete a transcript from Fireflies.ai
 |   ↳ `host_email` | string | Host email address |
 |   ↳ `organizer_email` | string | Organizer email address |
 
+</ReferenceDetails>
+
 ### Fireflies Add to Live Meeting
 
 Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
+
+<ReferenceDetails>
 
 #### Input
 
@@ -188,9 +215,13 @@ Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the bot was successfully added to the meeting |
 
+</ReferenceDetails>
+
 ### Fireflies Create Bite
 
 Create a soundbite/highlight from a specific time range in a transcript
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +244,13 @@ Create a soundbite/highlight from a specific time range in a transcript
 |   ↳ `name` | string | Bite name |
 |   ↳ `status` | string | Processing status |
 
+</ReferenceDetails>
+
 ### Fireflies List Bites
 
 List soundbites/highlights from Fireflies.ai
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +268,13 @@ List soundbites/highlights from Fireflies.ai
 | --------- | ---- | ----------- |
 | `bites` | array | List of bites/soundbites |
 
+</ReferenceDetails>
+
 ### Fireflies List Contacts
 
 List all contacts from your Fireflies.ai meetings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,6 +287,8 @@ List all contacts from your Fireflies.ai meetings
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | List of contacts from meetings |
+
+</ReferenceDetails>
 
 
 

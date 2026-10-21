@@ -4,6 +4,7 @@ description: Manage Calendly scheduling and events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="calendly"
@@ -27,6 +28,8 @@ Manage event types, scheduled events, invitees, and webhooks. Trigger workflows 
 
 Get information about the currently authenticated Calendly user
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -49,9 +52,13 @@ Get information about the currently authenticated Calendly user
 |   ↳ `updated_at` | string | ISO timestamp when user was last updated |
 |   ↳ `current_organization` | string | URI of current organization |
 
+</ReferenceDetails>
+
 ### Calendly Get User
 
 Get information about a specific Calendly user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +86,13 @@ Get information about a specific Calendly user
 |   ↳ `resource_type` | string | Resource type |
 |   ↳ `locale` | string | User locale |
 
+</ReferenceDetails>
+
 ### Calendly List Event Types
 
 Retrieve a list of all event types for a user or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +131,13 @@ Retrieve a list of all event types for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly Get Event Type
 
 Get detailed information about a specific event type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -157,9 +172,13 @@ Get detailed information about a specific event type
 |   ↳ `type` | string | Event type classification |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Calendly List Event Type Available Times
 
 Retrieve bookable time slots for an event type within a date range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,9 +199,13 @@ Retrieve bookable time slots for an event type within a date range
 |   ↳ `start_time` | string | ISO timestamp of the slot start |
 |   ↳ `scheduling_url` | string | URL that books this exact slot |
 
+</ReferenceDetails>
+
 ### Calendly List Scheduled Events
 
 Retrieve a list of scheduled events for a user or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -227,9 +250,13 @@ Retrieve a list of scheduled events for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly Get Scheduled Event
 
 Get detailed information about a specific scheduled event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +295,13 @@ Get detailed information about a specific scheduled event
 |   ↳ `created_at` | string | ISO timestamp of event creation |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Calendly List Event Invitees
 
 Retrieve a list of invitees for a scheduled event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -313,9 +344,13 @@ Retrieve a list of invitees for a scheduled event
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly Get Event Invitee
 
 Retrieve a single invitee of a scheduled event, including their intake answers
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +407,13 @@ Retrieve a single invitee of a scheduled event, including their intake answers
 |     ↳ `terms` | string | Payment terms |
 |     ↳ `successful` | boolean | Whether the payment succeeded |
 
+</ReferenceDetails>
+
 ### Calendly Book Meeting
 
 Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +454,13 @@ Book a meeting by creating an invitee on an event type at a chosen time. Require
 |     ↳ `answer` | string | Invitee answer |
 |     ↳ `position` | number | Question order |
 
+</ReferenceDetails>
+
 ### Calendly Cancel Event
 
 Cancel a scheduled event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -437,9 +480,13 @@ Cancel a scheduled event
 |   ↳ `reason` | string | Cancellation reason |
 |   ↳ `created_at` | string | ISO timestamp when event was canceled |
 
+</ReferenceDetails>
+
 ### Calendly Mark Invitee No-Show
 
 Mark an invitee of a scheduled event as a no-show
+
+<ReferenceDetails>
 
 #### Input
 
@@ -457,9 +504,13 @@ Mark an invitee of a scheduled event as a no-show
 |   ↳ `invitee` | string | URI of the invitee marked as a no-show |
 |   ↳ `created_at` | string | ISO timestamp when the no-show was recorded |
 
+</ReferenceDetails>
+
 ### Calendly Unmark Invitee No-Show
 
 Remove the no-show status from an invitee
+
+<ReferenceDetails>
 
 #### Input
 
@@ -475,9 +526,13 @@ Remove the no-show status from an invitee
 | `deleted` | boolean | Whether the no-show status was successfully removed |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Calendly Create Scheduling Link
 
 Create a single-use scheduling link for an event type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -495,9 +550,13 @@ Create a single-use scheduling link for an event type
 |   ↳ `owner` | string | URI of the event type that owns the link |
 |   ↳ `owner_type` | string | Resource type of the owner |
 
+</ReferenceDetails>
+
 ### Calendly List User Busy Times
 
 Retrieve a user's internal and external busy times within a date range, based on their connected calendars
+
+<ReferenceDetails>
 
 #### Input
 
@@ -521,9 +580,13 @@ Retrieve a user's internal and external busy times within a date range, based on
 |   ↳ `event` | object | The Calendly event occupying this block |
 |     ↳ `uri` | string | URI of the scheduled event |
 
+</ReferenceDetails>
+
 ### Calendly List User Availability Schedules
 
 Retrieve a user's availability schedules, working hours, and date overrides
+
+<ReferenceDetails>
 
 #### Input
 
@@ -550,9 +613,13 @@ Retrieve a user's availability schedules, working hours, and date overrides
 |       ↳ `from` | string | Interval start time \(HH:MM\) |
 |       ↳ `to` | string | Interval end time \(HH:MM\) |
 
+</ReferenceDetails>
+
 ### Calendly List Organization Memberships
 
 Retrieve the members of an organization, including each member profile and role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -595,9 +662,13 @@ Retrieve the members of an organization, including each member profile and role
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly List Routing Forms
 
 Retrieve the routing forms of an organization, including their questions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -633,9 +704,13 @@ Retrieve the routing forms of an organization, including their questions
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly List Routing Form Submissions
 
 Retrieve the submissions of a routing form, including answers and routing result
+
+<ReferenceDetails>
 
 #### Input
 
@@ -679,6 +754,8 @@ Retrieve the submissions of a routing form, including answers and routing result
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -689,6 +766,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when someone cancels a scheduled event on Calendly
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -745,13 +824,14 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |     ↳ `created_at` | string | Reconfirmation timestamp |
 |     ↳ `confirmed_at` | string | Confirmation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Calendly Invitee Created
 
 Trigger workflow when someone schedules a new event on Calendly
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -808,12 +888,13 @@ Trigger workflow when someone schedules a new event on Calendly
 |     ↳ `created_at` | string | Reconfirmation timestamp |
 |     ↳ `confirmed_at` | string | Confirmation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Calendly Routing Form Submitted
 
 Trigger workflow when someone submits a Calendly routing form
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -851,8 +932,7 @@ Trigger workflow when someone submits a Calendly routing form
 |   ↳ `created_at` | string | Submission creation timestamp |
 |   ↳ `updated_at` | string | Submission last update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Calendly Webhook
 

@@ -4,6 +4,7 @@ description: Manage QuickBooks Online company, transactions, reports, emails, PD
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="quickbooks"
@@ -39,6 +40,8 @@ Document actions can read attachment metadata, add one File or Note attachment, 
 {/* MANUAL-CONTENT-END */}
 
 
+<ReferenceDetails label="OAuth scopes and self-hosting">
+
 ## OAuth scopes [#oauth-scopes]
 
 Sim requests these scopes when someone connects a QuickBooks account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
@@ -55,6 +58,8 @@ Sim requests these scopes when someone connects a QuickBooks account. For a self
 | `email` | Access email address |
 | `com.intuit.quickbooks.accounting` | Access and manage accounting data in the connected QuickBooks Online company |
 
+</ReferenceDetails>
+
 ## Use the block [#usage-instructions]
 
 Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.
@@ -64,6 +69,8 @@ Connect one QuickBooks Online company to manage bounded master-data, sales, purc
 ### QuickBooks Get Company Info
 
 Get information about the connected QuickBooks Online company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +104,13 @@ Get information about the connected QuickBooks Online company
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Read Master Data
 
 List or read one account, class, customer, department, employee, item, or vendor
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +247,13 @@ List or read one account, class, customer, department, employee, item, or vendor
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Customer
 
 Create a customer in the connected QuickBooks Online company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -284,9 +299,13 @@ Create a customer in the connected QuickBooks Online company
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Customer
 
 Sparse-update a customer in the connected QuickBooks Online company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -334,9 +353,13 @@ Sparse-update a customer in the connected QuickBooks Online company
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Employee
 
 Create a non-payroll employee profile in the connected QuickBooks Online company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -378,9 +401,13 @@ Create a non-payroll employee profile in the connected QuickBooks Online company
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Employee
 
 Read, merge, and full-update a non-payroll employee profile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +451,13 @@ Read, merge, and full-update a non-payroll employee profile
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Vendor
 
 Create a vendor in the connected QuickBooks Online company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -474,9 +505,13 @@ Create a vendor in the connected QuickBooks Online company
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Vendor
 
 Read, merge, and full-update a vendor in QuickBooks Online
+
+<ReferenceDetails>
 
 #### Input
 
@@ -526,9 +561,13 @@ Read, merge, and full-update a vendor in QuickBooks Online
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Item
 
 Create a Service or Non-inventory item in QuickBooks Online
+
+<ReferenceDetails>
 
 #### Input
 
@@ -584,9 +623,13 @@ Create a Service or Non-inventory item in QuickBooks Online
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Item
 
 Read, merge, and full-update a Service or Non-inventory item without changing its type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -643,9 +686,13 @@ Read, merge, and full-update a Service or Non-inventory item without changing it
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Read Sales Transactions
 
 List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt
+
+<ReferenceDetails>
 
 #### Input
 
@@ -736,9 +783,13 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Estimate
 
 Create an estimate with bounded item and description lines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -794,9 +845,13 @@ Create an estimate with bounded item and description lines
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Estimate
 
 Sparse-update an estimate using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -853,9 +908,13 @@ Sparse-update an estimate using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Invoice
 
 Create an invoice without emailing or collecting payment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -911,9 +970,13 @@ Create an invoice without emailing or collecting payment
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Invoice
 
 Sparse-update an invoice using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -970,9 +1033,13 @@ Sparse-update an invoice using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Void Invoice
 
 Void an invoice after explicit confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1024,9 +1091,13 @@ Void an invoice after explicit confirmation
 | `time` | string | QuickBooks response timestamp |
 | `voided` | boolean | Whether QuickBooks voided the transaction |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Sales Receipt
 
 Create a sales receipt for a completed customer sale
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1084,9 +1155,13 @@ Create a sales receipt for a completed customer sale
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Sales Receipt
 
 Sparse-update a sales receipt using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1145,9 +1220,13 @@ Sparse-update a sales receipt using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Void Sales Receipt
 
 Void a sales receipt after explicit confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1199,9 +1278,13 @@ Void a sales receipt after explicit confirmation
 | `time` | string | QuickBooks response timestamp |
 | `voided` | boolean | Whether QuickBooks voided the transaction |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Customer Payment
 
 Record a customer payment with optional bounded invoice allocations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1258,9 +1341,13 @@ Record a customer payment with optional bounded invoice allocations
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Customer Payment
 
 Read, merge, and full-update a customer payment using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1319,9 +1406,13 @@ Read, merge, and full-update a customer payment using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Void Customer Payment
 
 Void a customer payment after explicit confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1373,9 +1464,13 @@ Void a customer payment after explicit confirmation
 | `time` | string | QuickBooks response timestamp |
 | `voided` | boolean | Whether QuickBooks voided the transaction |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Credit Memo
 
 Create a customer credit memo with bounded sales lines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1430,9 +1525,13 @@ Create a customer credit memo with bounded sales lines
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Credit Memo
 
 Read, merge, and full-update a credit memo using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1488,9 +1587,13 @@ Read, merge, and full-update a credit memo using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Refund Receipt
 
 Create a customer refund receipt against a required deposit account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1548,9 +1651,13 @@ Create a customer refund receipt against a required deposit account
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Refund Receipt
 
 Sparse-update a refund receipt using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1609,9 +1716,13 @@ Sparse-update a refund receipt using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Read Purchasing Transactions
 
 List or read one purchase order, bill, bill payment, vendor credit, or purchase
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1738,9 +1849,13 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Purchase Order
 
 Create a purchase order with bounded expense lines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1816,9 +1931,13 @@ Create a purchase order with bounded expense lines
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Purchase Order
 
 Read, merge, and full-update purchase-order header fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1892,9 +2011,13 @@ Read, merge, and full-update purchase-order header fields
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Bill
 
 Create a vendor bill with optional Purchase Order line links without paying it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1980,9 +2103,13 @@ Create a vendor bill with optional Purchase Order line links without paying it
 |   ↳ `purchaseOrderLineId` | string | Requested Purchase Order line ID |
 | `linkingWarning` | string | Warning that the Bill was created without every requested Purchase Order link |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Bill
 
 Read, merge, and full-update bill header fields using its current sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2056,9 +2183,13 @@ Read, merge, and full-update bill header fields using its current sync token
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Bill Payment
 
 Record a check or credit-card payment allocated to one or more bills
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2135,9 +2266,13 @@ Record a check or credit-card payment allocated to one or more bills
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Bill Payment
 
 Read, merge, and full-update a BillPayment without changing allocations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2208,9 +2343,13 @@ Read, merge, and full-update a BillPayment without changing allocations
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Void Bill Payment
 
 Void a bill payment after explicit confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2280,9 +2419,13 @@ Void a bill payment after explicit confirmation
 | `time` | string | QuickBooks response timestamp |
 | `voided` | boolean | Whether QuickBooks voided the transaction |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Vendor Credit
 
 Create a vendor credit without applying it to a bill
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2357,9 +2500,13 @@ Create a vendor credit without applying it to a bill
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Vendor Credit
 
 Read, merge, and full-update vendor-credit header fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2432,9 +2579,13 @@ Read, merge, and full-update vendor-credit header fields
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Purchase
 
 Record a cash, check, or credit-card purchase with bounded expense lines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2510,9 +2661,13 @@ Record a cash, check, or credit-card purchase with bounded expense lines
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Purchase
 
 Read, merge, and full-update purchase header fields without changing lines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2584,9 +2739,13 @@ Read, merge, and full-update purchase header fields without changing lines
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Read Accounting Transactions
 
 List or read one journal entry, deposit, or transfer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2656,9 +2815,13 @@ List or read one journal entry, deposit, or transfer
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Journal Entry
 
 Post a balanced journal entry after explicit confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2704,9 +2867,13 @@ Post a balanced journal entry after explicit confirmation
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Journal Entry
 
 Sparse-update journal-entry header fields after explicit confirmation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2750,9 +2917,13 @@ Sparse-update journal-entry header fields after explicit confirmation
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Create Deposit
 
 Create a deposit with bounded account lines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2797,9 +2968,13 @@ Create a deposit with bounded account lines
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Update Deposit
 
 Sparse-update deposit header fields using the current sync token and destination account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2842,9 +3017,13 @@ Sparse-update deposit header fields using the current sync token and destination
 | `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Run Financial Report
 
 Run a fixed QuickBooks financial report with verified accountant-focused filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2911,9 +3090,13 @@ Run a fixed QuickBooks financial report with verified accountant-focused filters
 |     ↳ `Summary` | json | Section summary column data |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Email Transaction
 
 Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2999,9 +3182,13 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `CreditCardPayment` | json | Credit-card payment account details |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Download Transaction PDF
 
 Download a supported QuickBooks transaction as a bounded PDF file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3022,9 +3209,13 @@ Download a supported QuickBooks transaction as a bounded PDF file
 | `transactionType` | string | Downloaded QuickBooks transaction type |
 | `transactionId` | string | Downloaded QuickBooks transaction ID |
 
+</ReferenceDetails>
+
 ### QuickBooks Read Attachments
 
 List attachment metadata for a fixed QuickBooks entity or read one attachment by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3079,9 +3270,13 @@ List attachment metadata for a fixed QuickBooks entity or read one attachment by
 | `hasMore` | boolean | Conservative indication that another page may exist |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Add Attachment
 
 Attach one supported file or one note to a fixed QuickBooks entity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3122,9 +3317,13 @@ Attach one supported file or one note to a fixed QuickBooks entity
 | `targetId` | string | QuickBooks target entity ID |
 | `time` | string | QuickBooks response timestamp |
 
+</ReferenceDetails>
+
 ### QuickBooks Download Attachment
 
 Download a QuickBooks file attachment as a stored Sim file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3143,6 +3342,8 @@ Download a QuickBooks file attachment as a stored Sim file
 | `size` | number | Downloaded file size in bytes |
 | `attachmentId` | string | Downloaded QuickBooks attachment ID |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -3152,6 +3353,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### QuickBooks Account Events
 
 Trigger when selected Account events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3176,12 +3379,13 @@ Trigger when selected Account events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Bill Events
 
 Trigger when selected Bill events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3206,12 +3410,13 @@ Trigger when selected Bill events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Bill Payment Events
 
 Trigger when selected Bill Payment events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3236,12 +3441,13 @@ Trigger when selected Bill Payment events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Budget Events
 
 Trigger when selected Budget events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3266,12 +3472,13 @@ Trigger when selected Budget events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Class Events
 
 Trigger when selected Class events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3296,12 +3503,13 @@ Trigger when selected Class events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Credit Memo Events
 
 Trigger when selected Credit Memo events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3326,12 +3534,13 @@ Trigger when selected Credit Memo events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Currency Events
 
 Trigger when selected Currency events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3356,12 +3565,13 @@ Trigger when selected Currency events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Customer Events
 
 Trigger when selected Customer events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3386,12 +3596,13 @@ Trigger when selected Customer events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Department Events
 
 Trigger when selected Department events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3416,12 +3627,13 @@ Trigger when selected Department events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Deposit Events
 
 Trigger when selected Deposit events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3446,12 +3658,13 @@ Trigger when selected Deposit events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Employee Events
 
 Trigger when selected Employee events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3476,12 +3689,13 @@ Trigger when selected Employee events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Estimate Events
 
 Trigger when selected Estimate events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3506,12 +3720,13 @@ Trigger when selected Estimate events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Invoice Events
 
 Trigger when selected Invoice events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3536,12 +3751,13 @@ Trigger when selected Invoice events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Item Events
 
 Trigger when selected Item events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3566,12 +3782,13 @@ Trigger when selected Item events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Journal Code Events
 
 Trigger when selected Journal Code events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3596,12 +3813,13 @@ Trigger when selected Journal Code events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Journal Entry Events
 
 Trigger when selected Journal Entry events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3626,12 +3844,13 @@ Trigger when selected Journal Entry events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Payment Events
 
 Trigger when selected Payment events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3656,12 +3875,13 @@ Trigger when selected Payment events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Payment Method Events
 
 Trigger when selected Payment Method events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3686,12 +3906,13 @@ Trigger when selected Payment Method events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Preferences Updated
 
 Trigger when QuickBooks Preferences are updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3715,12 +3936,13 @@ Trigger when QuickBooks Preferences are updated
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Purchase Events
 
 Trigger when selected Purchase events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3745,12 +3967,13 @@ Trigger when selected Purchase events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Purchase Order Events
 
 Trigger when selected Purchase Order events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3775,12 +3998,13 @@ Trigger when selected Purchase Order events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Refund Receipt Events
 
 Trigger when selected Refund Receipt events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3805,12 +4029,13 @@ Trigger when selected Refund Receipt events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Sales Receipt Events
 
 Trigger when selected Sales Receipt events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3835,12 +4060,13 @@ Trigger when selected Sales Receipt events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Tax Agency Events
 
 Trigger when selected Tax Agency events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3865,12 +4091,13 @@ Trigger when selected Tax Agency events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Term Events
 
 Trigger when selected Term events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3895,12 +4122,13 @@ Trigger when selected Term events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Time Activity Events
 
 Trigger when selected Time Activity events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3925,12 +4153,13 @@ Trigger when selected Time Activity events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Transfer Events
 
 Trigger when selected Transfer events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3955,12 +4184,13 @@ Trigger when selected Transfer events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Vendor Credit Events
 
 Trigger when selected Vendor Credit events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3985,12 +4215,13 @@ Trigger when selected Vendor Credit events occur in QuickBooks
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
 
-
----
+</ReferenceDetails>
 
 ### QuickBooks Vendor Events
 
 Trigger when selected Vendor events occur in QuickBooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -4014,4 +4245,6 @@ Trigger when selected Vendor events occur in QuickBooks
 | `source` | string | Intuit event source |
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
+
+</ReferenceDetails>
 

@@ -4,6 +4,7 @@ description: Search and enrich B2B company and contact data with ZoomInfo.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="zoominfo"
@@ -30,6 +31,8 @@ Search companies and contacts, enrich company or contact records, retrieve inten
 ### ZoomInfo Search Companies
 
 Search the ZoomInfo company database by name, industry, location, and size.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +66,13 @@ Search the ZoomInfo company database by name, industry, location, and size.
 | `currentPage` | number | Current page number |
 | `totalPages` | number | Total number of pages available |
 
+</ReferenceDetails>
+
 ### ZoomInfo Search Contacts
 
 Search ZoomInfo for contacts (people) by name, job title, company, and other filters. Does not return emails or phone numbers — use Enrich Contacts for engagement data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -98,6 +105,8 @@ Search ZoomInfo for contacts (people) by name, job title, company, and other fil
 | `totalResults` | number | Total number of matching results across all pages |
 | `currentPage` | number | Current page number |
 | `totalPages` | number | Total number of pages available |
+
+</ReferenceDetails>
 
 ### ZoomInfo Enrich Companies
 

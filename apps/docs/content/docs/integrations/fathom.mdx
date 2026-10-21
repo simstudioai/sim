@@ -4,6 +4,7 @@ description: Access meeting recordings, transcripts, and summaries
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="fathom"
@@ -26,6 +27,8 @@ List meetings, get transcripts and summaries, and list teams and team members. T
 ### Fathom List Meetings
 
 List recent meetings recorded by the user or shared to their team.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,6 +119,8 @@ List recent meetings recorded by the user or shared to their team.
 |       ↳ `record_url` | string | CRM record URL |
 |     ↳ `error` | string | CRM match error, if any |
 | `next_cursor` | string | Pagination cursor for next page |
+
+</ReferenceDetails>
 
 ### Fathom List Meeting Types
 
@@ -230,6 +235,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when new meeting content is ready in Fathom
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -268,13 +275,14 @@ Trigger workflow when new meeting content is ready in Fathom
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
 
-
----
+</ReferenceDetails>
 
 ### Fathom Webhook
 
 Generic webhook trigger for all Fathom events
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -312,4 +320,6 @@ Generic webhook trigger for all Fathom events
 | `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
+
+</ReferenceDetails>
 

@@ -17,7 +17,7 @@ export const resendWebhookTrigger: TriggerConfig = {
   name: 'Resend Webhook (All Events)',
   provider: 'resend',
   description:
-    'Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload.',
+    'Start a workflow for subscribed Resend email, contact, and domain events. Flattened email fields may be null for non-email events; use `data` for the full payload.',
   version: '1.0.0',
   icon: ResendIcon,
 

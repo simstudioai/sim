@@ -327,12 +327,12 @@ export const V2_AUTH_SECURITY_SCHEMES = {
     in: 'header',
     name: 'X-API-Key',
     description:
-      'Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description.',
+      'Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description.',
   },
   oauthBearer: {
     type: 'oauth2',
     description:
-      'A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.',
+      'Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).',
     flows: {
       authorizationCode: {
         authorizationUrl: `${SIM_OAUTH_ISSUER}/oauth2/authorize`,

@@ -4,6 +4,7 @@ description: Provision numbers, send SMS and iMessage, and place voice calls wit
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="agentphone"
@@ -26,6 +27,8 @@ Provision SMS- and voice-enabled numbers, send messages and tapback reactions, p
 ### Create Outbound Call
 
 Initiate an outbound voice call from an AgentPhone agent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -52,9 +55,13 @@ Initiate an outbound voice call from an AgentPhone agent
 | `direction` | string | Call direction \(outbound\) |
 | `startedAt` | string | ISO 8601 timestamp |
 
+</ReferenceDetails>
+
 ### Create Contact
 
 Create a new contact in AgentPhone
+
+<ReferenceDetails>
 
 #### Input
 
@@ -78,9 +85,13 @@ Create a new contact in AgentPhone
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
+</ReferenceDetails>
+
 ### Create Phone Number
 
 Provision a new SMS- and voice-enabled phone number
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +114,13 @@ Provision a new SMS- and voice-enabled phone number
 | `agentId` | string | Agent the number is attached to |
 | `createdAt` | string | ISO 8601 timestamp when the number was created |
 
+</ReferenceDetails>
+
 ### Delete Contact
 
 Delete a contact by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +136,13 @@ Delete a contact by ID
 | `id` | string | ID of the deleted contact |
 | `deleted` | boolean | Whether the contact was deleted successfully |
 
+</ReferenceDetails>
+
 ### Get Call
 
 Fetch a call and its full transcript
+
+<ReferenceDetails>
 
 #### Input
 
@@ -157,9 +176,13 @@ Fetch a call and its full transcript
 |   ↳ `response` | string | Agent response \(when available\) |
 |   ↳ `createdAt` | string | ISO 8601 timestamp |
 
+</ReferenceDetails>
+
 ### Get Call Transcript
 
 Get the full ordered transcript for a call
+
+<ReferenceDetails>
 
 #### Input
 
@@ -178,9 +201,13 @@ Get the full ordered transcript for a call
 |   ↳ `content` | string | Turn content |
 |   ↳ `createdAt` | string | ISO 8601 timestamp |
 
+</ReferenceDetails>
+
 ### Get Contact
 
 Fetch a single contact by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +228,13 @@ Fetch a single contact by ID
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
+</ReferenceDetails>
+
 ### Get Conversation
 
 Get a conversation along with its recent messages
+
+<ReferenceDetails>
 
 #### Input
 
@@ -237,9 +268,13 @@ Get a conversation along with its recent messages
 |   ↳ `mediaUrls` | array | All attached media URLs |
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
 
+</ReferenceDetails>
+
 ### Get Conversation Messages
 
 Get paginated messages for a conversation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +302,13 @@ Get paginated messages for a conversation
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
 | `hasMore` | boolean | Whether more messages are available |
 
+</ReferenceDetails>
+
 ### Get Phone Number Messages
 
 Fetch messages received on a specific phone number
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +334,13 @@ Fetch messages received on a specific phone number
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
 | `hasMore` | boolean | Whether more messages are available |
 
+</ReferenceDetails>
+
 ### Get Usage
 
 Retrieve current usage statistics for the AgentPhone account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,9 +358,13 @@ Retrieve current usage statistics for the AgentPhone account
 | `periodStart` | string | Billing period start |
 | `periodEnd` | string | Billing period end |
 
+</ReferenceDetails>
+
 ### Get Daily Usage
 
 Get a daily breakdown of usage (messages, calls, webhooks) for the last N days
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +384,13 @@ Get a daily breakdown of usage (messages, calls, webhooks) for the last N days
 |   ↳ `webhooks` | number | Webhook deliveries that day |
 | `days` | number | Number of days returned |
 
+</ReferenceDetails>
+
 ### Get Monthly Usage
 
 Get monthly usage aggregation (messages, calls, webhooks) for the last N months
+
+<ReferenceDetails>
 
 #### Input
 
@@ -359,9 +410,13 @@ Get monthly usage aggregation (messages, calls, webhooks) for the last N months
 |   ↳ `webhooks` | number | Webhook deliveries that month |
 | `months` | number | Number of months returned |
 
+</ReferenceDetails>
+
 ### List Calls
 
 List voice calls for this AgentPhone account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -397,9 +452,13 @@ List voice calls for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of matching calls |
 
+</ReferenceDetails>
+
 ### List Contacts
 
 List contacts for this AgentPhone account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -425,9 +484,13 @@ List contacts for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of contacts |
 
+</ReferenceDetails>
+
 ### List Conversations
 
 List conversations (message threads) for this AgentPhone account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -455,9 +518,13 @@ List conversations (message threads) for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of conversations |
 
+</ReferenceDetails>
+
 ### List Phone Numbers
 
 List all phone numbers provisioned for this AgentPhone account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -482,9 +549,13 @@ List all phone numbers provisioned for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of phone numbers |
 
+</ReferenceDetails>
+
 ### React to Message
 
 Send an iMessage tapback reaction to a message (iMessage only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -503,9 +574,13 @@ Send an iMessage tapback reaction to a message (iMessage only)
 | `messageId` | string | ID of the message that was reacted to |
 | `channel` | string | Channel \(imessage\) |
 
+</ReferenceDetails>
+
 ### Release Phone Number
 
 Release (delete) a phone number. This action is irreversible.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -521,9 +596,13 @@ Release (delete) a phone number. This action is irreversible.
 | `id` | string | ID of the released phone number |
 | `released` | boolean | Whether the number was released successfully |
 
+</ReferenceDetails>
+
 ### Send Message
 
 Send an outbound SMS or iMessage from an AgentPhone agent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -546,9 +625,13 @@ Send an outbound SMS or iMessage from an AgentPhone agent
 | `fromNumber` | string | Sender phone number |
 | `toNumber` | string | Recipient phone number |
 
+</ReferenceDetails>
+
 ### Update Contact
 
 Update a contact's fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -573,9 +656,13 @@ Update a contact's fields
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
+</ReferenceDetails>
+
 ### Update Conversation
 
 Update conversation metadata (stored state). Pass null to clear existing metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -608,5 +695,7 @@ Update conversation metadata (stored state). Pass null to clear existing metadat
 |   ↳ `mediaUrl` | string | Media URL if any |
 |   ↳ `mediaUrls` | array | All attached media URLs |
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
+
+</ReferenceDetails>
 
 

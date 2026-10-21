@@ -4,6 +4,7 @@ description: Website traffic and analytics data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="similarweb"
@@ -25,7 +26,9 @@ Retrieve website analytics including traffic estimates, engagement metrics, rank
 
 ### SimilarWeb Website Overview
 
-Get comprehensive website analytics including traffic, rankings, engagement, and traffic sources
+Get website traffic, rankings, engagement, and traffic sources.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,6 +61,8 @@ Get comprehensive website analytics including traffic, rankings, engagement, and
 |   ↳ `social` | number | Social traffic share |
 |   ↳ `mail` | number | Email traffic share |
 |   ↳ `paidReferrals` | number | Paid referral traffic share |
+
+</ReferenceDetails>
 
 ### SimilarWeb Traffic Visits
 

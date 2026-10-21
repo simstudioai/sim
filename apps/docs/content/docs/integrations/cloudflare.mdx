@@ -4,6 +4,7 @@ description: Manage DNS, WAF, Zero Trust access, and edge infrastructure
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="cloudflare"
@@ -30,6 +31,8 @@ Manage Cloudflare DNS, zones, SSL, cache, and analytics. Configure WAF rulesets 
 ### Cloudflare Create Access Application
 
 Creates a Cloudflare Access (Zero Trust) application that puts an identity check in front of a hostname. Until at least one policy is attached the application denies everyone, so pair this with "Create Access Policy". Requires an API token with Account Access: Apps and Policies Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +466,13 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 |   ↳ `target_attributes` | json | Contains a map of target attribute keys to target attribute values. |
 |   ↳ `protocol` | string | The communication protocol your application secures. Values: RDP. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Access Group
 
 Creates a new Access group.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -740,9 +747,13 @@ Creates a new Access group.
 |     ↳ `account_id` | string | Identifier. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Access Policy
 
 Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who may reach it. A policy takes effect on live traffic as soon as it is created — an allow policy with a broad include rule grants access immediately. Requires an API token with Account Access: Apps and Policies Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -987,9 +998,13 @@ Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who 
 | `account_id` | string | Identifier. |
 | `precedence` | number | The order of execution for this policy. Must be unique for each policy within an app. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Access Service Token
 
 Creates a Cloudflare Access (Zero Trust) service token so a machine can authenticate to Access-protected applications. This is the only response that ever contains the client secret — Cloudflare will not return it again, so capture it in the same run. Requires an API token with Account Access: Service Tokens Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1018,9 +1033,13 @@ Creates a Cloudflare Access (Zero Trust) service token so a machine can authenti
 | `expires_at` | string | Service token expires at when returned by Cloudflare; retained for existing workflows |
 | `last_seen_at` | string | Service token last seen at when returned by Cloudflare; retained for existing workflows |
 
+</ReferenceDetails>
+
 ### Cloudflare Create DNS Record
 
 Creates a new DNS record for a zone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1110,9 +1129,13 @@ Creates a new DNS record for a zone.
 | `zone_name` | string | Legacy DNS response zone name when returned by Cloudflare |
 | `locked` | boolean | Legacy DNS response lock flag when returned by Cloudflare |
 
+</ReferenceDetails>
+
 ### Cloudflare Create R2 Bucket
 
 Creates an R2 object storage bucket in an account. The location hint and jurisdiction are fixed at creation and cannot be changed later. Requires an API token with Account Workers R2 Storage Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1135,9 +1158,13 @@ Creates an R2 object storage bucket in an account. The location hint and jurisdi
 | `name` | string | Name of the bucket. |
 | `storage_class` | string | Storage class for newly uploaded objects, unless specified otherwise. Values: Standard, InfrequentAccess. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Rate Limiting Rule
 
 Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (the legacy rate_limits endpoint is no longer available). Run "List Rate Limiting Rules" first to get the ruleset ID. Requires an API token with Zone WAF Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1410,9 +1437,13 @@ Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Ruleset
 
 Creates a zone ruleset for a phase, optionally seeded with its first rules. Use this when a phase has no entry point ruleset yet — reading the entry point returns 404 on a zone that has never had a rule in that phase, and rules can only be appended to a ruleset that already exists. Create the entry point with kind "zone" and the target phase (for example http_ratelimit for rate limiting rules or http_request_firewall_custom for WAF custom rules), then use the returned ruleset ID for later rule operations. Requires an API token with Zone WAF Edit (or another matching ruleset Edit permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1671,9 +1702,13 @@ Creates a zone ruleset for a phase, optionally seeded with its first rules. Use 
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Ruleset Rule
 
 Adds a rule to a zone ruleset. Use "Get Phase Entry Point Ruleset" first to find the ruleset ID for the phase you want (for example http_request_firewall_custom for a WAF custom rule, or http_request_firewall_managed with action "execute" to deploy a managed ruleset). The rule is appended to the end of the ruleset unless a position is given. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1939,9 +1974,13 @@ Adds a rule to a zone ruleset. Use "Get Phase Entry Point Ruleset" first to find
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Tunnel
 
 Creates a remotely or locally managed Cloudflare Tunnel in an account. After creation, retrieve its token and run cloudflared to establish the connector connection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1979,9 +2018,13 @@ Creates a remotely or locally managed Cloudflare Tunnel in an account. After cre
 | `status` | string | The status of the tunnel. |
 | `tun_type` | string | The type of tunnel. Values: cfd_tunnel, warp_connector, warp, magic, ip_sec, gre, cni. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Worker Route
 
 Creates a route that maps a URL pattern to a Worker.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2000,9 +2043,13 @@ Creates a route that maps a URL pattern to a Worker.
 | `pattern` | string | Pattern to match incoming requests against. \[Learn more\]\(https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior). |
 | `script` | string | Name of the script to run if the route matches. |
 
+</ReferenceDetails>
+
 ### Cloudflare Create Zone
 
 Adds a new zone (domain) to the Cloudflare account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2066,9 +2113,13 @@ Adds a new zone (domain) to the Cloudflare account.
 | `vanity_name_servers` | array | An array of domains used for custom name servers. This is only available for Business and Enterprise plans. |
 | `verification_key` | string | Verification key for partial zone setup. |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Access Application
 
 Permanently deletes a Cloudflare Access (Zero Trust) application and every policy attached to it. The hostname it protected is immediately left without an Access identity check, so anyone who can reach it can reach the origin. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2084,9 +2135,13 @@ Permanently deletes a Cloudflare Access (Zero Trust) application and every polic
 | --------- | ---- | ----------- |
 | `id` | string | Identifier of the deleted Access application |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Access Group
 
 Deletes an Access group.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2102,9 +2157,13 @@ Deletes an Access group.
 | --------- | ---- | ----------- |
 | `id` | string | UUID. |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Access Policy
 
 Permanently deletes a Cloudflare Access (Zero Trust) policy from an application. This changes who can reach the application the moment it runs: removing an allow policy locks out everyone it covered, and removing a deny or require policy drops that restriction. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2121,9 +2180,13 @@ Permanently deletes a Cloudflare Access (Zero Trust) policy from an application.
 | --------- | ---- | ----------- |
 | `id` | string | Identifier of the deleted Access policy |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete DNS Record
 
 Deletes a DNS record from a zone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2139,9 +2202,13 @@ Deletes a DNS record from a zone.
 | --------- | ---- | ----------- |
 | `id` | string | Deleted record ID |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete R2 Bucket
 
 Permanently deletes an R2 object storage bucket. Cloudflare only deletes an empty bucket, and the deletion cannot be undone. Requires an API token with Account Workers R2 Storage Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2158,9 +2225,13 @@ Permanently deletes an R2 object storage bucket. Cloudflare only deletes an empt
 | --------- | ---- | ----------- |
 | `name` | string | Name of the deleted bucket. Cloudflare returns an empty result body for this endpoint, so the name is echoed from the request |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete R2 Bucket Cors
 
 Delete the CORS policy for a bucket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2177,9 +2248,13 @@ Delete the CORS policy for a bucket.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Cloudflare accepted the operation |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Ruleset
 
 Deletes all versions of an existing zone ruleset.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2196,9 +2271,13 @@ Deletes all versions of an existing zone ruleset.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Cloudflare accepted the operation |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Ruleset Rule
 
 Permanently deletes a rule from a zone ruleset. This takes effect immediately on live traffic and cannot be undone — deleting a WAF custom rule, a managed-ruleset deployment, or a rate limiting rule removes that protection from the zone. Also use this to delete rate limiting rules, which live in the http_ratelimit phase ruleset. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2454,9 +2533,13 @@ Permanently deletes a rule from a zone ruleset. This takes effect immediately on
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Tunnel
 
 Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no active connections.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2492,9 +2575,13 @@ Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no
 | `status` | string | The status of the tunnel. |
 | `tun_type` | string | The type of tunnel. Values: cfd_tunnel, warp_connector, warp, magic, ip_sec, gre, cni. |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Worker Route
 
 Deletes a Worker route.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2510,9 +2597,13 @@ Deletes a Worker route.
 | --------- | ---- | ----------- |
 | `id` | string | Identifier. |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Worker Script
 
 Delete your worker. This call has no response body on a successful delete.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2529,9 +2620,13 @@ Delete your worker. This call has no response body on a successful delete.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Cloudflare accepted the operation |
 
+</ReferenceDetails>
+
 ### Cloudflare Delete Zone
 
 Deletes a zone (domain) from the Cloudflare account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2546,9 +2641,13 @@ Deletes a zone (domain) from the Cloudflare account.
 | --------- | ---- | ----------- |
 | `id` | string | Deleted zone ID |
 
+</ReferenceDetails>
+
 ### Cloudflare DNS Analytics
 
 Gets DNS analytics report for a zone including query counts and trends.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2592,9 +2691,13 @@ Gets DNS analytics report for a zone including query counts and trends.
 |   ↳ `sort` | array | Sort order applied to the query |
 |   ↳ `limit` | number | Maximum number of results requested |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Access Application
 
 Reads a single Cloudflare Access (Zero Trust) application, including its attached policies. Requires an API token with Account Access: Apps and Policies Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2988,9 +3091,13 @@ Reads a single Cloudflare Access (Zero Trust) application, including its attache
 |   ↳ `target_attributes` | json | Contains a map of target attribute keys to target attribute values. |
 |   ↳ `protocol` | string | The communication protocol your application secures. Values: RDP. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Access Group
 
 Fetches a single Access group.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3261,9 +3368,13 @@ Fetches a single Access group.
 |     ↳ `account_id` | string | Identifier. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Access Policy
 
 Fetches a single Access policy configured for an application. Returns both exclusively owned and reusable policies used by the application.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3495,9 +3606,13 @@ Fetches a single Access policy configured for an application. Returns both exclu
 | `account_id` | string | Identifier. |
 | `precedence` | number | The order of execution for this policy. Must be unique for each policy within an app. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Access Service Token
 
 Fetches a single service token.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3524,9 +3639,13 @@ Fetches a single service token.
 | `name` | string | The name of the service token. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Dns Record
 
 Retrieves details for a specific DNS record in the zone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3606,9 +3725,13 @@ Retrieves details for a specific DNS record in the zone.
 | `zone_name` | string | Legacy DNS response zone name when returned by Cloudflare |
 | `locked` | boolean | Legacy DNS response lock flag when returned by Cloudflare |
 
+</ReferenceDetails>
+
 ### Cloudflare Get R2 Bucket
 
 Reads the metadata of a single R2 object storage bucket. Requires an API token with Account Workers R2 Storage Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3629,9 +3752,13 @@ Reads the metadata of a single R2 object storage bucket. Requires an API token w
 | `name` | string | Name of the bucket. |
 | `storage_class` | string | Storage class for newly uploaded objects, unless specified otherwise. Values: Standard, InfrequentAccess. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get R2 Bucket Cors
 
 Get the CORS policy for a bucket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3655,9 +3782,13 @@ Get the CORS policy for a bucket.
 |   ↳ `id` | string | Identifier for this rule. |
 |   ↳ `maxAgeSeconds` | number | Specifies the amount of time \(in seconds\) browsers are allowed to cache CORS preflight responses. Browsers may limit this to 2 hours or less, even if the maximum value \(86400\) is specified. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get R2 Bucket Lifecycle
 
 Get object lifecycle rules for a bucket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3693,9 +3824,13 @@ Get object lifecycle rules for a bucket.
 |       ↳ `date` | string | date |
 |     ↳ `storageClass` | string | storageClass Values: InfrequentAccess. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Ruleset
 
 Reads a single zone ruleset including every rule it contains, in evaluation order. Requires an API token with Zone WAF Read (or another matching ruleset Read permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3949,9 +4084,13 @@ Reads a single zone ruleset including every rule it contains, in evaluation orde
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Phase Entry Point Ruleset
 
 Reads the entry point ruleset for a phase on a zone, including all of its rules. This is how you find the ruleset ID you need before adding, updating, or deleting a rule — for example http_request_firewall_custom for WAF custom rules, http_request_firewall_managed for managed-ruleset deployments and overrides, or http_ratelimit for rate limiting rules. Requires an API token with Zone WAF Read (or another matching ruleset Read permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4205,9 +4344,13 @@ Reads the entry point ruleset for a phase on a zone, including all of its rules.
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Tunnel
 
 Reads a single Cloudflare Tunnel (cloudflared), including its health status and active connector connections. Requires an API token with Account Cloudflare Tunnel Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4243,9 +4386,13 @@ Reads a single Cloudflare Tunnel (cloudflared), including its health status and 
 | `status` | string | The status of the tunnel. |
 | `tun_type` | string | The type of tunnel. Values: cfd_tunnel, warp_connector, warp, magic, ip_sec, gre, cni. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Tunnel Configuration
 
 Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is "cloudflare" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4310,9 +4457,13 @@ Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress 
 | `tunnel_id` | string | UUID of the tunnel. |
 | `version` | number | The version of the Tunnel Configuration. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Tunnel Token
 
 Gets the connector token used to run a remotely managed Cloudflare Tunnel with cloudflared.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4328,9 +4479,13 @@ Gets the connector token used to run a remotely managed Cloudflare Tunnel with c
 | --------- | ---- | ----------- |
 | `token` | string | Token for connecting cloudflared to the tunnel |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Worker Route
 
 Returns information about a Worker route, including URL pattern and Worker.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4348,9 +4503,13 @@ Returns information about a Worker route, including URL pattern and Worker.
 | `pattern` | string | Pattern to match incoming requests against. \[Learn more\]\(https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior). |
 | `script` | string | Name of the script to run if the route matches. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Worker Script Settings
 
 Reads the deployment settings of a single Workers script — bindings, compatibility date and flags, limits, observability, placement, and tail consumers. The plain "get script" endpoint in the Cloudflare API returns raw JavaScript source rather than JSON, so this settings endpoint is the structured way to inspect one script. Requires an API token with Account Workers Scripts Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4516,9 +4675,13 @@ Reads the deployment settings of a single Workers script — bindings, compatibi
 |   ↳ `service` | string | Name of Worker that is to be the consumer. |
 | `usage_model` | string | Usage model for the Worker invocations. Values: standard, bundled, unbound. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Zone
 
 Gets details for a specific zone (domain) by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4580,9 +4743,13 @@ Gets details for a specific zone (domain) by its ID.
 | `vanity_name_servers` | array | An array of domains used for custom name servers. This is only available for Business and Enterprise plans. |
 | `verification_key` | string | Verification key for partial zone setup. |
 
+</ReferenceDetails>
+
 ### Cloudflare Get Zone Settings
 
 Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to ssl, always_use_https, min_tls_version, tls_1_3, security_level, cache_level, browser_cache_ttl, development_mode, rocket_loader, email_obfuscation, hotlink_protection, ip_geolocation, http2, http3, websockets.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4606,9 +4773,13 @@ Reads zone settings such as SSL mode, minimum TLS version, security level, and c
 |   ↳ `id` | string | The requested setting identifier |
 |   ↳ `error` | string | Why Cloudflare would not return the setting |
 
+</ReferenceDetails>
+
 ### Cloudflare List Access Applications
 
 Lists the Cloudflare Access (Zero Trust) applications protecting an account. Requires an API token with Account Access: Apps and Policies Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5021,9 +5192,13 @@ Lists the Cloudflare Access (Zero Trust) applications protecting an account. Req
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Access Groups
 
 Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups bundle identity rules that policies can reference by ID. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5309,9 +5484,13 @@ Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups b
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Access Identity Providers
 
 Lists the identity providers configured for Cloudflare Access (Zero Trust) in an account, such as Okta, Entra ID, Google Workspace, or a one-time PIN. Use the returned IDs to restrict an application with allowed_idps. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5399,9 +5578,13 @@ Lists the identity providers configured for Cloudflare Access (Zero Trust) in an
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Access Policies
 
 Lists the Cloudflare Access (Zero Trust) policies attached to an application, in precedence order. Requires an API token with Account Access: Apps and Policies Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5646,9 +5829,13 @@ Lists the Cloudflare Access (Zero Trust) policies attached to an application, in
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Access Service Tokens
 
 Lists the Cloudflare Access (Zero Trust) service tokens in an account, which let machines authenticate to Access-protected applications. Client secrets are never returned by this endpoint — only on creation. Requires an API token with Account Access: Service Tokens Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5690,9 +5877,13 @@ Lists the Cloudflare Access (Zero Trust) service tokens in an account, which let
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Certificates
 
 Lists SSL/TLS certificate packs for a zone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5765,9 +5956,13 @@ Lists SSL/TLS certificate packs for a zone.
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List DNS Records
 
 Lists DNS records for a specific zone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5889,9 +6084,13 @@ Lists DNS records for a specific zone.
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Managed Ruleset Overrides
 
 Lists the WAF managed rulesets deployed on a zone together with the overrides applied to each one. Cloudflare has no dedicated overrides endpoint — overrides live on the "execute" rules of the http_request_firewall_managed phase entry point ruleset, which this reads. Requires an API token with Zone WAF Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5914,9 +6113,13 @@ Lists the WAF managed rulesets deployed on a zone together with the overrides ap
 |   ↳ `overrides` | json | Overrides applied to the managed ruleset, at three levels. Cloudflare documents action, enabled, and sensitivity_level at the ruleset \(top\) level; category, action, enabled, and sensitivity_level per category; and id, action, enabled, score_threshold, and sensitivity_level per rule. Rule overrides beat category overrides, which beat the ruleset-level override. sensitivity_level applies only to the DDoS phases, so for a WAF managed ruleset the rule-level properties are action, enabled, and score_threshold |
 | `total_count` | number | Number of managed ruleset deployments found |
 
+</ReferenceDetails>
+
 ### Cloudflare List R2 Buckets
 
 Lists the R2 object storage buckets in an account. Requires an API token with Account Workers R2 Storage Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -5955,9 +6158,13 @@ Lists the R2 object storage buckets in an account. Requires an API token with Ac
 |     ↳ `after` | string |  |
 | `cursor` | string | Cursor for the next page |
 
+</ReferenceDetails>
+
 ### Cloudflare List Rate Limiting Rules
 
 Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API; the legacy rate_limits endpoint is no longer available. The returned ruleset ID is what "Create Rate Limiting Rule", "Update Rate Limiting Rule", and "Delete Ruleset Rule" need. Requires an API token with Zone WAF Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6210,9 +6417,13 @@ Lists the rate limiting rules on a zone by reading the http_ratelimit phase entr
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare List Rulesets
 
 Lists every ruleset defined on a zone across all phases (WAF custom rules, managed rules, rate limiting, transform rules, and more). The list response deliberately omits the rules inside each ruleset — use "Get Ruleset" to read them. Requires an API token with Zone WAF Read (or another matching ruleset Read permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6248,9 +6459,13 @@ Lists every ruleset defined on a zone across all phases (WAF custom rules, manag
 |     ↳ `after` | string |  |
 | `cursor` | string | Cursor for the next page |
 
+</ReferenceDetails>
+
 ### Cloudflare List Tunnels
 
 Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status and active connections. Requires an API token with Account Cloudflare Tunnel Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6308,9 +6523,13 @@ Lists the Cloudflare Tunnels (cloudflared) in an account, with their health stat
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Worker Routes
 
 Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6339,9 +6558,13 @@ Lists the Workers routes on a zone, showing which URL patterns are handled by wh
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Worker Scripts
 
 Lists the Workers scripts deployed in an account. Requires an API token with Account Workers Scripts Read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6429,9 +6652,13 @@ Lists the Workers scripts deployed in an account. Requires an API token with Acc
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare List Zones
 
 Lists one page of zones (domains) in the Cloudflare account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6514,9 +6741,13 @@ Lists one page of zones (domains) in the Cloudflare account.
 |     ↳ `before` | string |  |
 |     ↳ `after` | string |  |
 
+</ReferenceDetails>
+
 ### Cloudflare Purge Cache
 
 Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6536,9 +6767,13 @@ Purges cached content for a zone. Can purge everything or specific files/tags/ho
 | --------- | ---- | ----------- |
 | `id` | string | Purge request identifier returned by Cloudflare |
 
+</ReferenceDetails>
+
 ### Cloudflare Refresh Access Service Token
 
 Refreshes the expiration of a service token.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6565,9 +6800,13 @@ Refreshes the expiration of a service token.
 | `name` | string | The name of the service token. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Revoke Access Service Token
 
 Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it. Every machine or integration still presenting that client ID and secret is locked out of the Access-protected applications immediately, and the secret cannot be recovered. This cannot be undone. Requires an API token with Account Access: Service Tokens Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6594,9 +6833,13 @@ Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it.
 | `name` | string | The name of the service token. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Rotate Access Service Token
 
 Generates a new Client Secret. The previous secret expires immediately unless previous_client_secret_expires_at schedules a later expiration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -6622,9 +6865,13 @@ Generates a new Client Secret. The previous secret expires immediately unless pr
 | `expires_at` | string | Service token expires at when returned by Cloudflare; retained for existing workflows |
 | `last_seen_at` | string | Service token last seen at when returned by Cloudflare; retained for existing workflows |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Access Application
 
 Updates a Cloudflare Access (Zero Trust) application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: send every field the application should keep, because an omitted field may revert to its default and widen or break access. Read the current configuration with "Get Access Application" first. Requires an API token with Account Access: Apps and Policies Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7059,9 +7306,13 @@ Updates a Cloudflare Access (Zero Trust) application. Cloudflare does not docume
 |   ↳ `target_attributes` | json | Contains a map of target attribute keys to target attribute values. |
 |   ↳ `protocol` | string | The communication protocol your application secures. Values: RDP. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Access Group
 
 Updates a configured Access group. Replaces the configuration; resend all values to retain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7337,9 +7588,13 @@ Updates a configured Access group. Replaces the configuration; resend all values
 |     ↳ `account_id` | string | Identifier. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Access Policy
 
 Updates a Cloudflare Access (Zero Trust) policy on an application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: resend all settings to retain, including exclude, require, approval_groups, connection_rules, and mfa_config; omitted rules or security settings may be dropped and widen access. The change applies to live traffic immediately. Read the current policy with "List Access Policies" first. Requires an API token with Account Access: Apps and Policies Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7585,9 +7840,13 @@ Updates a Cloudflare Access (Zero Trust) policy on an application. Cloudflare do
 | `account_id` | string | Identifier. |
 | `precedence` | number | The order of execution for this policy. Must be unique for each policy within an app. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Access Service Token
 
 Updates a configured service token. Replaces the configuration; resend all values to retain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7619,9 +7878,13 @@ Updates a configured service token. Replaces the configuration; resend all value
 | `name` | string | The name of the service token. |
 | `updated_at` | string | updated at |
 
+</ReferenceDetails>
+
 ### Cloudflare Update DNS Record
 
 Updates an existing DNS record for a zone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7713,9 +7976,13 @@ Updates an existing DNS record for a zone.
 | `zone_name` | string | Legacy DNS response zone name when returned by Cloudflare |
 | `locked` | boolean | Legacy DNS response lock flag when returned by Cloudflare |
 
+</ReferenceDetails>
+
 ### Cloudflare Update R2 Bucket Cors
 
 Replaces the Cross-Origin Resource Sharing (CORS) rules for an R2 bucket. Rules specify which origins, methods, and headers are allowed for browser requests to objects in the bucket. Replaces the configuration; resend all values to retain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7733,9 +8000,13 @@ Replaces the Cross-Origin Resource Sharing (CORS) rules for an R2 bucket. Rules 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Cloudflare accepted the operation |
 
+</ReferenceDetails>
+
 ### Cloudflare Update R2 Bucket Lifecycle
 
 Replaces the object lifecycle rules for an R2 bucket. Rules match object-key prefixes and can expire objects, abort incomplete multipart uploads, or transition objects to Infrequent Access storage. Replaces the configuration; resend all values to retain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -7753,9 +8024,13 @@ Replaces the object lifecycle rules for an R2 bucket. Rules match object-key pre
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Cloudflare accepted the operation |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Rate Limiting Rule
 
 Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API. Cloudflare replaces the rule definition rather than merging it, so send the complete rule — every field you omit is reset. Run "List Rate Limiting Rules" first to read the current definition and get the ruleset ID. Requires an API token with Zone WAF Edit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8028,9 +8303,13 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Ruleset
 
 Updates the description and rules of a zone ruleset, creating a new version. Read the current rules with "Get Ruleset" before replacing the list. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8287,9 +8566,13 @@ Updates the description and rules of a zone ruleset, creating a new version. Rea
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Ruleset Rule
 
 Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather than merging it, so you must send every field you want the rule to keep — any field you omit is reset to its default. Read the current rule with "Get Ruleset" first. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8555,9 +8838,13 @@ Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather
 |   ↳ `ref` | string | The reference of the rule \(the rule's ID by default\). |
 |   ↳ `version` | string | The version of the rule. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Tunnel
 
 Updates the name or secret of an existing Cloudflare Tunnel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8595,9 +8882,13 @@ Updates the name or secret of an existing Cloudflare Tunnel.
 | `status` | string | The status of the tunnel. |
 | `tun_type` | string | The type of tunnel. Values: cfd_tunnel, warp_connector, warp, magic, ip_sec, gre, cni. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Tunnel Configuration
 
 Replaces the configuration for a remotely managed Cloudflare Tunnel, including its ingress rules and origin request settings. Replaces the configuration; resend all values to retain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8663,9 +8954,13 @@ Replaces the configuration for a remotely managed Cloudflare Tunnel, including i
 | `tunnel_id` | string | UUID of the tunnel. |
 | `version` | number | The version of the Tunnel Configuration. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Worker Route
 
 Replaces the URL pattern or Worker associated with a Worker route. Replaces the configuration; resend all values to retain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8685,9 +8980,13 @@ Replaces the URL pattern or Worker associated with a Worker route. Replaces the 
 | `pattern` | string | Pattern to match incoming requests against. \[Learn more\]\(https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior). |
 | `script` | string | Name of the script to run if the route matches. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Zone
 
 Edits a zone. Only one zone property can be changed at a time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8753,9 +9052,13 @@ Edits a zone. Only one zone property can be changed at a time.
 | `vanity_name_servers` | array | An array of domains used for custom name servers. This is only available for Business and Enterprise plans. |
 | `verification_key` | string | Verification key for partial zone setup. |
 
+</ReferenceDetails>
+
 ### Cloudflare Update Zone Setting
 
 Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -8776,5 +9079,7 @@ Updates a specific zone setting such as SSL mode, security level, cache level, o
 | `editable` | boolean | Whether the setting can be modified for the current zone plan |
 | `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
 | `time_remaining` | number | Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires \(positive\) or last expired \(negative\) |
+
+</ReferenceDetails>
 
 

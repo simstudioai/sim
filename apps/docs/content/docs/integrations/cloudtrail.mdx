@@ -4,6 +4,7 @@ description: Audit who did what in AWS with CloudTrail event history and Lake qu
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="cloudtrail"
@@ -70,6 +71,8 @@ Integrate AWS CloudTrail into workflows. Look up the last 90 days of management 
 
 Look up AWS CloudTrail management or Insights events from the last 90 days in a Region
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -102,9 +105,13 @@ Look up AWS CloudTrail management or Insights events from the last 90 days in a 
 |   ↳ `cloudTrailEventRaw` | string | Raw CloudTrail event JSON string, populated only when it could not be parsed |
 | `nextToken` | string | Pagination token for the next page of events |
 
+</ReferenceDetails>
+
 ### CloudTrail Describe Trails
 
 Retrieve the full configuration of one or more CloudTrail trails in the current Region
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +145,13 @@ Retrieve the full configuration of one or more CloudTrail trails in the current 
 |   ↳ `hasInsightSelectors` | boolean | Whether the trail has Insights event selectors |
 |   ↳ `isOrganizationTrail` | boolean | Whether the trail is an organization trail |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Trail
 
 Retrieve the settings of a single CloudTrail trail by name or ARN
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +183,13 @@ Retrieve the settings of a single CloudTrail trail by name or ARN
 | `hasInsightSelectors` | boolean | Whether the trail has Insights event selectors |
 | `isOrganizationTrail` | boolean | Whether the trail is an organization trail |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Trail Status
 
 Check whether a CloudTrail trail is logging and surface its most recent delivery errors
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +216,13 @@ Check whether a CloudTrail trail is logging and surface its most recent delivery
 | `startLoggingTime` | string | When logging was most recently started \(ISO 8601\) |
 | `stopLoggingTime` | string | When logging was most recently stopped \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### CloudTrail List Trails
 
 List the ARN, name, and home Region of every CloudTrail trail visible to the account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +243,13 @@ List the ARN, name, and home Region of every CloudTrail trail visible to the acc
 |   ↳ `homeRegion` | string | Region in which the trail was created |
 | `nextToken` | string | Pagination token for the next page of trails, or null on the last page |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Event Selectors
 
 Read which management, data, and network activity events a CloudTrail trail is configured to log
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +274,13 @@ Read which management, data, and network activity events a CloudTrail trail is c
 |   ↳ `name` | string | Name of the advanced event selector |
 |   ↳ `fieldSelectors` | array | Field selectors, each with field plus its equals, startsWith, endsWith, notEquals, notStartsWith, and notEndsWith values |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Insight Selectors
 
 Read which CloudTrail Insights types are enabled on a trail or event data store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +303,13 @@ Read which CloudTrail Insights types are enabled on a trail or event data store
 |   ↳ `insightType` | string | ApiCallRateInsight or ApiErrorRateInsight |
 |   ↳ `eventCategories` | array | Event categories the Insights type applies to: Management, Data, or both |
 
+</ReferenceDetails>
+
 ### CloudTrail Start Query
 
 Start a CloudTrail Lake SQL query over an event data store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +331,13 @@ Start a CloudTrail Lake SQL query over an event data store
 | `queryId` | string | ID of the started query. Pass it to Describe Query to poll status, or to Get Query Results to page through rows |
 | `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner |
 
+</ReferenceDetails>
+
 ### CloudTrail Describe Query
 
 Check the status, run time, and scan statistics of a CloudTrail Lake query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -334,9 +369,13 @@ Check the status, run time, and scan statistics of a CloudTrail Lake query
 | `executionTimeInMillis` | number | Query run time in milliseconds |
 | `creationTime` | string | When the query was created \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Query Results
 
 Fetch a page of result rows from a finished CloudTrail Lake query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +401,13 @@ Fetch a page of result rows from a finished CloudTrail Lake query
 | `errorMessage` | string | Error message returned if the query failed |
 | `nextToken` | string | Pagination token for the next page of rows |
 
+</ReferenceDetails>
+
 ### CloudTrail Cancel Query
 
 Cancel a running CloudTrail Lake query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +427,13 @@ Cancel a running CloudTrail Lake query
 | `queryStatus` | string | Status AWS reported for the query after the cancellation request. Cancellation is asynchronous, so this is typically RUNNING or CANCELLED — poll Describe Lake Query for the terminal status |
 | `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner, when the query was cross-account |
 
+</ReferenceDetails>
+
 ### CloudTrail List Event Data Stores
 
 List the CloudTrail Lake event data stores in the account for the current Region
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +462,13 @@ List the CloudTrail Lake event data stores in the account for the current Region
 |   ↳ `updatedTimestamp` | string | When the store was last updated \(ISO 8601\) |
 | `nextToken` | string | Pagination token for the next page of event data stores |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Event Data Store
 
 Retrieve the configuration of a single CloudTrail Lake event data store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +503,13 @@ Retrieve the configuration of a single CloudTrail Lake event data store
 |   ↳ `name` | string | Partition key name |
 |   ↳ `type` | string | Partition key data type |
 
+</ReferenceDetails>
+
 ### CloudTrail List Tags
 
 List the tags on CloudTrail trails, event data stores, dashboards, or channels
+
+<ReferenceDetails>
 
 #### Input
 
@@ -474,5 +529,7 @@ List the tags on CloudTrail trails, event data stores, dashboards, or channels
 |   ↳ `resourceId` | string | ARN of the tagged resource |
 |   ↳ `tags` | array | Tags on the resource, as key and value |
 | `nextToken` | string | Reserved for future use by AWS |
+
+</ReferenceDetails>
 
 

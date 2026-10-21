@@ -4,6 +4,7 @@ description: Search and extract information
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 <BlockInfoCard 
   type="tavily"
@@ -24,6 +25,8 @@ Search the web, extract content from URLs, crawl sites, and map their URLs. Requ
 ### Tavily Search
 
 Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,6 +70,8 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 | `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
 | `response_time` | number | Time taken for the search request in seconds |
 
+</ReferenceDetails>
+
 ### Tavily Extract
 
 Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.
@@ -100,6 +105,8 @@ Extract raw content from multiple web pages simultaneously using Tavily's extrac
 
 Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -131,6 +138,8 @@ Systematically crawl and extract content from websites using Tavily's crawl API.
 |   ↳ `favicon` | string | Favicon URL for the result |
 | `response_time` | number | Time taken for the crawl request in seconds |
 | `request_id` | string | Unique identifier for support reference |
+
+</ReferenceDetails>
 
 ### Tavily Map
 
