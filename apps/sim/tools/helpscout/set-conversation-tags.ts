@@ -22,8 +22,10 @@ function parseTags(value: unknown): string[] {
       ? parseJsonParam(value, 'tags')
       : value
   const tags = toStringList(parsed)
-  if (tags.length === 0 && !Array.isArray(parsed))
+  const clearsEveryTag = Array.isArray(parsed) && parsed.length === 0
+  if (tags.length === 0 && !clearsEveryTag) {
     throw new Error('tags is empty; pass [] to remove every tag')
+  }
   return tags
 }
 
