@@ -304,8 +304,9 @@ export const TOOL_DEADLINE_SETTLE_MARGIN_MS = 90_000;
 export const TOOL_DEADLINE_CAPABILITY = "tool-deadline";
 
 /**
- * The `clientCapabilities` token a Sim sends when this turn may copy files between workspaces
- * (`files copy`) without negotiated file owners, so also where Projects are off.
+ * The `clientCapabilities` token a Sim sends when this turn may copy files within or between
+ * workspaces it can reach (`files copy`) without negotiated file owners, so also where Projects
+ * are off.
  */
 export const WORKSPACE_FILE_COPY_CAPABILITY = "workspace-file-copy";
 
