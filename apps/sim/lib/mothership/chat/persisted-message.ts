@@ -276,10 +276,10 @@ export function displayContentOf(content: PersistedMessage): PersistedMessage | 
 
 /** A call's arguments as history reads them, with an inherited display grouping restored. */
 function persistedParams(
-  params: Record<string, unknown>,
+  params: Record<string, unknown> | undefined,
   activity: ToolActivity | undefined
-): Record<string, unknown> {
-  return activity && params.activity === undefined ? { ...params, activity } : params
+): Record<string, unknown> | undefined {
+  return activity && params?.activity === undefined ? { ...params, activity } : params
 }
 
 function resolveToolState(block: ContentBlock): PersistedToolState {
@@ -391,17 +391,14 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
       const activityDescription = normalizeToolActivityDescription(
         block.toolCall.activityDescription
       )
+      const params = persistedParams(block.toolCall.params, block.toolCall.activity)
       const toolCall: PersistedToolCall = {
         id: block.toolCall.id,
         name: block.toolCall.name,
         state,
         ...(activityDescription ? { activityDescription } : {}),
         ...(isSubagentTool && isNonTerminal ? {} : { result: redactedResult }),
-        ...(isSubagentTool && isNonTerminal
-          ? {}
-          : block.toolCall.params
-            ? { params: persistedParams(block.toolCall.params, block.toolCall.activity) }
-            : {}),
+        ...(isSubagentTool && isNonTerminal ? {} : params ? { params } : {}),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
         ...(block.toolCall.displayTitle
           ? {
