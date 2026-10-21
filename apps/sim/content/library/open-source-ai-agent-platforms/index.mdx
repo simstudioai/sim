@@ -28,7 +28,7 @@ faq:
   - q: "What should I look for in an open-source AI agent platform before committing?"
     a: "Check the exact license, self-hosting support, observability, model flexibility including local models, maintenance activity, and which enterprise features such as SSO, RBAC, and audit logs require a paid tier. An open-source label does not guarantee that the features you need in production are in the free core."
   - q: "What happened to Flowise?"
-    a: "Flowise froze development on July 29, 2026, its GitHub repository was archived on August 13, 2026, and it reached end of life on August 31, 2026. Existing self-hosted installs keep running but receive no upstream fixes, so new projects should choose an actively maintained visual builder such as Sim or Dify."
+    a: "Flowise froze development on July 29, 2026, its GitHub repository was archived in August 2026, and it reached end of life on August 31, 2026. Existing self-hosted installs keep running but receive no upstream fixes, so new projects should choose an actively maintained visual builder such as Sim or Dify."
   - q: "Is AutoGen still maintained?"
     a: "No. As of October 2026, AutoGen's README says the project is no longer actively maintained by Microsoft and receives no bug or security fixes, and it points new users to Microsoft Agent Framework; the community-run AG2 project continues the AutoGen-derived API as AG2 Classic."
   - q: "Which open-source AI agent platforms support MCP?"
@@ -74,7 +74,7 @@ faq:
   - q: "Should I choose an AI agent platform or an agent framework?"
     a: "A platform such as Sim fits when a team wants a visual workspace for building and operating agents, while a code-first framework fits when developers want orchestration to live inside application code."
   - q: "What is the difference between Sim and Dify?"
-    a: "Sim is an open-source AI workspace centered on building, deploying, and managing agents, while Dify is commonly evaluated as an LLM application and RAG platform under a modified Apache 2.0 license. Dify is the better pick when document retrieval apps are the main job."
+    a: "Sim is an open-source AI workspace centered on building, deploying, and managing agents, while Dify is commonly evaluated as an LLM application and document-retrieval (RAG) platform under a modified Apache 2.0 license. Dify is the better pick when document retrieval apps are the main job."
   - q: "What is the difference between Sim and LangGraph?"
     a: "Sim provides a visual workspace for agent workflows, while LangGraph is a code-first orchestration framework for developers who want graph-based control in application code."
   - q: "Which open source framework is best for multi-agent systems?"
@@ -113,7 +113,7 @@ The best open source AI agents in 2026 are Sim, LangGraph, CrewAI, Microsoft Age
 
 "Open source" in this guide means the [Open Source Initiative definition](https://opensource.org/licenses): the license grants the right to use, modify, and redistribute the code, including commercially. Source-available licenses publish the code but restrict some of those rights. That distinction matters when a team needs redistribution rights, plans to offer a hosted service, or wants to modify the software without field-of-use limits.
 
-Flowise is not on the list. Its maintainers [announced a code freeze on July 29, 2026 and end of life on August 31, 2026](https://flowiseai.com/sunset), and the [GitHub repository](https://github.com/FlowiseAI/Flowise) was archived on August 13, 2026. Existing installs keep running but receive no upstream fixes; [Sim's Flowise comparison](https://www.sim.ai/comparisons/flowise) and the [Flowise alternatives guide](/library/best-flowise-alternatives-2026) cover migration options.
+Flowise is not on the list. Its maintainers [announced a code freeze on July 29, 2026 and end of life on August 31, 2026](https://flowiseai.com/sunset), and the [GitHub repository](https://github.com/FlowiseAI/Flowise) was archived in August 2026. Existing installs keep running but receive no upstream fixes; [Sim's Flowise comparison](https://www.sim.ai/comparisons/flowise) and the [Flowise alternatives guide](/library/best-flowise-alternatives-2026) cover migration options.
 
 ## What should you look for in an open source AI agent platform?
 
@@ -149,7 +149,7 @@ Sim is the open-source AI workspace where teams build, deploy, and manage AI age
 
 **Best for:** Teams that need to move from prototype to production without stitching together a separate framework, observability tool, and deployment layer, especially when collaboration and multi-model flexibility are requirements.
 
-**Pricing:** The Apache 2.0 core is free to self-host. On Sim Cloud, the Free plan includes 1,000 one-time credits (worth $5), Pro is $25 per month, and Max is $100 per month; Enterprise is custom.
+**Pricing:** The Apache 2.0 core is free to self-host. On Sim Cloud, the Free plan includes 1,000 one-time credits (worth $5), Pro is $25 per user per month, and Max is $100 per user per month; Enterprise is custom.
 
 **Strengths:**
 
@@ -212,7 +212,7 @@ AutoGen made conversational multi-agent systems popular, but Microsoft no longer
 
 ### 5. Dify (source available)
 
-[Dify](https://github.com/langgenius/dify) is a visual builder for LLM applications and agentic workflows, from internal Q&A bots to custom assistants, with a workflow editor, built-in retrieval (RAG) pipeline management, many model providers, and the ability to [publish apps as an MCP server](https://docs.dify.ai/en/use-dify/build/mcp). With about 159,000 GitHub stars, it has the second-largest repository in this guide after n8n.
+[Dify](https://github.com/langgenius/dify) is a visual builder for LLM applications and agentic workflows, from internal Q&A bots to custom assistants, with a workflow editor, built-in retrieval (RAG) pipeline management, many model providers, and the ability to [publish apps as an MCP server](https://docs.dify.ai/en/self-host/use-dify/publish/publish-mcp). With about 159,000 GitHub stars, it has the second-largest repository in this guide after n8n.
 
 **Best for:** Teams whose main use case is document retrieval, knowledge bases, and structured Q&A, and enterprises using Dify as an LLM gateway.
 

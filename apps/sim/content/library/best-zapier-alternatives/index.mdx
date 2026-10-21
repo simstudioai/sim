@@ -30,9 +30,9 @@ faq:
   - q: "Why does Zapier get expensive at scale?"
     a: "Zapier counts every successful action step as a task, so a five-action Zap that runs 1,000 times uses 5,000 tasks. As of October 2026, Professional rises from $19.99 a month for 750 tasks to $489 a month for 100,000 tasks on annual billing ($29.99 to $733.50 billed monthly)."
   - q: "How are Zapier Agents priced?"
-    a: "Zapier Agents use a separate activity quota rather than tasks. The free tier includes 400 activities a month, and Agents Pro includes 1,500 activities a month for $33.33 a month billed annually."
+    a: "Zapier Agents is priced separately for now, with an activity quota rather than tasks. The free tier includes 400 activities a month, and Agents Pro includes 1,500 activities a month for $50 billed monthly or $400 a year ($33.33 a month). Zapier is migrating Agents into AI by Zapier, which uses task-based pricing, and has not set a date to turn off Agents."
   - q: "Does Zapier support AI agents?"
-    a: "Yes. Zapier offers Zapier Agents, Chatbots, AI by Zapier steps, and Zapier MCP, all hosted on Zapier's cloud and billed through activities or tasks."
+    a: "Yes. Zapier offers Zapier Agents, Chatbots, AI by Zapier steps, and Zapier MCP, all hosted on Zapier's cloud and billed through activities or tasks. Zapier is migrating Agents into AI by Zapier, which uses the same task-based pricing as the rest of Zapier, and has not set a shutdown date for Agents."
   - q: "Is n8n open source?"
     a: "No. n8n uses the Sustainable Use License, which n8n describes as a fair-code license, and its own FAQ explains why it does not use an open-source license."
   - q: "Can n8n be used commercially?"
@@ -155,7 +155,7 @@ That five-action Zap running 1,000 times a month needs the 5,000-task tier, whic
 
 Zapier also says that "AI steps, code, and SDK now all follow the same task-based pricing model." Its task documentation lists the rates: Code by Zapier uses one task per run at standard runtime, AI by Zapier depends on the model tier, and each successful call through Zapier MCP counts as two tasks. MCP (Model Context Protocol) is a standard way for AI assistants and agents to connect to outside apps and tools. [Pay-per-task billing](https://help.zapier.com/hc/en-us/articles/15279018245901-How-pay-per-task-billing-works-in-Zapier) is on by default for accounts that joined after January 2024, so Zaps keep running past the plan limit, up to three times the plan's task allowance.
 
-Zapier Agents is priced separately. Agents use [an activity quota instead of tasks](https://zapier.com/pricing): the free tier runs up to 400 activities a month, and Agents Pro costs $400 billed annually ($33.33 a month) for 1,500 activities.
+Zapier Agents is priced separately for now. Agents use [an activity quota instead of tasks](https://zapier.com/pricing): the free tier runs up to 400 activities a month, and Agents Pro costs $50 billed monthly or $400 billed annually ($33.33 a month) for 1,500 activities. Zapier is [migrating Agents to AI by Zapier](https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier), which "uses the same task-based pricing as the rest of Zapier," and it has not set a date to turn off Agents.
 
 Pipedream is no longer ranked here. [Pipedream Workflows is in maintenance mode](https://pipedream.com/docs/workflows) and no longer accepts signups or subscriptions. Existing workflows keep running through March 31, 2027, and all Workflows data, including connected-account credentials, is deleted by April 30, 2027. Pipedream's export tool downloads the structure of your workflows as JSON, one project at a time, so steps, credentials, and triggers still need rebuilding elsewhere. Pipedream Connect continues. Teams leaving it can read [Sim vs Pipedream](https://www.sim.ai/comparisons/pipedream) or compare [Pipedream alternatives with visual builders](https://www.sim.ai/library/best-pipedream-alternatives-2026).
 
@@ -170,9 +170,9 @@ Pipedream is no longer ranked here. [Pipedream Workflows is in maintenance mode]
 | n8n | Technical teams that self-host | Self-hosted Community Edition | Starter, €20/month billed annually | Yes, Sustainable Use License |
 | Activepieces | Low-cost automation with an MIT core | 1,000 credits/month | Plus, $20/month | Yes, MIT core |
 | Microsoft Power Automate | Microsoft 365 organizations | 30-day trial | Premium, $15 per user/month paid yearly | No |
-| Workato | Governed enterprise integration | 50K one-time credits | Pro, $100/month; Enterprise custom | No |
+| Workato | Governed enterprise integration | 50K one-time credits | Pro from $75/month for 2,500 credits; Enterprise custom | No |
 | Gumloop | Hosted AI agents for nontechnical teams | 14-day trial | Pro, from $37/month | No |
-| Lindy | AI assistants for inbox and meetings | $50 in credits for 7 days | From $49.99 per user/month | No |
+| Lindy | AI assistants for inbox and meetings | $50 in credits for 7 days | From $29.99 per user/month | No |
 | Relevance AI | GTM agent teams | None, free plan retired | Pro, $19/month billed annually | No |
 | Tray.ai | IT-led integration and MCP governance | None listed | Contact sales | No |
 | IFTTT | Personal and smart-home Applets | 2 Applets, unlimited runs | Pro, $2.99/month billed annually | No |
@@ -203,7 +203,7 @@ Pipedream is no longer ranked here. [Pipedream Workflows is in maintenance mode]
 
 **Pricing:** [Make's pricing page](https://www.make.com/en/pricing) lists Free with 1,000 credits a month, and Core from $9, Pro from $16, and Teams from $29 a month with annual billing. Non-AI apps use [one credit per operation](https://help.make.com/credits), while credits for Make's own AI Provider are "based on tokens and operations."
 
-**Strengths:** Routers and filters are included from the free plan, and Make lists 3,500+ apps. Make AI Agents, currently in beta, are included on all plans and use Make's AI Provider, or your own model key on paid plans.
+**Strengths:** Routers and filters are included from the free plan, and Make lists 3,000+ apps. Make AI Agents, currently in beta, are included on all plans and use Make's AI Provider, or your own model key on paid plans.
 
 **Limitations:** Make is cloud-only. Its [on-premise agent](https://help.make.com/on-premise-agent), which reaches apps on your local network, "is available to Enterprise customers." The free plan has a 15-minute minimum interval between runs, and AI-heavy scenarios are harder to estimate. Sim is the closer fit when agents, not app syncing, are the main job, or when you need to self-host.
 
@@ -249,13 +249,13 @@ Pipedream is no longer ranked here. [Pipedream Workflows is in maintenance mode]
 
 **Best for:** Large organizations that run an IT-governed integration program across departments. See [Sim vs Workato](https://www.sim.ai/comparisons/workato).
 
-**Pricing:** Workato's two official pages differ. The main [pricing page](https://www.workato.com/pricing) lists no prices and asks you to schedule a demo. Its [self-serve signup page](https://www.workato.com/free) lists Free at $0 with 50K one-time credits, Pro at $100 a month with 3.5k credits a month and up to 3 users per workspace, and Enterprise at custom pricing. Its [billing docs](https://docs.workato.com/en/pricing) describe usage-based billing, with a separate model for customers who joined before February 2024.
+**Pricing:** Workato's main [pricing page](https://www.workato.com/pricing) lists no prices and asks you to schedule a demo. Its [self-service plan docs](https://docs.workato.com/en/pricing/self-service/self-service.html) list Free with 50K one-time credits and Pro from $75 a month for 2,500 credits, rising through higher credit tiers to $1,275 a month for 50,000 credits. The [self-serve signup page](https://www.workato.com/free) shows one of those tiers, $100 a month for 3.5k credits, with up to 3 users per workspace. Enterprise is custom pricing. Its [billing docs](https://docs.workato.com/en/pricing) describe usage-based billing, with a separate model for customers who joined before February 2024.
 
 **Strengths:** Enterprise adds unlimited users and workspaces, lifecycle and environment management, and multi-region deployment. An [on-prem agent](https://docs.workato.com/on-prem.html) creates a secure connection from your private network to Workato cloud.
 
 **Limitations:** Enterprise pricing is not public, and the on-prem agent connects to Workato cloud rather than hosting the platform. Sim fits teams that want to self-host their agent infrastructure and start without a sales cycle.
 
-**Sources:** [Workato pricing](https://www.workato.com/pricing), [Workato plans](https://www.workato.com/free), [Workato on-prem agent](https://docs.workato.com/on-prem.html).
+**Sources:** [Workato pricing](https://www.workato.com/pricing), [Workato plans](https://www.workato.com/free), [Workato self-service plans](https://docs.workato.com/en/pricing/self-service/self-service.html), [Workato on-prem agent](https://docs.workato.com/on-prem.html).
 
 ### 7. Gumloop
 
@@ -273,7 +273,7 @@ Pipedream is no longer ranked here. [Pipedream Workflows is in maintenance mode]
 
 **Best for:** Teams that want an AI assistant to handle inbox, meetings, calendar, and follow-up rather than build automations.
 
-**Pricing:** [Lindy's pricing page](https://www.lindy.ai/pricing) offers $50 in free credits with no card, and the "free credits last 7 days." After that, every active user is billed "from $49.99 a month for 5,000 credits each," with top-ups at $10 per 1,000 credits. Lindy is also testing a $29.99, 3,000-credit entry tier with some visitors. Enterprise is custom.
+**Pricing:** [Lindy's pricing page](https://www.lindy.ai/pricing) offers $50 in free credits with no card, and the "free credits last 7 days." After that, every active user is billed from $29.99 a month for 3,000 credits, though some visitors see $49.99 for 5,000 credits, with top-ups at $10 per 1,000 credits. Enterprise is custom.
 
 **Strengths:** The Team plan includes model choice for each task and computer use. Enterprise adds SSO and SCIM, audit logs, and HIPAA with a signed BAA.
 

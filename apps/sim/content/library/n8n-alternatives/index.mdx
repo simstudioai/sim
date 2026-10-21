@@ -98,7 +98,7 @@ faq:
   - q: "Is Dify better than n8n?"
     a: "Dify is better when the main requirement is an LLM application with retrieval, datasets, prompts, and agent behavior, while n8n is better for broader integration automation."
   - q: "Which n8n alternative has the most integrations?"
-    a: "Zapier lists 9,000+ apps and Make 3,500+, and Workato's site cites 14,000+ apps, while Sim's 270+ integrations focus on orchestrating AI agents with tools and APIs rather than maximizing connector count."
+    a: "Zapier lists 9,000+ apps and Make 3,000+, and Workato's site cites 14,000+ apps, while Sim's 270+ integrations focus on orchestrating AI agents with tools and APIs rather than maximizing connector count."
   - q: "Which n8n alternative is cheapest?"
     a: "None is universally cheapest because Sim, n8n, Zapier, Make, Dify, and the others bill against different units, and self-hosting shifts cost toward infrastructure and operations."
 ---
@@ -223,7 +223,7 @@ Make is a strong choice for teams that want managed visual automation with detai
 
 - **Visual execution inspection:** Routers, filters, error handlers, and intermediate values are visible in the scenario builder, which can be easier to follow than n8n's node-level execution data when debugging a branching workflow.
 - **Data transformation:** Built-in functions for parsing, mapping, and reformatting data between apps.
-- **3,500+ apps:** Make lists 3,500+ apps plus HTTP and webhook modules for custom connections.
+- **3,000+ apps:** Make lists 3,000+ apps plus HTTP and webhook modules for custom connections.
 
 **Limitations:** Make offers AI agents and AI modules, but complex agent workflows may need extra modules or services for memory and multi-agent coordination. It runs as a managed cloud service, so there is no self-hosted option for data-control requirements.
 
@@ -259,7 +259,7 @@ Zapier is a strong pick for non-technical teams that prioritize fast setup and a
 
 - **Large catalog:** Zapier lists [9,000+ apps](https://zapier.com/), useful for niche or legacy applications.
 - **Linear setup:** The trigger-action builder keeps simple automations simple.
-- **AI features:** Zapier Agents, Zapier MCP, and AI fields add model steps to existing Zaps.
+- **AI features:** Zapier Agents, Zapier MCP, and AI fields add model steps to existing Zaps. Zapier is [migrating Agents into AI by Zapier](https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier), which uses task-based pricing, and has not set a date to turn off Agents.
 
 **Limitations:** Task-based pricing grows with volume, and complex branching, loops, and data transformation can take more steps than in n8n or Make. It is cloud-only.
 
@@ -343,7 +343,7 @@ Lindy fits teams that want ready-made agents for defined email, meeting, and sal
 
 **Best for:** Less technical teams that want agents for email triage, meeting scheduling, and sales outreach with minimal setup.
 
-**Pricing:** [Lindy](https://www.lindy.ai/pricing) starts new users with $50 in free credits that last 7 days, then bills every active user from $49.99 a month for 5,000 credits each; Lindy is also testing a $29.99, 3,000-credit entry tier with some visitors, and its [billing docs](https://docs.lindy.ai/teammate/lindy-teammate-billing) describe seat-based Plus, Pro, and Max plans.
+**Pricing:** [Lindy](https://www.lindy.ai/pricing) starts new users with $50 in free credits that last 7 days, then bills every active user from $29.99 a month for 3,000 credits, though some visitors see $49.99 for 5,000 credits; its [billing docs](https://docs.lindy.ai/teammate/lindy-teammate-billing) describe seat-based Plus, Pro, and Max plans.
 
 **Strengths:**
 
@@ -372,7 +372,7 @@ The list is ordered for AI agent workflows, set by the publisher; it is not a ve
 | 9 | Botpress | Chat and voice agents | Proprietary; managed | $150/mo billed annually |
 | 10 | Workato | Governed enterprise integration | Proprietary; managed | $75/mo |
 | 11 | Gumloop | Hosted AI agents for non-developers | Proprietary; cloud only | $37/mo |
-| 12 | Lindy | Template-led business agents | Proprietary; cloud only | $49.99/user/mo |
+| 12 | Lindy | Template-led business agents | Proprietary; cloud only | $29.99 or $49.99/user/mo |
 
 ## How do n8n and Sim compare on licensing and pricing?
 

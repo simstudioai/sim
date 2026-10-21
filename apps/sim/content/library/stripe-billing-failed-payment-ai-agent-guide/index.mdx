@@ -155,7 +155,7 @@ Sim should orchestrate the operational response in a sequence that keeps event v
 
 ### How do you configure the Stripe Webhook trigger in Sim?
 
-Sim includes a [Stripe Webhook trigger](https://docs.sim.ai/triggers/stripe) that validates Stripe signatures before starting a deployed workflow.
+Sim includes a [Stripe Webhook trigger](https://docs.sim.ai/integrations/stripe) that validates Stripe signatures before starting a deployed workflow.
 
 1. Add **Stripe Webhook** as the workflow trigger and select `invoice.payment_failed` in **Event Types to Listen For**. Use a separate branch or workflow for `payment_intent.payment_failed` when handling PaymentIntents outside subscription invoicing.
 2. Copy the generated **Webhook URL**. In Stripe’s [webhook settings](https://docs.stripe.com/webhooks), create an event destination for the test account, choose **Snapshot** payloads, select the same event types, and choose **Webhook endpoint**.
