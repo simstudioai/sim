@@ -469,6 +469,12 @@ jobs:
           clear_cache() {
             find "$GITHUB_WORKSPACE/apps/sim/.next/dev" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
           }
+          # A sticky disk keeps nothing from a failed job, so a clear here sticks only when the job
+          # passes. The marker names the cache for desktop-live-cache-reset, which empties it after
+          # a failed job; written on each panic, it survives the restart truncating the log.
+          mark_cache_broken() {
+            jq -r .version "$GITHUB_WORKSPACE/node_modules/next/package.json" > "$report_dir/turbopack-cache-broken"
+          }
           # SIGINT first: `next dev` SIGKILLs its server 100ms after SIGTERM, which discards a cache
           # write in flight. stop-session.sh then removes anything still running.
           # SIGINT is best-effort; the cleanup always runs, since workers and the detached telemetry
@@ -488,12 +494,10 @@ jobs:
             stop_sim || status=1
             bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
             wait "$server_pid" "$realtime_pid" 2>/dev/null || true
-            # A sticky disk keeps nothing from a failed job, so this clear sticks only when the job
-            # passes; the marker hands a failed job's cache to desktop-live-cache-reset.
             if cache_broken; then
               echo "::warning::Turbopack reported a broken dev cache; clearing it for the next run."
+              mark_cache_broken
               clear_cache
-              jq -r .version "$GITHUB_WORKSPACE/node_modules/next/package.json" > "$report_dir/turbopack-cache-broken"
             fi
             exit "$status"
           }
@@ -514,6 +518,7 @@ jobs:
               if [ "$retried" = 0 ] && cache_broken; then
                 echo "::warning::Turbopack rejected the restored dev cache; restarting from an empty cache."
                 bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag"
+                mark_cache_broken
                 clear_cache
                 : > "$next_log"
                 retried=1
