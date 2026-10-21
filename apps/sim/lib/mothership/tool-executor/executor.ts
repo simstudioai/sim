@@ -11,10 +11,11 @@ import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { isOwnerScopedFile } from '@/lib/mothership/file-owners'
+import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
-import { getToolMetadata } from '@/tools/metadata'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
@@ -42,11 +43,9 @@ export function clearHandlers(): void {
 
 export async function executeTool(
   toolId: string,
-  args: Record<string, unknown>,
+  params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  /** `activity` is the chat's display label for the call; no tool takes it as an argument. */
-  const { activity: _activity, ...params } = args
   if (
     context.benchmark &&
     !(context.benchmark === 'distill'
@@ -241,7 +240,7 @@ async function executeGatedTool(
       hasHandler(toolId) &&
       (!isKnownTool(toolId) || isSimExecuted(toolId) || usesHeadlessClientFallback)
     if (!canUseRegisteredHandler) {
-      const appParams = buildAppToolParams(params, context)
+      const appParams = buildAppToolParams(withoutDisplayActivity(toolId, params), context)
       const options = {
         ...(context.resolvedSecretTraceRegistry
           ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
@@ -295,7 +294,8 @@ async function executeGatedTool(
     }
 
     try {
-      return await handler(params, context)
+      const { activity: _activity, ...executionParams } = params
+      return await handler(executionParams, context)
     } catch (error) {
       const message = toError(error).message
       logger.error('Tool execution failed', {
@@ -329,6 +329,23 @@ function recordAppToolSecretUsage(context: ToolExecutionContext): void {
     actorUserId: context.userId,
     trigger: 'copilot',
   })
+}
+
+/**
+ * The chat's grouping label rides on a call's arguments for presentation and persistence, so an
+ * integration or MCP tool would receive an `activity` it never declared and a strict schema
+ * refuses. It is dropped only when it reads as that label and the tool declares no `activity` of
+ * its own (Azure DevOps work items take an Activity field).
+ */
+function withoutDisplayActivity(
+  toolId: string,
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  if (!ToolActivity.safeParse(params.activity).success || getToolParams(toolId)?.activity) {
+    return params
+  }
+  const { activity: _activity, ...rest } = params
+  return rest
 }
 
 function buildAppToolParams(

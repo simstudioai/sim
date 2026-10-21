@@ -2252,6 +2252,58 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it("keeps an integration operation's own activity argument under the gateway's grouping", async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: {} })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-work-item',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'azure_devops_create_work_item',
+            description: 'Filing the task',
+            activity: { id: 'filing', title: 'Filing tasks', completedTitle: 'Filed tasks' },
+            arguments: { title: 'Ship it', activity: 'Development' },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-work-item',
+          toolName: 'azure_devops_create_work_item',
+          arguments: { title: 'Ship it', activity: 'Development' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sleep(0)
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'azure_devops_create_work_item',
+      { title: 'Ship it', activity: 'Development' },
+      expect.any(Object)
+    )
+  })
+
   it('clears pending continuation state when a run resumes', async () => {
     context.awaitingAsyncContinuation = {
       checkpointId: 'cp-1',

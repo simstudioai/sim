@@ -587,7 +587,9 @@ async function handleCallPhase(
         .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
         .map((tool) => readToolActivity(tool.params))
         .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
-  const displayArgs = activity ? { ...args, activity } : args
+  // A tool's own `activity` argument (any value that is not a display label) is never replaced.
+  const ownsActivity = args?.activity !== undefined && !readToolActivity(args)
+  const displayArgs = activity && !ownsActivity ? { ...args, activity } : args
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
