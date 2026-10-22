@@ -75,7 +75,7 @@ export const startInstancesTool: InternalToolConfig<
           },
           currentState: {
             type: 'string',
-            description: 'State after the request (e.g., pending, stopping, shutting-down)',
+            description: 'State after the request (e.g., pending, running)',
             nullable: true,
           },
           previousState: {
