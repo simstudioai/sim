@@ -313,7 +313,8 @@ export interface TraceSpan {
    * this span (`input`, `output`, `thinking`, `errorMessage`, or its tool-call and
    * provider-segment content), or reduced the span to structure only. Status, timing,
    * and usage remain. Without it a withheld field is
-   * indistinguishable from one the block never produced.
+   * indistinguishable from one the block never produced. A content field is omitted
+   * whole, so a key missing inside a field that is present is genuinely absent.
    */
   contentWithheld?: true
   model?: string

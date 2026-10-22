@@ -24,12 +24,33 @@ const TRACE_FETCH_CONCURRENCY = 5
 const VALUE_MAX_CHARS = 600
 const PATH_NOT_FOUND_NOTE = 'path not found on span'
 /**
- * The log projection withheld this span's content rather than return what it could not
- * prove safe to display, so an unresolved content path says nothing about the run.
+ * The log projection withheld the content field this path reads through rather than
+ * return what it could not prove safe to display, so the value says nothing about the run.
  */
 const CONTENT_WITHHELD_NOTE = 'span content withheld by the log projection; value unknown'
 const WHERE_WITHHELD_NOTE =
-  'span content withheld by the log projection; --where could not be checked, run kept'
+  'span content withheld by the log projection; --where could not be checked, run kept but not a confirmed match'
+
+/**
+ * Where the log projection can omit content on a span. It omits a content field whole
+ * (never a key inside one), so a path is withheld only when it runs through one of these
+ * fields and the field itself is absent on a span carrying `contentWithheld`; a present
+ * field missing a nested key is a genuine miss. `#` matches an array index.
+ */
+const WITHHELD_CONTENT_PATHS: ReadonlyArray<readonly string[]> = [
+  ['input'],
+  ['output'],
+  ['thinking'],
+  ['errorMessage'],
+  ['toolCalls', '#', 'input'],
+  ['toolCalls', '#', 'output'],
+  ['toolCalls', '#', 'error'],
+  ['modelToolCalls', '#', 'arguments'],
+  ['providerTiming', 'segments', '#', 'assistantContent'],
+  ['providerTiming', 'segments', '#', 'thinkingContent'],
+  ['providerTiming', 'segments', '#', 'errorMessage'],
+  ['providerTiming', 'segments', '#', 'toolCalls', '#', 'arguments'],
+]
 
 /**
  * Keys that live on the span itself. A path whose head is anything else is read
@@ -80,6 +101,8 @@ interface ResolvedSpanPath {
   /** The path that produced `value`: as given, or prefixed when the fallback applied. */
   path: string
   resolvedUnder?: 'output'
+  /** Unresolved because the projection withheld the content field the path reads through. */
+  withheld?: true
 }
 
 function collectSpansByName(
@@ -102,16 +125,47 @@ function resolveSpanPath(span: QueryTraceSpan, path: string): unknown {
   return current
 }
 
-/** The path as given first; under `output.` when the head is not a span-level key. */
+function isWithheldContentPrefix(segments: readonly string[]): boolean {
+  return WITHHELD_CONTENT_PATHS.some(
+    (pattern) =>
+      pattern.length === segments.length &&
+      pattern.every((part, index) =>
+        part === '#' ? /^\d+$/.test(segments[index] ?? '') : part === segments[index]
+      )
+  )
+}
+
+/** Whether an unresolved path stopped at a content field the projection omitted. */
+function isWithheldPath(span: QueryTraceSpan, path: string): boolean {
+  if (span.contentWithheld !== true) return false
+  const segments = path.split('.')
+  let current: unknown = span
+  for (let index = 0; index < segments.length; index++) {
+    if (current == null || typeof current !== 'object') return false
+    const next = (current as Record<string, unknown>)[segments[index] ?? '']
+    if (next === undefined) return isWithheldContentPrefix(segments.slice(0, index + 1))
+    current = next
+  }
+  return false
+}
+
+/**
+ * The path as given first; under `output.` when the head is not a span-level key. A
+ * direct path through a withheld content field (`thinking`) stays unknown rather than
+ * falling back to a same-named key under output.
+ */
 function resolveSpanPathWithFallback(span: QueryTraceSpan, path: string): ResolvedSpanPath {
   const direct = resolveSpanPath(span, path)
   if (direct !== undefined) return { value: direct, path }
+  if (isWithheldPath(span, path)) return { value: undefined, path, withheld: true }
   const head = path.split('.')[0] ?? ''
   if (SPAN_LEVEL_KEYS.has(head)) return { value: undefined, path }
   const underOutput = `output.${path}`
   const value = resolveSpanPath(span, underOutput)
-  if (value === undefined) return { value: undefined, path }
-  return { value, path: underOutput, resolvedUnder: 'output' }
+  if (value !== undefined) return { value, path: underOutput, resolvedUnder: 'output' }
+  return isWithheldPath(span, underOutput)
+    ? { value: undefined, path, withheld: true }
+    : { value: undefined, path }
 }
 
 function clipValue(value: unknown): unknown {
@@ -134,7 +188,10 @@ export const logsQueryCommand: AgentCliEngine = {
       return agentCliFail(
         'Usage: sim logs query <workflowId> --block <name> [--field <path>] [--where <path>=<value>] [--status <s>] [--trigger <t>] [--limit N]\n' +
           'Paths resolve inside the matched block span: output.content, input.action_id, status, duration. ' +
-          'A path that names no span-level key is read under output. (result.count means output.result.count).'
+          'A path that names no span-level key is read under output. (result.count means output.result.count).\n' +
+          'When the log projection withheld a content field (input, output, thinking, errorMessage, tool-call or provider-segment content), ' +
+          'a path through it reports "value unknown" and, under --where, the run is kept with whereUnchecked: true (counted in whereUnchecked, not a confirmed match). ' +
+          'A path missing inside a field that is present is "path not found" and fails --where.'
       )
     }
     const field = stringFlag(flags, 'field') ?? 'output'
@@ -167,6 +224,7 @@ export const logsQueryCommand: AgentCliEngine = {
     let filteredOut = 0
     let missingTrace = 0
     let contentWithheld = 0
+    let whereUnchecked = 0
     let fieldResolvedUnder: 'output' | undefined
     let whereResolvedUnder: 'output' | undefined
     const rows = await mapWithConcurrency(
@@ -212,7 +270,7 @@ export const logsQueryCommand: AgentCliEngine = {
           const matched = resolveSpanPathWithFallback(last, wherePath)
           if (matched.resolvedUnder) whereResolvedUnder = matched.resolvedUnder
           // Filtering on a withheld value would silently drop a run that may well match.
-          whereWithheld = matched.value === undefined && last.contentWithheld === true
+          whereWithheld = matched.withheld === true
           if (!whereWithheld && String(matched.value) !== whereValue) {
             filteredOut++
             return undefined
@@ -220,8 +278,9 @@ export const logsQueryCommand: AgentCliEngine = {
         }
         const resolved = resolveSpanPathWithFallback(last, field)
         if (resolved.resolvedUnder) fieldResolvedUnder = resolved.resolvedUnder
-        const fieldWithheld = resolved.value === undefined && last.contentWithheld === true
-        if (whereWithheld || fieldWithheld) contentWithheld++
+        const fieldWithheld = resolved.withheld === true
+        if (fieldWithheld) contentWithheld++
+        if (whereWithheld) whereUnchecked++
         const note = fieldWithheld
           ? CONTENT_WITHHELD_NOTE
           : resolved.value === undefined
@@ -229,7 +288,12 @@ export const logsQueryCommand: AgentCliEngine = {
             : whereWithheld
               ? WHERE_WITHHELD_NOTE
               : undefined
-        return { ...matchedRow, value: clipValue(resolved.value), ...(note ? { note } : {}) }
+        return {
+          ...matchedRow,
+          value: clipValue(resolved.value),
+          ...(note ? { note } : {}),
+          ...(whereWithheld ? { whereUnchecked: true } : {}),
+        }
       }
     )
 
@@ -247,6 +311,7 @@ export const logsQueryCommand: AgentCliEngine = {
                 where: whereResolvedUnder ? `output.${where}` : where,
                 ...(whereResolvedUnder ? { whereResolvedUnder } : {}),
                 filteredOut,
+                ...(whereUnchecked ? { whereUnchecked } : {}),
               }
             : {}),
           ...(missingTrace ? { missingTrace } : {}),
