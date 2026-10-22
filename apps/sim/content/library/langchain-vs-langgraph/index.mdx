@@ -15,7 +15,7 @@ faq:
   - q: "Is LangGraph part of LangChain?"
     a: "LangGraph is a separate framework in the LangChain ecosystem, not merely a LangChain class or optional configuration. Developers can install and use LangGraph without LangChain, while current LangChain agents use LangGraph as their underlying orchestration runtime."
   - q: "Does LangChain use LangGraph?"
-    a: "LangChain uses LangGraph to power its current agent runtime. In LangChain v1, the create_agent API builds a graph-based agent that receives durable execution, persistence, streaming, and human-in-the-loop capabilities from the underlying LangGraph runtime."
+    a: "LangChain uses LangGraph to power its current agent runtime. LangChain’s documentation says its agents are built on top of LangGraph, which provides durable execution, persistence, and human-in-the-loop support."
   - q: "Can you use LangGraph without LangChain?"
     a: "LangGraph can be used without LangChain. A LangGraph node can run ordinary Python code, call a model through another SDK, access an internal service, or perform deterministic application logic without using LangChain’s agent or integration abstractions."
   - q: "Is LangGraph better than LangChain for production agents?"
@@ -28,7 +28,7 @@ faq:
 
 ## TL;DR
 
-LangChain is the higher-level choice for building agents quickly, while LangGraph is the lower-level choice for orchestrating stateful workflows with explicit control over execution.
+LangChain is the higher-level choice for building agents quickly, while LangGraph is the lower-level choice for orchestrating stateful workflows with explicit control over execution. This guide is published by Sim, the open-source AI workspace for building, deploying, and managing AI agents.
 
 The two projects are complementary rather than mutually exclusive. As of October 2026, [LangChain’s official documentation](https://docs.langchain.com/oss/python/langchain/overview) says that LangChain agents are built on top of LangGraph, while [LangGraph’s documentation](https://docs.langchain.com/oss/python/langgraph/overview) says LangGraph can be used without LangChain.
 
@@ -48,7 +48,7 @@ This distinction is about abstraction level, not whether one project can support
 
 LangChain agents run on LangGraph, but LangGraph remains a separately installable framework that developers can use without LangChain.
 
-As of October 2026, the [LangChain v1 overview](https://docs.langchain.com/oss/python/langchain/overview) states that `create_agent` builds a graph-based agent runtime using LangGraph. This gives LangChain agents access to underlying capabilities such as durable execution, persistence, streaming, and human-in-the-loop patterns without requiring developers to define every graph node themselves.
+As of October 2026, the [LangChain v1 overview](https://docs.langchain.com/oss/python/langchain/overview) says that LangChain’s agents are built on top of LangGraph, which lets them use LangGraph’s durable execution, human-in-the-loop support, persistence, and more. Developers get these capabilities through `create_agent` without defining every graph node themselves.
 
 LangGraph sits below that agent abstraction. A team can use LangGraph directly to create an agent loop, a deterministic workflow, or a hybrid graph in which some nodes call models and other nodes execute ordinary application logic.
 
@@ -71,7 +71,7 @@ LangChain is optimized for faster agent development, while LangGraph is optimize
 | State management | Available through the [LangGraph runtime](https://docs.langchain.com/oss/python/langchain/overview) beneath LangChain agents | Defined directly in the [graph’s state schema and updates](https://docs.langchain.com/oss/python/langgraph/graph-api) |
 | Control over execution | Customizable through [tools, prompts, models, and middleware](https://docs.langchain.com/oss/python/langchain/agents) | Explicitly controlled through [nodes, edges, routing functions, and commands](https://docs.langchain.com/oss/python/langgraph/graph-api) |
 | Integrations | Higher-level [model and tool integrations](https://docs.langchain.com/oss/python/langchain/overview) are a core part of LangChain | Can call any Python function or service from a node; [LangChain components are optional](https://docs.langchain.com/oss/python/langgraph/overview) |
-| Can be used alone? | Yes; [LangGraph is an underlying dependency](https://docs.langchain.com/oss/python/langchain/overview) for the current agent runtime | Yes; [LangChain is not required](https://docs.langchain.com/oss/python/langgraph/overview) |
+| Can be used alone? | No; [LangGraph is a required dependency](https://docs.langchain.com/oss/python/langchain/overview) of its agent runtime | Yes; [LangChain is not required](https://docs.langchain.com/oss/python/langgraph/overview) |
 | Open-source license | [MIT License](https://github.com/langchain-ai/langchain/blob/master/LICENSE) | [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) |
 
 ### What are the key LangChain and LangGraph facts at a glance?
@@ -105,7 +105,7 @@ def get_weather(city: str) -> str:
 
 
 agent = create_agent(
-    model="openai:gpt-4.1-mini",
+    model="openai:gpt-5.5",
     tools=[get_weather],
     system_prompt="You are a concise weather assistant.",
 )
@@ -183,11 +183,11 @@ For many projects, developers do not need to choose only one package conceptuall
 
 ### When should you choose a visual builder instead?
 
-Sim is the open-source AI workspace for teams that want a visual builder and deployment without maintaining framework-level orchestration code.
+Sim, the open-source AI workspace for building, deploying, and managing AI agents, fits teams that want a visual builder, 270+ integrations, and deployment without maintaining framework-level orchestration code.
 
 That option fits a different operating model from LangChain or LangGraph: the primary users may include technical and non-technical collaborators, and the team may prefer visual workflow ownership over a Python-defined application graph.
 
-n8n is another incumbent for teams whose main requirement is node-based SaaS automation rather than a code-first agent framework; as of October 2026, n8n uses its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which n8n describes as a fair-code license.
+n8n is another incumbent for teams whose main requirement is node-based SaaS automation rather than a code-first agent framework; as of October 2026, n8n uses its [Sustainable Use License](https://docs.n8n.io/n8n-community-license), which n8n describes as a fair-code license.
 
 ### What other LangChain and LangGraph comparisons should you read?
 

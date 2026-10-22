@@ -27,28 +27,28 @@ faq:
   - q: "Does n8n charge per step?"
     a: "n8n Cloud primarily charges by workflow execution rather than charging for every standard node completed during that execution. Plan allowances, concurrency, retention, enterprise features, and infrastructure costs can still affect the total price."
   - q: "What counts as a Zapier task?"
-    a: "Zapier generally counts each successful action completed by a conventional Zap as a task, while triggers do not normally count. One trigger can consume multiple tasks when it causes several successful downstream actions."
+    a: "Zapier generally counts each successful action completed by a conventional Zap as a task, while trigger steps and built-in utility steps such as Filter, Paths, Formatter, Delay, and Looping do not count. One trigger can consume multiple tasks when it causes several successful downstream actions."
   - q: "What counts as a Make credit?"
     a: "Make generally consumes credits when modules perform operations, and a single scenario run can consume several credits as bundles pass through multiple modules. Some AI features use dynamic credit consumption, so AI usage should be modeled separately."
   - q: "Which is easier to learn, n8n, Zapier, or Make?"
     a: "Zapier is generally the easiest to learn for simple automations, Make has a moderate learning curve because of its visual data-processing concepts, and n8n has the steepest learning curve when workflows involve self-hosting, code, APIs, or advanced AI components."
   - q: "Which has the best AI agent support, n8n, Zapier, or Make?"
-    a: "n8n has the strongest technical AI workflow flexibility of the three, Zapier Agents offers a more guided agent experience connected to business applications, and Make AI Agents integrates agent behavior with visual scenarios. The best choice depends on whether the team values technical composition, ease of use, or visual orchestration."
+    a: "n8n has the strongest technical AI workflow flexibility of the three, Zapier Agents, which Zapier is moving to AI by Zapier, offers a more guided agent experience connected to business applications, and Make AI Agents integrates agent behavior with visual scenarios. The best choice depends on whether the team values technical composition, ease of use, or visual orchestration."
   - q: "What is the best open-source Zapier alternative?"
-    a: "Sim is a stronger candidate when open source specifically means an OSI-approved license because Sim’s core uses Apache 2.0, although its enterprise code has a separate production license. n8n is a popular self-hosted Zapier alternative, but its Sustainable Use License is source-available rather than OSI-approved. The guide Sim vs Zapier: Open-Source AI Agents vs Zaps, Compared explains the difference."
+    a: "Sim fits teams that need an OSI-approved license, because its core uses Apache 2.0, although its enterprise code has a separate production license. n8n is a popular self-hosted Zapier alternative, but its Sustainable Use License is source-available rather than OSI-approved. The guide Sim vs Zapier: Open-Source AI Agents vs Zaps, Compared explains the difference."
   - q: "What is the best n8n alternative?"
     a: "Zapier is a strong n8n alternative for simple no-code SaaS automation, Make is a strong alternative for visual multi-step scenarios, and Sim is a strong alternative when the main requirement is building and managing AI agents. The guide 12 Best n8n Alternatives and Competitors for AI Agents in 2026 compares additional options."
   - q: "Is Sim free?"
-    a: "Sim’s core is available under the Apache 2.0 license, but code in apps/sim/ee uses the separate Sim Enterprise License at https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE and requires an active Enterprise subscription for production use. Teams must also account for model, infrastructure, and other service costs."
+    a: "Sim’s Apache 2.0 core is free to self-host, and Sim Cloud has a Free plan at $0 with 1,000 one-time credits as of October 2026. Code in apps/sim/ee uses the separate Sim Enterprise License, which requires an Enterprise subscription for production use. Teams still pay for models and infrastructure."
   - q: "How does Sim compare with n8n?"
-    a: "Sim is the open-source AI workspace centered on building, deploying, and managing AI agents, while n8n is a source-available automation platform that combines application automation with AI nodes. The guide Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026) provides the direct comparison."
+    a: "Sim is the open-source AI workspace for building, deploying, and managing AI agents, while n8n is a source-available automation platform that combines application automation with AI nodes. The guide Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026) provides the direct comparison."
   - q: "How does Sim compare with Gumloop?"
     a: "Sim emphasizes an open-source AI workspace with self-hosting and multi-model agent workflows, while Gumloop provides a managed visual environment for AI-assisted automation. Buyers should compare deployment control, licensing, model options, governance, integrations, and the amount of infrastructure they want to manage."
 ---
 
 ## TL;DR
 
-n8n, Zapier, and Make are all capable automation platforms, but **Best overall: n8n** for technical teams that want self-hosting and execution-based billing. Zapier is the easiest choice for broad app-to-app automation, and Make is best for visually designing complex multi-step scenarios.
+n8n, Zapier, and Make are all capable automation platforms. n8n fits technical teams that want self-hosting and execution-based billing, Zapier is the easiest choice for broad app-to-app automation, and Make is best for visually designing complex multi-step scenarios. This guide is published by Sim, the open-source AI workspace for building, deploying, and managing AI agents.
 
 The right choice depends on how your team values deployment control, setup speed, workflow complexity, and billing predictability. This comparison uses vendor documentation and pricing information available as of October 2026.
 
@@ -69,9 +69,9 @@ n8n is better for technical control and self-hosting, Zapier is better for quick
 | Best fit | Technical teams that want deployment control and flexible workflow logic | Teams that prioritize fast setup and a broad no-code app ecosystem | Teams that want a visual interface for complex, branching scenarios |
 | Billing unit | [Workflow executions on n8n Cloud](https://n8n.io/pricing/) | [Successful action tasks for conventional Zaps](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier) | [Credits consumed by module operations and some AI features](https://help.make.com/credits) |
 | Hosting | [n8n Cloud or customer-managed self-hosting](https://docs.n8n.io/deploy/host-n8n) | Vendor-hosted | Vendor-hosted; [Make’s on-prem agent connects local systems](https://help.make.com/on-premise-agent) but does not self-host the Make platform |
-| License | [Sustainable Use License and Enterprise License](https://docs.n8n.io/privacy-and-security/sustainable-use-license); source-available, not OSI-approved open source | [Proprietary cloud service](https://zapier.com/legal/terms-of-service) | [Proprietary commercial service](https://www.make.com/en/terms-and-conditions) |
-| AI support | [AI Agent node and composable AI workflow nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent) | [Zapier Agents](https://zapier.com/agents) plus AI features across Zapier products | [Make AI Agents](https://www.make.com/en/ai-agents) and AI modules inside scenarios |
-| Integration experience | Flexible nodes, HTTP requests, code, and community nodes | [Large app directory with guided triggers and actions](https://zapier.com/apps) | [Visual modules with detailed mapping between steps](https://help.make.com/expand-your-scenario) |
+| License | [Sustainable Use License and Enterprise License](https://docs.n8n.io/n8n-community-license); source-available, not OSI-approved open source | [Proprietary cloud service](https://zapier.com/legal/terms-of-service) | [Proprietary commercial service](https://www.make.com/en/terms-and-conditions) |
+| AI support | [AI Agent node and composable AI workflow nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent) | [Zapier Agents](https://zapier.com/agents), now moving to AI by Zapier, plus AI features across Zapier products | [Make AI Agents](https://www.make.com/en/ai-agents) and AI modules inside scenarios |
+| Integration experience | Flexible nodes, HTTP requests, code, and community nodes | [Large app directory with guided triggers and actions](https://zapier.com/apps) | Visual modules with detailed mapping between steps, plus [routers, filters, and aggregators](https://help.make.com/expand-your-scenario) |
 | Learning curve | Steepest of the three for advanced use | Easiest for straightforward automations | Moderate; visual but increasingly technical as scenarios grow |
 
 These distinctions are more useful than declaring one universal winner. A five-step CRM notification workflow and a self-hosted AI workflow have different operational requirements.
@@ -84,11 +84,11 @@ n8n provides the most deployment control, Zapier provides the most guided no-cod
 
 n8n gives technical teams more control over hosting and workflow implementation than Zapier or Make.
 
-[n8n offers a managed cloud service and documents a self-hosting option](https://docs.n8n.io/deploy/host-n8n). Its editor supports standard application nodes, [code and HTTP requests](https://docs.n8n.io/build/code-in-n8n/using-the-code-node), [branching and sub-workflows](https://docs.n8n.io/build/flow-logic), and AI-oriented nodes. That flexibility makes n8n a good fit when developers or technical operators will maintain the automation.
+[n8n offers a managed cloud service and documents a self-hosting option](https://docs.n8n.io/deploy/host-n8n). Its editor supports standard application nodes, [code](https://docs.n8n.io/build/code-in-n8n/using-the-code-node), HTTP requests, [branching and sub-workflows](https://docs.n8n.io/build/flow-logic), and AI-oriented nodes. That flexibility makes n8n a good fit when developers or technical operators will maintain the automation.
 
 The tradeoff is operational responsibility. A self-hosted n8n deployment requires the customer to manage infrastructure, upgrades, security, scaling, backups, and availability. n8n Cloud removes that infrastructure work but does not provide the same deployment control.
 
-n8n is not OSI-approved open-source software. As of October 2026, n8n distributes its source under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), a source-available fair-code license that permits many internal and non-commercial uses but restricts offering n8n’s functionality commercially to third parties. Some n8n features are covered by a separate enterprise license.
+n8n is not OSI-approved open-source software. As of October 2026, n8n distributes its source under the [Sustainable Use License](https://docs.n8n.io/n8n-community-license), a source-available fair-code license that permits many internal and non-commercial uses but restricts offering n8n’s functionality commercially to third parties. Some n8n features are covered by a separate enterprise license.
 
 For AI workflows, n8n documents an [AI Agent node and related AI components](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent). Its node-level flexibility is useful for teams combining models, tools, APIs, vector stores, and deterministic automation in one workflow.
 
@@ -100,7 +100,7 @@ Zapier’s conventional automation model is built around Zaps composed of trigge
 
 [Zapier is a proprietary, cloud-based service](https://zapier.com/legal/terms-of-service). It does not provide a customer-managed version of the Zapier platform comparable to n8n self-hosting. This simplifies operations but gives customers less control over deployment architecture.
 
-Zapier also offers [Zapier Agents](https://zapier.com/agents), which can use connected applications to complete goal-oriented work. Buyers should evaluate Agents separately from conventional Zaps because product packaging, behavior, and usage accounting can differ.
+Zapier also offers [Zapier Agents](https://zapier.com/agents), which can use connected applications to complete goal-oriented work. As of October 2026, [Zapier is moving Agents to AI by Zapier](https://help.zapier.com/hc/en-us/articles/47402591569805). Buyers should evaluate Agents separately from conventional Zaps: Agents usage does not count as tasks and uses a separate activity quota.
 
 Zapier’s main advantage is accessibility. Its main limitation is that [task-based usage can grow when a workflow performs many successful actions](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier) for every incoming record.
 
@@ -108,7 +108,7 @@ Zapier’s main advantage is accessibility. Its main limitation is that [task-ba
 
 Make gives operations teams a more visual way to inspect routers, filters, transformations, iterators, and data mappings than either a simple linear Zap or a code-oriented workflow.
 
-Make calls its workflows scenarios. [The visual scenario editor exposes how bundles move between modules](https://help.make.com/expand-your-scenario), making it useful for automations that branch, aggregate data, transform payloads, or process multiple records.
+Make calls its workflows scenarios. The visual scenario editor shows how data moves between modules, and Make documents [routers, filters, and aggregators](https://help.make.com/expand-your-scenario) for automations that branch, aggregate data, transform payloads, or process multiple records.
 
 [Make is a proprietary commercial service](https://www.make.com/en/terms-and-conditions) and is primarily vendor-hosted. Make documents an [on-prem agent](https://help.make.com/on-premise-agent) for connecting enterprise scenarios to systems on a local network, but that agent is a connectivity component rather than a self-hosted edition of the Make platform.
 
@@ -126,7 +126,7 @@ Pricing pages and allowances change, so the billing unit matters more than a tem
 
 [n8n Cloud pricing is primarily based on complete workflow executions](https://n8n.io/pricing/) rather than charging separately for every standard step in an execution.
 
-A workflow that runs once and completes many nodes generally consumes one execution allowance, although concurrency, retention, features, and plan-specific limits still matter. This model can be attractive for long workflows with many deterministic steps. Self-hosting changes the cost calculation because the customer must account for infrastructure and operations in addition to any licensed enterprise features.
+A workflow that runs once and completes many nodes generally consumes one execution allowance, although concurrency, retention, features, and plan-specific limits still matter. This model can be attractive for long workflows with many deterministic steps. Self-hosting changes the cost calculation because the customer must account for infrastructure and operations. The paid self-hosted editions (Business and Enterprise) are also licensed by monthly workflow executions.
 
 Current cloud allowances and commercial terms are listed on the [n8n pricing page](https://n8n.io/pricing/).
 
@@ -134,7 +134,7 @@ Current cloud allowances and commercial terms are listed on the [n8n pricing pag
 
 Zapier pricing for conventional Zaps is primarily based on tasks, with [each successful action generally counting toward task usage](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier).
 
-A trigger does not normally count as a task, but each successful downstream action can. A single incoming record that causes several actions may therefore consume several tasks. Buyers should model task volume using actual records multiplied by the expected successful actions per record.
+Trigger steps do not count as tasks, and neither do built-in utility steps such as [Filter, Paths, Formatter, Delay, and Looping](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier), but each successful downstream action can. A single incoming record that causes several actions may therefore consume several tasks. Buyers should model task volume using actual records multiplied by the expected successful actions per record.
 
 Current task allowances and plan features are listed on the [Zapier pricing page](https://zapier.com/pricing), while Zapier explains task accounting in its [task usage documentation](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier).
 
@@ -150,7 +150,7 @@ Current allowances are listed on the [Make pricing page](https://www.make.com/en
 
 n8n is often the most predictable for long workflows, Zapier is easy to estimate for simple Zaps, and Make is predictable only after teams understand how many modules and bundles each scenario processes.
 
-For a fair estimate, model one real workflow on all three platforms. Multiply monthly trigger volume by expected n8n executions, successful Zapier actions, and Make module operations or AI credit usage. Add infrastructure and maintenance costs when comparing self-hosted n8n with managed services.
+For a fair estimate, model one real workflow on all three platforms. Multiply monthly trigger volume by expected n8n executions, successful Zapier actions, and Make module operations or AI credit usage. Add infrastructure and maintenance costs when comparing self-hosted n8n with managed services, and remember that paid self-hosted n8n editions are also priced by executions.
 
 ## When should you choose n8n, Zapier, Make, or an AI agent platform?
 
@@ -162,7 +162,7 @@ Choose n8n when self-hosting, source access, custom code, API flexibility, or ex
 
 n8n is the strongest fit of these three for engineering-led teams that want to manage deployment architecture or combine conventional automation with technical AI components. It is also a practical choice for workflows with many steps when per-action billing would be costly.
 
-Do not choose n8n solely because it is frequently described as open source. [n8n’s Sustainable Use License is source-available but not OSI-approved](https://docs.n8n.io/privacy-and-security/sustainable-use-license), and its commercial-use restrictions should be reviewed before deployment.
+Do not choose n8n solely because it is frequently described as open source. [n8n’s Sustainable Use License is source-available but not OSI-approved](https://docs.n8n.io/n8n-community-license), and its commercial-use restrictions should be reviewed before deployment.
 
 ### When should you choose Zapier?
 
@@ -178,7 +178,7 @@ Make is well suited to complex operational scenarios whose maintainers benefit f
 
 ### What should you choose when the goal is AI agents rather than app-to-app automation?
 
-Sim is the open-source AI workspace for teams whose primary goal is to build, deploy, and manage AI agents rather than conventional app-to-app automation.
+Sim, the open-source AI workspace for building, deploying, and managing AI agents, fits teams whose primary goal is AI agents rather than conventional app-to-app automation, with 270+ integrations.
 
 Sim’s core is Apache 2.0, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an Enterprise subscription for production use. The broader agent-platform category is compared in [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
