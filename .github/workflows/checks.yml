@@ -228,6 +228,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
       E2E_APP_SERVER: start
+      E2E_APP_PUBLIC_URL: ${{ matrix.group == 'scim' && 'http://scim-e2e.sim.ai:3017' || '' }}
+      INTERNAL_API_BASE_URL: ${{ matrix.group == 'scim' && 'http://127.0.0.1:3017' || '' }}
+      TRUSTED_ORIGINS: ${{ matrix.group == 'scim' && 'http://127.0.0.1:3017' || '' }}
       PROJECT_FILES_E2E_APP_SERVER: start
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
@@ -274,6 +277,10 @@ jobs:
           addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["."] }))')"
           cd "$addon_dir"
           bun run install
+
+      - name: Map the hosted SCIM fixture to loopback
+        if: matrix.group == 'scim'
+        run: printf '127.0.0.1 scim-e2e.sim.ai\n' | sudo tee -a /etc/hosts
 
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.

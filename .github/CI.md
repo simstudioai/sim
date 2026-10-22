@@ -30,6 +30,8 @@ Memory-heavy builds and browser jobs retain appropriately sized Blacksmith runne
 
 Every HTTP and browser group consumes the same production build in an isolated job/database. Electron also uses that build and skips its development-route warm-up. Local HTTP and Electron development runs retain their dev-server behavior. Build inputs exclude test-only files so a harness edit can reuse an unchanged production build.
 
+SCIM's production app uses a `sim.ai` fixture hostname mapped to loopback, since `NEXT_PUBLIC_FORCE_HOSTED` is ignored in production. Readiness, HTTP tests, and internal API requests still connect to loopback. The SCIM suite verifies that ending an Enterprise subscription rejects both owner administration and an existing bearer token, and that restoring it restores access.
+
 ## Coverage removed or consolidated
 
 - SEO is plain HTTP, independent of browser and viewport. Its complete suite runs once in the SEO job, instead of repeating in each of four mobile shards.
