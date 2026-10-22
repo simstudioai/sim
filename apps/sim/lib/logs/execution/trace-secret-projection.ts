@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import {
   isLargeArrayManifest,
   LARGE_ARRAY_MANIFEST_MARKER,
@@ -36,7 +37,6 @@ const MAX_LARGE_VALUES = 1_024
 const MAX_LARGE_VALUE_CHAIN_DEPTH = 32
 const MAX_LARGE_MANIFEST_CHUNKS = MAX_LARGE_VALUES
 const MAX_LARGE_MANIFEST_ITEMS = MAX_CONTENT_NODES
-const PROJECTION_SLICE_MS = 10
 const OMIT = Symbol('omit-trace-content')
 const LARGE_VALUE_REF_KEYS = new Set([
   LARGE_VALUE_REF_MARKER,
@@ -166,38 +166,6 @@ function createProjectionContext(
     storedLargeValueBytes: 0,
     storedLargeValueCount: 0,
   }
-}
-
-let projectionSliceEndsAt = 0
-let projectionTurnScheduled = false
-const projectionTurnQueue: Array<() => void> = []
-
-/**
- * Projection is CPU-bound and its awaits settle as microtasks, which never let the event loop
- * service I/O, so without a macrotask yield one large trace — or a page of them projected
- * concurrently — holds the whole process until it finishes.
- *
- * The slice is process-wide and handed to one waiting projection per event-loop turn: releasing
- * them together would let each finish its in-flight field before I/O runs again, so a turn would
- * grow with concurrency instead of staying at one slice plus one field.
- */
-async function yieldWhenSliceExpires(): Promise<void> {
-  if (performance.now() < projectionSliceEndsAt) return
-  await new Promise<void>((resolve) => {
-    projectionTurnQueue.push(resolve)
-    scheduleProjectionTurn()
-  })
-}
-
-function scheduleProjectionTurn(): void {
-  if (projectionTurnScheduled) return
-  projectionTurnScheduled = true
-  setImmediate(() => {
-    projectionTurnScheduled = false
-    projectionSliceEndsAt = performance.now() + PROJECTION_SLICE_MS
-    projectionTurnQueue.shift()?.()
-    if (projectionTurnQueue.length > 0) scheduleProjectionTurn()
-  })
 }
 
 function visitNode(state: TraversalState, depth: number): void {
