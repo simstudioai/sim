@@ -553,6 +553,33 @@ describe('projectTraceSpansForSecrets', () => {
     expect(intact).not.toHaveProperty('contentWithheld')
   })
 
+  it('marks a span whose tool-call content was omitted', async () => {
+    const [span] = await projectTraceSpansForSecrets(
+      [
+        createSpan({
+          output: { safe: 'keep' },
+          toolCalls: [
+            {
+              name: 'legacy',
+              duration: 1,
+              startTime: '2026-07-01T00:00:00.000Z',
+              endTime: '2026-07-01T00:00:00.001Z',
+              output: { secretval: 1, '{{TOKEN}}': 2 },
+            },
+          ],
+        }),
+      ],
+      {
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{TOKEN}}' }]),
+        store: STORE,
+      }
+    )
+
+    expect(span.output).toEqual({ safe: 'keep' })
+    expect(span.toolCalls?.[0]).not.toHaveProperty('output')
+    expect(span.contentWithheld).toBe(true)
+  })
+
   it('fails closed when a later log transform reintroduces an active literal', async () => {
     const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
 

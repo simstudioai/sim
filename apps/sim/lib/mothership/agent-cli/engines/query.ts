@@ -28,6 +28,8 @@ const PATH_NOT_FOUND_NOTE = 'path not found on span'
  * prove safe to display, so an unresolved content path says nothing about the run.
  */
 const CONTENT_WITHHELD_NOTE = 'span content withheld by the log projection; value unknown'
+const WHERE_WITHHELD_NOTE =
+  'span content withheld by the log projection; --where could not be checked, run kept'
 
 /**
  * Keys that live on the span itself. A path whose head is anything else is read
@@ -205,30 +207,29 @@ export const logsQueryCommand: AgentCliEngine = {
           hits: matches.length,
           blockStatus: last.status ?? 'success',
         }
+        let whereWithheld = false
         if (wherePath) {
           const matched = resolveSpanPathWithFallback(last, wherePath)
           if (matched.resolvedUnder) whereResolvedUnder = matched.resolvedUnder
           // Filtering on a withheld value would silently drop a run that may well match.
-          if (matched.value === undefined && last.contentWithheld) {
-            contentWithheld++
-            return { ...matchedRow, value: null, note: CONTENT_WITHHELD_NOTE }
-          }
-          if (String(matched.value) !== whereValue) {
+          whereWithheld = matched.value === undefined && last.contentWithheld === true
+          if (!whereWithheld && String(matched.value) !== whereValue) {
             filteredOut++
             return undefined
           }
         }
         const resolved = resolveSpanPathWithFallback(last, field)
         if (resolved.resolvedUnder) fieldResolvedUnder = resolved.resolvedUnder
-        if (resolved.value === undefined) {
-          if (last.contentWithheld) contentWithheld++
-          return {
-            ...matchedRow,
-            value: null,
-            note: last.contentWithheld ? CONTENT_WITHHELD_NOTE : PATH_NOT_FOUND_NOTE,
-          }
-        }
-        return { ...matchedRow, value: clipValue(resolved.value) }
+        const fieldWithheld = resolved.value === undefined && last.contentWithheld === true
+        if (whereWithheld || fieldWithheld) contentWithheld++
+        const note = fieldWithheld
+          ? CONTENT_WITHHELD_NOTE
+          : resolved.value === undefined
+            ? PATH_NOT_FOUND_NOTE
+            : whereWithheld
+              ? WHERE_WITHHELD_NOTE
+              : undefined
+        return { ...matchedRow, value: clipValue(resolved.value), ...(note ? { note } : {}) }
       }
     )
 

@@ -154,6 +154,13 @@ describe('logs query on a span whose content was withheld', () => {
     expect(report.rows[1].note).toMatch(/withheld/)
     expect(report.contentWithheld).toBe(1)
   })
+
+  it('still resolves a readable --field when --where hits withheld content', async () => {
+    const report = await logsQueryWithheld({ field: 'duration', where: 'result.count=6' })
+    expect(report.rows[1]).toMatchObject({ runId: 'run-2', value: 12 })
+    expect(report.rows[1].note).toMatch(/--where/)
+    expect(report.contentWithheld).toBe(1)
+  })
 })
 
 const DEPS_STATE = {

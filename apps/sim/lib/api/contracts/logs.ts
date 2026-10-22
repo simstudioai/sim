@@ -277,7 +277,7 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
         contentWithheld: z
           .literal(true)
           .describe(
-            "Present when the log projection withheld some or all of this span's content (input, output, thinking, error message) because it could not be proven safe to display. Status, timing, and usage remain. A field missing from a span carrying this marker may exist on the run but was not returned."
+            "Present when the log projection withheld some or all of this span's content (input, output, thinking, error message, tool-call or provider-segment content) because it could not be proven safe to display. Status, timing, and usage remain. A field missing from a span carrying this marker may exist on the run but was not returned."
           )
           .optional(),
         toolCalls: z.array(toolCallSchema).describe('Tool calls recorded by the span.').optional(),
