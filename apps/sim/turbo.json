@@ -131,7 +131,7 @@
       "cache": false
     },
     "ci:e2e-seo": {
-      "dependsOn": ["ci:shared"],
+      "dependsOn": ["ci:server", "ci:ui"],
       "inputs": ["app/(landing)/**", "content/**", "scripts/test-landing-seo-e2e.ts"],
       "cache": false
     },

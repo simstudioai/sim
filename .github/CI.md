@@ -9,7 +9,7 @@ A PR compares its merge base with the checked-out merge commit. Pushes and norma
 | Independent SDK | That workspace's tests and type-check; no app build, services, or browsers |
 | App unit test | App test shards and test type check |
 | Integration test | Both provision paths; no HTTP/browser job merely for the test edit |
-| Workspace UI | Database integration, mobile and live Electron, plus app tests/build |
+| Workspace UI | Database integration, mobile, SEO and live Electron, plus app tests/build |
 | Landing content | SEO, app tests/build; no database integration or Electron |
 | Shared runtime or transitive dependency | All dependent boundaries |
 | One E2E harness | Its acceptance group and the shared production build |
@@ -18,11 +18,15 @@ The server boundary deliberately includes all API routes and backend domains. Sh
 
 Integration also depends on workspace UI because the desktop executor integration suite runs the production workspace stream dispatcher against PostgreSQL and Redis. Its explicit harness inputs include the database and realtime Vitest configs and integration setup files, which runtime tasks exclude.
 
+SEO depends on workspace UI and server code: landing pages reuse workspace pricing and preview components, provider models/pricing, and the block registry. These directory boundaries are not isolated application dependency graphs.
+
 `affectedTasks` already uses task inputs. Do not enable `futureFlags.affectedUsingTaskInputs` just for this planner: that flag also changes pruning, which can pull CI-only cross-app task dependencies into production Docker contexts.
 
 Affected type-checks follow the package graph too; repository audits and lint always run. Workspace-only unit jobs use a free GitHub runner and do not start the app test shards.
 
-Lightweight HTTP suites and database integration run on free standard GitHub runners. Memory-heavy builds and browser jobs retain appropriately sized Blacksmith runners. Electron uses 4-vCPU Blacksmith: both shards passed within 14 seconds of the 8-vCPU control; the free GitHub rest shard was slower and its lease run stalled.
+Lightweight HTTP suites run on free standard GitHub runners. Database integration uses 2-vCPU Blacksmith: a same-source comparison of all 16 jobs had a slowest shard of 6m 04s versus 6m 55s on free GitHub, with identical coverage. The existing `CI_PROVIDER` switch retains that tested GitHub fallback; provider changes also select the matching cache setup. This is one paired sample, not a long-run percentile estimate.
+
+Memory-heavy builds and browser jobs retain appropriately sized Blacksmith runners. Electron uses 4-vCPU Blacksmith: both shards passed within 14 seconds of the 8-vCPU control; the free GitHub rest shard was slower and its lease run stalled.
 
 Every HTTP and browser group consumes the same production build in an isolated job/database. Electron also uses that build and skips its development-route warm-up. Local HTTP and Electron development runs retain their dev-server behavior. Build inputs exclude test-only files so a harness edit can reuse an unchanged production build.
 

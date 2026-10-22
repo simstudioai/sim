@@ -144,7 +144,7 @@ describe('CI task attribution through real Turborepo', () => {
       'apps/sim/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event.ts',
     ])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['mobile'])
+    expect(groups(plan)).toEqual(['mobile', 'seo'])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
       integration: true,
@@ -163,6 +163,15 @@ describe('CI task attribution through real Turborepo', () => {
       test_app: true,
       build: true,
     })
+  })
+  it.each([
+    'apps/sim/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data.ts',
+    'apps/sim/providers/models.ts',
+    'apps/sim/blocks/registry.ts',
+  ])('runs SEO when landing pages consume changed workspace or backend code: %s', (file) => {
+    const plan = classifyFiles([file])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toContain('seo')
   })
   it('preserves the implicit app test dependency on docs content', () => {
     const plan = classifyFiles(['apps/docs/content/docs/integrations/netsuite.mdx'])
