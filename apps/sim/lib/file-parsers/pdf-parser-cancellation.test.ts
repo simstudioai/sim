@@ -74,7 +74,8 @@ describe('PdfParser cancellation', () => {
   })
 
   it('cancels a stalled text reader at the extraction deadline and returns a partial result', async () => {
-    vi.useFakeTimers()
+    // Fakes only the deadline clock: the shared event-loop turnstile must keep real immediates.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     const reader = {
       cancel: vi.fn().mockResolvedValue(undefined),
       read: vi
@@ -94,8 +95,7 @@ describe('PdfParser cancellation', () => {
     mockOpenPdfDocument.mockResolvedValueOnce(pdf)
 
     const parsing = new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
-    await vi.advanceTimersByTimeAsync(0)
-    expect(reader.read).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(reader.read).toHaveBeenCalledTimes(2))
 
     await vi.advanceTimersByTimeAsync(60_000)
     const result = await parsing
@@ -173,6 +173,35 @@ describe('PdfParser cancellation', () => {
     await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
 
     expect(timerFiredBeforeLastPage).toBe(true)
+  })
+
+  it('shares one event-loop slice across concurrent parses instead of giving each its own', async () => {
+    const parseCount = 8
+    for (let i = 0; i < parseCount; i++) {
+      const { pdf } = pdfWithPageText(20, () => {
+        const busyUntil = performance.now() + 2
+        while (performance.now() < busyUntil) {}
+        return 'page text'
+      })
+      mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+    }
+    let longestTimerWait = 0
+    let probing = true
+    let lastTick = performance.now()
+    const probe = () => {
+      const now = performance.now()
+      longestTimerWait = Math.max(longestTimerWait, now - lastTick)
+      lastTick = now
+      if (probing) setTimeout(probe, 0)
+    }
+    setTimeout(probe, 0)
+
+    await Promise.all(
+      Array.from({ length: parseCount }, () => new PdfParser().parseBuffer(Buffer.from('%PDF-1.4')))
+    )
+    probing = false
+
+    expect(longestTimerWait).toBeLessThan(40)
   })
 
   it('lets timers run while one page streams a huge content stream', async () => {

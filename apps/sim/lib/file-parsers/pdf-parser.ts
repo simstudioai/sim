@@ -1,7 +1,7 @@
-import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
 import { PdfPageCollector } from '@/lib/file-parsers/pdf-layout'
@@ -51,16 +51,6 @@ const PDF_EXTRACTION_TIMEOUT_MS = 60_000
  */
 const MAX_LINE_DECORATION_BYTES = 5
 
-/**
- * pdf.js runs its "fake worker" on this thread and delivers every message as a
- * microtask, so a loop that only awaits pdf.js never yields to timers or I/O: a
- * large PDF, or one page with a huge content stream, would hold the event loop
- * for the whole extraction, freezing every other request on the process. Page
- * reads, text-stream reads, and each whole-document assembly pass yield a
- * macrotask once this much time has passed since the last yield.
- */
-const EVENT_LOOP_SLICE_MS = 10
-
 /** Pages are joined with a paragraph break. */
 const PAGE_SEPARATOR = '\n\n'
 
@@ -91,16 +81,6 @@ interface BoundedExtraction {
   pagesRead: number
   /** True when a budget stopped extraction before the document was exhausted. */
   truncated: boolean
-}
-
-/** Returns a check that yields a macrotask once {@link EVENT_LOOP_SLICE_MS} has passed since its last yield. */
-function createEventLoopSlicer(): () => Promise<void> {
-  let lastYieldAt = performance.now()
-  return async () => {
-    if (performance.now() - lastYieldAt < EVENT_LOOP_SLICE_MS) return
-    await yieldToEventLoop()
-    lastYieldAt = performance.now()
-  }
 }
 
 function waitForAbort<T>(
@@ -181,7 +161,6 @@ async function readPageWithinBudget(
   page: PDFPageProxy,
   budget: number,
   deadline: number,
-  yieldIfDue: () => Promise<void>,
   signal?: AbortSignal
 ): Promise<PageExtraction> {
   signal?.throwIfAborted()
@@ -207,7 +186,7 @@ async function readPageWithinBudget(
      * zero: text that ends exactly on the budget is complete, not truncated.
      */
     while (!dropped) {
-      await yieldIfDue()
+      await yieldWhenSliceExpires()
       const result = await waitForDeadline(
         reader.read(),
         deadline,
@@ -281,36 +260,30 @@ function estimateRetainedPageBytes(lines: readonly PdfLine[]): number {
 /**
  * Turns the collected pages into text: repeated furniture is dropped, lines are
  * joined into paragraphs, hyphenation is undone, and pages are separated by a
- * paragraph break. Yields to the event loop periodically and honours `signal`
- * between pages, since this runs after the streaming budgets have stopped.
+ * paragraph break. Every whole-document pass yields to the event loop between
+ * pages and `signal` is honoured between joined pages, since this runs after
+ * the streaming budgets have stopped.
  */
 async function assemblePages(
   pages: readonly PdfPageLines[],
   complete: boolean,
   signal: AbortSignal | undefined,
-  maxTextBytes: number,
-  yieldIfDue: () => Promise<void>
+  maxTextBytes: number
 ): Promise<string> {
   signal?.throwIfAborted()
-  const filteredPages = suppressFurniture(pages)
-  await yieldIfDue()
-  const allLines = filteredPages.flat()
-  const bodyHeight = dominantLineHeight(allLines)
-  await yieldIfDue()
-  const compounds = collectCompounds(allLines)
-  await yieldIfDue()
-  const words = collectWords(allLines)
-  await yieldIfDue()
+  const filteredPages = await suppressFurniture(pages)
+  const bodyHeight = await dominantLineHeight(filteredPages)
   const options = {
-    compounds,
-    words,
+    compounds: await collectCompounds(filteredPages),
+    words: await collectWords(filteredPages),
     bodyHeight,
-    headingMarkers: PDF_HEADING_MARKERS_ENABLED && headingMarkersViable(allLines, bodyHeight),
+    headingMarkers:
+      PDF_HEADING_MARKERS_ENABLED && (await headingMarkersViable(filteredPages, bodyHeight)),
   }
   const pageTexts: string[] = []
   let outputBytes = 0
   for (const lines of filteredPages) {
-    await yieldIfDue()
+    await yieldWhenSliceExpires()
     signal?.throwIfAborted()
     const joined = joinLines(lines, options)
     const text = complete ? normalizePdfWhitespace(sanitizeTextForUTF8(joined)).trim() : joined
@@ -341,6 +314,13 @@ function completeBudget(value: number | undefined, ceiling: number): number {
   return Math.min(value, ceiling)
 }
 
+/**
+ * pdf.js runs its "fake worker" on this thread and delivers every message as a
+ * microtask, so a loop that only awaits pdf.js never yields to timers or I/O: a
+ * large PDF, or one page with a huge content stream, would hold the event loop
+ * for the whole extraction, freezing every other request on the process. Page
+ * reads, text-stream reads, and assembly yield via `yieldWhenSliceExpires`.
+ */
 async function extractTextWithinBudget(
   pdf: PDFDocumentProxy,
   options: FileParseOptions,
@@ -367,9 +347,8 @@ async function extractTextWithinBudget(
     )
   }
 
-  const yieldIfDue = createEventLoopSlicer()
   for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber++) {
-    await yieldIfDue()
+    await yieldWhenSliceExpires()
     signal?.throwIfAborted()
     const pagePromise = pdf.getPage(pageNumber)
     const cleanupLatePage = () => {
@@ -393,7 +372,7 @@ async function extractTextWithinBudget(
     let extraction: PageExtraction
     const pageCharLimit = complete ? MAX_COMPLETE_PDF_PAGE_CHARS : remainingChars
     try {
-      extraction = await readPageWithinBudget(page, pageCharLimit, deadline, yieldIfDue, signal)
+      extraction = await readPageWithinBudget(page, pageCharLimit, deadline, signal)
     } finally {
       page.cleanup()
     }
@@ -434,7 +413,7 @@ async function extractTextWithinBudget(
     }
   }
 
-  let text = await assemblePages(pages, complete, signal, maxTextBytes, yieldIfDue)
+  let text = await assemblePages(pages, complete, signal, maxTextBytes)
 
   /** Paragraph breaks land after the budget is spent; trimming that overflow is a truncation too. */
   if (!complete && text.length > MAX_PDF_TEXT_CHARS) {
