@@ -5,7 +5,7 @@
 #
 # A skip passes only for a gated job whose `changes` flag is exactly `false`:
 #
-#   integration, e2e, e2e-build, e2e-mobile  full
+#   integration, e2e, e2e-build, e2e-production  full
 #   test, test-types                         test
 #   build                                    build
 #   desktop-live                             desktop_live
@@ -24,7 +24,7 @@ if ! jq -e 'type == "object"' <<< "$needs" > /dev/null 2>&1; then
 fi
 
 failed="$(jq -r '
-  {"integration": "full", "e2e": "full", "e2e-build": "full", "e2e-mobile": "full", "test": "test",
+  {"integration": "full", "e2e": "full", "e2e-build": "full", "e2e-production": "full", "test": "test",
    "test-types": "test", "build": "build", "desktop-live": "desktop_live"} as $gate
   | (.changes.outputs // {}) as $flags
   | to_entries[]

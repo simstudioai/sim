@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs one end-to-end suite group over real HTTP, each against its own app: `next dev`, except
-# mobile, which serves the production build the `e2e-build` job uploads with `next start` (the
-# job extracts it into apps/sim/.next first).
+# mobile and Project Files in CI, which reuse the production build from `e2e-build`.
+# The job extracts it into apps/sim/.next before running these suites.
 #
 # Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>   (run from apps/sim)
 #

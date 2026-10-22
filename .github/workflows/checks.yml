@@ -46,19 +46,19 @@ jobs:
     #
     # The two paths build different schemas (migrations add triggers, checks and NOT VALID
     # constraints that `db:push` does not), so each runs the whole suite. Vitest splits each
-    # suite's files across four shards by measured duration (DurationBalancedSequencer in vitest.shared.ts); a
+    # suite's files across eight shards by measured duration (DurationBalancedSequencer in vitest.shared.ts); a
     # shard runs its files one at a time against its own database. Files run serially, so a shard
-    # barely uses more than one core: 4 vCPU is enough.
-    name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/4)
+    # barely uses more than one core: two cores leave room for Postgres and Redis.
+    name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/8)
     needs: changes
     if: needs.changes.outputs.full == 'true'
-    runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         provision: [push, migrate]
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     services:
       redis:
         image: redis:8.2-alpine
@@ -137,14 +137,14 @@ jobs:
 
       - name: Run packages/db integration tests
         working-directory: packages/db
-        run: bun run test --mode integration --shard=${{ matrix.shard }}/4
+        run: bun run test --mode integration --shard=${{ matrix.shard }}/8
 
       - name: Run apps/sim integration tests
         working-directory: apps/sim
         # A non-UTC process zone keeps timestamp-without-time-zone handling honest.
         env:
           TZ: America/Los_Angeles
-        run: bun run test --mode integration --shard=${{ matrix.shard }}/4
+        run: bun run test --mode integration --shard=${{ matrix.shard }}/8
 
       - name: Run apps/realtime integration tests
         if: matrix.shard == 1
@@ -179,7 +179,7 @@ jobs:
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
   # SCIM's hosted suites use 8 vCPU; the other self-hosted suites fit on 4. The mobile browser
-  # suite runs in e2e-mobile below.
+  # suite runs in e2e-production below.
   e2e:
     name: e2e (${{ matrix.group }})
     needs: changes
@@ -196,8 +196,6 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
           - group: stop-after
             runner: blacksmith-4vcpu-ubuntu-2404
-          - group: project-files
-            runner: blacksmith-8vcpu-ubuntu-2404
           - group: desktop-inbox
             runner: blacksmith-4vcpu-ubuntu-2404
     services:
@@ -243,17 +241,6 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
-      # JOBS=4 caps node-gyp parallelism as docker/app.Dockerfile does (laverdet/isolated-vm#428).
-      - name: Build native isolate addon for Project file rendering
-        if: matrix.group == 'project-files'
-        working-directory: apps/sim
-        env:
-          JOBS: 4
-        run: |
-          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["."] }))')"
-          cd "$addon_dir"
-          bun run install
-
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.
       - name: Run end-to-end suites
@@ -269,15 +256,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The mobile browser suite against the production build e2e-build uploads, served by
-  # `next start` (http-e2e.sh), one browser per job: Chromium and WebKit no longer run back to
-  # back, and no route waits on a dev compile. Gated like `e2e`, on a build that already ran.
+  # Browser and Project Files suites reuse the production build, avoiding dev-route compiles.
+  # Each job has its own database and runtime flags; the build reads public env at startup.
   #
   # 8 vCPU: `next start`, Postgres, the realtime server and one Playwright browser would fit a 4
   # vCPU runner's 16 GB, but the suite is timing-sensitive, and CPU contention between the browser
   # and the server is what turns a slow tap into a flake.
-  e2e-mobile:
-    name: e2e (mobile, ${{ matrix.browser }})
+  e2e-production:
+    name: e2e (${{ matrix.name }})
     needs: [changes, e2e-build]
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -285,7 +271,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, webkit]
+        include:
+          - group: mobile
+            name: mobile, chromium
+            browser: chromium
+            artifact: mobile-chromium
+          - group: mobile
+            name: mobile, webkit
+            browser: webkit
+            artifact: mobile-webkit
+          - group: project-files
+            name: project-files
+            browser: ''
+            artifact: project-files
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -297,6 +295,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: ${{ matrix.group == 'project-files' && 'redis:8.2-alpine' || '' }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -315,6 +322,7 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
 
       - name: Provision the database through migrations
+        if: matrix.group != 'project-files'
         working-directory: packages/db
         run: bun run db:migrate
 
@@ -334,17 +342,29 @@ jobs:
             apps/sim/.next/prerender-manifest.json > /dev/null ||
             { echo "::error::The build prerendered posts (a hosted build) or has no prerender manifest."; exit 1; }
 
+      # JOBS=4 caps node-gyp parallelism as docker/app.Dockerfile does (laverdet/isolated-vm#428).
+      - name: Build native isolate addon for Project file rendering
+        if: matrix.group == 'project-files'
+        working-directory: apps/sim
+        env:
+          JOBS: 4
+        run: |
+          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["."] }))')"
+          cd "$addon_dir"
+          bun run install
+
       - name: Run end-to-end suites
         working-directory: apps/sim
         env:
           MOBILE_E2E_BROWSER: ${{ matrix.browser }}
-        run: bash ../../.github/scripts/http-e2e.sh mobile
+          PROJECT_FILES_E2E_APP_SERVER: start
+        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
 
       - name: Upload end-to-end reports and server logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: http-e2e-mobile-${{ matrix.browser }}
+          name: http-e2e-${{ matrix.artifact }}
           path: ${{ runner.temp }}/e2e/
           if-no-files-found: ignore
           retention-days: 7
@@ -612,7 +632,7 @@ jobs:
   # kept off the test shards so neither waits on the other.
   lint:
     name: lint
-    runs-on: *runner-4vcpu
+    runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     steps:
@@ -931,7 +951,7 @@ jobs:
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=@sim/app
 
-  # The production build e2e-mobile serves with `next start`, built in the public-env mode
+  # The production build e2e-production serves with `next start`, built in the public-env mode
   # production images use: NEXT_PUBLIC_APP_URL is docker/app.Dockerfile's localhost default, so
   # every route is dynamic and NEXT_PUBLIC_* are read at start. (Images run the standalone
   # DOCKER_BUILD server; this is the plain `next build` output.) The `build` job above keeps the
@@ -974,16 +994,16 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          # This build is on the e2e-mobile critical path; its ~30 s TypeScript pass repeats what
+          # This build is on the e2e-production critical path; its ~30 s TypeScript pass repeats what
           # lint's type-check and the `build` job's own `next build` (generated route types too)
           # already enforce.
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
         run: bunx turbo run build --filter=@sim/app
 
-      # Everything `next start` reads; node_modules and the source tree come from e2e-mobile's own
+      # Everything `next start` reads; node_modules and the source tree come from e2e-production's own
       # checkout and setup, at the same workspace path and lockfile. Source maps are over half the
       # build and only serve stack traces and devtools, which the suite never reads.
-      - name: Package the build for e2e-mobile
+      - name: Package the build for e2e-production
         run: >-
           tar -I 'zstd -T0' -cf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
           --exclude .next/cache --exclude .next/trace --exclude '*.map' .next
@@ -991,7 +1011,7 @@ jobs:
       # Already zstd-compressed, so stored without zip compression. `overwrite` lets a re-run of
       # this job replace the earlier attempt's build; three days covers re-running a failed shard
       # after a weekend.
-      - name: Upload the build for e2e-mobile
+      - name: Upload the build for e2e-production
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: next-build
@@ -1011,7 +1031,7 @@ jobs:
   ci:
     name: ci
     needs:
-      [changes, integration, e2e, e2e-mobile, desktop-live, lint, test-types, test, build, e2e-build]
+      [changes, integration, e2e, e2e-production, desktop-live, lint, test-types, test, build, e2e-build]
     if: ${{ always() }}
     runs-on: *runner-2vcpu
     timeout-minutes: 5

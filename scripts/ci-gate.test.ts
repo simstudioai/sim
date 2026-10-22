@@ -10,7 +10,7 @@ type Job =
   | 'integration'
   | 'e2e'
   | 'e2e-build'
-  | 'e2e-mobile'
+  | 'e2e-production'
   | 'desktop-live'
   | 'lint'
   | 'test'
@@ -22,7 +22,7 @@ const GATED: Job[] = [
   'integration',
   'e2e',
   'e2e-build',
-  'e2e-mobile',
+  'e2e-production',
   'desktop-live',
   'test',
   'test-types',
@@ -101,7 +101,7 @@ describe('CI gate', () => {
       results: skipGated,
       reported: [
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
       ],
@@ -132,7 +132,7 @@ describe('CI gate', () => {
         'build: skipped',
         'desktop-live: skipped',
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test-types: skipped',
@@ -147,7 +147,7 @@ describe('CI gate', () => {
         'build: skipped',
         'desktop-live: skipped',
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test-types: skipped',
@@ -163,7 +163,7 @@ describe('CI gate', () => {
         'changes: failure',
         'desktop-live: skipped',
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test-types: skipped',
@@ -179,8 +179,8 @@ describe('CI gate', () => {
     {
       name: 'a mobile skip after a failed e2e build, though its flag is true',
       outputs: { ...ALL_FALSE, full: 'true', build: 'true' },
-      results: { 'e2e-build': 'failure', 'e2e-mobile': 'skipped' },
-      reported: ['e2e-build: failure', 'e2e-mobile: skipped'],
+      results: { 'e2e-build': 'failure', 'e2e-production': 'skipped' },
+      reported: ['e2e-build: failure', 'e2e-production: skipped'],
     },
     {
       name: 'a failed job whose flag is false',
