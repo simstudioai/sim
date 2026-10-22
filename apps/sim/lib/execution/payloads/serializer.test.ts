@@ -40,6 +40,17 @@ const TEST_EXECUTION_CONTEXT = {
   userId: 'user-1',
 }
 
+/** Wraps `leaf` in `depth` levels built by `level`, innermost first. */
+function nest(
+  depth: number,
+  level: (child: unknown, index: number) => unknown,
+  leaf: unknown = 'leaf'
+): unknown {
+  let value = leaf
+  for (let index = 0; index < depth; index++) value = level(value, index)
+  return value
+}
+
 describe('compactExecutionPayload', () => {
   beforeEach(() => {
     clearLargeValueCacheForTests()
@@ -337,11 +348,6 @@ describe('compactExecutionPayload', () => {
   })
 
   it('compacts trees nested deeper than one synchronous stack can walk', async () => {
-    const nest = (depth: number, level: (child: unknown, index: number) => unknown) => {
-      let value: unknown = 'leaf'
-      for (let index = 0; index < depth; index++) value = level(value, index)
-      return value
-    }
     // Both overflow an unbroken synchronous walk even on Vitest's larger worker stack.
     const plain = nest(10_000, (child) => ({ child }))
     // A Date has a toJSON, so every level serializes its subtree from where the walk stands.
@@ -352,6 +358,22 @@ describe('compactExecutionPayload', () => {
     expect(JSON.stringify(await compactExecutionPayload(datePerLevel))).toBe(
       JSON.stringify(datePerLevelCompacted)
     )
+  })
+
+  it('compacts an object shared across a resumed walk where the walk first reaches it', async () => {
+    const shared = { text: 'x'.repeat(8192) }
+    const depth = 300
+    const deep = nest(depth, (child) => ({ child }), { shared })
+
+    const compacted = await compactExecutionPayload(
+      { deep, later: shared },
+      { thresholdBytes: 4096, preserveRoot: true, ...TEST_EXECUTION_CONTEXT }
+    )
+
+    let tail = compacted.deep as Record<string, unknown>
+    for (let index = 0; index < depth; index++) tail = tail.child as Record<string, unknown>
+    expect(isLargeValueRef((tail.shared as { text: unknown }).text)).toBe(true)
+    expect(compacted.later).toBe(shared)
   })
 
   it('rejects durable compaction when storage context is incomplete', async () => {
