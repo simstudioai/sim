@@ -1,4 +1,8 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  principalWorkspaceId,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { truncate } from '@sim/utils/string'
@@ -22,7 +26,7 @@ const chatDelegationPolicy = {
   isWithinScope: (
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: { workspaceId: string }
-  ) => principal.workspaceId === context.workspaceId,
+  ) => principalWorkspaceId(principal) === context.workspaceId,
 } as const
 
 export class RestoreChatNotFoundError extends OrchestrationError {
@@ -106,7 +110,7 @@ export const restoreMothershipChat: OperationUseCase<
       (input.assertedOrganizationId && input.assertedOrganizationId !== chat.organizationId) ||
       (principal.kind === 'organization_delegated' &&
         principal.organizationId !== chat.organizationId) ||
-      (principal.kind === 'delegated' && principal.workspaceId !== chat.workspaceId)
+      (principal.kind === 'delegated' && principalWorkspaceId(principal) !== chat.workspaceId)
     )
       throw new RestoreChatNotFoundError()
     if (chat.organizationId) {

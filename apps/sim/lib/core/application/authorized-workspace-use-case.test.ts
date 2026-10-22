@@ -1,8 +1,9 @@
 import type {
-  DelegatedPrincipal,
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -317,15 +318,15 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
 
   it('resolves domain-specific delegation options against canonical context', async () => {
     const scopeCheck = vi.fn(
-      (principal: DelegatedPrincipal, context: TestContext) =>
-        principal.resourceScope?.fileId === context.canonicalResourceId
+      (principal: WorkspaceDelegatedPrincipal, context: TestContext) =>
+        workspaceDelegationRestrictions(principal)?.fileId === context.canonicalResourceId
     )
     const useCase = defineAuthorizedWorkspaceUseCase({
       operation: delegatedOperation,
-      resolveContext: async (_args: { principal: DelegatedPrincipal; input: TestInput }) =>
+      resolveContext: async (_args: { principal: WorkspaceDelegatedPrincipal; input: TestInput }) =>
         canonicalContext,
       authorizationOptions: ({ principal }) => {
-        expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal).toMatchTypeOf<WorkspaceDelegatedPrincipal>()
         expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
         return {
           delegation: {
@@ -335,12 +336,12 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
         }
       },
       async execute({ principal }) {
-        expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal).toMatchTypeOf<WorkspaceDelegatedPrincipal>()
         expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
         return { ok: true as const }
       },
     })
-    const principal: DelegatedPrincipal = {
+    const principal: WorkspaceDelegatedPrincipal = {
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -367,7 +368,8 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
 
   it('rejects a disallowed delegated service before canonical loading', async () => {
     const resolveContext = vi.fn(
-      async (_args: { principal: DelegatedPrincipal; input: TestInput }) => canonicalContext
+      async (_args: { principal: WorkspaceDelegatedPrincipal; input: TestInput }) =>
+        canonicalContext
     )
     const useCase = defineAuthorizedWorkspaceUseCase({
       operation: delegatedOperation,
@@ -386,11 +388,15 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           delegationId: 'delegation-1',
           audience: 'test:files',
           issuedAt: new Date(Date.now() - 1_000),
           expiresAt: new Date(Date.now() + 60_000),
+          invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          } as const,
         },
         input: { resourceId: 'resource-1' },
       })

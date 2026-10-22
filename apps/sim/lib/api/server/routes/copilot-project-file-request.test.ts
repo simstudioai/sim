@@ -48,17 +48,25 @@ describe('private v2 Project file authority', () => {
     )
     if (!principal) throw new Error('The admitted Project file request lost its principal')
     expect(principal).toMatchObject({
-      kind: 'resource_delegated',
+      kind: 'delegated',
       subjectUserId: 'actor',
-      invocation: { kind: 'chat', chatId: 'private-chat' },
-      scope: { kind: 'entity', entityType: 'project', entityId: 'project', fileId: 'file' },
+      invocation: { kind: 'chat', chatId: 'private-chat' } as const,
+      grant: {
+        kind: 'entity',
+        fileId: 'file',
+        owner: { entityType: 'project', entityId: 'project' },
+      } as const,
     })
     expect(principal).not.toHaveProperty('workspaceId')
     expect(
       requireResourceDelegation(principal, {
         audience: 'sim:project-files',
         services: ['copilot'],
-        scope: { kind: 'entity', entityType: 'project', entityId: 'project', fileId: 'file' },
+        scope: {
+          kind: 'entity',
+          fileId: 'file',
+          owner: { entityType: 'project', entityId: 'project' },
+        },
         maxTtlMs: 60_000,
       })
     ).toBe('actor')
@@ -102,7 +110,7 @@ describe('private v2 Project file authority', () => {
     expect(
       copilotRequestPrincipal(collection, projectFileOperations.list, listProjectFiles)
     ).toMatchObject({
-      scope: { kind: 'entity', entityType: 'project', entityId: 'project' },
+      grant: { kind: 'entity', owner: { entityType: 'project', entityId: 'project' } },
     })
     expect(
       copilotRequestPrincipal(

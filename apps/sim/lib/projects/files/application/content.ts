@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  hasResourceOperationGrant,
+  type Principal,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import type { PreparedCollabDocState } from '@/lib/collab-doc/state'
 import { isCopilotPrincipal, requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
@@ -106,7 +110,7 @@ function replacementProvenance(
 ): WorkspaceFileSecretProvenance {
   return (
     provenance ??
-    (principal.kind === 'resource_delegated'
+    (hasResourceOperationGrant(principal)
       ? { status: 'unknown' }
       : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE)
   )

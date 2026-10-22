@@ -4,6 +4,7 @@ import {
   resolvePrincipalSubject,
   type WorkflowExecutionAuthority,
   type WorkflowExecutionPrincipal,
+  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import type {
   WorkspaceAuthorizationContext,
@@ -38,7 +39,7 @@ export const workspaceAccountsSettingsDelegationPolicy = {
   isWithinScope: (principal: Extract<Principal, { kind: 'delegated' }>) =>
     typeof principal.subjectUserId === 'string' &&
     principal.subjectUserId.trim().length > 0 &&
-    Object.keys(principal.resourceScope ?? {}).every(
+    Object.keys(workspaceDelegationRestrictions(principal) ?? {}).every(
       (key) => key === 'chatId' || key === 'executionId'
     ),
 } satisfies WorkspaceDelegationPolicy<WorkspaceAuthorizationContext>
@@ -214,5 +215,5 @@ export async function requireCredentialGroupCredentialAccess(
 export const credentialGroupDelegationPolicy = {
   audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
   isWithinScope: (principal: Extract<Principal, { kind: 'delegated' }>) =>
-    principal.resourceScope === undefined,
+    workspaceDelegationRestrictions(principal) === undefined,
 } satisfies WorkspaceDelegationPolicy<CredentialGroupApplicationContext>

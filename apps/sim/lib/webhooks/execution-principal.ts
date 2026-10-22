@@ -3,6 +3,7 @@ import type {
   WebhookSystemPrincipal,
   WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 
 export function normalizeWebhookPrincipalProvider(provider: string): string {
   if (!provider.trim()) throw new Error('Webhook execution provider must not be empty')
@@ -48,7 +49,7 @@ export function assertWebhookExecutionPrincipal(
     principal.serviceId !== 'webhook' ||
     principal.webhookId !== expected.webhookId ||
     principal.workflowId !== expected.workflowId ||
-    principal.workspaceId !== expected.workspaceId ||
+    principalWorkspaceId(principal) !== expected.workspaceId ||
     principal.provider !== normalizeWebhookPrincipalProvider(expected.provider)
   ) {
     throw new Error('Webhook job principal does not match its canonical execution scope')

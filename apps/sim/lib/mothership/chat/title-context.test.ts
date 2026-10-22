@@ -45,8 +45,10 @@ describe('buildChatTitleContext', () => {
     expect(getWorkspace).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user',
-        workspaceId: 'workspace',
         audience: 'sim:workspaces',
+        grant: expect.objectContaining({
+          owner: { entityType: 'workspace', entityId: 'workspace' },
+        }),
       }),
       input: { workspaceId: 'workspace' },
     })

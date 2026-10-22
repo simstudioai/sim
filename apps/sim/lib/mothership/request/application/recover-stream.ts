@@ -1,9 +1,11 @@
 import {
-  type DelegatedPrincipal,
   type OrganizationDelegatedPrincipal,
   type Principal,
+  principalWorkspaceId,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
+  type WorkspaceDelegatedPrincipal,
+  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -129,7 +131,7 @@ export const takeOverStreamRun = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: { streamId: string }
   }) => resolveStreamRunContext({ principal, input }),
   authorizationOptions: {
@@ -137,8 +139,8 @@ export const takeOverStreamRun = defineAuthorizedChatUseCase({
       audience: RUN_TAKEOVER_AUDIENCE,
       isWithinScope: (principal, context) =>
         principal.serviceId === 'copilot' &&
-        principal.workspaceId === context.workspaceId &&
-        principal.resourceScope?.chatId === context.chatId,
+        principalWorkspaceId(principal) === context.workspaceId &&
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
     },
   },
   execute: ({ context, request }) => recoverStreamRun(context, request?.signal),

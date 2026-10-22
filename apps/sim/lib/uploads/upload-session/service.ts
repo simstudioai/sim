@@ -1,8 +1,11 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
+  hasResourceOperationGrant,
   isUserCredentialPrincipal,
   type Principal,
+  principalWorkspaceId,
   requirePrincipalSubjectUserId,
+  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
 import { organization, uploadSession, user } from '@sim/db/schema'
@@ -369,7 +372,7 @@ export async function createUploadSession(
     metadata[PROJECT_FILE_UPLOAD_PROVENANCE_KEY] = bindProjectFileUploadProvenance(
       params.projectId,
       params.secretProvenance ??
-        (params.principal.kind === 'resource_delegated'
+        (hasResourceOperationGrant(params.principal)
           ? { status: 'unknown' }
           : { status: 'exact', entries: [] })
     )
@@ -627,11 +630,6 @@ export function createUploadSessionAuthBinding(
   options: { executorDelegationAudience?: string; copilotDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
-    case 'resource_delegated':
-      throw new UploadSessionError(
-        'forbidden',
-        'Resource delegation cannot create workspace uploads'
-      )
     case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
@@ -658,7 +656,7 @@ export function createUploadSessionAuthBinding(
         principal: { kind: principal.kind, userId: principal.userId, clientId: principal.clientId },
       }
     case 'workspace_api_key':
-      if (principal.workspaceId !== workspaceId) {
+      if (principalWorkspaceId(principal) !== workspaceId) {
         throw new UploadSessionError('forbidden', 'Workspace API key cannot access this workspace')
       }
       return {
@@ -667,12 +665,18 @@ export function createUploadSessionAuthBinding(
         principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
       }
     case 'delegated': {
+      if (hasResourceOperationGrant(principal))
+        throw new UploadSessionError(
+          'forbidden',
+          'Resource delegation cannot create workspace uploads'
+        )
       if (principal.serviceId === 'copilot') {
+        const chatId = workspaceDelegationRestrictions(principal)?.chatId
         if (
-          principal.workspaceId !== workspaceId ||
+          principalWorkspaceId(principal) !== workspaceId ||
           principal.audience !==
             (options.copilotDelegationAudience ?? WORKSPACE_FILES_DELEGATION_AUDIENCE) ||
-          !principal.resourceScope?.chatId ||
+          !chatId ||
           principal.expiresAt <= new Date()
         ) {
           throw new UploadSessionError(
@@ -688,7 +692,7 @@ export function createUploadSessionAuthBinding(
             serviceId: 'copilot',
             subjectUserId: requirePrincipalSubjectUserId(principal),
             audience: principal.audience,
-            chatId: principal.resourceScope.chatId,
+            chatId,
           },
         }
       }
@@ -696,7 +700,7 @@ export function createUploadSessionAuthBinding(
         options.executorDelegationAudience === undefined ||
         !isExecutorWorkflowExecutionPrincipal(principal) ||
         principal.audience !== options.executorDelegationAudience ||
-        principal.workspaceId !== workspaceId
+        principalWorkspaceId(principal) !== workspaceId
       ) {
         throw new UploadSessionError('forbidden', 'Delegated principal cannot create this upload')
       }
@@ -774,19 +778,19 @@ export function assertUploadSessionAuthBinding(
             bound.clientId === principal.clientId
           : bound.kind === 'workspace_api_key'
             ? principal.kind === 'workspace_api_key' &&
-              bound.workspaceId === principal.workspaceId &&
+              bound.workspaceId === principalWorkspaceId(principal) &&
               bound.keyId === principal.keyId
             : bound.serviceId === 'copilot'
               ? principal.kind === 'delegated' &&
                 principal.serviceId === 'copilot' &&
-                principal.workspaceId === session.workspaceId &&
+                principalWorkspaceId(principal) === session.workspaceId &&
                 principal.subjectUserId === bound.subjectUserId &&
                 principal.audience === bound.audience &&
                 principal.audience === copilotUploadAudience(session.purpose) &&
-                principal.resourceScope?.chatId === bound.chatId &&
+                workspaceDelegationRestrictions(principal)?.chatId === bound.chatId &&
                 principal.expiresAt > new Date()
               : isExecutorWorkflowExecutionPrincipal(principal) &&
-                principal.workspaceId === session.workspaceId &&
+                principalWorkspaceId(principal) === session.workspaceId &&
                 principal.subjectUserId === bound.subjectUserId &&
                 principal.audience === bound.audience &&
                 principal.delegationContext.workflowId === bound.workflowId &&
@@ -804,7 +808,7 @@ export function assertUploadSessionAuthBinding(
 function assertLegacyUploadSessionOwner(session: UploadSessionRecord, principal: Principal): void {
   const matches =
     principal.kind === 'workspace_api_key'
-      ? principal.workspaceId === session.workspaceId
+      ? principalWorkspaceId(principal) === session.workspaceId
       : (principal.kind === 'session' || isUserCredentialPrincipal(principal)) &&
         principal.userId === session.userId
   if (!matches) throw uploadNotFound()

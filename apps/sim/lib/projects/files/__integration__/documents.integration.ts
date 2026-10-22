@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceOperationPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   member,
@@ -137,21 +137,20 @@ async function fixture(permissionType: 'read' | 'write' = 'write') {
     },
   })
   const target = { projectId: ids.projectId, fileId: created.file.id }
-  const principal: ResourceDelegatedPrincipal = {
-    kind: 'resource_delegated',
+  const principal: ResourceOperationPrincipal = {
+    kind: 'delegated',
     serviceId: 'realtime',
     subjectUserId: editorId,
     audience: 'sim:project-files',
     delegationId: generateId(),
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
-    scope: {
+    grant: {
       kind: 'entity',
-      entityType: 'project',
-      entityId: ids.projectId,
       fileId: created.file.id,
-    },
-    invocation: { kind: 'realtime', connectionId: `socket-${generateId()}` },
+      owner: { entityType: 'project', entityId: ids.projectId },
+    } as const,
+    invocation: { kind: 'realtime', connectionId: `socket-${generateId()}` } as const,
   }
   return { ...ids, owner, target, principal }
 }
@@ -375,13 +374,12 @@ describe('Project collaborative documents against current policy and durable sto
         },
       })
       const target = { projectId: f.projectId, fileId: created.file.id }
-      const principal: ResourceDelegatedPrincipal = {
+      const principal: ResourceOperationPrincipal = {
         ...f.principal,
-        scope: {
+        grant: {
           kind: 'entity',
-          entityType: 'project',
-          entityId: f.projectId,
           fileId: created.file.id,
+          owner: { entityType: 'project', entityId: f.projectId },
         },
       }
       await expect(

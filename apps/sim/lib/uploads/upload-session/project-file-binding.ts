@@ -1,4 +1,8 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  hasResourceOperationGrant,
+  type Principal,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { isRecordLike } from '@sim/utils/object'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -13,16 +17,17 @@ function credential(principal: Principal, projectId: string) {
       return { kind: principal.kind, userId: principal.userId, keyId: principal.keyId }
     case 'oauth_access_token':
       return { kind: principal.kind, userId: principal.userId, clientId: principal.clientId }
-    case 'resource_delegated': {
+    case 'delegated': {
+      if (!hasResourceOperationGrant(principal)) break
       requireResourceDelegation(principal, {
         audience: 'sim:project-files',
         services: ['copilot'],
-        scope: { kind: 'entity', entityType: 'project', entityId: projectId },
+        scope: { kind: 'entity', owner: { entityType: 'project', entityId: projectId } },
         maxTtlMs: PROJECT_FILE_DELEGATION_TTL_MS,
       })
       if (principal.serviceId !== 'copilot') break
       return {
-        kind: principal.kind,
+        kind: 'resource_delegated' as const,
         serviceId: principal.serviceId,
         subjectUserId: principal.subjectUserId,
         audience: principal.audience,

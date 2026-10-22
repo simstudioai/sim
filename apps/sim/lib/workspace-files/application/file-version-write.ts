@@ -10,7 +10,6 @@ function versionSourceForPrincipal(principal: Principal): WorkspaceFileVersionSo
     case 'oauth_access_token':
     case 'workspace_api_key':
       return 'api'
-    case 'resource_delegated':
     case 'delegated':
       if (principal.serviceId === 'copilot') return 'copilot'
       if (principal.serviceId === 'executor') return 'workflow'

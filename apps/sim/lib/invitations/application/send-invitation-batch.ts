@@ -1,6 +1,7 @@
 import {
   isUserCredentialPrincipal,
   type Principal,
+  principalWorkspaceId,
   requirePrincipalSubjectUserId,
   toPrincipalActor,
 } from '@sim/auth/principal'
@@ -326,7 +327,7 @@ export const sendWorkspaceInvitationBatch = defineAuthorizedWorkspaceUseCase({
       throw new WorkspaceInvitationError({ message: 'Invalid invitation batch size.', status: 400 })
     if (
       principal.kind === 'delegated' &&
-      input.workspaceIds.some((id) => id !== principal.workspaceId)
+      input.workspaceIds.some((id) => id !== principalWorkspaceId(principal))
     )
       throw new OrchestrationError(
         'forbidden',

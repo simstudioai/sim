@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   authorizeWorkspaceOperation,
   type WorkspaceAuthorizationContext,
@@ -27,13 +28,13 @@ export const tableDelegationPolicy: WorkspaceDelegationPolicy<TableAuthorization
   ) {
     if (
       isCopilotWorkspaceInvocation(principal) &&
-      principal.workspaceId === context.workspaceId &&
-      principal.resourceScope?.tableId === undefined
+      principalWorkspaceId(principal) === context.workspaceId &&
+      workspaceDelegationRestrictions(principal)?.tableId === undefined
     )
       return true
     return context.tableId === undefined
-      ? principal.resourceScope?.tableId === undefined
-      : principal.resourceScope?.tableId === context.tableId
+      ? workspaceDelegationRestrictions(principal)?.tableId === undefined
+      : workspaceDelegationRestrictions(principal)?.tableId === context.tableId
   },
 }
 

@@ -1,8 +1,8 @@
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceOperationPrincipal } from '@sim/auth/principal'
 import { NextRequest } from 'next/server'
 import { fileCopyInputSchema } from '@/lib/api/contracts/file-copy-input'
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
-import { markCopilotResourceRequest } from '@/lib/api/server/routes/copilot-request'
+import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { V2_PARSE_DEFAULTS, v2InvalidBodyResponse } from '@/lib/api/server/routes/v2-json-route'
 import { isV2ContractRoute } from '@/lib/api/server/routes/v2-route-pattern'
 import { parseRequest } from '@/lib/api/server/validation'
@@ -25,7 +25,7 @@ function markCopilotFileCopyRequest(
   request: Request,
   context: CopilotExecutionContext,
   target: CopyFileItemsInput
-): ResourceDelegatedPrincipal {
+): ResourceOperationPrincipal {
   const principal = createCopilotResourceApplicationPrincipal(
     requireTrustedCopilotResourceExecutionContext(context),
     {
@@ -35,7 +35,7 @@ function markCopilotFileCopyRequest(
       scope: { kind: 'file_copy', ...target },
     }
   )
-  markCopilotResourceRequest(request, (operation, audience) =>
+  markCopilotRequest(request, (operation, audience) =>
     operation === fileCopyOperation && audience === fileCopyOperation.delegationAudience
       ? principal
       : undefined

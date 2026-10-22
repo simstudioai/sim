@@ -1,4 +1,5 @@
 import {
+  isWorkspaceDelegation,
   type Principal,
   requirePrincipalSubjectUserId,
   type WorkflowExecutionPrincipal,
@@ -157,6 +158,6 @@ function requireTestPrincipal(principal: Principal): WorkflowExecutionPrincipal 
   ) {
     return principal
   }
-  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') return principal
+  if (isWorkspaceDelegation(principal) && principal.serviceId === 'copilot') return principal
   throw new Error(`A ${principal.kind} principal cannot run workflow tests`)
 }

@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { defineWorkspaceOperation, requireAdmittedContent } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -44,7 +45,8 @@ export const readChatAttachment = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: {
       audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-      isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
+      isWithinScope: (principal, context) =>
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
     },
   },
   async execute({ principal, context, input }) {

@@ -1,11 +1,8 @@
-import type { ResourceEntityType } from '@sim/auth/principal'
+import type { EntityOwner } from '@sim/auth/principal'
 import type { WorkspaceFileRow } from '@sim/db/schema'
 
 /** Persisted ownership is independent of creator attribution and caller authority. */
-export interface FileOwner {
-  entityType: ResourceEntityType
-  entityId: string
-}
+export type FileOwner = EntityOwner
 
 /** An asserted file target; application authorization verifies its persisted owner. */
 export interface OwnedFileTarget {
@@ -14,10 +11,7 @@ export interface OwnedFileTarget {
 }
 
 /** Owners whose durable files support the shared Files editor and folder lifecycle. */
-export interface EditableFileOwner {
-  entityType: 'workspace' | 'project'
-  entityId: string
-}
+export type EditableFileOwner = EntityOwner<'workspace' | 'project'>
 
 type PersistedFileOwnership = Pick<
   WorkspaceFileRow,

@@ -94,11 +94,15 @@ const copilot = {
   kind: 'delegated' as const,
   serviceId: 'copilot' as const,
   subjectUserId: 'user-1',
-  workspaceId: context.workspaceId,
   delegationId: 'tool-call-1',
   audience: 'sim:workflows',
   issuedAt: new Date('2026-01-01'),
   expiresAt: new Date('2099-01-01'),
+  invocation: { kind: 'workspace', workspaceId: context.workspaceId } as const,
+  grant: {
+    kind: 'entity',
+    owner: { entityType: 'workspace', entityId: context.workspaceId },
+  } as const,
 }
 const customBlock: CustomBlockWithInputs = {
   id: 'custom-1',

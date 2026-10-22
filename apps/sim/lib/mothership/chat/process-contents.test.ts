@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import {
@@ -237,7 +238,13 @@ describe('processContextsServer - workflow references', () => {
       discovery: expect.stringContaining('including descendants'),
     })
     expect(listWorkflowFolders).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ subjectUserId: 'reader', workspaceId: 'workspace-1' }),
+      principal: expect.objectContaining({
+        subjectUserId: 'reader',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        }),
+      }),
       input: expect.objectContaining({ workspaceId: 'workspace-1' }),
     })
   })
@@ -265,8 +272,11 @@ describe('processContextsServer - knowledge contexts', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'dual-workspace-user',
-        workspaceId: 'workspace-a',
         audience: 'sim:knowledge',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-a' },
+        }),
       }),
       input: {
         knowledgeBaseId: 'knowledge-1',
@@ -368,8 +378,11 @@ describe('processContextsServer - skill contexts', () => {
     expect(getSkillUseCase).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user-1',
-        workspaceId: 'ws-1',
         audience: 'sim:skills',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+        }),
       }),
       input: { skillId: 'sk-1', workspaceId: 'ws-1' },
     })
@@ -401,7 +414,13 @@ describe('processContextsServer - skill contexts', () => {
     )
 
     expect(getSkillUseCase).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ subjectUserId: 'user-1', workspaceId: 'ws-1' }),
+      principal: expect.objectContaining({
+        subjectUserId: 'user-1',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+        }),
+      }),
       input: { skillId, workspaceId: 'ws-1' },
     })
     expect(result).toEqual([
@@ -645,7 +664,10 @@ describe('processContextsServer - MCP contexts', () => {
         serviceId: 'copilot',
         audience: 'sim:mcp-servers',
         subjectUserId: 'user-1',
-        workspaceId: 'ws-1',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+        }),
       }),
       input: { workspaceId: 'ws-1', serverId: 'mcp-server-1', requireComplete: true },
     })
@@ -969,7 +991,13 @@ describe('file folder context', () => {
       discovery: expect.stringContaining('including descendants'),
     })
     expect(resolveFileFolderPath).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ subjectUserId: 'reader', workspaceId: 'ws-1' }),
+      principal: expect.objectContaining({
+        subjectUserId: 'reader',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+        }),
+      }),
       input: { workspaceId: 'ws-1', folderId: 'folder-1' },
     })
   })
@@ -1183,8 +1211,11 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(queryTableRows).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user-1',
-        workspaceId: 'ws-1',
-        resourceScope: { tableId: 'tbl-1' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+          restrictions: { tableId: 'tbl-1' },
+        }),
       }),
       input: {
         tableId: 'tbl-1',
@@ -1661,9 +1692,12 @@ describe('workflow resource context consistency', () => {
     expect(readWorkflowMetadata).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user-1',
-        workspaceId: 'ws-1',
         audience: 'sim:workflows',
-        resourceScope: { chatId: 'chat-1' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+          restrictions: { chatId: 'chat-1' },
+        }),
       }),
       input: { workflowId: 'flow', assertedWorkspaceId: 'ws-1' },
     })
@@ -1737,8 +1771,11 @@ describe('folder and foldered-resource chat pointers', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'ws-1',
-          resourceScope: { chatId: 'chat-1' },
+          grant: expect.objectContaining({
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'ws-1' },
+            restrictions: { chatId: 'chat-1' },
+          }),
         }),
         input: expect.objectContaining({ workspaceId: 'ws-1' }),
       })
@@ -1774,9 +1811,12 @@ describe('folder and foldered-resource chat pointers', () => {
     expect(resolveFileFolderPath).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user-1',
-        workspaceId: 'ws-1',
         audience: 'sim:workspace-files',
-        resourceScope: { chatId: 'chat-1' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+          restrictions: { chatId: 'chat-1' },
+        }),
       }),
       input: { workspaceId: 'ws-1', folderId: 'child' },
     })
@@ -1909,8 +1949,11 @@ describe('folder and foldered-resource chat pointers', () => {
       principal: expect.objectContaining({
         audience: 'sim:tables',
         subjectUserId: 'user-1',
-        workspaceId: 'ws-1',
-        resourceScope: { tableId: 'hidden' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+          restrictions: { tableId: 'hidden' },
+        }),
       }),
       input: { tableId: 'hidden', workspaceId: 'ws-1' },
     })
@@ -1950,9 +1993,12 @@ describe('table view context', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'reader',
-        workspaceId: 'workspace-1',
         audience: 'sim:tables',
-        resourceScope: { tableId: 'table-1', chatId: 'chat-1' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: { tableId: 'table-1', chatId: 'chat-1' },
+        }),
       }),
       input: { tableId: 'table-1', workspaceId: 'workspace-1', viewId: 'view-1' },
     })
@@ -2166,8 +2212,7 @@ describe('organization resource mention targets', () => {
       input: { workspaceId?: string; assertedWorkspaceId?: string }
     }) => {
       if (
-        !('workspaceId' in principal) ||
-        principal.workspaceId !== workspaceId ||
+        principalWorkspaceId(principal) !== workspaceId ||
         (input.workspaceId ?? input.assertedWorkspaceId) !== workspaceId
       ) {
         throw new DelegatedWorkspaceAuthorizationError()

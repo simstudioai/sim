@@ -129,9 +129,13 @@ const PRINCIPAL = {
   kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'reader',
-  workspaceId: WORKSPACE,
   audience: 'sim:workspace-files',
-  resourceScope: { chatId: 'chat' },
+  invocation: { kind: 'chat', chatId: 'chat' } as const,
+  grant: {
+    kind: 'entity',
+    owner: { entityType: 'workspace', entityId: WORKSPACE },
+    restrictions: { chatId: 'chat' },
+  } as const,
 } as const
 const SOURCE = {
   id: 'source',

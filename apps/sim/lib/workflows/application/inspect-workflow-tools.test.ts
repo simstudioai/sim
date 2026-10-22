@@ -1,4 +1,4 @@
-import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceSubjectDelegation } from '@sim/auth/principal'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
 import {
@@ -73,7 +73,7 @@ mockGetBlock.mockReturnValue(undefined)
 const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 const mockContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
-let principal: SubjectDelegatedPrincipal
+let principal: WorkspaceSubjectDelegation
 function save(
   type = 'agent',
   tools: unknown = [],
@@ -117,11 +117,12 @@ describe('configured workflow tool inspection', () => {
       kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: 'reader',
-      workspaceId: 'workspace',
       audience: 'sim:workflows',
       delegationId: 'chat-tool',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      invocation: { kind: 'workspace', workspaceId: 'workspace' } as const,
+      grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace' } } as const,
     }
     markCopilotWorkspaceInvocation(principal)
     mockContext.mockResolvedValue({
@@ -336,8 +337,8 @@ describe('configured workflow tool inspection', () => {
     })
     expect(mocks.mcp.mock.calls[0][0].principal).toMatchObject({
       subjectUserId: 'reader',
-      workspaceId: 'workspace',
       audience: 'sim:mcp-servers',
+      grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace' } },
     })
     expect(runtime.client.request).not.toHaveBeenCalled()
     expect(result.stdout).not.toContain('input_schema')

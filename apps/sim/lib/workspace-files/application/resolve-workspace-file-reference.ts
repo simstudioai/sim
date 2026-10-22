@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/application'
 import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -70,7 +71,7 @@ export async function resolveReferencedWorkspaceFileContext(
 ): Promise<ReferencedWorkspaceFileContext> {
   const chatId =
     (principal.kind === 'delegated' && principal.serviceId === 'copilot'
-      ? principal.resourceScope?.chatId
+      ? workspaceDelegationRestrictions(principal)?.chatId
       : undefined) ?? input.chatId
   const lookup = chatId === undefined ? options : { ...options, chatId }
   const file =

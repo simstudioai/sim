@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   admitContent,
   defineWorkspaceOperation,
@@ -108,8 +109,8 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
     delegation: {
       audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
       isWithinScope: (principal, context) =>
-        principal.resourceScope?.chatId === context.chatId &&
-        principal.resourceScope?.fileId === undefined,
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId &&
+        workspaceDelegationRestrictions(principal)?.fileId === undefined,
     },
   },
   async execute({ principal, context, input, request }) {

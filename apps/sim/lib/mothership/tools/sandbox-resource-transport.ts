@@ -2,7 +2,10 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
-import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import {
+  createWorkspaceRequestGrant,
+  markCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { DEFAULT_MAX_JSON_BODY_BYTES, parseRequest } from '@/lib/api/server/validation'
@@ -145,11 +148,14 @@ async function proxyAuthorizedSandboxRequest(
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
   const dispatch = async () => {
     const privateRequest = new NextRequest(forwarded)
-    markCopilotRequest(privateRequest, {
-      userId: scope.userId,
-      workspaceId: targetWorkspaceId,
-      chatId: scope.chatId,
-    })
+    markCopilotRequest(
+      privateRequest,
+      createWorkspaceRequestGrant({
+        userId: scope.userId,
+        workspaceId: targetWorkspaceId,
+        chatId: scope.chatId,
+      })
+    )
     const result = await handler(privateRequest, {
       params: Promise.resolve(matched.params),
     })

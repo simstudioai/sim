@@ -127,7 +127,7 @@ export type PrincipalKind = Exclude<
  */
 export type UndelegatedPrincipalKind = Exclude<
   PrincipalKind,
-  'delegated' | 'organization_delegated' | 'resource_delegated'
+  'delegated' | 'organization_delegated'
 >
 
 /**

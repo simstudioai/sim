@@ -1,11 +1,11 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 /** Chat acting for the requester joins the direct callers on the workspace routes only. */
 export type AccessRequestPrincipal =
   | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
-  | (DelegatedPrincipal & { serviceId: 'copilot' })
+  | (WorkspaceDelegatedPrincipal & { serviceId: 'copilot' })
 
 export const ACCESS_REQUEST_DELEGATION_AUDIENCE = 'sim:settings'
 

@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal, ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { SubjectDelegatedPrincipal, WorkspaceSubjectDelegation } from '@sim/auth/principal'
 import { noteContentDeliveryOperation } from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
@@ -12,31 +12,29 @@ import {
  * the given audience, or none when that operation is outside the grant. Owned by the domain
  * adapter that bound the request, so this route layer stays free of domain policy.
  */
-type CopilotResourceRequestGrant = (
+type CopilotRequestGrant = (
   operation: ApplicationOperation,
   audience: string
-) => ResourceDelegatedPrincipal | undefined
+) => SubjectDelegatedPrincipal | undefined
 
-type CopilotRequestInvocation =
-  | { kind: 'resource'; grant: CopilotResourceRequestGrant }
-  | { kind: 'workspace'; context: Readonly<CopilotChatDelegationContext> }
+/** In-process authority factory installed after current invocation and target authorization. */
+const INVOCATIONS = new WeakMap<Request, CopilotRequestGrant>()
 
-/** A private in-process invocation, installed only after current chat/target authorization. Never a wire header. */
-const INVOCATIONS = new WeakMap<Request, CopilotRequestInvocation>()
-
-export function markCopilotRequest(
-  request: Request,
-  invocation: CopilotChatDelegationContext
-): void {
-  INVOCATIONS.set(request, { kind: 'workspace', context: Object.freeze({ ...invocation }) })
+/** Binds one operation-specific grant factory; application authorization still checks current access. */
+export function markCopilotRequest(request: Request, grant: CopilotRequestGrant): void {
+  INVOCATIONS.set(request, grant)
 }
 
-/** Binds one request to a domain adapter's resource grant; the use case still reauthorizes current access. */
-export function markCopilotResourceRequest(
-  request: Request,
-  grant: CopilotResourceRequestGrant
-): void {
-  INVOCATIONS.set(request, { kind: 'resource', grant })
+/** Adapts the existing trusted workspace invocation to the common request-grant contract. */
+export function createWorkspaceRequestGrant(
+  context: CopilotChatDelegationContext
+): CopilotRequestGrant {
+  const invocation = Object.freeze({ ...context })
+  return (_operation, audience): WorkspaceSubjectDelegation => {
+    const principal = createCopilotChatPrincipal(invocation, audience)
+    markCopilotWorkspaceInvocation(principal)
+    return principal
+  }
 }
 
 export function isCopilotRequest(request: Request): boolean {
@@ -71,18 +69,12 @@ export function copilotRequestPrincipal(
   request: Request,
   operation: ApplicationOperation,
   useCase?: CopilotRouteUseCase
-): DelegatedPrincipal | ResourceDelegatedPrincipal | undefined {
+): SubjectDelegatedPrincipal | undefined {
   const invocation = INVOCATIONS.get(request)
   if (!invocation) return undefined
   const audience = copilotRouteAudience(operation, useCase)
   if (!audience) return undefined
-  if (invocation.kind === 'resource') {
-    const principal = invocation.grant(operation, audience)
-    if (principal) noteContentDeliveryOperation(operation, principal)
-    return principal
-  }
-  const principal = createCopilotChatPrincipal(invocation.context, audience)
-  markCopilotWorkspaceInvocation(principal)
-  noteContentDeliveryOperation(operation, principal)
+  const principal = invocation(operation, audience)
+  if (principal) noteContentDeliveryOperation(operation, principal)
   return principal
 }

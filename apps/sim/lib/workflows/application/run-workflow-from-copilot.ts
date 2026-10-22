@@ -1,4 +1,8 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  isWorkspaceDelegation,
+  type Principal,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -254,7 +258,7 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   if (
-    params.principal.kind === 'resource_delegated' ||
+    (params.principal.kind === 'delegated' && !isWorkspaceDelegation(params.principal)) ||
     params.principal.kind === 'organization_delegated' ||
     params.principal.kind === 'slack_app' ||
     params.principal.kind === 'slack_installation' ||

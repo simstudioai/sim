@@ -1,6 +1,9 @@
 import {
+  hasResourceOperationGrant,
+  isWorkspaceDelegation,
   PrincipalSubjectUserRequiredError,
   parsePrincipal,
+  principalWorkspaceId,
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
   resolvePrincipalAuditAttribution,
@@ -56,11 +59,15 @@ describe('principal subject users', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'delegated-user',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:test',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toBe('delegated-user')
   })
@@ -207,18 +214,158 @@ describe('principal subject users', () => {
   })
 })
 
+describe('delegated grant partition', () => {
+  const issuedAt = new Date('2026-01-01T00:00:00.000Z')
+  const expiresAt = new Date('2026-01-01T00:05:00.000Z')
+  const base = {
+    kind: 'delegated' as const,
+    serviceId: 'copilot' as const,
+    subjectUserId: 'user-1',
+    delegationId: 'delegation-1',
+    audience: 'sim:files',
+    issuedAt,
+    expiresAt,
+  }
+
+  it('rejects a workspace entity grant that also carries a top-level file id', () => {
+    const illegal = {
+      ...base,
+      invocation: { kind: 'workspace' as const, workspaceId: 'workspace-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        fileId: 'file-1',
+      },
+    }
+    const extraKey = {
+      ...base,
+      invocation: { kind: 'workspace' as const, workspaceId: 'workspace-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        note: 'extra',
+      },
+    }
+    for (const principal of [illegal, extraKey]) {
+      expect(isWorkspaceDelegation(principal)).toBe(false)
+      expect(hasResourceOperationGrant(principal)).toBe(false)
+      expect(principalWorkspaceId(principal)).toBeUndefined()
+    }
+  })
+
+  it('rejects a workspace invocation that names a different workspace than the grant', () => {
+    const principal = {
+      ...base,
+      invocation: { kind: 'workspace' as const, workspaceId: 'other' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      },
+    }
+    expect(isWorkspaceDelegation(principal)).toBe(false)
+    expect(principalWorkspaceId(principal)).toBeUndefined()
+  })
+
+  it('rejects a chat invocation whose chat id is absent from restrictions', () => {
+    const principal = {
+      ...base,
+      invocation: { kind: 'chat' as const, chatId: 'chat-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      },
+    }
+    expect(isWorkspaceDelegation(principal)).toBe(false)
+    expect(principalWorkspaceId(principal)).toBeUndefined()
+  })
+
+  it('accepts a chat invocation that matches restrictions and reads the grant owner', () => {
+    const principal = {
+      ...base,
+      invocation: { kind: 'chat' as const, chatId: 'chat-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        restrictions: { chatId: 'chat-1' },
+      },
+    }
+    expect(isWorkspaceDelegation(principal)).toBe(true)
+    expect(principalWorkspaceId(principal)).toBe('workspace-1')
+    expect(hasResourceOperationGrant(principal)).toBe(false)
+  })
+
+  it('keeps empty restrictions a workspace delegation when the workspace invocation matches', () => {
+    const principal = {
+      ...base,
+      invocation: { kind: 'workspace' as const, workspaceId: 'workspace-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        restrictions: {},
+      },
+    }
+    expect(isWorkspaceDelegation(principal)).toBe(true)
+    expect(principalWorkspaceId(principal)).toBe('workspace-1')
+  })
+
+  it('keeps a project entity grant a resource grant', () => {
+    const principal = {
+      ...base,
+      invocation: { kind: 'chat' as const, chatId: 'chat-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'project' as const, entityId: 'project-1' },
+      },
+    }
+    expect(hasResourceOperationGrant(principal)).toBe(true)
+    expect(isWorkspaceDelegation(principal)).toBe(false)
+    expect(principalWorkspaceId(principal)).toBeUndefined()
+  })
+
+  it('restores a realtime workspace payload as a workspace invocation', () => {
+    const restored = parsePrincipal({
+      version: 1,
+      principal: {
+        kind: 'delegated',
+        serviceId: 'realtime',
+        subjectUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        audience: 'sim:workflows',
+        issuedAt: issuedAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+      },
+    })
+    expect(restored).toMatchObject({
+      serviceId: 'realtime',
+      invocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
+    })
+    expect(restored).not.toHaveProperty('connectionId')
+    if (restored.kind === 'delegated')
+      expect(restored.invocation).not.toHaveProperty('connectionId')
+  })
+})
+
 describe('principal persistence', () => {
   it('round trips delegated principals and restores dates', () => {
     const principal = {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
       subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
       delegationId: 'delegation-1',
       audience: 'sim:workflows',
       issuedAt: new Date('2026-01-01T00:00:00.000Z'),
       expiresAt: new Date('2026-01-01T00:05:00.000Z'),
-      resourceScope: { executionId: 'execution-1' },
+      invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        restrictions: { executionId: 'execution-1' },
+      } as const,
     }
 
     const restored = parsePrincipal(structuredClone(serializePrincipal(principal)))
@@ -252,11 +399,11 @@ describe('principal persistence', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           delegationId: 'delegation-1',
           audience: 'sim:workflows',
           issuedAt: 'not-a-date',
           expiresAt: '2026-01-01T00:05:00.000Z',
+          workspaceId: 'workspace-1',
         },
       })
     ).toThrow('issuedAt must be an ISO timestamp')
@@ -442,11 +589,15 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-2',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toMatchObject({ actorId: 'user-2' })
     expect(
@@ -492,11 +643,15 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toEqual({
       kind: 'delegated',
@@ -534,11 +689,15 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-3',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toMatchObject({ attributedUserId: 'user-3' })
   })

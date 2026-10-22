@@ -52,11 +52,12 @@ const allowedPrincipals: Principal[] = [
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
     delegationId: 'copilot-delegation-1',
     audience: 'sim:workflows',
     issuedAt: new Date('2026-01-01T00:00:00.000Z'),
     expiresAt: new Date('2999-01-01T00:00:00.000Z'),
+    invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+    grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace-1' } } as const,
   },
 ]
 

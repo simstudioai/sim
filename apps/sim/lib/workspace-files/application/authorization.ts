@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import type { WorkspaceOperation } from '@/lib/core/application'
 import {
   authorizeWorkspaceOperation,
@@ -23,8 +24,8 @@ export const workspaceFileDelegationPolicy = {
     delegated: Extract<Principal, { kind: 'delegated' }>,
     canonicalContext: WorkspaceFileAuthorizationContext
   ) =>
-    delegated.resourceScope?.fileId === undefined ||
-    delegated.resourceScope.fileId === canonicalContext.fileId,
+    workspaceDelegationRestrictions(delegated)?.fileId === undefined ||
+    workspaceDelegationRestrictions(delegated)?.fileId === canonicalContext.fileId,
 } as const
 
 export async function authorizeWorkspaceFileAccess(

@@ -281,7 +281,14 @@ describe('table import application use cases', () => {
     mocks.createResource.mockClear()
     await expect(
       createTableImportUseCase.execute({
-        principal: { ...delegated, workspaceId: 'other' },
+        principal: {
+          ...delegated,
+          invocation: { kind: 'workspace', workspaceId: 'other' },
+          grant: {
+            ...delegated.grant,
+            owner: { entityType: 'workspace', entityId: 'other' },
+          },
+        },
         input,
         request,
       })

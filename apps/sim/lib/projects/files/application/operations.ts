@@ -1,18 +1,18 @@
 import type {
   Principal,
-  ResourceDelegatedPrincipal,
   ResourceDelegationScope,
+  ResourceOperationPrincipal,
 } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
+  assertContentDeliveryDeclaration,
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
 
-export type ProjectFilePrincipal = Extract<
-  Principal,
-  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' | 'resource_delegated' }
->
+export type ProjectFilePrincipal =
+  | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
+  | ResourceOperationPrincipal
 
 interface ProjectFilePolicy extends ApplicationOperation {
   readonly access: 'read' | 'write'
@@ -25,7 +25,7 @@ interface ProjectFilePolicy extends ApplicationOperation {
    */
   readonly chargesStorage?: true
   readonly principalKinds: readonly ProjectFilePrincipal['kind'][]
-  readonly delegatedServices: readonly ResourceDelegatedPrincipal['serviceId'][]
+  readonly delegatedServices: readonly ResourceOperationPrincipal['serviceId'][]
   readonly delegationAudience: 'sim:project-files' | 'sim:file-list-observation'
 }
 
@@ -38,13 +38,14 @@ export function projectFileDelegationScope(target: {
 }): ResourceDelegationScope {
   return {
     kind: 'entity',
-    entityType: 'project',
-    entityId: target.projectId,
     ...(target.fileId ? { fileId: target.fileId } : {}),
+    owner: { entityType: 'project', entityId: target.projectId },
   }
 }
 
-function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation: O): O {
+function defineProjectFileOperation<const O extends ProjectFilePolicy>(
+  operation: O
+): O & { readonly delegationScope: 'resource' } {
   assertOperationCapability(operation)
   assertOperationOAuthPolicy(operation)
   const observesCollection = operation.target === 'collection_observation'
@@ -53,7 +54,7 @@ function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation
     (operation.access !== 'read' ||
       operation.delegationAudience !== 'sim:file-list-observation' ||
       operation.principalKinds.length !== 1 ||
-      operation.principalKinds[0] !== 'resource_delegated' ||
+      operation.principalKinds[0] !== 'delegated' ||
       operation.delegatedServices.length !== 1 ||
       operation.delegatedServices[0] !== 'realtime')
   ) {
@@ -66,21 +67,22 @@ function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation
   ) {
     throw new Error('Realtime Project authority must target an existing file')
   }
+  assertContentDeliveryDeclaration(operation, operation.delegatedServices)
   Object.freeze(operation.principalKinds)
   Object.freeze(operation.delegatedServices)
-  return Object.freeze(operation)
+  return Object.freeze({ ...operation, delegationScope: 'resource' as const })
 }
 
-const PRINCIPALS = [
-  'session',
-  'personal_api_key',
-  'oauth_access_token',
-  'resource_delegated',
-] as const
+const PRINCIPALS = ['session', 'personal_api_key', 'oauth_access_token', 'delegated'] as const
+/**
+ * Copilot reaches these operations through a resource grant. They are outside the
+ * workspace-file content ledger, so the reviewed answer is `none`.
+ */
 const POLICY = {
   principalKinds: PRINCIPALS,
   delegationAudience: 'sim:project-files',
   delegatedServices: ['copilot'],
+  contentDelivery: 'none',
 } as const
 
 const HISTORY_POLICY = {
@@ -95,7 +97,7 @@ export const projectFileOperations = {
     capability: 'files.use',
     access: 'read',
     target: 'collection_observation',
-    principalKinds: ['resource_delegated'],
+    principalKinds: ['delegated'],
     delegatedServices: ['realtime'],
     delegationAudience: 'sim:file-list-observation',
   }),

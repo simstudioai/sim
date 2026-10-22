@@ -399,11 +399,12 @@ describe('workspace invitation delegation', () => {
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: 'admin-user',
-    workspaceId: 'workspace',
     delegationId: 'workspace-invites',
     audience: 'sim:settings',
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
+    invocation: { kind: 'workspace', workspaceId: 'workspace' } as const,
+    grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace' } } as const,
   } as const
   const input = { ...orgInput, workspaceIds: ['workspace'] }
 

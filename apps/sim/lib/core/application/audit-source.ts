@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, toPrincipalActor } from '@sim/auth/principal'
 
 /**
  * The surface a semantic audit row attributes a change to.
@@ -13,5 +13,6 @@ import type { Principal } from '@sim/auth/principal'
  * names its own credential class, which is already what `actor` records.
  */
 export function principalAuditSource(principal: Principal): string {
-  return principal.kind === 'delegated' ? principal.serviceId : principal.kind
+  const actor = toPrincipalActor(principal)
+  return actor.kind === 'delegated' ? actor.serviceId : actor.kind
 }

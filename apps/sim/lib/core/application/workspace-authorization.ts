@@ -1,9 +1,11 @@
 import {
-  type DelegatedPrincipal,
+  isWorkspaceDelegation,
   type OAuthAccessTokenPrincipal,
   type PersonalApiKeyPrincipal,
   type Principal,
+  principalWorkspaceId,
   resolvePrincipalSubject,
+  type WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import {
   type PermissionType,
@@ -55,7 +57,6 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'slack_installation':
     case 'slack_app':
       return null
-    case 'resource_delegated':
     case 'organization_delegated':
       return principal.subjectUserId
     case 'delegated': {
@@ -74,7 +75,7 @@ export interface WorkspaceAuthorizationContext {
 
 export interface WorkspaceDelegationPolicy<C extends WorkspaceAuthorizationContext> {
   audience: string
-  isWithinScope(principal: DelegatedPrincipal, context: C): boolean
+  isWithinScope(principal: WorkspaceDelegatedPrincipal, context: C): boolean
 }
 
 export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationContext> {
@@ -152,7 +153,7 @@ export class PrincipalKindAuthorizationError extends ForbiddenOperationError {
  * `detailCode`.
  */
 export class DelegatedServiceAuthorizationError extends OrchestrationError {
-  constructor(serviceId: DelegatedPrincipal['serviceId'], operationId: string) {
+  constructor(serviceId: WorkspaceDelegatedPrincipal['serviceId'], operationId: string) {
     super('forbidden', `Delegated service ${serviceId} cannot perform operation ${operationId}`)
     this.name = 'DelegatedServiceAuthorizationError'
   }
@@ -181,6 +182,8 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   }
   requireOAuthOperationScope(principal, operation)
   if (principal.kind !== 'delegated') return
+  if (!isWorkspaceDelegation(principal))
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
 
   const delegatedServices = operation.delegatedServices
   if (!delegatedServices?.length) {
@@ -420,7 +423,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
      * instead: minting a workspace key is itself capability-gated.
      */
     case 'workspace_api_key':
-      if (principal.workspaceId !== context.workspaceId) {
+      if (principalWorkspaceId(principal) !== context.workspaceId) {
         throw new WorkspaceApiKeyScopeAuthorizationError()
       }
       if (
@@ -430,7 +433,6 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new WorkspaceApiKeyAuthorizationError()
       }
       return
-    case 'resource_delegated':
     case 'organization_delegated':
       throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
     case 'delegated': {
@@ -441,7 +443,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       if (
         principal.audience !== delegation.audience ||
         principal.expiresAt.getTime() <= Date.now() ||
-        principal.workspaceId !== context.workspaceId ||
+        principalWorkspaceId(principal) !== context.workspaceId ||
         !delegation.isWithinScope(principal, context)
       ) {
         throw new DelegatedWorkspaceAuthorizationError()

@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { hasResourceOperationGrant, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, project, workspace } from '@sim/db/schema'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
@@ -96,10 +96,9 @@ export const listProjects: OperationUseCase<
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
       throw new OrchestrationError('validation', 'Limit must be between 1 and 100')
     const userId = requirePrincipalSubjectUserId(principal)
-    const scope =
-      principal.kind === 'resource_delegated'
-        ? await resolveCopilotProjectScope(principal, input.organizationId)
-        : { organizationId: input.organizationId }
+    const scope = hasResourceOperationGrant(principal)
+      ? await resolveCopilotProjectScope(principal, input.organizationId)
+      : { organizationId: input.organizationId }
     return db.transaction(async (tx) => {
       /** Driven from the caller's grants and admin organization, so cost tracks their reach. */
       const candidates = await tx.execute<{ id: string }>(sql`
@@ -262,7 +261,7 @@ export const getCurrentWorkspaceProject: OperationUseCase<
   async execute({ principal }) {
     requireProjectPrincipal(principal, projectOperations.list)
     await requireProjectApiEnabled()
-    if (principal.kind !== 'resource_delegated')
+    if (!hasResourceOperationGrant(principal))
       throw new OrchestrationError('forbidden', 'Current Project discovery requires an invocation')
     const scope = await resolveCopilotProjectScope(principal)
     const workspaceId = scope.workspaceId

@@ -1,4 +1,5 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
@@ -18,9 +19,9 @@ export const readSettingsWorkspaceContext = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({
     principal,
   }: {
-    principal: DelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal
     input: Record<string, never>
-  }) => resolveActiveWorkspaceApplicationContext(principal.workspaceId),
+  }) => resolveActiveWorkspaceApplicationContext(principalWorkspaceId(principal)),
   authorizationOptions: { delegation: { audience: 'sim:settings', isWithinScope: () => true } },
   async execute({ context }) {
     return { workspaceId: context.workspaceId, organizationId: context.workspaceOrganizationId }

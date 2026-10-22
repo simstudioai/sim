@@ -3,6 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { hasResourceOperationGrant, parsePrincipal, serializePrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   auditLog,
@@ -30,6 +31,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import { copilotRequestPrincipal } from '@/lib/api/server/routes/copilot-request'
 import { ContentDeliveryUnobservedError } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -41,7 +43,14 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
-import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { markCopilotProjectFileRequest } from '@/lib/mothership/application/execute-project-file-use-case'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createCopilotChatPrincipal,
+  createCopilotResourceAdmission,
+  createTrustedCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
+import { getProjectFileMetadata, projectFileOperations } from '@/lib/projects/files/application'
 import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -52,6 +61,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import '@/app/api/v2/files/[fileId]/text/route'
@@ -182,6 +192,34 @@ describe('chat-delegated file version history', () => {
     return new ResolvedSecretTraceRegistry([], { userId, workspaceId: fixture.workspaceId })
   }
 
+  function admittedProjectFileGrant(userId: string) {
+    const chatId = generateId()
+    const request = new Request('http://localhost:3000/api/v2/projects/project/files/file/metadata')
+    markCopilotProjectFileRequest(
+      request,
+      {
+        userId,
+        chatId,
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId,
+          invocation: { kind: 'chat', chatId },
+        }),
+      },
+      { projectId: generateId(), fileId: generateId() }
+    )
+    const principal = copilotRequestPrincipal(
+      request,
+      projectFileOperations.readMetadata,
+      getProjectFileMetadata
+    )
+    if (!principal || !hasResourceOperationGrant(principal)) {
+      throw new Error('Project file request did not mint a resource grant')
+    }
+    return principal
+  }
+
   function versionRows(fileId: string) {
     return db
       .select({ version: workspaceFileVersion.version, source: workspaceFileVersion.source })
@@ -281,6 +319,88 @@ describe('chat-delegated file version history', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({
       error: { code: 'FORBIDDEN', details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' } },
+    })
+    expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([1, 2, 3])
+  })
+
+  it('admits a file revert after the minted Copilot principal is serialized and restored', async () => {
+    const fixture = await seedVersionedFile()
+    const chatId = generateId()
+    const restored = parsePrincipal(
+      serializePrincipal(
+        createTrustedCopilotPrincipal(
+          {
+            userId: fixture.aliceId,
+            workspaceId: fixture.workspaceId,
+            chatId,
+            delegationId: `copilot-chat:${chatId}`,
+          },
+          {
+            audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+            ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+          }
+        )
+      )
+    )
+
+    const result = await withWorkspaceInvocationScope(
+      { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+      () =>
+        revertWorkspaceFileVersion.execute({
+          principal: restored,
+          input: {
+            fileId: fixture.fileId,
+            assertedWorkspaceId: fixture.workspaceId,
+            version: 1,
+            expectedCurrentVersion: 3,
+          },
+        })
+    )
+
+    expect(result).toMatchObject({
+      reverted: true,
+      version: { version: 4, source: 'revert', restoredFromVersion: 1 },
+    })
+    expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([1, 2, 3, 4])
+    await vi.waitFor(async () => {
+      const [audit] = await db
+        .select({ actorId: auditLog.actorId, metadata: auditLog.metadata })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.workspaceId, fixture.workspaceId),
+            eq(auditLog.resourceId, fixture.fileId)
+          )
+        )
+      expect(audit).toMatchObject({
+        actorId: fixture.aliceId,
+        metadata: {
+          operation: 'files.versions.revert',
+          actor: { kind: 'delegated', serviceId: 'copilot' },
+        },
+      })
+    })
+  })
+
+  it('refuses a workspace file revert for a project file grant', async () => {
+    const fixture = await seedVersionedFile()
+
+    await expect(
+      withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          revertWorkspaceFileVersion.execute({
+            principal: admittedProjectFileGrant(fixture.aliceId),
+            input: {
+              fileId: fixture.fileId,
+              assertedWorkspaceId: fixture.workspaceId,
+              version: 1,
+            },
+          })
+      )
+    ).rejects.toMatchObject({
+      detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED',
+      message: 'Principal kind delegated cannot perform operation files.versions.revert',
     })
     expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([1, 2, 3])
   })

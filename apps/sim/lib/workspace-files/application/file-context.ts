@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { isWorkspaceDelegation, type Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -32,7 +32,8 @@ export interface WorkspaceFileContextInput {
  * keys, system callers, and the executor's delegation never reach an owned file.
  */
 function isOwnedFilePrincipal(principal: Principal): boolean {
-  if (principal.kind === 'delegated') return principal.serviceId === 'copilot'
+  if (principal.kind === 'delegated')
+    return isWorkspaceDelegation(principal) && principal.serviceId === 'copilot'
   return (
     principal.kind === 'session' ||
     principal.kind === 'personal_api_key' ||

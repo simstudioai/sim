@@ -1,3 +1,4 @@
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { COPILOT_APPLICATION_DELEGATION_TTL_MS } from '@/lib/mothership/auth/application-delegation'
@@ -25,14 +26,18 @@ describe('Copilot file delegation', () => {
       kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
       delegationId: 'copilot-tool:tool-call-1',
       audience: 'sim:workspace-files',
-      resourceScope: {
-        fileId: 'file-1',
-        chatId: 'chat-1',
-        executionId: 'execution-1',
-      },
+      invocation: { kind: 'chat', chatId: 'chat-1' } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        restrictions: {
+          fileId: 'file-1',
+          chatId: 'chat-1',
+          executionId: 'execution-1',
+        },
+      } as const,
     })
     expect(principal.expiresAt.getTime() - principal.issuedAt.getTime()).toBe(
       COPILOT_APPLICATION_DELEGATION_TTL_MS
@@ -42,7 +47,7 @@ describe('Copilot file delegation', () => {
   it('creates a workspace-scoped principal for file creation', () => {
     const principal = resolveCopilotFilePrincipal(trustedContext)
 
-    expect(principal.resourceScope).toEqual({
+    expect(workspaceDelegationRestrictions(principal)).toEqual({
       chatId: 'chat-1',
       executionId: 'execution-1',
     })
@@ -72,7 +77,7 @@ describe('Copilot file delegation', () => {
       })
     ).toMatchObject({
       delegationId: 'copilot-chat:chat-1',
-      resourceScope: { chatId: 'chat-1' },
+      grant: { restrictions: { chatId: 'chat-1' } },
     })
     expect(
       createCopilotWorkspaceContextFilePrincipal({
@@ -82,7 +87,7 @@ describe('Copilot file delegation', () => {
       })
     ).toMatchObject({
       delegationId: 'copilot-workspace-context:execution-1',
-      resourceScope: { executionId: 'execution-1' },
+      grant: { restrictions: { executionId: 'execution-1' } },
     })
   })
 

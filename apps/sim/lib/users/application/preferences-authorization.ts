@@ -1,4 +1,9 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  isWorkspaceDelegation,
+  principalWorkspaceId,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
@@ -18,7 +23,7 @@ export async function authorizeAccountPreferences(
     )
   }
   if (principal.kind === 'session') return principal.userId
-  if (principal.kind !== 'delegated' && principal.kind !== 'organization_delegated') {
+  if (!isWorkspaceDelegation(principal) && principal.kind !== 'organization_delegated') {
     throw new ForbiddenOperationError(
       'PRINCIPAL_KIND_NOT_PERMITTED',
       'This account operation requires its authenticated owner'
@@ -32,7 +37,7 @@ export async function authorizeAccountPreferences(
     !Number.isFinite(principal.expiresAt.getTime()) ||
     principal.issuedAt.getTime() > now ||
     principal.expiresAt.getTime() <= now ||
-    !principal.resourceScope?.chatId
+    !workspaceDelegationRestrictions(principal)?.chatId
   ) {
     throw new OrchestrationError('forbidden', 'Account settings delegation is no longer valid')
   }
@@ -50,7 +55,7 @@ export async function authorizeAccountPreferences(
     )
     return context.userId
   }
-  const context = await resolveActiveWorkspaceApplicationContext(principal.workspaceId)
+  const context = await resolveActiveWorkspaceApplicationContext(principalWorkspaceId(principal))
   await requireCurrentHumanRole(principal.subjectUserId, context, 'read')
   return principal.subjectUserId
 }

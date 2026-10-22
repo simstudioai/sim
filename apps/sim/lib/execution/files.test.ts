@@ -1,5 +1,9 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
   fileUtilsServerMock,
   fileUtilsServerMockFns,
 } from '@sim/testing/mocks/file-utils-server.mock'
@@ -305,7 +309,7 @@ describe('workflow input files', () => {
     expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(stored.key, 'workspace', 300)
     await assertUserFileContentAccess(file, {
       ...scope,
-      principal: { kind: 'session', userId: 'actor' },
+      principal: createSessionPrincipal({ userId: 'actor' }),
     })
     expect(mocks.readWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -545,7 +549,14 @@ describe('workflow input files', () => {
         expiresAt: new Date(),
       },
       { kind: 'workspace_api_key', workspaceId, keyId: 'key' },
-      { kind: 'delegated', serviceId: 'copilot', subjectUserId: 'user', ...delegation },
+      createDelegatedPrincipal({
+        subjectUserId: 'user',
+        workspaceId,
+        delegationId: delegation.delegationId,
+        audience: delegation.audience,
+        issuedAt: delegation.issuedAt,
+        expiresAt: delegation.expiresAt,
+      }),
     ])('lets authorized member principal $kind reference workspace files', (principal) => {
       expect(getStoredFileReferenceScope(principal)).toBe('workspace')
     })

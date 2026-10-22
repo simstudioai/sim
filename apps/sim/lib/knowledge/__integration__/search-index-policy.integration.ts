@@ -48,11 +48,15 @@ function copilot(userId: string): Principal {
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: userId,
-    workspaceId: ids.workspaceId,
     delegationId: 'fixture-delegation',
     audience: 'sim:knowledge',
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
+    invocation: { kind: 'workspace', workspaceId: ids.workspaceId } as const,
+    grant: {
+      kind: 'entity',
+      owner: { entityType: 'workspace', entityId: ids.workspaceId },
+    } as const,
   }
 }
 

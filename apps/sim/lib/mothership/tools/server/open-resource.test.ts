@@ -93,7 +93,12 @@ describe('resource opening authorization boundary', () => {
     for (const read of Object.values(mocks))
       expect(read).toHaveBeenCalledWith(
         expect.objectContaining({
-          principal: expect.objectContaining({ subjectUserId: 'actor', workspaceId: 'ws-a' }),
+          principal: expect.objectContaining({
+            subjectUserId: 'actor',
+            grant: expect.objectContaining({
+              owner: { entityType: 'workspace', entityId: 'ws-a' },
+            }),
+          }),
         })
       )
     expect(mocks.workflow.mock.calls[0][0].input).toEqual({

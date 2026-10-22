@@ -17,6 +17,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 
@@ -42,7 +43,10 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
+import { hasResourceOperationGrant } from '@sim/auth/principal'
+import { copilotRequestPrincipal } from '@/lib/api/server/routes/copilot-request'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
@@ -54,6 +58,10 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
+import { executeCopilotKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
+import { markCopilotProjectFileRequest } from '@/lib/mothership/application/execute-project-file-use-case'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { getProjectFileMetadata, projectFileOperations } from '@/lib/projects/files/application'
 
 const ids = createKnowledgeAclFixtureIds()
 const sourceConfig = {
@@ -69,6 +77,34 @@ const input = {
   apiKey: 'fixture-read-only-pat',
   sourceConfig,
   syncIntervalMinutes: 1440,
+}
+
+function admittedProjectFileGrant(userId: string) {
+  const chatId = generateId()
+  const request = new Request('http://localhost:3000/api/v2/projects/project/files/file/metadata')
+  markCopilotProjectFileRequest(
+    request,
+    {
+      userId,
+      chatId,
+      toolCallId: generateId(),
+      copilotToolExecution: true,
+      copilotResourceAdmission: createCopilotResourceAdmission({
+        userId,
+        invocation: { kind: 'chat', chatId },
+      }),
+    },
+    { projectId: generateId(), fileId: generateId() }
+  )
+  const principal = copilotRequestPrincipal(
+    request,
+    projectFileOperations.readMetadata,
+    getProjectFileMetadata
+  )
+  if (!principal || !hasResourceOperationGrant(principal)) {
+    throw new Error('Project file request did not mint a resource grant')
+  }
+  return principal
 }
 
 beforeAll(async () => {
@@ -128,6 +164,7 @@ it.each([
 ])(
   'creates, syncs, edits, and searches a workspace GitLab source through $surface using $apiKey',
   async ({ surface, apiKey }) => {
+    const chatId = generateId()
     const caller =
       surface === 'application'
         ? principal
@@ -135,12 +172,16 @@ it.each([
             kind: 'delegated' as const,
             serviceId: 'copilot' as const,
             subjectUserId: ids.aliceId,
-            workspaceId: ids.workspaceId,
             delegationId: generateId(),
             audience: 'sim:knowledge',
             issuedAt: new Date(),
             expiresAt: new Date(Date.now() + 60000),
-            resourceScope: { chatId: generateId() },
+            invocation: { kind: 'chat' as const, chatId },
+            grant: {
+              kind: 'entity' as const,
+              owner: { entityType: 'workspace' as const, entityId: ids.workspaceId },
+              restrictions: { chatId },
+            },
           }
     const { connector } = await createKnowledgeConnector.execute({
       principal: caller,
@@ -260,4 +301,75 @@ it('still refuses workspace access on a Search index before contacting GitLab', 
     })
   ).rejects.toThrow('Search sources must support per-person access or source permissions')
   expect(fixture.fetch.mock.calls).toHaveLength(requestCount)
+})
+
+it('creates a GitLab connector for a writer through the minted Copilot knowledge principal', async () => {
+  const chatId = generateId()
+  const { connector } = await withWorkspaceInvocationScope(
+    { workspaceId: ids.workspaceId, organizationId: ids.organizationId },
+    () =>
+      executeCopilotKnowledgeUseCase(
+        {
+          userId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+          chatId,
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+        },
+        createKnowledgeConnector,
+        input
+      )
+  )
+
+  expect(JSON.stringify(connector)).not.toContain(input.apiKey)
+  const [stored] = await db
+    .select()
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connector.id))
+  if (!stored) throw new Error('Connector was not stored')
+  const encryptedApiKey = stored.encryptedApiKey
+  if (!encryptedApiKey) throw new Error('Connector was stored without an API key')
+  expect(stored.accessMode).toBe('workspace')
+  expect(encryptedApiKey).not.toBe(input.apiKey)
+  expect((await decryptApiKey(encryptedApiKey)).decrypted).toBe(input.apiKey)
+  await expect
+    .poll(
+      async () => {
+        const [row] = await db
+          .select({ status: knowledgeConnector.status, error: knowledgeConnector.lastSyncError })
+          .from(knowledgeConnector)
+          .where(eq(knowledgeConnector.id, connector.id))
+        return row
+      },
+      { timeout: 15000 }
+    )
+    .toEqual({ status: 'active', error: null })
+}, 30000)
+
+it('refuses knowledge connector create for a project file grant', async () => {
+  const connectorIds = async () => {
+    const rows = await db
+      .select({ id: knowledgeConnector.id })
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.knowledgeBaseId, ids.knowledgeBaseId))
+    return rows.map((row) => row.id).sort(compareStrings)
+  }
+  const before = await connectorIds()
+  const requestCount = fixture.fetch.mock.calls.length
+
+  await expect(
+    withWorkspaceInvocationScope(
+      { workspaceId: ids.workspaceId, organizationId: ids.organizationId },
+      () =>
+        createKnowledgeConnector.execute({
+          principal: admittedProjectFileGrant(ids.aliceId),
+          input,
+        })
+    )
+  ).rejects.toMatchObject({
+    detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED',
+    message: 'Principal kind delegated cannot perform operation knowledge.connectors.create',
+  })
+  expect(fixture.fetch.mock.calls).toHaveLength(requestCount)
+  expect(await connectorIds()).toEqual(before)
 })

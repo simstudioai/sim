@@ -1,10 +1,10 @@
 import {
-  type DelegatedPrincipal,
   describePrincipalAuth,
   type Principal,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
   type WorkflowExecutionDelegatedPrincipal,
+  type workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
@@ -66,7 +66,7 @@ interface InternalSessionOrExecutorAuthOptions {
   audience: string
   resourceScope?(
     params: Record<string, string | string[] | undefined>
-  ): DelegatedPrincipal['resourceScope']
+  ): ReturnType<typeof workspaceDelegationRestrictions>
 }
 
 export function createInternalSessionOrExecutorAuth(

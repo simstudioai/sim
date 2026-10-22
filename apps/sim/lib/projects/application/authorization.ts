@@ -1,6 +1,7 @@
 import {
+  hasResourceOperationGrant,
   type Principal,
-  type ResourceDelegatedPrincipal,
+  type ResourceOperationPrincipal,
   requirePrincipalSubjectUserId,
   type SessionPrincipal,
 } from '@sim/auth/principal'
@@ -30,10 +31,15 @@ export function requireProjectPrincipal<
 >(
   principal: Principal,
   operation: O
-): asserts principal is Extract<Principal, { kind: O['principalKinds'][number] }> {
+): asserts principal is Extract<
+  SessionPrincipal | ResourceOperationPrincipal,
+  { kind: O['principalKinds'][number] }
+> {
   if (!operation.principalKinds.some((kind) => kind === principal.kind))
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
-  if (principal.kind === 'resource_delegated') {
+  if (principal.kind === 'delegated' && !hasResourceOperationGrant(principal))
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  if (hasResourceOperationGrant(principal)) {
     if (operation.id !== 'projects.list' || !operation.delegationAudience)
       throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
     requireResourceDelegation(principal, {
@@ -219,7 +225,7 @@ export async function loadProjectAccess(
 /** Applies the access rules to one loaded Project; hidden environments never enter the result. */
 async function evaluateProjectAccess(
   tx: DbTransaction,
-  principal: SessionPrincipal | ResourceDelegatedPrincipal,
+  principal: SessionPrincipal | ResourceOperationPrincipal,
   operation: ProjectOperation,
   record: ProjectRecord,
   access: ProjectAccess,
@@ -277,7 +283,7 @@ export type AuthorizedProject = Awaited<ReturnType<typeof evaluateProjectAccess>
 /** Authorizes one Project for `operation`; see {@link ProjectAccessMode} for locking. */
 export async function authorizeProject(
   tx: DbTransaction,
-  principal: SessionPrincipal | ResourceDelegatedPrincipal,
+  principal: SessionPrincipal | ResourceOperationPrincipal,
   operation: ProjectOperation,
   input: ProjectAuthorizationInput & { projectId: string },
   mode: ProjectAccessMode
@@ -303,7 +309,7 @@ export async function authorizeProject(
 /** Authorizes a listed page of Projects in id order inside the caller's read-only snapshot. */
 export async function authorizeProjectsForRead(
   tx: DbTransaction,
-  principal: SessionPrincipal | ResourceDelegatedPrincipal,
+  principal: SessionPrincipal | ResourceOperationPrincipal,
   projectIds: string[]
 ): Promise<AuthorizedProject[]> {
   requireProjectPrincipal(principal, projectOperations.list)

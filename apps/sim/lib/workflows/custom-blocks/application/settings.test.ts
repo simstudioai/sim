@@ -44,11 +44,12 @@ const principal = {
   kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'real-actor',
-  workspaceId: 'source',
   audience: 'sim:settings',
   delegationId: 'call',
   issuedAt: new Date(),
   expiresAt: new Date(Date.now() + 60_000),
+  invocation: { kind: 'workspace', workspaceId: 'source' } as const,
+  grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'source' } } as const,
 } as const
 const target = { workspaceId: 'source', id: 'block' }
 const publishInput = {

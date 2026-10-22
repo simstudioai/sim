@@ -129,10 +129,13 @@ describe('executeMcpTool', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           audience: 'sim:mcp-servers',
           delegationId: 'copilot-tool:call-1',
-          resourceScope: { chatId: 'chat-1', mcpServerId: 'mcp-server' },
+          grant: expect.objectContaining({
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workspace-1' },
+            restrictions: { chatId: 'chat-1', mcpServerId: 'mcp-server' },
+          }),
         }),
         input: expect.objectContaining({ arguments: { query: 'sim' } }),
       })
@@ -164,7 +167,7 @@ describe('executeMcpTool', () => {
         serviceId: 'copilot',
         subjectUserId: 'user-1',
         audience: 'sim:managed-mcp-credentials',
-        resourceScope: { chatId: 'chat-1', credentialId },
+        grant: expect.objectContaining({ restrictions: { chatId: 'chat-1', credentialId } }),
       }),
       input: expect.objectContaining({
         credentialId,

@@ -1,6 +1,6 @@
 import type {
   BoundWorkflowExecutionDelegatedPrincipal,
-  SubjectDelegatedPrincipal,
+  WorkspaceSubjectDelegation,
 } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import {
@@ -91,7 +91,7 @@ const ACTORLESS_PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   },
   resourceScope: { mcpServerId: SERVER.id, mcpBlockId: 'block-1' },
 }
-const COPILOT_PRINCIPAL: SubjectDelegatedPrincipal = createDelegatedPrincipal({
+const COPILOT_PRINCIPAL: WorkspaceSubjectDelegation = createDelegatedPrincipal({
   subjectUserId: 'chat-user',
   workspaceId: WORKSPACE.workspaceId,
   delegationId: 'copilot-tool:call-1',

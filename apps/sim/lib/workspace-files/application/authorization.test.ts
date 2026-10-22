@@ -82,12 +82,16 @@ describe('file operation authorization', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date(Date.now() - 1_000),
         expiresAt: new Date(Date.now() + 60_000),
-        resourceScope: { fileId: 'file-1', chatId: 'chat-1' },
+        invocation: { kind: 'chat', chatId: 'chat-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: { fileId: 'file-1', chatId: 'chat-1' },
+        } as const,
       },
       fileOperations.rename,
       authorizationContext
@@ -137,21 +141,25 @@ describe('file operation authorization', () => {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
       subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
       delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
       issuedAt: new Date(Date.now() - 10_000),
+      invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      } as const,
     }
 
     await expectForbidden({
       ...base,
       expiresAt: new Date(Date.now() - 1),
-      resourceScope: { fileId: 'file-1' },
+      grant: { ...base.grant, restrictions: { fileId: 'file-1' } },
     })
     await expectForbidden({
       ...base,
       expiresAt: new Date(Date.now() + 60_000),
-      resourceScope: { fileId: 'file-2' },
+      grant: { ...base.grant, restrictions: { fileId: 'file-2' } },
     })
     expect(resolvePermission).not.toHaveBeenCalled()
   })

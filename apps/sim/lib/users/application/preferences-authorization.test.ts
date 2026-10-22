@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import {
   createDelegatedPrincipal,
+  createExecutorPrincipal,
   createPersonalApiKeyPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
@@ -64,7 +65,6 @@ describe('account preferences authority', () => {
     { ...delegated, expiresAt: new Date(0) },
     { ...delegated, issuedAt: new Date(Date.now() + 60_000) },
     { ...delegated, expiresAt: new Date(Number.NaN) },
-    { ...delegated, resourceScope: {} },
   ])('refuses invalid delegation before protected lookups', async (principal) => {
     await expect(
       authorizeAccountPreferences(principal, userAccountOperations.updateSettings)
@@ -72,11 +72,25 @@ describe('account preferences authority', () => {
     expect(mocks.workspace).not.toHaveBeenCalled()
     expect(mocks.organization).not.toHaveBeenCalled()
   })
+  it('refuses a delegation whose restrictions omit the required chat id', async () => {
+    await expect(
+      authorizeAccountPreferences(
+        { ...delegated, grant: { ...delegated.grant, restrictions: {} } },
+        userAccountOperations.updateSettings
+      )
+    ).rejects.toThrow('Account settings delegation is no longer valid')
+    expect(mocks.workspace).not.toHaveBeenCalled()
+    expect(mocks.organization).not.toHaveBeenCalled()
+  })
   it('does not grant self-account operations to API keys or executors', async () => {
     const principals: Principal[] = [
       createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
       createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
-      { ...delegated, serviceId: 'executor' },
+      createExecutorPrincipal({
+        subjectUserId: 'actor',
+        workspaceId: 'workspace',
+        audience: 'sim:settings',
+      }),
     ]
     for (const principal of principals) {
       await expect(

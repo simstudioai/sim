@@ -1,4 +1,5 @@
-import type { DelegatedPrincipal, OAuthAccessTokenPrincipal } from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { createDelegatedPrincipal } from '@sim/testing/factories'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -63,9 +64,9 @@ const executorOperation = defineWorkspaceOperation({
 })
 
 function executorPrincipal(
-  originalPrincipal: NonNullable<DelegatedPrincipal['delegationContext']>['principal'],
-  currentWorkflow?: NonNullable<DelegatedPrincipal['delegationContext']>['currentWorkflow']
-): DelegatedPrincipal {
+  originalPrincipal: NonNullable<WorkspaceDelegatedPrincipal['delegationContext']>['principal'],
+  currentWorkflow?: NonNullable<WorkspaceDelegatedPrincipal['delegationContext']>['currentWorkflow']
+): WorkspaceDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',
@@ -360,12 +361,10 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     await expect(
       authorizeWorkspaceOperation(
         {
-          ...executorPrincipal(createSessionPrincipal(), {
-            workflowId: 'current-workflow-1',
-            mode: 'draft',
+          ...createDelegatedPrincipal({
+            audience: 'sim:test',
+            subjectUserId: 'user-1',
           }),
-          serviceId: 'copilot',
-          subjectUserId: 'user-1',
         },
         copilotCapabilityOperation,
         context,
@@ -540,11 +539,7 @@ describe('capabilityGovernedPrincipalUserId', () => {
 
   it('names the person a non-executor delegation acts as', () => {
     expect(
-      capabilityGovernedPrincipalUserId({
-        ...executorPrincipal(undefined),
-        serviceId: 'copilot',
-        subjectUserId: 'user-3',
-      })
+      capabilityGovernedPrincipalUserId(createDelegatedPrincipal({ subjectUserId: 'user-3' }))
     ).toBe('user-3')
   })
 })

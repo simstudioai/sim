@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import {
   type AccountBillingDecision,
   type BillingAttributionSnapshot,
@@ -32,7 +32,7 @@ const workspaceCallbackAuthorization = {
   authorizationOptions: {
     delegation: {
       audience: CALLBACK_AUDIENCE,
-      isWithinScope: (principal: DelegatedPrincipal) => Boolean(principal.subjectUserId),
+      isWithinScope: (principal: WorkspaceDelegatedPrincipal) => Boolean(principal.subjectUserId),
     },
   },
   async execute() {},

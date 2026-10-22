@@ -1,4 +1,4 @@
-import { markCopilotResourceRequest } from '@/lib/api/server/routes/copilot-request'
+import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
 import {
   admitsCopilotResourceDelegation,
@@ -47,7 +47,7 @@ export function markCopilotProjectFileRequest(
     throw new Error('Copilot Project file requests require a valid resource target')
   }
   const bound = Object.freeze({ ...target })
-  markCopilotResourceRequest(request, (operation, audience) => {
+  markCopilotRequest(request, (operation, audience) => {
     const registered = REGISTERED_OPERATIONS.get(operation)
     if (
       !registered ||

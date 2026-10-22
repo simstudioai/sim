@@ -122,8 +122,10 @@ describe('embedded upload application request context', () => {
         expect.objectContaining({
           kind: 'delegated',
           subjectUserId: 'reader',
-          workspaceId,
           audience: 'sim:workspace-files',
+          grant: expect.objectContaining({
+            owner: { entityType: 'workspace', entityId: workspaceId },
+          }),
         }),
         expect.objectContaining({ id: 'files.upload.create', minimumRole: 'write' }),
         workspaceId

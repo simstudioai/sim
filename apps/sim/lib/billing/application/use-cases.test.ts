@@ -33,6 +33,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   copilotRequestPrincipal,
+  createWorkspaceRequestGrant,
   markCopilotRequest,
 } from '@/lib/api/server/routes/copilot-request'
 import { billingOperations } from '@/lib/billing/application/operations'
@@ -186,7 +187,10 @@ describe('billing application use cases', () => {
     })
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     const request = new Request('https://sim.invalid/api/v2/billing/status')
-    markCopilotRequest(request, { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    markCopilotRequest(
+      request,
+      createWorkspaceRequestGrant({ userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    )
     const principal = copilotRequestPrincipal(
       request,
       billingOperations.readStatus,

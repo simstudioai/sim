@@ -8,11 +8,15 @@ describe('principalAuditSource', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
         delegationId: 'tool-call-1',
         audience: 'sim:workflows',
         issuedAt: new Date(),
         expiresAt: new Date(),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toBe('copilot')
   })

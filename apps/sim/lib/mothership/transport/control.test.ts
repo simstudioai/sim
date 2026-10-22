@@ -81,9 +81,12 @@ describe('outbound control delivery uses the existing authorized operations', ()
       input: operation.input,
       principal: expect.objectContaining({
         subjectUserId: 'user',
-        workspaceId: 'workspace',
         audience: 'control',
-        resourceScope: { chatId: 'chat' },
+        invocation: { kind: 'chat', chatId: 'chat' },
+        grant: expect.objectContaining({
+          owner: { entityType: 'workspace', entityId: 'workspace' },
+          restrictions: expect.objectContaining({ chatId: 'chat' }),
+        }),
       }),
     })
   })
@@ -228,8 +231,10 @@ it('routes catalog reads through catalog-specific delegated authority', async ()
   expect(handlers.catalog).toHaveBeenCalledWith({
     principal: expect.objectContaining({
       audience: 'catalog',
-      workspaceId: 'workspace',
       subjectUserId: 'user',
+      grant: expect.objectContaining({
+        owner: { entityType: 'workspace', entityId: 'workspace' },
+      }),
     }),
     input,
   })
@@ -251,7 +256,14 @@ it('routes memory through the same use case for both delivery scopes', async () 
       principal: expect.objectContaining({
         subjectUserId: 'user',
         audience: 'memory',
-        resourceScope: { chatId: 'chat' },
+        ...('organizationId' in owner
+          ? { resourceScope: { chatId: 'chat' } }
+          : {
+              invocation: { kind: 'chat', chatId: 'chat' },
+              grant: expect.objectContaining({
+                restrictions: expect.objectContaining({ chatId: 'chat' }),
+              }),
+            }),
       }),
     })
   }

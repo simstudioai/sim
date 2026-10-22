@@ -10,6 +10,7 @@ import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { createWorkspaceRequestGrant } from '@/lib/api/server/routes/copilot-request'
 
 const { execute } = vi.hoisted(() => ({ execute: vi.fn() }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -78,7 +79,10 @@ function request(workspaceId = 'target', privateCall = true) {
     headers: { 'x-api-key': 'opaque', 'x-mothership-workspace-id': 'target' },
   })
   if (privateCall)
-    markCopilotRequest(req, { userId: 'actor', workspaceId: 'target', chatId: 'owned-chat' })
+    markCopilotRequest(
+      req,
+      createWorkspaceRequestGrant({ userId: 'actor', workspaceId: 'target', chatId: 'owned-chat' })
+    )
   return req
 }
 beforeEach(() => {
@@ -112,9 +116,12 @@ describe('private Copilot route admission', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'actor',
-        workspaceId: 'target',
         audience: 'sim:widgets',
-        resourceScope: { chatId: 'owned-chat' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'target' },
+          restrictions: { chatId: 'owned-chat' },
+        }),
       })
     )
     expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
@@ -136,7 +143,13 @@ describe('private Copilot route admission', () => {
     )
     expect(admission).toMatchObject({
       success: true,
-      auth: { principal: { kind: 'delegated', workspaceId: 'target', subjectUserId: 'actor' } },
+      auth: {
+        principal: {
+          kind: 'delegated',
+          grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'target' } },
+          subjectUserId: 'actor',
+        },
+      },
     })
     expect(v2RouteMocks.preauthRate).not.toHaveBeenCalled()
     expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()

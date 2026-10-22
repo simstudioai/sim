@@ -1,3 +1,4 @@
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -67,8 +68,8 @@ export const readStoredWorkspaceFileRecordByKey = defineAuthorizedWorkspaceUseCa
       isWithinScope: (principal, context) =>
         workspaceFileDelegationPolicy.isWithinScope(principal, context) &&
         (context.file.context !== 'mothership' ||
-          principal.resourceScope?.chatId === undefined ||
-          principal.resourceScope.chatId === context.file.chatId),
+          workspaceDelegationRestrictions(principal)?.chatId === undefined ||
+          workspaceDelegationRestrictions(principal)?.chatId === context.file.chatId),
     },
   },
   async execute({ input, context, principal }): Promise<{ file: FileMetadataRecord }> {

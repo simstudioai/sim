@@ -1,8 +1,9 @@
 import type {
-  DelegatedPrincipal,
   OrganizationDelegatedPrincipal,
-  ResourceDelegatedPrincipal,
   ResourceDelegationScope,
+  ResourceOperationPrincipal,
+  WorkspaceSubjectDelegation,
+  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
@@ -31,7 +32,7 @@ export interface CopilotExecutionContext {
   copilotResourceAdmission?: CopilotResourceAdmission
 }
 
-type CopilotResourcePrincipal = Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }>
+type CopilotResourcePrincipal = Extract<ResourceOperationPrincipal, { serviceId: 'copilot' }>
 
 const RESOURCE_ADMISSION = Symbol('copilot-resource-admission')
 
@@ -151,6 +152,8 @@ export function createCopilotResourceApplicationPrincipal(
   const trustedContext = requireTrustedCopilotResourceExecutionContext(context)
   const issuedAt = new Date()
   const scope = structuredClone(options.scope)
+  if (scope.kind === 'entity' || scope.kind === 'file_collection_observation')
+    Object.freeze(scope.owner)
   if (scope.kind === 'file_copy') {
     Object.freeze(scope.source.owner)
     Object.freeze(scope.source.fileIds)
@@ -160,7 +163,7 @@ export function createCopilotResourceApplicationPrincipal(
     Object.freeze(scope.destination)
   }
   const principal: CopilotResourcePrincipal = Object.freeze({
-    kind: 'resource_delegated',
+    kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: trustedContext.userId,
     delegationId: options.createDelegationId(trustedContext),
@@ -168,7 +171,7 @@ export function createCopilotResourceApplicationPrincipal(
     issuedAt,
     expiresAt: new Date(issuedAt.getTime() + options.ttlMs),
     invocation: Object.freeze({ ...trustedContext.invocation }),
-    scope: Object.freeze(scope),
+    grant: Object.freeze(scope),
   })
   requireResourceDelegation(principal, {
     audience: options.audience,
@@ -198,7 +201,7 @@ export class InteractiveCopilotExecutionRequiredError extends Error {
 }
 
 export type CopilotResourceScope = Pick<
-  NonNullable<DelegatedPrincipal['resourceScope']>,
+  NonNullable<ReturnType<typeof workspaceDelegationRestrictions>>,
   'fileId' | 'tableId' | 'credentialId' | 'mcpServerId'
 >
 
@@ -237,7 +240,7 @@ export function createCopilotChatPrincipal(
   context: CopilotChatDelegationContext,
   audience: string,
   resourceScope?: CopilotResourceScope
-): DelegatedPrincipal {
+): WorkspaceSubjectDelegation {
   return createTrustedCopilotPrincipal(
     { ...context, delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}` },
     { audience, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS, resourceScope }
@@ -293,7 +296,7 @@ export function requireInteractiveCopilotExecutionContext(
 export function createTrustedCopilotPrincipal(
   input: CreateTrustedCopilotPrincipalInput,
   options: CreateTrustedCopilotPrincipalOptions
-): DelegatedPrincipal {
+): WorkspaceSubjectDelegation {
   requireNonEmpty(input.userId, 'an authenticated user ID')
   requireNonEmpty(input.workspaceId, 'a workspace ID')
   requireNonEmpty(input.delegationId, 'a delegation ID')
@@ -331,16 +334,24 @@ export function createTrustedCopilotPrincipal(
     ...(input.executionId ? { executionId: input.executionId } : {}),
   })
 
-  return Object.freeze({
+  return Object.freeze<WorkspaceSubjectDelegation>({
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: input.userId,
-    workspaceId: input.workspaceId,
     delegationId: input.delegationId,
     audience: options.audience,
     issuedAt,
     expiresAt: new Date(issuedAt.getTime() + options.ttlMs),
-    resourceScope,
+    invocation: Object.freeze(
+      input.chatId
+        ? { kind: 'chat' as const, chatId: input.chatId }
+        : { kind: 'workspace' as const, workspaceId: input.workspaceId }
+    ),
+    grant: Object.freeze({
+      kind: 'entity' as const,
+      owner: Object.freeze({ entityType: 'workspace' as const, entityId: input.workspaceId }),
+      restrictions: resourceScope,
+    }),
   })
 }
 
@@ -348,7 +359,7 @@ export function createTrustedCopilotPrincipal(
 export function createCopilotApplicationPrincipal(
   trustedContext: TrustedCopilotExecutionContext,
   options: CreateCopilotApplicationPrincipalOptions
-): DelegatedPrincipal {
+): WorkspaceSubjectDelegation {
   const delegationId = options.createDelegationId(trustedContext)
   return createTrustedCopilotPrincipal(
     {

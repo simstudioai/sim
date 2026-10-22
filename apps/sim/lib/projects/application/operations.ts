@@ -1,8 +1,12 @@
 import type { ApplicationOperation } from '@/lib/core/application/operation'
-import { assertOperationCapability, defineOperation } from '@/lib/core/application/operation'
+import {
+  assertContentDeliveryDeclaration,
+  assertOperationCapability,
+  defineOperation,
+} from '@/lib/core/application/operation'
 
 export interface ProjectOperation extends ApplicationOperation {
-  readonly principalKinds: readonly ('session' | 'resource_delegated')[]
+  readonly principalKinds: readonly ('session' | 'delegated')[]
   readonly access: 'read' | 'admin' | 'issues'
   readonly delegationAudience?: string
   readonly delegatedServices?: readonly ['copilot']
@@ -11,18 +15,21 @@ export interface ProjectOperation extends ApplicationOperation {
 export const PROJECT_DISCOVERY_DELEGATION_TTL_MS = 60_000
 
 /** Project operations cannot borrow authority from workspace keys or an arbitrary root. */
-function defineProjectOperation<const O extends ProjectOperation>(operation: O): O {
+function defineProjectOperation<const O extends ProjectOperation>(
+  operation: O
+): O & { readonly delegationScope: 'resource' } {
   assertOperationCapability(operation)
   if (
-    operation.principalKinds.includes('resource_delegated') &&
+    operation.principalKinds.includes('delegated') &&
     (operation.id !== 'projects.list' ||
       operation.access !== 'read' ||
       !operation.delegationAudience)
   )
     throw new Error('Resource delegation is available only for bounded Project discovery')
+  assertContentDeliveryDeclaration(operation, operation.delegatedServices ?? [])
   Object.freeze(operation.principalKinds)
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
-  return Object.freeze(operation)
+  return Object.freeze({ ...operation, delegationScope: 'resource' as const })
 }
 
 export const projectOperations = {
@@ -34,9 +41,10 @@ export const projectOperations = {
   // permission-group-exempt: navigation exposes only Projects containing accessible environments.
   list: defineProjectOperation({
     id: 'projects.list',
-    principalKinds: ['session', 'resource_delegated'],
+    principalKinds: ['session', 'delegated'],
     access: 'read',
     capability: 'none',
+    contentDelivery: 'none',
     delegationAudience: 'sim:projects:discovery',
     delegatedServices: ['copilot'],
   }),
