@@ -147,19 +147,105 @@ describe('logs query on a span whose content was withheld', () => {
     expect(report.contentWithheld).toBeUndefined()
   })
 
-  it('keeps a withheld run under --where instead of counting it as filtered out', async () => {
+  it('keeps a withheld run under --where as unchecked, not as a match or filtered out', async () => {
     const report = await logsQueryWithheld({ where: 'result.count=6' })
     expect(report.filteredOut).toBe(0)
     expect(report.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1', 'run-2'])
-    expect(report.rows[1].note).toMatch(/withheld/)
-    expect(report.contentWithheld).toBe(1)
+    expect(report.rows[0].whereUnchecked).toBeUndefined()
+    expect(report.rows[1].whereUnchecked).toBe(true)
+    expect(report.whereUnchecked).toBe(1)
   })
 
-  it('still resolves a readable --field when --where hits withheld content', async () => {
-    const report = await logsQueryWithheld({ field: 'duration', where: 'result.count=6' })
-    expect(report.rows[1]).toMatchObject({ runId: 'run-2', value: 12 })
-    expect(report.rows[1].note).toMatch(/--where/)
-    expect(report.contentWithheld).toBe(1)
+  it('counts an unchecked --where apart from a withheld --field', async () => {
+    const readableField = await logsQueryWithheld({ field: 'duration', where: 'result.count=6' })
+    expect(readableField.rows[1]).toMatchObject({ runId: 'run-2', value: 12 })
+    expect(readableField.rows[1].note).toMatch(/--where/)
+    expect(readableField.whereUnchecked).toBe(1)
+    expect(readableField.contentWithheld).toBeUndefined()
+
+    const withheldField = await logsQueryWithheld({ where: 'result.count=6' })
+    expect(withheldField.rows[1].note).toMatch(/value unknown/)
+    expect(withheldField.whereUnchecked).toBe(1)
+    expect(withheldField.contentWithheld).toBe(1)
+  })
+})
+
+// The projection omits a content field whole, so a span marked for its `thinking`
+// still carries an intact `output` whose missing keys are genuinely absent.
+const PARTLY_WITHHELD_RUNS = {
+  [RUNS_PATH]: {
+    data: [
+      { runId: 'run-1', status: 'completed' },
+      { runId: 'run-2', status: 'completed' },
+    ],
+  },
+  '/api/v2/logs/run-1': {
+    data: {
+      traceSpans: [
+        {
+          name: 'Router',
+          status: 'success',
+          output: { route: 'priority' },
+          contentWithheld: true,
+        },
+      ],
+    },
+  },
+  '/api/v2/logs/run-2': {
+    data: {
+      traceSpans: [
+        {
+          name: 'Router',
+          status: 'success',
+          output: { content: 'no route chosen' },
+          toolCalls: [{ name: 'lookup' }],
+          contentWithheld: true,
+        },
+      ],
+    },
+  },
+}
+
+async function logsQueryPartlyWithheld(flags: Record<string, string>) {
+  const result = await runEngine('logs query', ['wf-1'], runtimeWith(PARTLY_WITHHELD_RUNS), {
+    block: 'Router',
+    ...flags,
+  })
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout)
+}
+
+describe('logs query on a marked span whose read field is intact', () => {
+  it('filters out a run whose intact output lacks the --where key', async () => {
+    const report = await logsQueryPartlyWithheld({ where: 'output.route=priority' })
+    expect(report.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1'])
+    expect(report.filteredOut).toBe(1)
+    expect(report.whereUnchecked).toBeUndefined()
+
+    const viaFallback = await logsQueryPartlyWithheld({ where: 'route=priority' })
+    expect(viaFallback.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1'])
+    expect(viaFallback.filteredOut).toBe(1)
+  })
+
+  it('reports a key missing from intact output as not found, not withheld', async () => {
+    const report = await logsQueryPartlyWithheld({ field: 'output.route' })
+    expect(report.rows[1]).toMatchObject({
+      runId: 'run-2',
+      value: null,
+      note: 'path not found on span',
+    })
+    expect(report.contentWithheld).toBeUndefined()
+  })
+
+  it('reports a path through an omitted field as withheld', async () => {
+    const thinking = await logsQueryPartlyWithheld({ field: 'thinking' })
+    expect(thinking.rows[0].note).toMatch(/value unknown/)
+    expect(thinking.contentWithheld).toBe(2)
+
+    const toolInput = await logsQueryPartlyWithheld({ field: 'toolCalls.0.input.query' })
+    expect(toolInput.rows[1].note).toMatch(/value unknown/)
+    const toolMissing = await logsQueryPartlyWithheld({ field: 'toolCalls.3.input.query' })
+    expect(toolMissing.rows[1].note).toBe('path not found on span')
   })
 })
 
