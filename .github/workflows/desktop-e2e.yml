@@ -1,6 +1,8 @@
 name: desktop-e2e
 
-# Smoke coverage of the real Electron shell on desktop changes, plus a weekly
+# Smoke coverage of the real Electron shell on desktop changes. Three isolated runners
+# partition the complete suite by Playwright test-file groups; workers remain serial per runner.
+# The weekly
 # advisory canary against electron@latest so Chromium-cadence breakage surfaces
 # before an upgrade is attempted.
 
@@ -58,10 +60,14 @@ concurrency:
 
 jobs:
   e2e:
-    name: e2e
+    name: e2e (${{ matrix.shard }}/3)
     if: github.event_name != 'schedule'
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -102,8 +108,9 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bunx playwright test
+        run: bunx playwright test --shard=${{ matrix.shard }}/3 --reporter=line,json
         env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
           TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
 
@@ -111,8 +118,17 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: desktop-e2e-results-pinned
+          name: desktop-e2e-results-pinned-${{ matrix.shard }}
           path: apps/desktop/test-results
+          retention-days: 7
+
+      - name: Upload smoke coverage and timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-smoke-reports-${{ matrix.shard }}
+          path: apps/desktop/test-results/desktop-smoke.json
+          if-no-files-found: ignore
           retention-days: 7
 
   e2e-canary:

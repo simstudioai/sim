@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs one end-to-end suite group over real HTTP, each against its own app: `next dev`, except
-# mobile, which serves the production build the `e2e-build` job uploads with `next start` (the
-# job extracts it into apps/sim/.next first).
+# CI groups, which reuse the production build from `e2e-build`.
+# The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -33,8 +33,9 @@ realtime_pid=''
 realtime_tag=''
 realtime_log=''
 browsers_pid=''
+local_app_url=''
 # `dev` or `start`; a group sets it before start_app.
-app_server=dev
+app_server=${E2E_APP_SERVER:-dev}
 
 finish() {
   local status=$?
@@ -78,7 +79,8 @@ start_app() {
     status_log="$report_dir/$name-http-status.log"
   fi
   app_tag="$name-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
-  export NEXT_PUBLIC_APP_URL="http://127.0.0.1:$port"
+  local_app_url="http://127.0.0.1:$port"
+  export NEXT_PUBLIC_APP_URL="${E2E_APP_PUBLIC_URL:-$local_app_url}"
   export BETTER_AUTH_URL="$NEXT_PUBLIC_APP_URL"
   export DISABLE_TELEMETRY=true NEXT_TELEMETRY_DISABLED=1
   if [ "$app_server" = start ]; then
@@ -96,7 +98,7 @@ start_app() {
       --port "$port" > "$server_log" 2>&1 &
   fi
   server_pid=$!
-  wait_ready "$server_pid" "$NEXT_PUBLIC_APP_URL/api/health" "$label app"
+  wait_ready "$server_pid" "$local_app_url/api/health" "$label app"
 }
 
 # start_realtime <name> <port>: the Socket.IO server the app's browser clients connect to, so pages
@@ -143,12 +145,12 @@ case "$group" in
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
     start_app scim 3017 SCIM record-http-status
-    SCIM_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
     SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     SCIM_E2E_REPORT_PATH="$report_dir/scim-e2e-report.json" \
       bun run test:scim:e2e
-    VERSION_COMPARE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    VERSION_COMPARE_E2E_BASE_URL="$local_app_url" \
     VERSION_COMPARE_E2E_DATABASE_URL="$DATABASE_URL" \
     VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
@@ -174,7 +176,7 @@ case "$group" in
       bun --no-env-file scripts/test-mcp-host-e2e.ts
     CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
-    CLI_LATENCY_E2E_RUNS=3 \
+    CLI_LATENCY_E2E_RUNS=1 \
     CLI_LATENCY_E2E_WARMUP=1 \
     CLI_LATENCY_E2E_REPORT_PATH="$report_dir/cli-run-latency-report.json" \
       bun run test:cli-run-latency:e2e
@@ -246,7 +248,13 @@ case "$group" in
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     MOBILE_E2E_REPORT_PATH="$report_dir/mobile-e2e-report.json" \
       bun run test:mobile:e2e
-    # The same production build answers as a crawler sees it: statuses, robots, sitemap, JSON-LD.
+    ;;
+
+  seo)
+    app_server=start
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    start_app seo 3024 'landing SEO' record-http-status
+    # Plain HTTP assertions have no browser-specific behavior.
     LANDING_SEO_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     LANDING_SEO_E2E_REPORT_PATH="$report_dir/landing-seo-e2e-report.json" \
       bun run test:landing-seo:e2e

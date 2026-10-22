@@ -10,7 +10,7 @@ type Job =
   | 'integration'
   | 'e2e'
   | 'e2e-build'
-  | 'e2e-mobile'
+  | 'e2e-production'
   | 'desktop-live'
   | 'lint'
   | 'test'
@@ -22,13 +22,22 @@ const GATED: Job[] = [
   'integration',
   'e2e',
   'e2e-build',
-  'e2e-mobile',
+  'e2e-production',
   'desktop-live',
   'test',
   'test-types',
   'build',
 ]
-const ALL_FALSE = { full: 'false', test: 'false', build: 'false', desktop_live: 'false' }
+const ALL_FALSE = {
+  integration: 'false',
+  http: 'false',
+  production: 'false',
+  e2e_build: 'false',
+  test: 'false',
+  test_app: 'false',
+  build: 'false',
+  desktop_live: 'false',
+}
 
 /**
  * The `needs` context GitHub gives the `ci` job: every job succeeded and `changes` set `outputs`,
@@ -91,26 +100,21 @@ describe('CI gate', () => {
     },
     {
       name: 'a skip whose flag is missing',
-      outputs: { full: 'false', test: 'false', desktop_live: 'false' },
+      outputs: { ...ALL_FALSE, build: undefined },
       results: skipGated,
       reported: ['build: skipped'],
     },
     {
       name: 'a skip whose flag is a misspelling',
-      outputs: { ...ALL_FALSE, full: 'flase' },
+      outputs: { ...ALL_FALSE, production: 'flase' },
       results: skipGated,
-      reported: [
-        'e2e-build: skipped',
-        'e2e-mobile: skipped',
-        'e2e: skipped',
-        'integration: skipped',
-      ],
+      reported: ['e2e-production: skipped'],
     },
     {
       name: 'a skip whose flag is differently cased',
       outputs: { ...ALL_FALSE, test: 'False' },
       results: skipGated,
-      reported: ['test-types: skipped', 'test: skipped'],
+      reported: ['test: skipped'],
     },
     {
       name: 'a skip whose flag is empty',
@@ -132,7 +136,7 @@ describe('CI gate', () => {
         'build: skipped',
         'desktop-live: skipped',
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test-types: skipped',
@@ -147,7 +151,7 @@ describe('CI gate', () => {
         'build: skipped',
         'desktop-live: skipped',
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test-types: skipped',
@@ -163,7 +167,7 @@ describe('CI gate', () => {
         'changes: failure',
         'desktop-live: skipped',
         'e2e-build: skipped',
-        'e2e-mobile: skipped',
+        'e2e-production: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test-types: skipped',
@@ -178,9 +182,9 @@ describe('CI gate', () => {
     },
     {
       name: 'a mobile skip after a failed e2e build, though its flag is true',
-      outputs: { ...ALL_FALSE, full: 'true', build: 'true' },
-      results: { 'e2e-build': 'failure', 'e2e-mobile': 'skipped' },
-      reported: ['e2e-build: failure', 'e2e-mobile: skipped'],
+      outputs: { ...ALL_FALSE, e2e_build: 'true', production: 'true', build: 'true' },
+      results: { 'e2e-build': 'failure', 'e2e-production': 'skipped' },
+      reported: ['e2e-build: failure', 'e2e-production: skipped'],
     },
     {
       name: 'a failed job whose flag is false',
@@ -211,6 +215,12 @@ describe('CI gate', () => {
     expect(result.status, result.stdout).toBe(1)
     expect(result.stdout).toContain('::error::Checks did not pass:')
     expect(result.reported).toEqual(reported)
+  })
+
+  it('fails if an expected dependency is missing from the aggregate gate', () => {
+    const { integration: _integration, ...context } = needs(ALL_FALSE)
+    expect(gate(JSON.stringify(context)).status).toBe(1)
+    expect(gate('{}').status).toBe(1)
   })
 
   it.each(['', 'not json', '[]', 'null'])('fails on a needs context of %j', (context) => {

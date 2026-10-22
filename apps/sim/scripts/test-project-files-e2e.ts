@@ -25,6 +25,8 @@ function requiredString(value: unknown): string {
   assert.ok(typeof value === 'string' && value.length > 0, 'Fixture response field is missing')
   return value
 }
+const appServer = process.env.PROJECT_FILES_E2E_APP_SERVER ?? 'dev'
+assert.ok(appServer === 'dev' || appServer === 'start', 'App server must be dev or start')
 const reportPath = resolve(required('PROJECT_FILES_E2E_REPORT_PATH'))
 const reportDir = dirname(reportPath)
 const adminUrl = new URL(required('PROJECT_FILES_E2E_ADMIN_DATABASE_URL'))
@@ -76,7 +78,8 @@ const environment: NodeJS.ProcessEnv = {
   HOME: process.env.HOME,
   TMPDIR: process.env.TMPDIR,
   SYSTEMROOT: process.env.SYSTEMROOT,
-  NODE_ENV: 'development',
+  NODE_ENV: appServer === 'start' ? 'production' : 'development',
+  LOG_LEVEL: 'INFO',
   __NEXT_PROCESSED_ENV: 'true',
   DATABASE_URL: databaseUrl.toString(),
   MIGRATION_DATABASE_URL: databaseUrl.toString(),
@@ -394,7 +397,7 @@ try {
         [
           'node',
           join(rootDir, 'node_modules/next/dist/bin/next'),
-          'dev',
+          appServer,
           '--hostname',
           base.hostname,
           '--port',
