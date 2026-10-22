@@ -28,7 +28,7 @@ const XLSX_WORKER_IDLE_TIMEOUT_MS = 30_000
 /** Bounds worker startup only; a parse itself is bounded by the caller's signal. */
 const XLSX_WORKER_START_TIMEOUT_MS = 10_000
 
-const WORKER_BUNDLE_RELATIVE_PATH = path.join('lib', 'file-parsers', 'dist', 'xlsx-worker.mjs')
+const WORKER_BUNDLE_RELATIVE_PATH = path.join('dist', 'xlsx-worker.mjs')
 
 /**
  * Where `bun run build:xlsx-worker` writes the bundle, as seen from the two
@@ -257,6 +257,7 @@ export class XlsxWorkerPool {
       this.retire(slot)
       if (job) this.runInProcess(job)
     }
+    for (const job of this.queue.splice(0)) this.runInProcess(job)
   }
 
   private runInProcess(job: Job): void {

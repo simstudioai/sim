@@ -1,6 +1,6 @@
 /**
  * Worker-thread entry for spreadsheet parsing, bundled to
- * `lib/file-parsers/dist/xlsx-worker.mjs` by `bun run build:xlsx-worker` and
+ * `apps/sim/dist/xlsx-worker.mjs` by `bun run build:xlsx-worker` and
  * spawned by `xlsx-worker-pool.ts`. It runs the same {@link XlsxParser} the
  * main thread falls back to, so the two paths cannot drift.
  */

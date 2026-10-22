@@ -11,7 +11,7 @@ import type { FileParseOptions, FileParseResult } from '@/lib/file-parsers/types
  * throw is encoded by kind and rebuilt as the same class on the main side.
  */
 
-export type XlsxWorkerParseOptions = Omit<FileParseOptions, 'signal'>
+type XlsxWorkerParseOptions = Omit<FileParseOptions, 'signal'>
 
 export interface XlsxWorkerParseRequest {
   type: 'parse'

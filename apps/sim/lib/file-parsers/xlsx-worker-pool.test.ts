@@ -6,7 +6,8 @@
  * 1. Worker output diverges from in-process parsing (preview, complete).
  * 2. A typed parser error loses its class, `code`, or message crossing back.
  * 3. A missing bundle breaks parsing instead of falling back in-process.
- * 4. An unloadable bundle (throws at load) breaks parsing instead of falling back.
+ * 4. An unloadable bundle (throws at load, or the Worker constructor itself
+ *    throws) breaks parsing or strands queued jobs instead of falling back.
  * 5. A worker crash mid-parse loses the job instead of re-running it in-process.
  * 6. An abort during a worker parse hangs or leaves the worker occupying its slot.
  * 7. An abort while queued still dispatches the job.
@@ -149,6 +150,19 @@ describe('XlsxWorkerPool fallback', () => {
 
     await expect(pool.parse(input, {}, inProcess(input))).resolves.toEqual(expected)
     await expect(pool.parse(input, {}, inProcess(input))).resolves.toEqual(expected)
+  })
+
+  it('parses every queued job in-process when the Worker constructor throws', async () => {
+    const input = workbook()
+    const expected = await parser.parseBuffer(input)
+    const pool = new XlsxWorkerPool({ workerPath: 'not-a-resolvable-worker-path.mjs', size: 1 })
+
+    const results = await Promise.all([
+      pool.parse(input, {}, inProcess(input)),
+      pool.parse(input, {}, inProcess(input)),
+    ])
+
+    expect(results).toEqual([expected, expected])
   })
 
   it('re-runs a job in-process when the worker dies mid-parse', async () => {

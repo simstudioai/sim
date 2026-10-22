@@ -163,7 +163,7 @@ const nextConfig: NextConfig = {
      */
     '/*': [
       './lib/execution/sandbox/bundles/*.cjs',
-      './lib/file-parsers/dist/xlsx-worker.mjs',
+      './dist/xlsx-worker.mjs',
       './node_modules/ws/**/*',
       '../../packages/sim-cli/dist/runtime.js',
     ],
