@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@clack/prompts": "1.7.0",
-    "@next/env": "16.4.0",
+    "@next/env": "16.4.1",
     "@sim/deployment-config": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/tsconfig": "workspace:*",
