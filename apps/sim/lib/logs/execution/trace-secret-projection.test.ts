@@ -340,6 +340,63 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0].output).toEqual({ value: 'prefix {{LONG}} suffix' })
   })
 
+  /** Never moves backwards across tests: the slice deadline it sets outlives each one. */
+  let fakeClockMs = 0
+
+  /**
+   * Counts event-loop turns that complete while the projection is in flight, on a clock that
+   * advances 1ms per read so the slice expires at a fixed rate on any machine. A single yield
+   * before any work allows one turn — the pending immediate runs, and its successor cannot until
+   * the projection parks again — so two or more prove it keeps yielding mid-projection.
+   */
+  async function countTurnsDuringProjection(spans: TraceSpan[]) {
+    fakeClockMs = Math.max(fakeClockMs, performance.now())
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => {
+      fakeClockMs += 1
+      return fakeClockMs
+    })
+    let settled = false
+    let turns = 0
+    const tick = () => {
+      if (settled) return
+      turns += 1
+      setImmediate(tick)
+    }
+    setImmediate(tick)
+    try {
+      const projected = await projectTraceSpansForSecrets(spans, {
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{SECRET}}' }]),
+        store: STORE,
+      })
+      return { turns, projected }
+    } finally {
+      settled = true
+      now.mockRestore()
+    }
+  }
+
+  it('keeps yielding to the event loop throughout a content projection', async () => {
+    const spans = Array.from({ length: 30 }, (_, index) =>
+      createSpan({ id: `span-${index}`, output: { note: `span ${index} holds secretval` } })
+    )
+
+    const { turns, projected } = await countTurnsDuringProjection(spans)
+
+    expect(turns).toBeGreaterThanOrEqual(2)
+    expect(projected[29].output).toEqual({ note: 'span 29 holds {{SECRET}}' })
+  })
+
+  it('keeps yielding to the event loop throughout a structure-only projection', async () => {
+    const children = Array.from({ length: 50 }, (_, index) => createSpan({ id: `child-${index}` }))
+
+    const { turns, projected } = await countTurnsDuringProjection([
+      createSpan({ id: 'root', type: 'workflow', children }),
+    ])
+
+    expect(turns).toBeGreaterThanOrEqual(2)
+    expect(projected[0].children).toHaveLength(50)
+  })
+
   it('projects a successfully resolved numeric Function result without mutating runtime output', async () => {
     const runtimeOutput = { result: 12345678, unchanged: 5678 }
     const source = createSpan({ output: runtimeOutput })
