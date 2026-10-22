@@ -564,6 +564,7 @@ describe('projectTraceSpansForSecrets', () => {
               duration: 1,
               startTime: '2026-07-01T00:00:00.000Z',
               endTime: '2026-07-01T00:00:00.001Z',
+              status: 'success',
               output: { secretval: 1, '{{TOKEN}}': 2 },
             },
           ],
