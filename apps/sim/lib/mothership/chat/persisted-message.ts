@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import type {
   PersistedContentBlock,
@@ -24,6 +24,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type {
   ContentBlock,
   LocalToolCallStatus,
@@ -45,6 +46,13 @@ export interface PersistedMessageContext {
   owner?: FileOperationOwner
   kind: string
   label: string
+  workspaceId?: string
+  projectId?: string
+  executionId?: string
+  fileFolderId?: string
+  command?: string
+  blockId?: string
+  blockIds?: string[]
   workflowId?: string
   knowledgeId?: string
   tableId?: string
@@ -97,6 +105,13 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
     kind: c.kind,
     label: c.label,
     ...(c.owner ? { owner: { ...c.owner } } : {}),
+    ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
+    ...(c.projectId ? { projectId: c.projectId } : {}),
+    ...(c.executionId ? { executionId: c.executionId } : {}),
+    ...(c.fileFolderId ? { fileFolderId: c.fileFolderId } : {}),
+    ...(c.command ? { command: c.command } : {}),
+    ...(c.blockId ? { blockId: c.blockId } : {}),
+    ...(Array.isArray(c.blockIds) ? { blockIds: [...c.blockIds] } : {}),
     ...(c.workflowId ? { workflowId: c.workflowId } : {}),
     ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
     ...(c.tableId ? { tableId: c.tableId } : {}),
@@ -390,9 +405,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         ...(isSubagentTool && isNonTerminal ? {} : { result: redactedResult }),
         ...(isSubagentTool && isNonTerminal
           ? {}
-          : block.toolCall.params
-            ? { params: block.toolCall.params }
-            : {}),
+          : filterUndefined({ params: block.toolCall.params, activity: block.toolCall.activity })),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
         ...(block.toolCall.displayTitle
           ? {
@@ -619,6 +632,7 @@ interface RawBlock {
     result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string; title?: string; phaseLabel?: string }
     activityDescription?: string
+    activity?: unknown
     calledBy?: string
     durationMs?: number
     error?: string
@@ -678,11 +692,15 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.parentToolCallId) result.parentToolCallId = block.parentToolCallId
   if (block.toolCall) {
     const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
+    const activity = isRecordLike(block.toolCall.activity)
+      ? ToolActivity.safeParse(block.toolCall.activity)
+      : undefined
     result.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? '',
       state: normalizeToolState(block.toolCall.state),
       ...(activityDescription ? { activityDescription } : {}),
+      ...(activity?.success ? { activity: activity.data } : {}),
       ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
       ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
       ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),

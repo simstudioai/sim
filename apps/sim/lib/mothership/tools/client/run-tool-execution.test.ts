@@ -243,6 +243,25 @@ describe('run tool execution cancellation', () => {
     }
   })
 
+  it('leaves a paused run for Sim to report, and a reload neither re-sends nor restarts it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    executeWorkflowWithFullLogging.mockResolvedValueOnce({
+      success: true,
+      status: 'paused',
+      output: {},
+      logs: [],
+    })
+
+    executeRunToolOnClient('tool-paused', 'run_workflow', { workflowId: 'wf-1' })
+    await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+    await expect(bindRunToolToExecution('tool-paused', 'wf-1')).resolves.toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('cancels and reports the owned execution even when its workflow has a newer UI pointer', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)

@@ -303,6 +303,13 @@ export const TOOL_DEADLINE_SETTLE_MARGIN_MS = 90_000;
 /** The `clientCapabilities` token a Sim sends when it honors `StreamToolDeadline`. */
 export const TOOL_DEADLINE_CAPABILITY = "tool-deadline";
 
+/**
+ * The `clientCapabilities` token a Sim sends when this turn may copy files within or between
+ * workspaces it can reach (`files copy`) without negotiated file owners, so also where Projects
+ * are off.
+ */
+export const WORKSPACE_FILE_COPY_CAPABILITY = "workspace-file-copy";
+
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
   fileOwnerProtocolVersion?: 1 | undefined;
@@ -348,7 +355,8 @@ export interface ChatRequest extends StreamResponseReceipt {
    * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
    * this field still gets waited on). Known capability: "workflow-tool-pickup". Sim also
-   * declares its own {@link TOOL_DEADLINE_CAPABILITY} here.
+   * declares its own {@link TOOL_DEADLINE_CAPABILITY} and {@link WORKSPACE_FILE_COPY_CAPABILITY}
+   * here.
    */
   clientCapabilities?: string[] | undefined;
   /**

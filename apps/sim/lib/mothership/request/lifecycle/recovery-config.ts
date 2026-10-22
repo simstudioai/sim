@@ -3,7 +3,6 @@ import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-d
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
-import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 
 export const BillingAdmissionSchema = z
   .object({
@@ -28,14 +27,14 @@ export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
 export const RESOURCE_AUTHORING_VERSION = 1
 
 /**
- * The marker an admitted turn stores for recovery. Builds before it parse recovery strictly and
- * would refuse to recover the run, and only Project authoring reads it, so it is written only
- * while Projects are on.
+ * The marker an admitted turn stores for recovery, so a recovered turn keeps its admission. It is
+ * written whether or not Projects are on, since copies between workspaces need the admission
+ * without them; every release since the marker shipped parses it.
  */
-export async function durableResourceAuthoringVersion(
+export function durableResourceAuthoringVersion(
   admitted: boolean
-): Promise<typeof RESOURCE_AUTHORING_VERSION | undefined> {
-  return admitted && (await isProjectsEnabled()) ? RESOURCE_AUTHORING_VERSION : undefined
+): typeof RESOURCE_AUTHORING_VERSION | undefined {
+  return admitted ? RESOURCE_AUTHORING_VERSION : undefined
 }
 
 export const StreamRecoveryConfigSchema = z
@@ -66,7 +65,7 @@ export async function streamRecoveryConfig(
   request: Record<string, unknown>
 ) {
   if (options.interactive !== true) return undefined
-  const resourceAuthoringVersion = await durableResourceAuthoringVersion(
+  const resourceAuthoringVersion = durableResourceAuthoringVersion(
     hasCopilotResourceAdmission({
       ...options,
       ...options.executionContext,

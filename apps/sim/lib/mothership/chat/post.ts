@@ -9,11 +9,8 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
-import {
-  mothershipResourceSchema,
-  mothershipTableViewContextSchema,
-  mothershipResourceAttachmentSchema as ResourceAttachmentSchema,
-} from '@/lib/api/contracts/mothership-resources'
+import { chatContextSchema } from '@/lib/api/contracts/mothership-chat-context'
+import { mothershipResourceAttachmentSchema as ResourceAttachmentSchema } from '@/lib/api/contracts/mothership-resources'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
@@ -40,11 +37,7 @@ import {
   prepareOrganizationChatAttachments,
 } from '@/lib/mothership/chat/assistant-images'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
-import {
-  MAX_CHAT_CONTEXT_LABEL_LENGTH,
-  MAX_CHAT_CONTEXTS,
-  MAX_CHAT_MESSAGE_LENGTH,
-} from '@/lib/mothership/chat/context-limits'
+import { MAX_CHAT_CONTEXTS, MAX_CHAT_MESSAGE_LENGTH } from '@/lib/mothership/chat/context-limits'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -59,13 +52,6 @@ import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
 import {
-  CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH,
-  MAX_FILE_SELECTION_TEXT_LENGTH,
-  MAX_TABLE_SELECTION_COLUMNS,
-  MAX_TABLE_SELECTION_ROWS,
-  safeBrowserSelectionUrl,
-} from '@/lib/mothership/chat/selection-context'
-import {
   COPILOT_REQUEST_MODES,
   MOTHERSHIP_CHAT_ID_HEADER,
   MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
@@ -73,7 +59,6 @@ import {
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
   type ChatContextItem,
   type ChatRequest,
@@ -111,9 +96,6 @@ import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('UnifiedChatAPI')
 const DEFAULT_MODEL = 'claude-opus-4-8'
-const CHAT_SELECTION_TEXT_MAX_LENGTH = 100_000
-const CHAT_SELECTION_SOURCE_URL_MAX_LENGTH = 8_192
-const TERMINAL_SELECTION_LINE_MAX = 10_000_000
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -137,140 +119,6 @@ function dropUnaddressableAttachments(value: unknown): unknown {
     return typeof id !== 'string' || hasAddressableId(id)
   })
 }
-
-/** Non-strings pass through for the schema to reject; strings are sanitized. */
-function sanitizeBrowserSelectionUrl(value: unknown): unknown {
-  return typeof value === 'string' ? safeBrowserSelectionUrl(value) : value
-}
-
-const BrowserTextSelectionSchema = z
-  .object({
-    text: z.string().min(1).max(CHAT_SELECTION_TEXT_MAX_LENGTH),
-    url: z.preprocess(
-      sanitizeBrowserSelectionUrl,
-      z.string().max(CHAT_SELECTION_SOURCE_URL_MAX_LENGTH).optional()
-    ),
-    title: z.string().max(CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH).optional(),
-  })
-  .strict()
-  .transform(({ text, title, url }) => ({
-    text,
-    ...(url ? { url } : {}),
-    ...(title ? { title } : {}),
-  }))
-
-const TerminalTextSelectionSchema = z
-  .object({
-    text: z.string().min(1).max(CHAT_SELECTION_TEXT_MAX_LENGTH),
-    startLine: z.number().int().positive().max(TERMINAL_SELECTION_LINE_MAX),
-    endLine: z.number().int().positive().max(TERMINAL_SELECTION_LINE_MAX),
-  })
-  .strict()
-  .refine(({ startLine, endLine }) => endLine >= startLine, {
-    message: 'endLine must be greater than or equal to startLine',
-    path: ['endLine'],
-  })
-
-const ChatContextSchema = z
-  .object({
-    kind: z.enum([
-      'past_chat',
-      'workflow',
-      'current_workflow',
-      'blocks',
-      'logs',
-      'workflow_block',
-      'knowledge',
-      'docs',
-      'table',
-      'table_selection',
-      'file',
-      'file_selection',
-      'dashboard',
-      'folder',
-      'filefolder',
-      'integration',
-      'skill',
-      'mcp',
-      'browser_tab',
-      'terminal_tab',
-      'workspace',
-      'project',
-    ]),
-    label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
-    chatId: z.string().optional(),
-    workflowId: z.string().optional(),
-    knowledgeId: z.string().optional(),
-    blockId: z.string().optional(),
-    blockIds: z.array(z.string()).optional(),
-    blockType: z.string().min(1).max(200).optional(),
-    executionId: z.string().optional(),
-    tableId: z.string().optional(),
-    viewId: mothershipResourceSchema.shape.viewId,
-    currentView: mothershipTableViewContextSchema.optional(),
-    fileId: z.string().optional(),
-    owner: FileOperationOwner.optional(),
-    dashboardId: z.string().optional(),
-    folderId: z.string().optional(),
-    fileFolderId: z.string().optional(),
-    skillId: z.string().optional(),
-    workspaceId: z.string().min(1).max(200).optional(),
-    projectId: z.string().min(1).max(200).optional(),
-    serverId: z.string().optional(),
-    scheduleId: z.string().optional(),
-    tabId: z.string().optional(),
-    terminalId: z.string().optional(),
-    text: z.string().max(MAX_FILE_SELECTION_TEXT_LENGTH).optional(),
-    fileName: z.string().optional(),
-    startLine: z.number().int().positive().optional(),
-    endLine: z.number().int().positive().optional(),
-    tableName: z.string().optional(),
-    rowIds: z.array(z.string()).max(MAX_TABLE_SELECTION_ROWS).optional(),
-    columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
-    selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
-  })
-  .superRefine(({ kind, selection, workspaceId, projectId, owner }, refinementContext) => {
-    if (
-      (kind === 'project' && (!projectId || workspaceId !== undefined)) ||
-      (kind !== 'project' && projectId !== undefined)
-    ) {
-      refinementContext.addIssue({
-        code: 'custom',
-        path: ['projectId'],
-        message: 'A Project context requires only a Project target',
-      })
-    }
-    if (
-      owner &&
-      ((kind !== 'file' && kind !== 'file_selection') ||
-        (owner.entityType !== 'workspace' && workspaceId) ||
-        (owner.entityType === 'workspace' && workspaceId && owner.entityId !== workspaceId))
-    )
-      refinementContext.addIssue({
-        code: 'custom',
-        path: ['owner'],
-        message: 'File owner conflicts with the context target',
-      })
-    if (kind === 'workspace' && !workspaceId) {
-      refinementContext.addIssue({
-        code: 'custom',
-        message: 'workspaceId is required for a workspace context',
-        path: ['workspaceId'],
-      })
-    }
-    if (!selection) return
-    const isTerminalSelection = 'startLine' in selection
-    const selectionMatchesKind =
-      (kind === 'browser_tab' && !isTerminalSelection) ||
-      (kind === 'terminal_tab' && isTerminalSelection)
-    if (!selectionMatchesKind) {
-      refinementContext.addIssue({
-        code: 'custom',
-        message: 'selection must match its browser_tab or terminal_tab context kind',
-        path: ['selection'],
-      })
-    }
-  })
 
 const ChatMessageSchema = z
   .object({
@@ -297,7 +145,7 @@ const ChatMessageSchema = z
       .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
       .optional(),
     provider: z.string().optional(),
-    contexts: z.array(ChatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
+    contexts: z.array(chatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
     effort: z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
@@ -1408,7 +1256,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         if (!lease || !sendClaim?.claimToken || sendClaim.storageMethod !== 'database') {
           throw new Error('Chat admission requires its controller and durable send claim')
         }
-        const resourceAuthoringVersion = await durableResourceAuthoringVersion(
+        const resourceAuthoringVersion = durableResourceAuthoringVersion(
           executionContext.copilotResourceAdmission !== undefined
         )
         admittedRun = await admitChatTurn.execute({

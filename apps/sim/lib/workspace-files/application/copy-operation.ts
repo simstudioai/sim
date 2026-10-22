@@ -21,3 +21,17 @@ Object.freeze(policy.delegatedServices)
 
 /** Compound copies bind independent source-read and destination-write authority. */
 export const fileCopyOperation = Object.freeze(policy)
+
+/**
+ * Whether a copy names only workspace owners. Every workspace belongs to a Project whether or not
+ * Projects are on, so only a copy that names a Project owner needs them.
+ */
+export function copiesWithinWorkspaces(input: {
+  source: { owner: { entityType: string } }
+  destination: { owner: { entityType: string } }
+}): boolean {
+  return (
+    input.source.owner.entityType === 'workspace' &&
+    input.destination.owner.entityType === 'workspace'
+  )
+}

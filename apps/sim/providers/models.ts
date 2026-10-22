@@ -89,7 +89,8 @@ export interface ModelCapabilities {
     streamed?: ThinkingStreamVisibility
     /**
      * Explicit API mode for the pickers' `none` level on models that think by
-     * default. Omitted, `none` sends no thinking config.
+     * default. Omitted, `none` sends no thinking config, except on Gemini 3+, which
+     * has no off switch and sends its lowest declared level instead.
      */
     noneMode?: 'between_tools' | 'disabled'
     /** Whether forced tool choice can be combined with configured thinking. */

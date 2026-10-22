@@ -13,6 +13,7 @@ import {
   recordSandboxResourceEffects,
   type SandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
+import { copiesWithinWorkspaces } from '@/lib/workspace-files/application/copy-operation'
 
 const logger = createLogger('SandboxFileCopy')
 
@@ -22,15 +23,17 @@ export async function proxySandboxFileCopyRequest(
   token: string,
   scope: SandboxResourceScope
 ): Promise<Response> {
-  if (
-    scope.fileOwnerProtocolVersion !== 1 ||
-    request.headers.has('x-mothership-file-owner') ||
-    request.headers.has('x-mothership-workspace-id')
-  )
-    return Response.json(
+  const unavailable = () =>
+    Response.json(
       { error: 'Paired file owner routing is unavailable or contradictory' },
       { status: 403 }
     )
+  if (
+    (scope.fileOwnerProtocolVersion !== 1 && !scope.workspaceFileCopy) ||
+    request.headers.has('x-mothership-file-owner') ||
+    request.headers.has('x-mothership-workspace-id')
+  )
+    return unavailable()
   if (request.method !== 'POST')
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
   const parsed = await parseRequest(
@@ -43,6 +46,9 @@ export async function proxySandboxFileCopyRequest(
     }
   )
   if (!parsed.success) return parsed.response
+  // Without the negotiated protocol only workspace owners exist for this lease.
+  if (scope.fileOwnerProtocolVersion !== 1 && !copiesWithinWorkspaces(parsed.data.body))
+    return unavailable()
   const endpoint = getInternalApiBaseUrl()
   const transport = createFileCopyCliTransport(
     endpoint,

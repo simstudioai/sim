@@ -20,6 +20,7 @@ import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import {
   activeSandboxChatOwner,
   activeSandboxFileOwnerProtocol,
+  activeSandboxWorkspaceFileCopy,
   sandboxResourceEndpoint,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
@@ -153,6 +154,7 @@ export async function buildMothershipSandboxSession(args: {
           : { SIM_WORKSPACE: args.workspaceId! }),
         SIM_ENDPOINT: scopedEndpoint,
         ...(activeSandboxFileOwnerProtocol() === 1 ? { SIM_FILE_OWNER_PROTOCOL: '1' } : {}),
+        ...(activeSandboxWorkspaceFileCopy() ? { SIM_WORKSPACE_FILE_COPY: '1' } : {}),
       }
     }
   } catch (error) {

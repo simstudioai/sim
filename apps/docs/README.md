@@ -25,3 +25,5 @@ Use the owner and generation commands listed in the editorial guide. Do not hand
 ## Validate
 
 From the repository root, run the required lint, type, audit, and test gates in the development guidelines. From this directory, `bun run type-check` compiles MDX and checks the docs workspace, and `bun run build` validates the production site. Inspect affected page types on desktop and a narrow viewport, and check internal links and existing anchors after heading changes.
+
+The docs HTTP workflow also checks sidebar navigation, API language switching, and copying Markdown on desktop and mobile layouts. It uploads screenshots and a JSON report with the HTTP regression artifacts. These checks run against the built site in CI; no visitor telemetry is collected. Use Vercel's build logs and usage reports to compare deployment cost and duration.

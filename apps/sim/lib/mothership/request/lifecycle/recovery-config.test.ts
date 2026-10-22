@@ -104,15 +104,22 @@ describe('recovery marker written by an admitted turn', () => {
     }),
   }
 
-  it('stays off a recovery config older builds must still parse while Projects are off', async () => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
-    const recovery = await streamRecoveryConfig(options, workspaceRequest)
-    expect(recovery).not.toHaveProperty('resourceAuthoringVersion')
-  })
+  it.each([true, false])(
+    'restores authoring admission on recovery whether Projects are on (%s) or off',
+    async (projects) => {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+        async (flag) => projects && flag === 'projects'
+      )
+      const recovery = await streamRecoveryConfig(options, workspaceRequest)
+      expect(recovery?.resourceAuthoringVersion).toBe(1)
+    }
+  )
 
-  it('restores authoring admission on recovery while Projects are on', async () => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-    const recovery = await streamRecoveryConfig(options, workspaceRequest)
-    expect(recovery?.resourceAuthoringVersion).toBe(1)
+  it('stays off a turn that was never admitted', async () => {
+    const recovery = await streamRecoveryConfig(
+      { ...options, copilotResourceAdmission: undefined },
+      workspaceRequest
+    )
+    expect(recovery).not.toHaveProperty('resourceAuthoringVersion')
   })
 })

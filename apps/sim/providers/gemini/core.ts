@@ -36,7 +36,7 @@ import {
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
-import { getModelCapabilities, isKnownModelId } from '@/providers/models'
+import { getModelCapabilities, getThinkingLevelsForModel, isKnownModelId } from '@/providers/models'
 import { withProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
@@ -57,6 +57,7 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
+  toBareGeminiModelId,
 } from '@/providers/utils'
 import type { ExecutionState, GeminiProviderType, GeminiUsage } from './types'
 
@@ -1010,17 +1011,26 @@ export async function executeGeminiRequest(
     // Gemini 3 and later take thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
     // includeThoughts is required for thought parts to appear; it is requested
     // only on agent-events runs so legacy runs keep the pre-agent-events payload.
-    if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+    const isGemini3 = isGemini3OrLaterModel(model)
+    // Gemini 3 has no off switch and omitting thinkingConfig means the model's default level, so
+    // 'none' sends the lowest declared level (levels are listed lowest-first; MINIMAL is closest to off).
+    // The catalog keys Vertex entries as vertex/<bare id>, so resource-name IDs are reduced first.
+    const catalogModelId = `${providerType === 'vertex' ? 'vertex/' : ''}${toBareGeminiModelId(model)}`
+    const thinkingLevel =
+      isGemini3 && request.thinkingLevel === 'none'
+        ? getThinkingLevelsForModel(catalogModelId)?.[0]
+        : request.thinkingLevel
+    if (thinkingLevel && thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
-      if (isGemini3OrLaterModel(model)) {
-        thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
+      if (isGemini3) {
+        thinkingConfig.thinkingLevel = mapToThinkingLevel(thinkingLevel)
       } else {
-        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, request.thinkingLevel)
+        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, thinkingLevel)
       }
       geminiConfig.thinkingConfig = thinkingConfig
     } else if (
+      !isGemini3 &&
       request.thinkingLevel === 'none' &&
-      !isGemini3OrLaterModel(model) &&
       supportsDisablingGemini25Thinking(model)
     ) {
       // Omitting thinkingConfig falls back to the API's dynamic default (ON for gemini-2.5-flash),
@@ -1085,7 +1095,7 @@ export async function executeGeminiRequest(
      */
     const hasActiveTools = Boolean(geminiConfig.tools?.length)
     const responseFormatNeedsFinalPass =
-      Boolean(request.responseFormat) && hasActiveTools && !isGemini3OrLaterModel(model)
+      Boolean(request.responseFormat) && hasActiveTools && !isGemini3
     const liveToolLoopSupported = !responseFormatNeedsFinalPass
     const shouldStream = request.stream && !hasActiveTools
 

@@ -47,6 +47,7 @@ import {
   type ExecutionEvent,
   LIVE_ONLY_EXECUTION_EVENT_TYPES,
 } from '@/lib/workflows/executor/execution-events'
+import { getWorkflowExecutionCopilotToolCallId } from '@/lib/workflows/executor/execution-state'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -123,6 +124,31 @@ async function releaseCancelledResumeReservations(
       }
     })
   )
+}
+
+/**
+ * Reports the Copilot workflow tool bound to a paused execution that has now
+ * settled; a paused run has no browser left to report it. Best effort.
+ */
+async function reportCopilotToolForSettledPause(
+  executionId: string,
+  workflowId: string
+): Promise<void> {
+  try {
+    const toolCallId = await getWorkflowExecutionCopilotToolCallId(executionId, workflowId)
+    if (!toolCallId) return
+    // Loaded only for a Copilot-bound run: its confirmation channel opens Redis connections at import.
+    const { reportSettledClientWorkflowTool } = await import(
+      '@/lib/mothership/request/tools/workflow-client-settlement'
+    )
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+  } catch (error) {
+    logger.warn('Failed to report a settled paused Copilot workflow tool', {
+      executionId,
+      workflowId,
+      error: toError(error).message,
+    })
+  }
 }
 
 /**
@@ -1006,6 +1032,10 @@ export class PauseResumeManager {
             stopAfterBlockReached: result.metadata?.stopAfterBlockReached === true,
           })
         }
+        await reportCopilotToolForSettledPause(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
       }
 
       if (result.status === 'paused') {
@@ -1075,6 +1105,10 @@ export class PauseResumeManager {
           }),
       })
       if (!(error instanceof ResumeAdmissionError)) {
+        await reportCopilotToolForSettledPause(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
           pausedExecution.workflowId
@@ -2855,6 +2889,9 @@ export class PauseResumeManager {
     })
 
     await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    if (transition.cancelled) {
+      await reportCopilotToolForSettledPause(executionId, workflowId)
+    }
     return transition.cancelled
   }
 
@@ -2958,6 +2995,11 @@ export class PauseResumeManager {
     })
 
     await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    // The terminal writer may never report it (the stale-execution sweep, a resume worker killed
+    // after its log write), which would leave the Copilot tool waiting.
+    if (transition.finalized) {
+      await reportCopilotToolForSettledPause(executionId, workflowId)
+    }
     return transition.finalized
   }
 

@@ -12,6 +12,7 @@ const DOCS_DIR = 'content/docs'
 export const docs = defineDocs({
   dir: DOCS_DIR,
   docs: {
+    async: true,
     schema: frontmatterSchema.extend({
       integration: z.object({ type: z.string(), color: z.string() }).optional(),
     }),

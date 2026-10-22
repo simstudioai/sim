@@ -10,11 +10,12 @@ import {
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { read, mint, connection, endpoint } = vi.hoisted(() => ({
+const { read, mint, connection, endpoint, workspaceFileCopy } = vi.hoisted(() => ({
   connection: vi.fn(),
   endpoint: vi.fn(),
   read: vi.fn(),
   mint: vi.fn(),
+  workspaceFileCopy: vi.fn(),
 }))
 vi.mock('@/lib/mothership/transport/connection', () => ({ getSimConnection: connection }))
 vi.mock('node:fs/promises', () => ({ readFile: read }))
@@ -85,6 +86,14 @@ describe('deployment-owned workbench tooling', () => {
     })
   })
 
+  it('tells the workbench an admitted lease copies between workspaces without Projects', async () => {
+    read.mockResolvedValue('bundle')
+    workspaceFileCopy.mockReturnValue(true)
+    const session = await buildMothershipSandboxSession(request)
+    expect(session.envs).toMatchObject({ SIM_WORKSPACE_FILE_COPY: '1' })
+    expect(session.envs).not.toHaveProperty('SIM_FILE_OWNER_PROTOCOL')
+  })
+
   it('refuses setup when the deployment artifact is missing instead of fetching another CLI release', async () => {
     read.mockRejectedValue(new Error('missing workbench bundle'))
     await expect(buildMothershipSandboxSession(request)).rejects.toThrow('missing workbench bundle')
@@ -130,6 +139,7 @@ vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
   sandboxResourceEndpoint: endpoint,
   activeSandboxChatOwner: () => undefined,
   activeSandboxFileOwnerProtocol: () => undefined,
+  activeSandboxWorkspaceFileCopy: workspaceFileCopy,
 }))
 
 it('does not inject authentication when no active scoped callback can be established', async () => {

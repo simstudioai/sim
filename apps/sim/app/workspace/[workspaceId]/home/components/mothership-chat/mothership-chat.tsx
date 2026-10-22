@@ -396,6 +396,9 @@ export function MothershipChat({
    * starving the main thread on every streaming token.
    */
   const messages = useDeferredValue(messagesProp)
+  const historyMessagesRef = useRef(messagesProp)
+  historyMessagesRef.current = messagesProp
+  const getHistoryMessages = useCallback(() => historyMessagesRef.current, [])
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
@@ -779,16 +782,17 @@ export function MothershipChat({
   const handleEditQueued = useCallback(
     (id: string) => {
       const msg = onEditQueuedMessage(id)
-      if (!msg) return
-      userInputRef.current?.loadQueuedMessage(msg)
+      if (!msg || !userInputRef.current) return false
+      userInputRef.current.loadQueuedMessage(msg)
+      return true
     },
     [onEditQueuedMessage, userInputRef]
   )
 
   const handleEditQueuedTail = useCallback(() => {
     const tail = messageQueueRef.current[messageQueueRef.current.length - 1]
-    if (!tail) return
-    handleEditQueued(tail.id)
+    if (!tail) return false
+    return handleEditQueued(tail.id)
   }, [handleEditQueued])
 
   /**
@@ -988,6 +992,7 @@ export function MothershipChat({
                   onSendQueuedHead={handleSendQueuedHead}
                   onEditQueuedTail={handleEditQueuedTail}
                   draftScopeKey={draftScopeKey}
+                  getMessages={getHistoryMessages}
                 />
               ))}
           </div>

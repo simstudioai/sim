@@ -15,6 +15,7 @@ import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -33,8 +34,10 @@ import {
 import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
+import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
+  ChatMessage,
   ChatRequestMode,
   FileAttachmentForApi,
   MothershipResource,
@@ -69,7 +72,8 @@ interface UserInputProps {
   onStopGeneration: () => void
   isInitialView?: boolean
   onSendQueuedHead?: () => void
-  onEditQueuedTail?: () => void
+  onEditQueuedTail?: () => boolean
+  getMessages?: () => readonly ChatMessage[]
 }
 
 export interface UserInputHandle {
@@ -99,6 +103,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isInitialView = true,
     onSendQueuedHead,
     onEditQueuedTail,
+    getMessages,
   },
   ref
 ) {
@@ -135,6 +140,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     initialValue,
     onContextAdd,
     onPasteFiles: handlePasteFiles,
+  })
+  const history = usePromptHistory({
+    editor,
+    attachedFiles: files.attachedFiles,
+    restoreAttachedFiles: files.restoreAttachedFiles,
+    getMessages,
   })
   const editorRef = useRef(editor)
   editorRef.current = editor
@@ -359,7 +370,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     () => ({
       loadQueuedMessage: (msg: QueuedMessage) => {
         const currentEditor = editorRef.current
-        currentEditor.setValue(msg.content)
+        history.reset()
+        const { hasUnavailableContexts } = currentEditor.restorePrompt(msg.content, msg.contexts)
+        if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
         const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
           id: a.id,
           name: a.filename,
@@ -371,7 +384,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           previewUrl: getMothershipAttachmentPreviewUrl(a),
         }))
         filesRef.current.restoreAttachedFiles(restored)
-        currentEditor.setContexts(msg.contexts ?? [])
         currentEditor.focusAtEnd()
       },
       populatePrompt: (text: string) => {
@@ -483,6 +495,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   /** Empties the text, chips, attachments, transcript, and the saved draft in one step. */
   const clearComposer = useCallback(() => {
+    history.reset()
     editorRef.current.clear()
     if (draftSaveTimerRef.current !== null) {
       window.clearTimeout(draftSaveTimerRef.current)
@@ -497,7 +510,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     resetTranscript()
     filesRef.current.clearAttachedFiles()
     filesRef.current = { ...filesRef.current, attachedFiles: [] }
-  }, [resetTranscript])
+  }, [resetTranscript, history.reset])
 
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
@@ -553,8 +566,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (filesRef.current.attachedFiles.length > 0) return false
     const onEditQueuedTail = onEditQueuedTailRef.current
     if (!onEditQueuedTail) return false
-    onEditQueuedTail()
-    return true
+    return onEditQueuedTail()
   }, [])
 
   const handlePlusClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -602,6 +614,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
+        onNavigateHistory={history.navigate}
         className={cn(
           'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
           isInitialView && 'min-h-[56px] max-md:min-h-0'

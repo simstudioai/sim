@@ -1,3 +1,4 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   mothershipAsyncRunsMock,
@@ -2251,6 +2252,124 @@ describe('sse-handlers tool lifecycle', () => {
       expect.any(Object)
     )
   })
+
+  it("executes a resolved MCP operation with its own arguments under the gateway's grouping", async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: {} })
+    const grouping = { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' }
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-mcp',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'mcp-server-get_overview',
+            description: 'Pulling the overview',
+            activity: grouping,
+            arguments: { category_id: null },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-mcp',
+          toolName: 'mcp-server-get_overview',
+          arguments: { category_id: null },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await flushMacrotask()
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'mcp-server-get_overview',
+      { category_id: null },
+      expect.any(Object)
+    )
+    expect(context.toolCalls.get('gateway-mcp')?.activity).toEqual(grouping)
+  })
+
+  it.each([
+    ['a value', 'Development'],
+    ["shaped like the gateway's grouping", { id: 'filing' }],
+    ['shaped like a grouping of its own', { id: 'case-42', completedTitle: 'Closed the case' }],
+  ])(
+    "keeps an integration operation's own activity argument as %s under the gateway's grouping",
+    async (_case, ownActivity) => {
+      isSimExecuted.mockReturnValue(false)
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      const grouping = { id: 'filing', title: 'Filing tasks', completedTitle: 'Filed tasks' }
+
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: 'gateway-work-item',
+            toolName: 'call_integration_tool',
+            arguments: {
+              toolId: 'azure_devops_create_work_item',
+              description: 'Filing the task',
+              activity: grouping,
+              arguments: { title: 'Ship it', activity: ownActivity },
+            },
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.call,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+
+      // A repeated frame for the rebound operation still carries the operation's own arguments.
+      for (let frame = 0; frame < 2; frame++) {
+        await sseHandlers.tool(
+          {
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId: 'gateway-work-item',
+              toolName: 'azure_devops_create_work_item',
+              arguments: { title: 'Ship it', activity: ownActivity },
+              executor: MothershipStreamV1ToolExecutor.sim,
+              mode: MothershipStreamV1ToolMode.async,
+              phase: MothershipStreamV1ToolPhase.call,
+            },
+          } satisfies StreamEvent,
+          context,
+          execContext,
+          { interactive: false, timeout: 1000 }
+        )
+      }
+
+      await flushMacrotask()
+
+      expect(executeTool).toHaveBeenCalledWith(
+        'azure_devops_create_work_item',
+        { title: 'Ship it', activity: ownActivity },
+        expect.any(Object)
+      )
+      expect(context.toolCalls.get('gateway-work-item')?.activity).toEqual(grouping)
+    }
+  )
 
   it('clears pending continuation state when a run resumes', async () => {
     context.awaitingAsyncContinuation = {

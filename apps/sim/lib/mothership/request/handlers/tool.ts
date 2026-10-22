@@ -63,7 +63,7 @@ import type {
   ToolCallState,
 } from '@/lib/mothership/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
-import { readToolActivity } from '@/lib/mothership/tools/activity'
+import { readCallActivity, readFrameActivity } from '@/lib/mothership/tools/activity'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import {
@@ -153,9 +153,10 @@ function handleToolArgsDelta(
   if (!toolCall) return
   toolCall.streamingArgs = `${toolCall.streamingArgs ?? ''}${data.argumentsDelta}`
 
-  // Progressive CLI title: the row upgrades from "Running CLI command" to the
-  // specific verb as soon as enough argv tokens have streamed to name it —
-  // no wait for the full (possibly huge) argument payload.
+  // Progressive CLI title: the row upgrades from its placeholder to the specific
+  // verb as soon as enough argv tokens have streamed to name it — no wait for the
+  // full (possibly huge) argument payload. The activity header holds it back until
+  // the model's description arrives (see `isAwaitingTitle`).
   if (toolCall.name === 'sim_cli' || toolCall.name.startsWith('cli_')) {
     const refined = refineStreamingCliToolName(toolCall.streamingArgs)
     if (refined && refined !== toolCall.name) {
@@ -206,6 +207,7 @@ function rebindResolvedIntegrationCall(
   }
   toolCall.name = toolName
   toolCall.params = args
+  toolCall.resolvedOperation = true
   applyToolDisplay(toolCall)
   return true
 }
@@ -579,15 +581,17 @@ async function handleCallPhase(
     existing.activityDescription ??= activityDescription
   }
   /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
-  const suppliedActivity = readToolActivity(args) ?? readToolActivity(existing?.params)
+  const suppliedActivity =
+    readFrameActivity({ toolName, args }, existing) ?? readCallActivity(existing)
   const activity = suppliedActivity?.completedTitle
     ? suppliedActivity
     : suppliedActivity &&
       Array.from(context.toolCalls.values())
         .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
-        .map((tool) => readToolActivity(tool.params))
+        .map(readCallActivity)
         .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
-  const displayArgs = activity ? { ...args, activity } : args
+  // Kept off `args`, which execute as given (an MCP schema refuses keys it never declared).
+  if (existing && activity) existing.activity = activity
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
@@ -605,8 +609,8 @@ async function handleCallPhase(
 
   if (isSubagent) {
     if (wasToolResultSeen(context, toolCallId) || existing?.endTime) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
-        if (existing) updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        if (existing) updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -616,8 +620,8 @@ async function handleCallPhase(
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
-        updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -629,7 +633,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      displayArgs,
+      args,
       parentToolCallId!,
       agentId,
       ui,
@@ -642,7 +646,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      displayArgs,
+      args,
       existing,
       agentId,
       ui,
@@ -653,6 +657,7 @@ async function handleCallPhase(
 
   const registered = context.toolCalls.get(toolCallId)
   if (registered && data.workspaceId) registered.targetWorkspaceId = data.workspaceId
+  if (registered && activity) registered.activity = activity
   if (isPartial || data.replay) return
   if (!isSubagent && wasToolResultSeen(context, toolCallId)) return
   if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
