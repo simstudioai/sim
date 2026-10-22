@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { partitionFiles } from '@scripts/duration-shards'
 import { createLogger } from '@sim/logger'
 import { escapeRegExp } from '@sim/utils/string'
-import { partitionFiles } from './duration-shards'
 
 interface Suite {
   specs?: { file: string }[]
