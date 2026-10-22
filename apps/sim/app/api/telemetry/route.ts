@@ -1,12 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateRandomHex } from '@sim/utils/random'
 import { type NextRequest, NextResponse } from 'next/server'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { parseRequest } from '@/lib/api/server'
-import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  isTelemetryDisabled,
+  normalizeOtlpTracesUrl,
+  resolveOtlpTarget,
+} from '@/lib/monitoring/otlp'
 
 const logger = createLogger('TelemetryAPI')
 
@@ -52,15 +57,18 @@ function createSafeAttributes(
 }
 
 /**
- * Forwards telemetry data to OpenTelemetry collector
+ * Forwards a browser telemetry event as one span to the collector the server's own OpenTelemetry
+ * export uses, and not at all when the operator turned telemetry off.
  */
 async function forwardToCollector(data: Record<string, unknown>): Promise<boolean> {
   if (!data || typeof data !== 'object') {
     logger.error('Invalid telemetry data format')
     return false
   }
+  if (isTelemetryDisabled()) return false
 
-  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  const target = resolveOtlpTarget()
+  const endpoint = normalizeOtlpTracesUrl(target.endpoint)
   const timeout = DEFAULT_TIMEOUT
 
   try {
@@ -89,10 +97,12 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
           resource: {
             attributes: serviceAttrs,
           },
-          instrumentationLibrarySpans: [
+          scopeSpans: [
             {
               spans: [
                 {
+                  traceId: generateRandomHex(32),
+                  spanId: generateRandomHex(16),
                   name: spanName,
                   kind: 1,
                   startTimeUnixNano: timestamp,
@@ -113,6 +123,7 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
       const options = {
         method: 'POST',
         headers: {
+          ...target.headers,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),

@@ -298,7 +298,7 @@ helm template sim oci://ghcr.io/simstudioai/charts/sim --version 1.11.8 -f value
 | `OTEL_TRACES_SAMPLER_ARG` | Trace sampling ratio |
 | `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
 | `TELEMETRY_SAMPLING_RATIO` | Application-level sampling ratio |
-| `TELEMETRY_ENDPOINT` | Where anonymous telemetry is sent. Defaults to `https://telemetry.simstudio.ai/v1/traces` — point it at your own collector to keep traces internal |
+| `TELEMETRY_ENDPOINT` | Where anonymous telemetry is sent when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset. Defaults to `https://telemetry.simstudio.ai/v1/traces`, which receives traces only; logs and metrics are exported only to a collector you configure. `NEXT_TELEMETRY_DISABLED=1` (the Docker and Helm default) turns all of it off |
 | `NEXT_TELEMETRY_DISABLED` | Set to `1` to disable anonymous telemetry entirely |
 | `GRAFANA_OTLP_ENDPOINT` / `GRAFANA_OTLP_HEADERS` / `GRAFANA_DEPLOYMENT_ENVIRONMENT` | Grafana Cloud OTLP export |
 

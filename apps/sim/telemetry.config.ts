@@ -23,15 +23,15 @@
  * - API keys or tokens
  * - IP addresses or geolocation data
  */
-import { env } from './lib/core/config/env'
+import { ANONYMOUS_TELEMETRY_ENDPOINT } from './lib/monitoring/otlp'
 
 const config = {
   /**
-   * OTLP Endpoint URL where telemetry data is sent
-   * Change this if you want to send telemetry to your own collector
+   * OTLP Endpoint URL where telemetry data is sent when neither OTEL_EXPORTER_OTLP_ENDPOINT nor
+   * TELEMETRY_ENDPOINT is set. Change this if you want to send telemetry to your own collector.
    * Supports any OTLP-compatible backend (Jaeger, Grafana Tempo, etc.)
    */
-  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
+  endpoint: ANONYMOUS_TELEMETRY_ENDPOINT,
 
   /**
    * Service name used to identify this instance
