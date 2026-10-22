@@ -612,7 +612,7 @@ Common filter names:
 - Snapshots: volume-id, status, start-time
 Return ONLY the JSON array, no explanation.`,
         placeholder: 'Describe the resources to match...',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
