@@ -863,6 +863,7 @@ async function sanitizeIterationToolCalls(
   assertTraceStructureArrayFits(calls, state)
   const sanitized: IterationToolCall[] = []
   for (const call of calls) {
+    await yieldWhenSliceExpires()
     if (!takeTraceStructureNode(state, depth)) {
       throw new TraceSecretProjectionError('Trace tool-call structure limit exceeded')
     }
@@ -885,6 +886,7 @@ async function sanitizeLegacyToolCalls(
   assertTraceStructureArrayFits(calls, state)
   const sanitized: ToolCall[] = []
   for (const call of calls) {
+    await yieldWhenSliceExpires()
     if (!takeTraceStructureNode(state, depth)) {
       throw new TraceSecretProjectionError('Trace tool-call structure limit exceeded')
     }
@@ -915,6 +917,7 @@ async function sanitizeProviderSegment(
   state: BoundedTraceStructureState,
   depth: number
 ): Promise<ProviderTimingSegment> {
+  await yieldWhenSliceExpires()
   if (!takeTraceStructureNode(state, depth)) {
     throw new TraceSecretProjectionError('Trace provider structure limit exceeded')
   }
@@ -950,6 +953,7 @@ async function sanitizeTraceSpan(
   state: BoundedTraceStructureState,
   assertContentIsSafe: SpanContentAssertion
 ): Promise<TraceSpan> {
+  await yieldWhenSliceExpires()
   if (!takeTraceStructureNode(state, depth)) {
     throw new TraceSecretProjectionError('Trace span structure limit exceeded')
   }
