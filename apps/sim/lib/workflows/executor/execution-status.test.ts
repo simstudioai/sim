@@ -1,7 +1,7 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
-import { sleep } from '@sim/utils/helpers'
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -585,7 +585,7 @@ describe('getWorkflowExecutionStatus polls that read no execution data', () => {
 
   /** Settles with {@link STALLED} instead of hanging when the read waits on the archive. */
   function readOrStall(read: Parameters<typeof getWorkflowExecutionStatus>[0]) {
-    return Promise.race([getWorkflowExecutionStatus(read), sleep(0).then(() => STALLED)])
+    return Promise.race([getWorkflowExecutionStatus(read), flushMacrotask().then(() => STALLED)])
   }
 
   beforeEach(() => {
