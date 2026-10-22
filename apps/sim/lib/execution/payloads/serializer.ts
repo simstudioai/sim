@@ -213,6 +213,32 @@ function measuredNode(value: unknown): CompactedNode {
   return toNode(value, measureJson(value))
 }
 
+/**
+ * Nesting levels walked on one synchronous stack before the walk resumes on a
+ * fresh one. Each level costs several frames, and a level with a `toJSON`
+ * serializes its subtree from where it stands, so an unbroken walk overflows
+ * the stack on trees an awaiting walk handles.
+ */
+const RESUME_WALK_EVERY_DEPTH = 256
+
+/**
+ * A subtree whose walk continues on a fresh stack. `walked` settles once the
+ * walk has visited every object below it, with its result (still pending while
+ * a spill is in flight). Later siblings start only after it, so objects are
+ * first seen in the same order as an unbroken walk.
+ */
+class ResumedWalk<T> {
+  constructor(readonly walked: Promise<{ result: MaybePromise<T> }>) {}
+}
+
+/** The result of walking a subtree: ready, pending on a spill, or still walking. */
+type Walk<T> = MaybePromise<T> | ResumedWalk<T>
+
+/** Unwraps a walk into the promise of its result. */
+async function settleWalk<T>(walk: Walk<T>): Promise<T> {
+  return walk instanceof ResumedWalk ? (await walk.walked).result : walk
+}
+
 function thenMaybe<T, R>(
   value: MaybePromise<T>,
   next: (resolved: T) => MaybePromise<R>
@@ -220,17 +246,27 @@ function thenMaybe<T, R>(
   return value instanceof Promise ? value.then(next) : next(value)
 }
 
+function thenWalk<T, R>(walk: Walk<T>, next: (resolved: T) => MaybePromise<R>): Walk<R> {
+  return walk instanceof ResumedWalk
+    ? new ResumedWalk(walk.walked.then(({ result }) => ({ result: thenMaybe(result, next) })))
+    : thenMaybe(walk, next)
+}
+
 /**
  * Starts every step in order and joins them like `Promise.all`, staying
  * synchronous when none is async. A step that throws synchronously still
- * observes the steps already pending, so none rejects unhandled.
+ * observes the steps already pending, so none rejects unhandled. A step whose
+ * walk resumed holds back the rest until it has walked.
  */
-function startAll<T>(count: number, start: (index: number) => MaybePromise<T>): MaybePromise<T[]> {
+function startAll<T>(count: number, start: (index: number) => Walk<T>): Walk<T[]> {
   const results = new Array<MaybePromise<T>>(count)
   let hasPending = false
   try {
     for (let index = 0; index < count; index++) {
       const result = start(index)
+      if (result instanceof ResumedWalk) {
+        return new ResumedWalk(continueAll(result, index, count, start, results))
+      }
       results[index] = result
       if (result instanceof Promise) hasPending = true
     }
@@ -241,15 +277,40 @@ function startAll<T>(count: number, start: (index: number) => MaybePromise<T>): 
   return hasPending ? Promise.all(results) : (results as T[])
 }
 
+async function continueAll<T>(
+  resumed: ResumedWalk<T>,
+  resumedIndex: number,
+  count: number,
+  start: (index: number) => Walk<T>,
+  results: MaybePromise<T>[]
+): Promise<{ result: MaybePromise<T[]> }> {
+  let hasPending = false
+  /** Observes each pending step now, as a later step may throw before the join. */
+  const accept = (result: MaybePromise<T>, index: number) => {
+    results[index] = result
+    if (result instanceof Promise) {
+      hasPending = true
+      result.catch(() => {})
+    }
+  }
+  for (let index = 0; index < resumedIndex; index++) accept(results[index], index)
+  accept((await resumed.walked).result, resumedIndex)
+  for (let index = resumedIndex + 1; index < count; index++) {
+    const result = start(index)
+    accept(result instanceof ResumedWalk ? (await result.walked).result : result, index)
+  }
+  return { result: hasPending ? Promise.all(results) : (results as T[]) }
+}
+
 /** Runs `start` for each index in order, awaiting only when a step is async. */
 function forEachInOrder<T>(
   count: number,
-  start: (index: number) => MaybePromise<T>,
+  start: (index: number) => Walk<T>,
   accept: (result: T, index: number) => void
 ): MaybePromise<void> {
   for (let index = 0; index < count; index++) {
     const result = start(index)
-    if (result instanceof Promise) {
+    if (result instanceof Promise || result instanceof ResumedWalk) {
       return continueInOrder(result, index, count, start, accept)
     }
     accept(result, index)
@@ -257,15 +318,15 @@ function forEachInOrder<T>(
 }
 
 async function continueInOrder<T>(
-  pending: Promise<T>,
+  pending: Promise<T> | ResumedWalk<T>,
   pendingIndex: number,
   count: number,
-  start: (index: number) => MaybePromise<T>,
+  start: (index: number) => Walk<T>,
   accept: (result: T, index: number) => void
 ): Promise<void> {
-  accept(await pending, pendingIndex)
+  accept(await settleWalk(pending), pendingIndex)
   for (let index = pendingIndex + 1; index < count; index++) {
-    accept(await start(index), index)
+    accept(await settleWalk(start(index)), index)
   }
 }
 
@@ -293,7 +354,7 @@ function compactValue(
   options: CompactExecutionPayloadOptions,
   state: CompactState,
   depth = 0
-): MaybePromise<CompactedNode> {
+): Walk<CompactedNode> {
   const thresholdBytes = options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES
   if (!value || typeof value !== 'object') {
     const measured = measureLeaf(value, thresholdBytes)
@@ -332,7 +393,11 @@ function compactValue(
   }
   state.seen.add(value)
 
-  return thenMaybe(compactEntries(value, options, state, depth), ({ compacted, measured }) => {
+  const children =
+    depth > 0 && depth % RESUME_WALK_EVERY_DEPTH === 0
+      ? resumeEntries(value, options, state, depth)
+      : compactEntries(value, options, state, depth)
+  return thenWalk(children, ({ compacted, measured }) => {
     if (!exceedsThreshold(measured.bytes, thresholdBytes)) {
       return toNode(compacted, measured)
     }
@@ -354,13 +419,31 @@ function compactValue(
   })
 }
 
+/**
+ * Walks a container's entries on a fresh stack. Kept out of `compactValue` so
+ * that function allocates no closure on every call.
+ */
+function resumeEntries(
+  value: object,
+  options: CompactExecutionPayloadOptions,
+  state: CompactState,
+  depth: number
+): ResumedWalk<CompactedChildren> {
+  return new ResumedWalk(
+    Promise.resolve().then(() => {
+      const result = compactEntries(value, options, state, depth)
+      return result instanceof ResumedWalk ? result.walked : { result }
+    })
+  )
+}
+
 function compactEntryValue(
   key: string,
   entryValue: unknown,
   options: CompactExecutionPayloadOptions,
   state: CompactState,
   depth: number
-): MaybePromise<CompactedNode> {
+): Walk<CompactedNode> {
   return key === 'finalBlockLogs' && Array.isArray(entryValue)
     ? compactBlockLogs(entryValue as BlockLog[], options).then(measuredNode)
     : compactValue(entryValue, options, state, depth + 1)
@@ -371,7 +454,7 @@ function compactEntries(
   options: CompactExecutionPayloadOptions,
   state: CompactState,
   depth: number
-): MaybePromise<CompactedChildren> {
+): Walk<CompactedChildren> {
   if (options.rejectLargeValues) {
     return compactEntriesWithEarlyReject(value, options, state, depth)
   }
@@ -380,7 +463,7 @@ function compactEntries(
     const pending = startAll(value.length, (index) =>
       index in value ? compactValue(value[index], options, state, depth + 1) : OMITTED_NODE
     )
-    return thenMaybe(pending, (nodes) => {
+    return thenWalk(pending, (nodes) => {
       const compacted =
         state.reuseUnchanged &&
         Object.getPrototypeOf(value) === Array.prototype &&
@@ -395,7 +478,7 @@ function compactEntries(
   const pending = startAll(entries.length, (index) =>
     compactEntryValue(entries[index][0], entries[index][1], options, state, depth)
   )
-  return thenMaybe(pending, (nodes) => {
+  return thenWalk(pending, (nodes) => {
     const compacted =
       state.reuseUnchanged &&
       Object.getPrototypeOf(value) === Object.prototype &&
@@ -498,7 +581,8 @@ export async function compactExecutionPayload<T>(
   value: T,
   options: CompactExecutionPayloadOptions = {}
 ): Promise<T> {
-  return (await compactValue(value, options, { seen: new WeakSet<object>() })).value as T
+  return (await settleWalk(compactValue(value, options, { seen: new WeakSet<object>() })))
+    .value as T
 }
 
 export async function compactWorkflowVariableValue<T>(
@@ -516,13 +600,15 @@ export async function compactSubflowResults<T>(
   options: CompactExecutionPayloadOptions = {}
 ): Promise<T[]> {
   const entryOptions = { ...options, preserveRoot: false }
-  const nodes = await startAll(results.length, (index) =>
-    index in results
-      ? compactValue(results[index], entryOptions, {
-          seen: new WeakSet<object>(),
-          reuseUnchanged: true,
-        })
-      : OMITTED_NODE
+  const nodes = await settleWalk(
+    startAll(results.length, (index) =>
+      index in results
+        ? compactValue(results[index], entryOptions, {
+            seen: new WeakSet<object>(),
+            reuseUnchanged: true,
+          })
+        : OMITTED_NODE
+    )
   )
   let compactedResults = nodes.map((node) => node.value) as T[]
 

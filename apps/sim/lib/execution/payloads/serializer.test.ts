@@ -336,6 +336,24 @@ describe('compactExecutionPayload', () => {
     expect(stripped.other).toBe(withBase64.other)
   })
 
+  it('compacts trees nested deeper than one synchronous stack can walk', async () => {
+    const nest = (depth: number, level: (child: unknown, index: number) => unknown) => {
+      let value: unknown = 'leaf'
+      for (let index = 0; index < depth; index++) value = level(value, index)
+      return value
+    }
+    // Both overflow an unbroken synchronous walk even on Vitest's larger worker stack.
+    const plain = nest(10_000, (child) => ({ child }))
+    // A Date has a toJSON, so every level serializes its subtree from where the walk stands.
+    const datePerLevel = nest(8_000, (child, index) => ({ at: new Date(index), child }))
+    const datePerLevelCompacted = nest(8_000, (child) => ({ at: {}, child }))
+
+    expect(JSON.stringify(await compactExecutionPayload(plain))).toBe(JSON.stringify(plain))
+    expect(JSON.stringify(await compactExecutionPayload(datePerLevel))).toBe(
+      JSON.stringify(datePerLevelCompacted)
+    )
+  })
+
   it('rejects durable compaction when storage context is incomplete', async () => {
     await expect(
       compactExecutionPayload(
