@@ -98,15 +98,19 @@ const http = suites.http.filter((suite) => affected(suite.task))
 const production = suites.production.filter((suite) => affected(suite.task))
 const desktopLive = affected('ci:desktop-live')
 const appTest = affected('test')
-const packages = fallback
-  ? ['*']
-  : [
-      ...new Set(
-        tasks
-          .filter((task) => task.name === 'test' && task.package.name !== '@sim/app')
-          .map((task) => task.package.name)
-      ),
-    ].sort()
+function taskPackages(name: string, omitApp = false): string[] {
+  return fallback
+    ? ['*']
+    : [
+        ...new Set(
+          tasks
+            .filter((task) => task.name === name && (!omitApp || task.package.name !== '@sim/app'))
+            .map((task) => task.package.name)
+        ),
+      ].sort()
+}
+const packages = taskPackages('test', true)
+const typecheckPackages = taskPackages('type-check')
 const flags = {
   integration: affected('ci:integration'),
   http: http.length > 0,
@@ -123,6 +127,7 @@ const outputs = {
   production_matrix: JSON.stringify({ include: production }),
   test_matrix: JSON.stringify({ shard: appTest ? [1, 2] : [1] }),
   test_packages: JSON.stringify(packages),
+  typecheck_packages: JSON.stringify(typecheckPackages),
 }
 const report = {
   base,
@@ -134,6 +139,7 @@ const report = {
   http,
   production,
   testPackages: packages,
+  typecheckPackages,
 }
 if (process.env.CI_PLAN_PATH)
   writeFileSync(process.env.CI_PLAN_PATH, `${JSON.stringify(report, null, 2)}\n`)

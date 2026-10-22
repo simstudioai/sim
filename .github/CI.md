@@ -6,7 +6,7 @@ A PR compares its merge base with the checked-out merge commit. Pushes and norma
 
 | Change | Expensive checks selected |
 | --- | --- |
-| Independent SDK | That workspace's tests; no app build, services, or browsers |
+| Independent SDK | That workspace's tests and type-check; no app build, services, or browsers |
 | App unit test | App test shards and test type check |
 | Integration test | Both provision paths; no HTTP/browser job merely for the test edit |
 | Workspace UI | Mobile and live Electron, plus app tests/build |
@@ -18,7 +18,9 @@ The server boundary deliberately includes all API routes and backend domains. Sh
 
 `affectedTasks` already uses task inputs. Do not enable `futureFlags.affectedUsingTaskInputs` just for this planner: that flag also changes pruning, which can pull CI-only cross-app task dependencies into production Docker contexts.
 
-Lightweight HTTP suites and database integration run on free standard GitHub runners. Memory-heavy builds and browser/Electron jobs retain appropriately sized Blacksmith runners.
+Affected type-checks follow the package graph too; repository audits and lint always run. Workspace-only unit jobs use a free GitHub runner and do not start the app test shards.
+
+Lightweight HTTP suites and database integration run on free standard GitHub runners. Memory-heavy builds and browser jobs retain appropriately sized Blacksmith runners. Electron uses 4-vCPU Blacksmith: both shards passed within 14 seconds of the 8-vCPU control; the free GitHub rest shard was slower and its lease run stalled.
 
 Every HTTP and browser group consumes the same production build in an isolated job/database. Electron also uses that build and skips its development-route warm-up. Local HTTP and Electron development runs retain their dev-server behavior. Build inputs exclude test-only files so a harness edit can reuse an unchanged production build.
 

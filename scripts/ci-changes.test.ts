@@ -13,6 +13,7 @@ interface Plan {
   fallback?: string
   http: { group: string }[]
   production: { group: string }[]
+  typecheckPackages: string[]
   testPackages: string[]
 }
 function git(cwd: string, ...args: string[]) {
@@ -58,7 +59,11 @@ function fixture() {
   ).scripts
   const workspaces: Record<string, unknown> = { '': { name: 'ci-fixture' } }
   for (const [path, name, dependencies] of packages) {
-    const scripts: Record<string, string> = { test: 'echo test', build: 'echo build' }
+    const scripts: Record<string, string> = {
+      test: 'echo test',
+      build: 'echo build',
+      'type-check': 'echo types',
+    }
     if (name === '@sim/app')
       for (const key of Object.keys(appScripts))
         if (key.startsWith('ci:')) scripts[key] = 'echo fixture'
@@ -124,6 +129,7 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([])
     expect(plan.testPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.typecheckPackages).toEqual(['simstudio-ts-sdk'])
     expect(plan.flags).toMatchObject({
       test: true,
       test_app: false,
@@ -194,6 +200,8 @@ describe('CI task attribution through real Turborepo', () => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([group])
+    expect(plan.flags.http).toBe(group !== 'mobile')
+    expect(plan.flags.production).toBe(group === 'mobile')
     expect(plan.flags).toMatchObject({
       test: false,
       build: false,
@@ -213,6 +221,8 @@ describe('CI task attribution through real Turborepo', () => {
       'seo',
       'stop-after',
     ])
+    expect(plan.typecheckPackages).toContain('@sim/app')
+    expect(plan.typecheckPackages).toContain('@sim/realtime')
     expect(plan.flags).toMatchObject({
       integration: true,
       desktop_live: true,

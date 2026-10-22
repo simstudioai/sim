@@ -1,7 +1,7 @@
 query($base: String!, $head: String!) {
   packages { items { name path } }
   affectedTasks(base: $base, head: $head, tasks: [
-    "test", "build", "ci:integration", "ci:desktop-live",
+    "test", "build", "type-check", "ci:integration", "ci:desktop-live",
     "ci:e2e-scim", "ci:e2e-cli", "ci:e2e-stop-after", "ci:e2e-desktop-inbox",
     "ci:e2e-project-files", "ci:e2e-mobile", "ci:e2e-seo"
   ]) {

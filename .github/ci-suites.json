@@ -19,6 +19,10 @@
     {
       "group": "seo",
       "task": "ci:e2e-seo"
+    },
+    {
+      "group": "project-files",
+      "task": "ci:e2e-project-files"
     }
   ],
   "production": [
@@ -53,14 +57,6 @@
       "shard": "2/2",
       "artifact": "mobile-webkit-2",
       "task": "ci:e2e-mobile"
-    },
-    {
-      "group": "project-files",
-      "name": "project-files",
-      "browser": "",
-      "shard": "",
-      "artifact": "project-files",
-      "task": "ci:e2e-project-files"
     }
   ]
 }

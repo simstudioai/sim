@@ -36,6 +36,7 @@ jobs:
       production_matrix: ${{ steps.classify.outputs.production_matrix }}
       test_matrix: ${{ steps.classify.outputs.test_matrix }}
       test_packages: ${{ steps.classify.outputs.test_packages }}
+      typecheck_packages: ${{ steps.classify.outputs.typecheck_packages }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -214,9 +215,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # The desktop executor uses Redis.
+      # Desktop inbox and Project Files use Redis.
       redis:
-        image: redis:8.2-alpine
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-
@@ -228,6 +229,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
       E2E_APP_SERVER: start
+      PROJECT_FILES_E2E_APP_SERVER: start
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
@@ -241,6 +243,7 @@ jobs:
 
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
+        if: matrix.group != 'project-files'
         working-directory: packages/db
         run: bun run db:migrate
 
@@ -261,6 +264,17 @@ jobs:
           jq -e '[.routes[].srcRoute] | any(. == "/blog/[slug]" or . == "/library/[slug]") | not' \
             apps/sim/.next/prerender-manifest.json > /dev/null ||
             { echo "::error::The build prerendered posts (a hosted build) or has no prerender manifest."; exit 1; }
+
+      # JOBS=4 caps node-gyp parallelism as docker/app.Dockerfile does (laverdet/isolated-vm#428).
+      - name: Build native isolate addon for Project file rendering
+        if: matrix.group == 'project-files'
+        working-directory: apps/sim
+        env:
+          JOBS: 4
+        run: |
+          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["."] }))')"
+          cd "$addon_dir"
+          bun run install
 
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.
@@ -286,7 +300,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Browser and Project Files suites reuse the production build, avoiding dev-route compiles.
+  # Browser suites reuse the production build, avoiding dev-route compiles.
   # Each job has its own database and runtime flags; the build reads public env at startup.
   # Each browser partitions the full viewport list across two shards, including future additions.
   #
@@ -316,15 +330,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      redis:
-        image: ${{ matrix.group == 'project-files' && 'redis:8.2-alpine' || '' }}
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
@@ -338,11 +343,11 @@ jobs:
       # setup action's caches.
       - &checkout-mirror
         name: Checkout code (mirror)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
       - &checkout-plain
         name: Checkout code
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
 
@@ -352,30 +357,17 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
 
       - name: Provision the database through migrations
-        if: matrix.group != 'project-files'
         working-directory: packages/db
         run: bun run db:migrate
 
       - *download-e2e-build
       - *extract-e2e-build
 
-      # JOBS=4 caps node-gyp parallelism as docker/app.Dockerfile does (laverdet/isolated-vm#428).
-      - name: Build native isolate addon for Project file rendering
-        if: matrix.group == 'project-files'
-        working-directory: apps/sim
-        env:
-          JOBS: 4
-        run: |
-          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["."] }))')"
-          cd "$addon_dir"
-          bun run install
-
       - name: Run end-to-end suites
         working-directory: apps/sim
         env:
           MOBILE_E2E_BROWSER: ${{ matrix.browser }}
           MOBILE_E2E_SHARD: ${{ matrix.shard }}
-          PROJECT_FILES_E2E_APP_SERVER: start
         run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
 
       - name: Upload end-to-end reports and server logs
@@ -397,13 +389,14 @@ jobs:
           retention-days: 7
 
   # Desktop tools exercise the real Electron app against the shared production build.
+  # Hosted 4-vCPU runs passed both shards within 14 seconds of 8-vCPU; production peak ~4 GB.
   # Two runners: the lease-lapse test sleeps through a long import and then a lease (~3 min), as
   # long as the rest of the spec together, so on one runner it set the time for every run.
   desktop-live:
     name: desktop-live (${{ matrix.tests }})
     needs: [changes, e2e-build]
     if: needs.changes.outputs.desktop_live == 'true'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -557,6 +550,7 @@ jobs:
   # kept off the test shards so neither waits on the other.
   lint:
     name: lint
+    needs: changes
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
@@ -569,16 +563,14 @@ jobs:
       # Worth stating because the failure was invisible for so long: the migration
       # audit read the resulting `git diff` failure as "no migrations changed" and
       # exited 0, so it had never actually run on a push build.
-      # Same mirror/plain split as the integration job's checkout.
-      - &checkout-mirror-depth2
-        name: Checkout code (mirror)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+      # Same provider/trust split as the build jobs' checkout.
+      - name: Checkout code (mirror)
+        if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
         with:
           fetch-depth: 2
-      - &checkout-plain-depth2
-        name: Checkout code
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+      - name: Checkout code
+        if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 2
@@ -689,14 +681,23 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
-      # Every workspace, not just realtime. packages/emcn, packages/utils,
+      # Every affected workspace, following the same real task graph as tests. Root/unknown
+      # changes select all. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
       # source was covered only as a side effect of `next build` in the separate
       # `build` job. This does NOT cover apps/sim's tests — its tsconfig
       # excludes *.test.ts(x), which carry ~2.2k errors; the `test-types` job
       # ratchets those per file instead.
-      - name: Type-check all workspaces
-        run: bunx turbo run type-check
+      - name: Type-check affected workspaces
+        env:
+          TYPECHECK_PACKAGES: ${{ needs.changes.outputs.typecheck_packages }}
+        run: |
+          jq -e 'type == "array" and all(.[]; type == "string")' <<< "$TYPECHECK_PACKAGES" > /dev/null
+          filters=()
+          while IFS= read -r package; do filters+=("--filter=$package"); done < <(jq -r '.[]' <<< "$TYPECHECK_PACKAGES")
+          if [ "${#filters[@]}" -gt 0 ]; then
+            bunx turbo run type-check "${filters[@]}"
+          fi
 
       - name: Check schema and migrations are in sync
         working-directory: packages/db
@@ -754,7 +755,7 @@ jobs:
     name: test (${{ matrix.shard }}/${{ needs.changes.outputs.test_app == 'true' && '2' || '1' }})
     needs: changes
     if: needs.changes.outputs.test == 'true'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: ${{ needs.changes.outputs.test_app == 'true' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-24.04' }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -762,13 +763,21 @@ jobs:
 
 
     steps:
-      - *checkout-mirror-depth2
-      - *checkout-plain-depth2
+      - name: Checkout code (mirror)
+        if: needs.changes.outputs.test_app == 'true' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - name: Checkout code
+        if: needs.changes.outputs.test_app != 'true' || (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 2
 
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          provider: ${{ vars.CI_PROVIDER }}
+          provider: ${{ needs.changes.outputs.test_app != 'true' && 'github' || vars.CI_PROVIDER }}
           turbo-cache-key: turbo-cache-test-${{ matrix.shard }}
 
       # cloud-review-tools.test.ts runs the real helper on the runner, which shells
@@ -805,6 +814,7 @@ jobs:
         run: |
           if [ "$SHARD" = 1 ]; then
             bun run test:scripts
+            jq -e 'type == "array" and all(.[]; type == "string")' <<< "$TEST_PACKAGES" > /dev/null
             filters=()
             while IFS= read -r package; do filters+=("--filter=$package"); done < <(jq -r '.[]' <<< "$TEST_PACKAGES")
             if [ "${#filters[@]}" -gt 0 ]; then
@@ -971,6 +981,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
       - name: Require every check to pass
         env:
           NEEDS: ${{ toJSON(needs) }}
