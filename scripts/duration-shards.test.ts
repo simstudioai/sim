@@ -14,7 +14,7 @@ describe('duration-balanced file partitions', () => {
   })
 
   it('separates long files instead of packing them into the same shard', () => {
-    const weights = { a: 100, b: 90, c: 80, d: 20, e: 10 }
+    const weights = { a: 90, b: 20, c: 10, d: 100, e: 80 }
     const shards = partitionFiles(Object.keys(weights), weights, 3)
     const loads = shards.map((files) =>
       files.reduce((sum, file) => sum + weights[file as keyof typeof weights], 0)
