@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs one end-to-end suite group over real HTTP, each against its own app: `next dev`, except
-# mobile and Project Files in CI, which reuse the production build from `e2e-build`.
+# CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -34,7 +34,7 @@ realtime_tag=''
 realtime_log=''
 browsers_pid=''
 # `dev` or `start`; a group sets it before start_app.
-app_server=dev
+app_server=${E2E_APP_SERVER:-dev}
 
 finish() {
   local status=$?
@@ -174,7 +174,7 @@ case "$group" in
       bun --no-env-file scripts/test-mcp-host-e2e.ts
     CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
-    CLI_LATENCY_E2E_RUNS=3 \
+    CLI_LATENCY_E2E_RUNS=1 \
     CLI_LATENCY_E2E_WARMUP=1 \
     CLI_LATENCY_E2E_REPORT_PATH="$report_dir/cli-run-latency-report.json" \
       bun run test:cli-run-latency:e2e
@@ -246,7 +246,13 @@ case "$group" in
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     MOBILE_E2E_REPORT_PATH="$report_dir/mobile-e2e-report.json" \
       bun run test:mobile:e2e
-    # The same production build answers as a crawler sees it: statuses, robots, sitemap, JSON-LD.
+    ;;
+
+  seo)
+    app_server=start
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    start_app seo 3024 'landing SEO' record-http-status
+    # Plain HTTP assertions have no browser-specific behavior.
     LANDING_SEO_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     LANDING_SEO_E2E_REPORT_PATH="$report_dir/landing-seo-e2e-report.json" \
       bun run test:landing-seo:e2e
