@@ -6,6 +6,8 @@ vi.mock('officeparser', () => ({ parseOfficeAsync: mockParseOfficeAsync }))
 
 import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
 
+const ZIP_PACKAGE = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(26)])
+
 describe('parseOfficeText', () => {
   beforeEach(() => {
     mockParseOfficeAsync.mockResolvedValue('slide text')
@@ -15,9 +17,9 @@ describe('parseOfficeText', () => {
     const controller = new AbortController()
     controller.abort()
 
-    await expect(
-      parseOfficeText(Buffer.from('office archive'), { signal: controller.signal })
-    ).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(parseOfficeText(ZIP_PACKAGE, { signal: controller.signal })).rejects.toMatchObject(
+      { name: 'AbortError' }
+    )
     expect(mockParseOfficeAsync).not.toHaveBeenCalled()
   })
 
@@ -28,8 +30,8 @@ describe('parseOfficeText', () => {
       return 'slide text'
     })
 
-    await expect(
-      parseOfficeText(Buffer.from('office archive'), { signal: controller.signal })
-    ).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(parseOfficeText(ZIP_PACKAGE, { signal: controller.signal })).rejects.toMatchObject(
+      { name: 'AbortError' }
+    )
   })
 })
