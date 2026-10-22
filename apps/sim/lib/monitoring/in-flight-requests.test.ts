@@ -70,6 +70,27 @@ describe('in-flight request registry', () => {
     expect(spanning[0].finished).toBe(true)
   })
 
+  it('reports a request that started just after the probe was due, but not one queued behind the stall', async () => {
+    vi.useFakeTimers({ toFake: ['performance'] })
+    try {
+      const registry = await loadFreshModuleInstance()
+      const probeDue = performance.now()
+      vi.advanceTimersByTime(20)
+      const settleBlocker = registry.trackInFlightRequest('req-blocker', 'POST', '/api/blocker')
+      vi.advanceTimersByTime(1_500)
+      settleBlocker()
+      const settleQueued = registry.trackInFlightRequest('req-queued', 'GET', '/api/queued')
+      vi.advanceTimersByTime(5)
+      settleQueued()
+      vi.advanceTimersByTime(5)
+
+      const spanning = registry.findRequestsSpanningStall(probeDue, performance.now())
+      expect(spanning.map((entry) => entry.requestId)).toEqual(['req-blocker'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not report a request that finished well before the stall ended', async () => {
     const registry = await loadFreshModuleInstance()
     const settle = registry.trackInFlightRequest('req-early', 'GET', '/api/early')

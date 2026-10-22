@@ -65,11 +65,13 @@ const MAX_TRACKED_IN_FLIGHT = 4_096
 const RECENT_CAPACITY = 64
 const MAX_SPANNING_RESULTS = 5
 /**
- * A synchronous burst settles its own request in the turn that frees the loop,
- * and the probe timer runs some milliseconds later, so a request counts as
- * spanning the stall when it settled this close to the stall's end.
+ * Slack applied at both edges of a stall window. The probe timer runs some
+ * milliseconds after the burst that freed the loop settled its own request, and
+ * a request can start a few milliseconds after the probe was due (other
+ * callbacks ran first) and then block. Requests queued behind the stall start
+ * at its end, a full second or more later, so they stay out.
  */
-const SETTLE_TOLERANCE_MS = 50
+const STALL_EDGE_TOLERANCE_MS = 50
 
 const g = globalThis as typeof globalThis & { _simInFlightRequestState?: InFlightState }
 if (!g._simInFlightRequestState) {
@@ -121,7 +123,8 @@ export function takeInFlightWindow(): InFlightWindow {
 
 /**
  * Requests in flight for the whole stall window: started before it began and
- * still running, or settled within {@link SETTLE_TOLERANCE_MS} of its end.
+ * still running, or settled by its end, each edge widened by
+ * {@link STALL_EDGE_TOLERANCE_MS}. `stallStart` is when the probe was due.
  * Settled ones come first (the likeliest source of a synchronous burst), then
  * longest-running first. Concurrency context only; see the module TSDoc.
  */
@@ -130,7 +133,8 @@ export function findRequestsSpanningStall(
   stallEnd: number
 ): RequestSpanningStall[] {
   const spansStall = (entry: TrackedRequest) =>
-    entry.startedAt <= stallStart && (entry.endedAt ?? stallEnd) >= stallEnd - SETTLE_TOLERANCE_MS
+    entry.startedAt <= stallStart + STALL_EDGE_TOLERANCE_MS &&
+    (entry.endedAt ?? stallEnd) >= stallEnd - STALL_EDGE_TOLERANCE_MS
   const matches: TrackedRequest[] = []
   for (const entry of state.live.values()) if (spansStall(entry)) matches.push(entry)
   for (const entry of state.recent) if (entry && spansStall(entry)) matches.push(entry)
