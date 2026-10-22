@@ -5,14 +5,9 @@ import { partitionFiles } from '@scripts/duration-shards'
 import { createLogger } from '@sim/logger'
 import { escapeRegExp } from '@sim/utils/string'
 
-interface Suite {
-  specs?: { file: string }[]
-  suites?: Suite[]
-}
-
 interface DiscoveryReport {
   config: { rootDir: string }
-  suites: Suite[]
+  suites: { file: string }[]
   errors: unknown[]
 }
 
@@ -36,12 +31,8 @@ if (discovery.status !== 0) process.exit(discovery.status ?? 1)
 const discoveryJson = readFileSync(discoveryPath, 'utf8')
 const report = JSON.parse(discoveryJson) as DiscoveryReport
 if (report.errors.length > 0) throw new Error('Playwright discovery reported errors')
-const files = new Set<string>()
-function visit(suite: Suite): void {
-  for (const spec of suite.specs ?? []) files.add(spec.file)
-  for (const child of suite.suites ?? []) visit(child)
-}
-for (const suite of report.suites) visit(suite)
+// A test factory can declare tests in a helper; the outer suite owns the discoverable test file.
+const files = new Set(report.suites.map((suite) => suite.file))
 if (count > files.size) throw new Error('More desktop shards than discovered test files')
 const durations = JSON.parse(
   readFileSync(new URL('../apps/desktop/e2e-durations.json', import.meta.url), 'utf8')
