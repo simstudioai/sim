@@ -33,6 +33,8 @@
         // Oracle's client spawns this standalone Node worker by filename.
         "lib/internal/oracledb/oracle-worker.cjs",
         "lib/execution/sandbox/bundles/*.{ts,cjs}",
+        // Bundled by build:xlsx-worker and spawned as a worker thread by filename.
+        "lib/file-parsers/xlsx-worker-entry.ts",
         // Compile-time fixture compatibility assertion, included by tsconfig.
         "lib/table/fixture-contract.ts",
         // scripts/generate-docs.ts imports this through pathToFileURL.
