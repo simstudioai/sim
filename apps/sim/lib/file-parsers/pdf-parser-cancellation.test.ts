@@ -159,13 +159,11 @@ describe('PdfParser cancellation', () => {
     const pageCount = 12
     let timerFired = false
     let timerFiredBeforeLastPage = false
-    const { pdf } = pdfWithPageText(pageCount, () => 'page text')
-    const readPage = pdf.getPage.getMockImplementation()
-    pdf.getPage.mockImplementation(async (pageNumber: number) => {
+    const { pdf } = pdfWithPageText(pageCount, (pageNumber) => {
       const busyUntil = performance.now() + 5
       while (performance.now() < busyUntil) {}
       if (pageNumber === pageCount) timerFiredBeforeLastPage = timerFired
-      return readPage?.(pageNumber)
+      return 'page text'
     })
     mockOpenPdfDocument.mockResolvedValueOnce(pdf)
 
@@ -196,12 +194,12 @@ describe('PdfParser cancellation', () => {
     const page = {
       cleanup: vi.fn(),
       streamTextContent: vi.fn(() => ({ getReader: () => reader })),
-    } as PDFPageProxy
+    }
     const pdf = {
       destroy: vi.fn().mockResolvedValue(undefined),
       getPage: vi.fn().mockResolvedValue(page),
       numPages: 1,
-    } as PDFDocumentProxy
+    }
     mockOpenPdfDocument.mockResolvedValueOnce(pdf)
 
     setTimeout(() => {

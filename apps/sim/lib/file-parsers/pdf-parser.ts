@@ -56,8 +56,8 @@ const MAX_LINE_DECORATION_BYTES = 5
  * microtask, so a loop that only awaits pdf.js never yields to timers or I/O: a
  * large PDF, or one page with a huge content stream, would hold the event loop
  * for the whole extraction, freezing every other request on the process. Page
- * reads, text-stream reads, and page assembly each yield a macrotask once this
- * much time has passed since the last yield.
+ * reads, text-stream reads, and each whole-document assembly pass yield a
+ * macrotask once this much time has passed since the last yield.
  */
 const EVENT_LOOP_SLICE_MS = 10
 
@@ -293,11 +293,17 @@ async function assemblePages(
 ): Promise<string> {
   signal?.throwIfAborted()
   const filteredPages = suppressFurniture(pages)
+  await yieldIfDue()
   const allLines = filteredPages.flat()
   const bodyHeight = dominantLineHeight(allLines)
+  await yieldIfDue()
+  const compounds = collectCompounds(allLines)
+  await yieldIfDue()
+  const words = collectWords(allLines)
+  await yieldIfDue()
   const options = {
-    compounds: collectCompounds(allLines),
-    words: collectWords(allLines),
+    compounds,
+    words,
     bodyHeight,
     headingMarkers: PDF_HEADING_MARKERS_ENABLED && headingMarkersViable(allLines, bodyHeight),
   }
