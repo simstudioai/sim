@@ -8,6 +8,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { ToolActivity } from '@/lib/mothership/generated/protocol'
 
 const persistedToolStateSchema = z.enum([
   ...Object.values(MothershipStreamV1ToolOutcome),
@@ -23,6 +24,8 @@ const persistedToolCallSchema = z.object({
   name: z.string(),
   state: persistedToolStateSchema,
   activityDescription: z.string().optional(),
+  /** Display grouping, held beside `params`; older rows carry it in `params.activity`. */
+  activity: ToolActivity.optional(),
   params: z.record(z.string(), z.unknown()).optional(),
   result: z
     .object({ success: z.boolean(), output: z.unknown().optional(), error: z.string().optional() })
