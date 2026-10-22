@@ -76,7 +76,8 @@ export function startEventLoopTelemetry() {
   let lastProbe = performance.now()
   const probe = setInterval(() => {
     const now = performance.now()
-    const lateMs = now - lastProbe - STALL_PROBE_MS
+    const previousProbe = lastProbe
+    const lateMs = now - previousProbe - STALL_PROBE_MS
     lastProbe = now
     if (lateMs < STALL_WARN_MS) return
 
@@ -86,10 +87,11 @@ export function startEventLoopTelemetry() {
     if (warningsThisWindow >= MAX_STALL_WARNINGS_PER_SNAPSHOT) return
     warningsThisWindow++
 
+    // The loop was last seen free at the previous probe, so the block began at or after it.
     logger.warn('Event loop stalled', {
       stallMs: Math.round(lateMs),
       inFlight: getInFlightCount(),
-      inFlightDuringStall: findRequestsSpanningStall(now - lateMs, now),
+      inFlightDuringStall: findRequestsSpanningStall(previousProbe, now),
     })
   }, STALL_PROBE_MS)
   probe.unref()
