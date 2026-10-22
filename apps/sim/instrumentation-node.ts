@@ -403,6 +403,9 @@ export async function register() {
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
 
+  const { startEventLoopTelemetry } = await import('@/lib/monitoring/event-loop-telemetry')
+  startEventLoopTelemetry()
+
   // Not awaited: the connection is warmed in the background so the first request
   // that needs Redis does not pay the handshake inside its own command deadline,
   // but boot never waits on Redis to serve requests that do not touch it.
