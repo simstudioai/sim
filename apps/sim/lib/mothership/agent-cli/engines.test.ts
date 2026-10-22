@@ -101,6 +101,61 @@ describe('logs query', () => {
   })
 })
 
+const WITHHELD_RUNS = {
+  [RUNS_PATH]: {
+    data: [
+      { runId: 'run-1', status: 'completed' },
+      { runId: 'run-2', status: 'completed' },
+    ],
+  },
+  '/api/v2/logs/run-1': {
+    data: {
+      traceSpans: [{ name: 'Count rows', status: 'success', output: { result: { count: 6 } } }],
+    },
+  },
+  // The log projection withheld this span's content; its structure survived.
+  '/api/v2/logs/run-2': {
+    data: {
+      traceSpans: [{ name: 'Count rows', status: 'success', duration: 12, contentWithheld: true }],
+    },
+  },
+}
+
+async function logsQueryWithheld(flags: Record<string, string>) {
+  const result = await runEngine('logs query', ['wf-1'], runtimeWith(WITHHELD_RUNS), {
+    block: 'Count rows',
+    ...flags,
+  })
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout)
+}
+
+describe('logs query on a span whose content was withheld', () => {
+  it('reports withheld content instead of a missing path, and counts it', async () => {
+    const report = await logsQueryWithheld({ field: 'result.count' })
+    expect(report.rows[0]).toMatchObject({ runId: 'run-1', value: 6 })
+    expect(report.rows[1]).toMatchObject({ runId: 'run-2', hits: 1, value: null })
+    expect(report.rows[1].note).not.toBe('path not found on span')
+    expect(report.rows[1].note).toMatch(/withheld/)
+    expect(report.contentWithheld).toBe(1)
+  })
+
+  it('still answers structural paths on a withheld span', async () => {
+    const report = await logsQueryWithheld({ field: 'duration' })
+    expect(report.rows[1]).toMatchObject({ runId: 'run-2', value: 12 })
+    expect(report.rows[1].note).toBeUndefined()
+    expect(report.contentWithheld).toBeUndefined()
+  })
+
+  it('keeps a withheld run under --where instead of counting it as filtered out', async () => {
+    const report = await logsQueryWithheld({ where: 'result.count=6' })
+    expect(report.filteredOut).toBe(0)
+    expect(report.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1', 'run-2'])
+    expect(report.rows[1].note).toMatch(/withheld/)
+    expect(report.contentWithheld).toBe(1)
+  })
+})
+
 const DEPS_STATE = {
   blocks: {
     'trigger-1': { type: 'starter', name: 'Start' },

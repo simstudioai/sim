@@ -1448,6 +1448,11 @@
             "type": "number",
             "description": "Offset from the root span in milliseconds."
           },
+          "contentWithheld": {
+            "type": "boolean",
+            "const": true,
+            "description": "Present when the log projection withheld some or all of this span's content (input, output, thinking, error message) because it could not be proven safe to display. Status, timing, and usage remain. A field missing from a span carrying this marker may exist on the run but was not returned."
+          },
           "toolCalls": {
             "type": "array",
             "items": {

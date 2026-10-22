@@ -308,6 +308,14 @@ export interface TraceSpan {
    * one read, not the run.
    */
   childTraceAccess?: 'granted' | 'disabled' | 'missing' | 'truncated'
+  /**
+   * Set by secret projection when it omitted one of this span's own content fields
+   * (`input`, `output`, `thinking`, `errorMessage`) it could not prove safe, or reduced
+   * the span to structure only (which also strips tool-call and provider-segment
+   * content). Status, timing, and usage remain. Without it a withheld field is
+   * indistinguishable from one the block never produced.
+   */
+  contentWithheld?: true
   model?: string
   cost?: {
     input?: number

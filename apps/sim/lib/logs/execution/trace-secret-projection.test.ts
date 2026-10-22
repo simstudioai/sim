@@ -502,6 +502,57 @@ describe('projectTraceSpansForSecrets', () => {
     expect(span.children?.[0]).not.toHaveProperty('output')
   })
 
+  it('marks every span of a structural-only fallback as content-withheld', async () => {
+    const source = [
+      createSpan({
+        output: { secret: 'raw' },
+        children: [createSpan({ id: 'child-1', output: { secret: 'raw' } })],
+      }),
+    ]
+
+    const incomplete = await projectTraceSpansForSecrets(source, {
+      registry: createRegistry([], false),
+      store: STORE,
+    })
+    const failedMatcher = await projectTraceSpansForSecrets(source, {
+      registry: createRegistry([
+        { plaintext: 's'.repeat(64 * 1024 + 1), replacement: '{{TOO_LARGE}}' },
+      ]),
+      store: STORE,
+    })
+    const failedInvariant = await enforceTraceSpanSecretInvariant(
+      [createSpan({ output: { apiKey: '[REDACTED]' } })],
+      {
+        registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
+        store: STORE,
+      }
+    )
+
+    for (const [span] of [incomplete, failedMatcher]) {
+      expect(span.contentWithheld).toBe(true)
+      expect(span.children?.[0].contentWithheld).toBe(true)
+    }
+    expect(failedInvariant[0].contentWithheld).toBe(true)
+  })
+
+  it('marks a span whose content field was omitted and leaves fully projected spans unmarked', async () => {
+    const [omitted, intact] = await projectTraceSpansForSecrets(
+      [
+        createSpan({ input: { safe: 'keep' }, output: { secretval: 1, '{{TOKEN}}': 2 } }),
+        createSpan({ id: 'span-2', output: { value: 'secretval' } }),
+      ],
+      {
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{TOKEN}}' }]),
+        store: STORE,
+      }
+    )
+
+    expect(omitted.input).toEqual({ safe: 'keep' })
+    expect(omitted.contentWithheld).toBe(true)
+    expect(intact.output).toEqual({ value: '{{TOKEN}}' })
+    expect(intact).not.toHaveProperty('contentWithheld')
+  })
+
   it('fails closed when a later log transform reintroduces an active literal', async () => {
     const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
 

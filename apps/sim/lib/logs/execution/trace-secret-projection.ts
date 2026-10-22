@@ -965,7 +965,7 @@ async function sanitizeTraceSpan(
     if (value === undefined) continue
     const sanitized = await sanitizeContentField(value, context)
     if (sanitized === OMIT) {
-      projected = omit(projected, [key]) as TraceSpan
+      projected = { ...(omit(projected, [key]) as TraceSpan), contentWithheld: true }
     } else {
       projected[key] = sanitized as never
     }
@@ -1106,6 +1106,7 @@ function structuralOnlySpan(
 
   return {
     ...structural,
+    contentWithheld: true,
     ...(modelToolCalls
       ? {
           modelToolCalls: projectBoundedArray(modelToolCalls, (call) =>
