@@ -1,6 +1,6 @@
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
@@ -51,8 +51,15 @@ const PDF_EXTRACTION_TIMEOUT_MS = 60_000
  */
 const MAX_LINE_DECORATION_BYTES = 5
 
-/** Pages assembled between event-loop yields, so a long document cannot block the loop. */
-const ASSEMBLY_YIELD_EVERY_PAGES = 32
+/**
+ * pdf.js runs its "fake worker" on this thread and delivers every message as a
+ * microtask, so a loop that only awaits pdf.js never yields to timers or I/O: a
+ * large PDF, or one page with a huge content stream, would hold the event loop
+ * for the whole extraction, freezing every other request on the process. Page
+ * reads, text-stream reads, and each whole-document assembly pass yield a
+ * macrotask once this much time has passed since the last yield.
+ */
+const EVENT_LOOP_SLICE_MS = 10
 
 /** Pages are joined with a paragraph break. */
 const PAGE_SEPARATOR = '\n\n'
@@ -84,6 +91,16 @@ interface BoundedExtraction {
   pagesRead: number
   /** True when a budget stopped extraction before the document was exhausted. */
   truncated: boolean
+}
+
+/** Returns a check that yields a macrotask once {@link EVENT_LOOP_SLICE_MS} has passed since its last yield. */
+function createEventLoopSlicer(): () => Promise<void> {
+  let lastYieldAt = performance.now()
+  return async () => {
+    if (performance.now() - lastYieldAt < EVENT_LOOP_SLICE_MS) return
+    await yieldToEventLoop()
+    lastYieldAt = performance.now()
+  }
 }
 
 function waitForAbort<T>(
@@ -164,6 +181,7 @@ async function readPageWithinBudget(
   page: PDFPageProxy,
   budget: number,
   deadline: number,
+  yieldIfDue: () => Promise<void>,
   signal?: AbortSignal
 ): Promise<PageExtraction> {
   signal?.throwIfAborted()
@@ -189,6 +207,7 @@ async function readPageWithinBudget(
      * zero: text that ends exactly on the budget is complete, not truncated.
      */
     while (!dropped) {
+      await yieldIfDue()
       const result = await waitForDeadline(
         reader.read(),
         deadline,
@@ -269,25 +288,30 @@ async function assemblePages(
   pages: readonly PdfPageLines[],
   complete: boolean,
   signal: AbortSignal | undefined,
-  maxTextBytes: number
+  maxTextBytes: number,
+  yieldIfDue: () => Promise<void>
 ): Promise<string> {
   signal?.throwIfAborted()
   const filteredPages = suppressFurniture(pages)
+  await yieldIfDue()
   const allLines = filteredPages.flat()
   const bodyHeight = dominantLineHeight(allLines)
+  await yieldIfDue()
+  const compounds = collectCompounds(allLines)
+  await yieldIfDue()
+  const words = collectWords(allLines)
+  await yieldIfDue()
   const options = {
-    compounds: collectCompounds(allLines),
-    words: collectWords(allLines),
+    compounds,
+    words,
     bodyHeight,
     headingMarkers: PDF_HEADING_MARKERS_ENABLED && headingMarkersViable(allLines, bodyHeight),
   }
   const pageTexts: string[] = []
   let outputBytes = 0
-  for (const [index, lines] of filteredPages.entries()) {
-    if (index > 0 && index % ASSEMBLY_YIELD_EVERY_PAGES === 0) {
-      await sleep(0)
-      signal?.throwIfAborted()
-    }
+  for (const lines of filteredPages) {
+    await yieldIfDue()
+    signal?.throwIfAborted()
     const joined = joinLines(lines, options)
     const text = complete ? normalizePdfWhitespace(sanitizeTextForUTF8(joined)).trim() : joined
     if (text.length > 0) {
@@ -343,7 +367,9 @@ async function extractTextWithinBudget(
     )
   }
 
+  const yieldIfDue = createEventLoopSlicer()
   for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber++) {
+    await yieldIfDue()
     signal?.throwIfAborted()
     const pagePromise = pdf.getPage(pageNumber)
     const cleanupLatePage = () => {
@@ -367,7 +393,7 @@ async function extractTextWithinBudget(
     let extraction: PageExtraction
     const pageCharLimit = complete ? MAX_COMPLETE_PDF_PAGE_CHARS : remainingChars
     try {
-      extraction = await readPageWithinBudget(page, pageCharLimit, deadline, signal)
+      extraction = await readPageWithinBudget(page, pageCharLimit, deadline, yieldIfDue, signal)
     } finally {
       page.cleanup()
     }
@@ -408,7 +434,7 @@ async function extractTextWithinBudget(
     }
   }
 
-  let text = await assemblePages(pages, complete, signal, maxTextBytes)
+  let text = await assemblePages(pages, complete, signal, maxTextBytes, yieldIfDue)
 
   /** Paragraph breaks land after the budget is spent; trimming that overflow is a truncation too. */
   if (!complete && text.length > MAX_PDF_TEXT_CHARS) {

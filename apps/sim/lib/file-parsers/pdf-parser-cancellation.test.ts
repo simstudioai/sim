@@ -154,4 +154,60 @@ describe('PdfParser cancellation', () => {
     expect(pdf.getPage).not.toHaveBeenCalled()
     expect(pdf.destroy).toHaveBeenCalledOnce()
   })
+
+  it('lets timers run between CPU-bound pages instead of holding the event loop for the whole document', async () => {
+    const pageCount = 12
+    let timerFired = false
+    let timerFiredBeforeLastPage = false
+    const { pdf } = pdfWithPageText(pageCount, (pageNumber) => {
+      const busyUntil = performance.now() + 5
+      while (performance.now() < busyUntil) {}
+      if (pageNumber === pageCount) timerFiredBeforeLastPage = timerFired
+      return 'page text'
+    })
+    mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+    await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+
+    expect(timerFiredBeforeLastPage).toBe(true)
+  })
+
+  it('lets timers run while one page streams a huge content stream', async () => {
+    const chunkCount = 12
+    let timerFired = false
+    let timerFiredBeforeLastChunk = false
+    let chunksRead = 0
+    const reader = {
+      cancel: vi.fn().mockResolvedValue(undefined),
+      read: vi.fn(async () => {
+        const busyUntil = performance.now() + 5
+        while (performance.now() < busyUntil) {}
+        chunksRead++
+        if (chunksRead === chunkCount) timerFiredBeforeLastChunk = timerFired
+        if (chunksRead > chunkCount) return { done: true }
+        return { value: { items: [{ str: `chunk ${chunksRead} ` }] }, done: false }
+      }),
+    }
+    const page = {
+      cleanup: vi.fn(),
+      streamTextContent: vi.fn(() => ({ getReader: () => reader })),
+    }
+    const pdf = {
+      destroy: vi.fn().mockResolvedValue(undefined),
+      getPage: vi.fn().mockResolvedValue(page),
+      numPages: 1,
+    }
+    mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+
+    expect(timerFiredBeforeLastChunk).toBe(true)
+    expect(result.content).toContain(`chunk ${chunkCount}`)
+  })
 })
