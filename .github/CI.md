@@ -24,7 +24,7 @@ SEO depends on workspace UI and server code: landing pages reuse workspace prici
 
 Affected type-checks follow the package graph too; repository audits and lint always run. Workspace-only unit jobs use a free GitHub runner and do not start the app test shards.
 
-Lightweight HTTP suites run on free standard GitHub runners. Database integration uses 2-vCPU Blacksmith: a same-source comparison of 16 jobs per provider (32 total) had a slowest shard of 6m 04s versus 6m 55s on free GitHub, with identical coverage. The existing `CI_PROVIDER` switch retains that tested GitHub fallback; provider changes also select the matching cache setup. This is one paired sample, not a long-run percentile estimate.
+Database integration and lightweight HTTP suites run on free standard GitHub runners with matching GitHub cache setup. A same-source integration comparison of 16 jobs per provider (32 total) had a slowest shard of 6m 04s on 2-vCPU Blacksmith versus 6m 55s on free GitHub, with identical coverage. GitHub trades the observed 51 seconds for zero runner compute cost. This is one paired sample, not a long-run percentile estimate. These explicitly selected GitHub jobs do not follow `CI_PROVIDER`.
 
 Memory-heavy builds and browser jobs retain appropriately sized Blacksmith runners. Electron uses 4-vCPU Blacksmith: both shards passed within 14 seconds of the 8-vCPU control; the free GitHub rest shard was slower and its lease run stalled.
 

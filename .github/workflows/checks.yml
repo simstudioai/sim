@@ -71,12 +71,11 @@ jobs:
     # The two paths build different schemas (migrations add triggers, checks and NOT VALID
     # constraints that `db:push` does not), so each runs the whole suite. Vitest splits each
     # suite's files across eight shards by measured duration (DurationBalancedSequencer in vitest.shared.ts); a
-    # shard runs its files one at a time against its own database. Blacksmith keeps the critical
-    # integration path fast; standard GitHub runners retain a free, validated fallback.
+    # shard runs its files one at a time against its own database.
     name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/8)
     needs: changes
     if: needs.changes.outputs.integration == 'true'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -135,7 +134,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          provider: ${{ vars.CI_PROVIDER }}
+          provider: github
 
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
