@@ -3610,6 +3610,11 @@ import {
   mongodbUpdateTool,
 } from '@/tools/mongodb'
 import {
+  mrScraperGetAccountTool,
+  mrScraperScrapeTool,
+  mrScraperSearchTool,
+} from '@/tools/mrscraper'
+import {
   mssqlDeleteTool,
   mssqlExecuteTool,
   mssqlInsertTool,
@@ -9271,6 +9276,9 @@ export const tools: Record<string, ExecutableToolConfig> = {
   mongodb_delete: mongodbDeleteTool,
   mongodb_execute: mongodbExecuteTool,
   mongodb_introspect: mongodbIntrospectTool,
+  mrscraper_get_account: mrScraperGetAccountTool,
+  mrscraper_scrape: mrScraperScrapeTool,
+  mrscraper_search: mrScraperSearchTool,
   mssql_query: mssqlQueryTool,
   mssql_insert: mssqlInsertTool,
   mssql_update: mssqlUpdateTool,

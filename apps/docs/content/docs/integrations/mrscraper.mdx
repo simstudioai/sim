@@ -1,0 +1,258 @@
+---
+title: MrScraper
+description: Retrieve web pages, search Google, and check account usage
+integration:
+  type: "mrscraper"
+  color: "#102C35"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+Use [MrScraper](https://mrscraper.com) to retrieve a page as HTML, Markdown, or a screenshot, search Google, and check your account's remaining tokens. Use a MrScraper block for a configured workflow step, or connect the [MrScraper MCP server](#connect-the-mcp-server) to give its tools to an Agent.
+
+## Connect your account
+
+You need a [MrScraper account](https://app.mrscraper.com) and an API token for the native block.
+
+1. Create or copy a token from [MrScraper's API tokens page](https://app.mrscraper.com/api-tokens).
+2. In Sim, open **Settings → Secrets** and save the token as `MRSCRAPER_API_KEY` in a namespace available to the workflow's execution actor. See [Secrets](/platform/credentials) for access and runtime resolution.
+3. Add a **MrScraper** block to your workflow. Set **API Key** to `{{MRSCRAPER_API_KEY}}`.
+4. Select **Get Account** and run the block. Confirm that the account summary shows the expected identity and token balance before running a larger collection.
+
+The API token authenticates requests. Plan tokens measure MrScraper usage; they are a separate balance. Calls use your MrScraper account's quota and limits.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+{/* MANUAL-CONTENT-START:usage */}
+### Retrieve a page
+
+Select **Scrape Page** and enter `https://example.com` as the target URL. The default requests HTML. For text to pass into an Agent, enable Markdown and disable HTML if you do not need the markup. Connect the block's `markdown` output to the Agent's prompt or message.
+
+Keep browser rendering set to automatic for the first request. Automatic mode tries without a browser and falls back to browser rendering when needed. Enable browser rendering to force JavaScript execution, or disable it when the non-browser loader returns the content you need. A screenshot forces browser rendering. Real-device routing (`super`) is independent of this choice.
+
+For delayed content, enable browser rendering and supply a CSS selector such as `article` in `waitForSelector`. This waits for an element; it does not click buttons, fill forms, or run a browsing session. Use `homePage` when the site needs its root page visited before the target.
+
+### Find pages with Google search
+
+Select **Google Search** and enter a text query such as `site:example.com documentation`. The default `format` is `json`; use `searchResults` to pass the returned links into later scrape steps. Search results are discovery results, so retrieve the selected pages when you need their full content.
+
+You can also enter a Google search URL:
+
+```text
+https://www.google.com/search?q=web+scraping&gl=us&hl=en&start=20
+```
+
+This supplies the query `web scraping`, region `us`, language `en`, and page `3`. Explicit `region`, `language`, and `page` inputs override values from the URL. `page` is one based. Select `html` for the Google results page itself, and enable `renderJs` when you need JavaScript-dependent result features.
+
+### Monitor account usage
+
+**Get Account** returns subscription, token usage, remaining quota, rate limits, and account identity. It reads the account associated with the configured API key. It does not report the progress of a scrape or search request.
+{/* MANUAL-CONTENT-END */}
+
+
+Retrieve web pages as HTML, Markdown, or screenshots with browser rendering and geographic routing. Search Google for research and SEO workflows, and check your MrScraper token balance.
+
+## Actions
+
+### MrScraper Scrape
+
+Retrieve a web page as HTML, Markdown, or a screenshot with automatic browser fallback, optional real-device routing, geolocation, and retry controls.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | MrScraper API key from https://app.mrscraper.com. |
+| `url` | string | Yes | Absolute HTTP or HTTPS URL of the page to retrieve. |
+| `html` | boolean | No | Include HTML content. Defaults to true. |
+| `markdown` | boolean | No | Include Markdown content. |
+| `screenshot` | boolean | No | Capture a full-page screenshot as a stored file. Always enables browser rendering. |
+| `browserRendering` | string | No | auto uses automatic browser fallback; true forces a browser; false disables it. |
+| `super` | boolean | No | Use real-device routing independently of browser rendering. |
+| `geoCode` | string | No | Proxy country code, such as US, GB, ID, or SG. Defaults to US. |
+| `proxyCountry` | string | No | Compatibility country option sent as proxyCountry. |
+| `timeout` | number | No | Page timeout in seconds, from 1 to 300. Defaults to 120. |
+| `maxRetries` | number | No | Maximum retry count for Markdown requests. Zero disables retries. Defaults to 3. |
+| `tokenCap` | number | No | Token budget, at least 1, for a Markdown request and its retries. The initial request always runs. |
+| `waitForSelector` | string | No | CSS selector to wait for when browser rendering is enabled. |
+| `blockResources` | boolean | No | Block images, CSS, and fonts to reduce bandwidth. |
+| `homePage` | boolean | No | Visit the site root before loading the target URL. |
+| `useProxy` | boolean | No | Allow the service to use a configured proxy. Defaults to true. |
+| `proxy` | string | No | Custom proxy in username:password@host:port form. |
+| `bypassProxy` | boolean | No | Enable the API proxy-bypass behavior. |
+| `cookieJar` | string | No | Cookie configuration, such as domain=example.com&country=us&max_used=100&max_age=50m. |
+| `headers` | json | No | Target page request headers as a JSON object with string values. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `html` | string | Page HTML, when requested. |
+| `markdown` | string | Page Markdown, when requested. |
+| `screenshot` | file | Page screenshot \(PNG or JPEG\) stored in execution files. |
+| `tokenUsage` | number | Plan tokens consumed by the page request. |
+| `runtime` | number | Page request runtime in seconds. |
+| `retryCount` | number | Number of retries performed. |
+| `targetStatusCode` | number | Target page HTTP status from x-status-code. |
+| `error` | string | Page retrieval error, when reported by MrScraper. |
+
+</ReferenceDetails>
+
+### MrScraper Search
+
+Search Google from query text or a Google search URL and return organic results, search metadata, pagination, or the raw results-page HTML.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | MrScraper API key from https://app.mrscraper.com. |
+| `query` | string | Yes | Search query or Google search URL with q, gl, hl, and start parameters. |
+| `format` | string | No | json returns parsed results; html returns results-page HTML. Defaults to json. |
+| `region` | string | No | Country code such as us, gb, or id. Overrides gl from a Google URL. |
+| `language` | string | No | Language code such as en, es, or id. Overrides hl from a Google URL. |
+| `page` | number | No | One-based result page. Overrides the page derived from a Google URL start parameter. |
+| `renderJs` | boolean | No | Wait for JavaScript-dependent search features such as AI Overview to load. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Organic Google results in ranking order. Empty for HTML format. |
+|   ↳ `title` | string | Result title. |
+|   ↳ `link` | string | Destination URL. |
+|   ↳ `description` | string | Result description or snippet. |
+|   ↳ `source` | string | Source name. |
+|   ↳ `displayLink` | string | Displayed URL or breadcrumb. |
+|   ↳ `rank` | number | Position among organic results. |
+|   ↳ `globalRank` | number | Position among all search result features. |
+| `html` | string | Raw results-page HTML when format is html. |
+| `general` | object | Search metadata for parsed JSON results. |
+|   ↳ `query` | string | Search query. |
+|   ↳ `resultsCount` | number | Number of results reported by the parser. |
+|   ↳ `searchTime` | number | Search time reported by Google in seconds. |
+|   ↳ `language` | string | Search language. |
+|   ↳ `location` | string | Search country. |
+|   ↳ `pageTitle` | string | Results-page title. |
+|   ↳ `timestamp` | string | Search response timestamp. |
+| `pagination` | object | Current page and links for continuing a parsed search. |
+|   ↳ `currentPage` | number | Current result page. |
+|   ↳ `nextPage` | number | Next result page. |
+|   ↳ `nextPageStart` | number | Google start offset of the next page. |
+|   ↳ `nextPageLink` | string | Google URL for the next page. |
+|   ↳ `pages` | array | Available result pages. |
+|     ↳ `page` | number | One-based page number. |
+|     ↳ `start` | number | Google start offset. |
+|     ↳ `link` | string | Google result-page URL. |
+| `tokenUsage` | number | Plan tokens consumed by the search request. |
+
+</ReferenceDetails>
+
+### MrScraper Get Account
+
+Check account identity, subscription status, token usage, remaining quota, and rate limits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | MrScraper API key from https://app.mrscraper.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subscriptionStatus` | string | Current subscription status. |
+| `enterprise` | boolean | Whether the account has an enterprise plan. |
+| `tokenUsage` | number | Plan tokens already consumed. |
+| `tokenLimit` | number | Plan token allowance. |
+| `tokenRemaining` | number | Remaining plan tokens, clamped to zero. |
+| `usagePercent` | number | Percentage of the token allowance consumed. |
+| `rateLimit` | number | Account request rate limit. |
+| `rateTtl` | number | Rate-limit window reported by the service. |
+| `autoRenew` | boolean | Whether the subscription renews automatically. |
+| `endsAt` | string | Subscription end timestamp, when present. |
+| `user` | object | Account identity. |
+|   ↳ `name` | string | Account holder name. |
+|   ↳ `email` | string | Account holder email. |
+|   ↳ `verified` | boolean | Whether the account holder is verified. |
+
+{/* MANUAL-CONTENT-START:notes */}
+## Work with the results
+
+The action tables above describe Sim's outputs. For scraping, `html` and `markdown` contain the requested page content. When requested, `screenshot` is a stored file that you can pass to a later file-compatible block. Request it only when you need an image; screenshots can be large.
+
+Check `targetStatusCode`, `error`, and the returned content before processing a scrape. The target page can return an error or a challenge page even when MrScraper accepted the request. `tokenUsage`, `runtime`, and `retryCount` help explain how the request completed. An HTML-only request uses MrScraper's fetch endpoint, which reports `tokenUsage` but leaves `runtime`, `retryCount`, and `targetStatusCode` empty; enable Markdown to get all of them.
+
+For JSON search results, use `searchResults` for organic results, `general` for query metadata, and `pagination` for available result pages. An empty results array is a valid outcome. For HTML search, use the `html` output. These are search results, not a guarantee that each linked page is accessible.
+
+The account action returns a selected summary. API tokens and billing identifiers from the provider's account record are excluded.
+
+## Control time and token usage
+
+Scrape `timeout` is a page-loading timeout in seconds, from `1` to `300`, with a default of `120`. It is separate from workflow execution limits. `maxRetries` and `tokenCap` apply to Markdown requests; the HTML-only fetch endpoint retries on its own. `maxRetries` defaults to `3`; set it to `0` to disable retries.
+
+`tokenCap` must be at least `1` and stops further retries when the running token total reaches the cap. The first attempt still runs even if it exceeds the cap, so this setting does not guarantee a maximum charge. Web fetching uses runtime and bandwidth: one plan token per 30 seconds and one per 0.25 MB, rounded up for each component. See MrScraper's [Token Plan](https://docs.mrscraper.com/docs/getting-started/api-token) for the maintained calculation.
+
+The combined API response must fit Sim's 10 MiB tool response limit, including the screenshot's base64 representation before it is stored as a file. If the response is too large, request fewer formats or omit the screenshot.
+
+Enable `blockResources` for text collection when blocking images, CSS, and fonts will not remove content you need. Use `geoCode` for country-specific page routing. `proxy`, `cookieJar`, and target `headers` are advanced request controls; supply secret references for sensitive values. Target headers are sent to the page, separately from the API key used to authenticate with MrScraper.
+
+## Handle failed requests
+
+| Result | What to check |
+| --- | --- |
+| Authentication fails | Confirm the API token is current and the execution actor can resolve its Sim secret. |
+| A page is incomplete | Inspect the content, then change browser rendering or add a selector wait for the missing element. |
+| A page is blocked or varies by location | Inspect the target status and content, then try the needed geographic or real-device routing setting. |
+| A request times out | Check the page-loading timeout and selector. A selector that never appears can exhaust the timeout. |
+| Quota or rate limits are reached | Run the account action and review the token balance and limits in MrScraper. |
+| Search results are empty or irrelevant | Refine the query, region, language, or page. |
+
+Change one request setting at a time after inspecting a failed result. Repeating a scrape can consume additional tokens. The block retrieves page content and Google results; it does not manage saved AI scrapers or stored scraper runs in the MrScraper dashboard.
+
+## Connect the MCP server
+
+You can also connect the hosted [MrScraper MCP server](https://docs.mrscraper.com/docs/getting-started/mcp-server) through Sim's external MCP support.
+
+1. With workspace **Write** or **Admin** access, open **Settings → MCP tools** and select **Add server**.
+2. Enter `MrScraper` as **Server Name** and `https://mcp.mrscraper.com/mcp` as **Server URL**. Leave **Headers** empty for OAuth.
+3. Select **Add server** and complete MrScraper's OAuth browser sign-in. If needed, select **Authorize** on the saved server.
+4. Inspect the discovered tools, then add the operations you need under an Agent's **Tools**, or select the server in an **MCP** block.
+
+**Edit JSON** accepts this configuration:
+
+```json
+{
+  "mcpServers": {
+    "mrscraper": {
+      "url": "https://mcp.mrscraper.com/mcp"
+    }
+  }
+}
+```
+
+| MCP tool | Purpose | OAuth scope |
+| --- | --- | --- |
+| `scraperAPI` | Retrieve a page | `scrape:read` |
+| `webSearch` | Search Google | `scrape:read` |
+| `status` | Read account usage | `account:read` |
+
+Call `status` with `{}` to verify account access. Reauthorize for `403 insufficient_scope`. MCP operations use their discovered schemas and response envelopes; their argument names and outputs differ from the native block. See [Using MCP tools](/agents/mcp) for access policies, connection refresh, permissions, and self-hosted network configuration.
+
+## Related docs
+
+- [Secrets](/platform/credentials)
+- [Using MCP tools](/agents/mcp)
+- [Agent block](/workflows/blocks/agent)
+- [MrScraper API reference](https://docs.mrscraper.com/docs/api/overview)
+- [MrScraper MCP server](https://docs.mrscraper.com/docs/getting-started/mcp-server)
+- [MrScraper Token Plan](https://docs.mrscraper.com/docs/getting-started/api-token)
+{/* MANUAL-CONTENT-END */}

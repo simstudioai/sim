@@ -184,6 +184,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   monday: 'Monday',
   mongodb: 'MongoDB',
   mothership: 'Sim Chat',
+  mrscraper: 'MrScraper',
   mssql: 'Microsoft SQL Server',
   mysql: 'MySQL',
   neo4j: 'Neo4j',
