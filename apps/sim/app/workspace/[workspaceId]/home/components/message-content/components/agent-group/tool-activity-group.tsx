@@ -8,7 +8,7 @@ import {
   RunCode,
   SearchWorkspace,
 } from '@/lib/mothership/generated/tool-catalog-v1'
-import { getToolActivitySummaryActions, readToolActivity } from '@/lib/mothership/tools/activity'
+import { getToolActivitySummaryActions, readCallActivity } from '@/lib/mothership/tools/activity'
 import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
@@ -228,7 +228,7 @@ export function ToolActivityGroup({
   const groupedActivity =
     activity ??
     tools
-      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .map(readCallActivity)
       .reverse()
       .find((entry) => entry?.title || entry?.completedTitle)
   /** Tense follows liveness: a live group, or one with a call still running, reads in progress. */

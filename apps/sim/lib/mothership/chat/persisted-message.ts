@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import type {
   PersistedContentBlock,
@@ -24,7 +24,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type {
   ContentBlock,
   LocalToolCallStatus,
@@ -288,14 +288,6 @@ export function displayContentOf(content: PersistedMessage): PersistedMessage | 
 
 // Write: OrchestratorResult → PersistedMessage
 
-/** A call's arguments as history reads them, with an inherited display grouping restored. */
-function persistedParams(
-  params: Record<string, unknown> | undefined,
-  activity: ToolActivity | undefined
-): Record<string, unknown> | undefined {
-  return activity && params?.activity === undefined ? { ...params, activity } : params
-}
-
 function resolveToolState(block: ContentBlock): PersistedToolState {
   const tc = block.toolCall
   if (!tc) return 'pending'
@@ -405,14 +397,15 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
       const activityDescription = normalizeToolActivityDescription(
         block.toolCall.activityDescription
       )
-      const params = persistedParams(block.toolCall.params, block.toolCall.activity)
       const toolCall: PersistedToolCall = {
         id: block.toolCall.id,
         name: block.toolCall.name,
         state,
         ...(activityDescription ? { activityDescription } : {}),
         ...(isSubagentTool && isNonTerminal ? {} : { result: redactedResult }),
-        ...(isSubagentTool && isNonTerminal ? {} : params ? { params } : {}),
+        ...(isSubagentTool && isNonTerminal
+          ? {}
+          : filterUndefined({ params: block.toolCall.params, activity: block.toolCall.activity })),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
         ...(block.toolCall.displayTitle
           ? {
@@ -639,6 +632,7 @@ interface RawBlock {
     result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string; title?: string; phaseLabel?: string }
     activityDescription?: string
+    activity?: unknown
     calledBy?: string
     durationMs?: number
     error?: string
@@ -698,11 +692,15 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.parentToolCallId) result.parentToolCallId = block.parentToolCallId
   if (block.toolCall) {
     const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
+    const activity = isRecordLike(block.toolCall.activity)
+      ? ToolActivity.safeParse(block.toolCall.activity)
+      : undefined
     result.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? '',
       state: normalizeToolState(block.toolCall.state),
       ...(activityDescription ? { activityDescription } : {}),
+      ...(activity?.success ? { activity: activity.data } : {}),
       ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
       ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
       ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),

@@ -5,7 +5,7 @@ import { ActivityTextColumn } from '@/components/ui/activity-status'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
-import { readToolActivity } from '@/lib/mothership/tools/activity'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
@@ -135,7 +135,7 @@ export function AgentGroupView({
   const activityDescriptor =
     groupActivity ??
     tools
-      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .map(readCallActivity)
       .reverse()
       .find((entry) => entry?.title || entry?.completedTitle)
   const browserAgentAvailable = isBrowserAgentAvailable()

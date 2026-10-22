@@ -167,6 +167,7 @@ import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/re
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 import type { StreamingContext } from '@/lib/mothership/request/types'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import {
   type PendingFileIntent,
   storeFileIntent,
@@ -365,7 +366,7 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
         id: call.id,
         name: call.name,
         status: call.status,
-        activity: call.params?.activity,
+        activity: readCallActivity(call),
       })),
       pending: context.pendingToolPromises.size,
     })

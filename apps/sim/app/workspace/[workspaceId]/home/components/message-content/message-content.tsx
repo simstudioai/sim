@@ -16,7 +16,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
-import { readToolActivity } from '@/lib/mothership/tools/activity'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
@@ -248,6 +248,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
     displayTitle,
     activityDescription,
     status: tc.status,
+    activity: tc.activity,
     params: tc.params,
     result: tc.result,
     streamingArgs: tc.streamingArgs,
@@ -567,10 +568,7 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
     const groups: AgentGroupSegment[] = []
     let current: AgentGroupSegment | undefined
     for (const item of segment.items) {
-      const activity =
-        item.type === 'tool'
-          ? readToolActivity(item.data.params, item.data.streamingArgs)
-          : undefined
+      const activity = item.type === 'tool' ? readCallActivity(item.data) : undefined
       if (activity) labels.set(activity.id, { ...labels.get(activity.id), ...activity })
       if (!current || (activity && activity.id !== current.activity?.id)) {
         current = {
