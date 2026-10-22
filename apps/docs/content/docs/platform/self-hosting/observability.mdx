@@ -112,9 +112,9 @@ Telemetry has two halves that are decided at different times.
 | Server SDK | Runtime | **Off** on Helm (`app.envDefaults` sets `NEXT_TELEMETRY_DISABLED: "1"`); **on** for Docker Compose and source runs, which set nothing |
 | Browser | Server setting at page render, then browser preferences | Disabled when `NEXT_TELEMETRY_DISABLED=1`; otherwise waits for session resolution and the signed-in user's saved preference. Hosted Sim also requires the applicable analytics permission. |
 
-Neither half gates `POST /api/telemetry`, the relay that forwards submitted browser events. Its destination is controlled separately by `TELEMETRY_ENDPOINT`; disabling collection does not disable this endpoint.
+`NEXT_TELEMETRY_DISABLED=1` also stops `POST /api/telemetry`, the relay that forwards submitted browser events, from forwarding anything. Otherwise it posts each event to `TELEMETRY_ENDPOINT` as-is, or to the endpoint in `apps/sim/telemetry.config.ts`. Because these events are unauthenticated input, the relay never sends `OTEL_EXPORTER_OTLP_HEADERS` with them.
 
-When the server SDK runs it exports three OTLP signals to the same base endpoint: traces at `/v1/traces`, metrics at `/v1/metrics`, and application **log records** at `/v1/logs`. Default instrumentation records usage, performance, errors, and AI/LLM traces rather than raw workflow content. Error metadata and log records can still contain sensitive values; inspect the signals you send to your collector.
+When the server SDK runs against a collector you configure, it exports three OTLP signals to the same base endpoint: traces at `/v1/traces`, metrics at `/v1/metrics`, and application **log records** at `/v1/logs`. On the anonymous default (`https://telemetry.simstudio.ai`) it exports traces only, and never sends `OTEL_EXPORTER_OTLP_HEADERS` there. Default instrumentation records usage, performance, errors, and AI/LLM traces rather than raw workflow content. Error metadata and log records can still contain sensitive values; inspect the signals you send to your collector.
 
 Log records at or above `LOG_LEVEL` carry structured metadata, error messages, and stack traces, which can include account IDs, emails, and URLs. Raising `LOG_LEVEL` increases that stream. Configure your collector and retention policy accordingly.
 
@@ -149,7 +149,7 @@ Or point the app at a collector you already run:
 | `OTEL_TRACES_SAMPLER_ARG` | Sampling ratio, used only when `TELEMETRY_SAMPLING_RATIO` is unset |
 | `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
 
-The endpoint is resolved by precedence, first match wins: `OTEL_EXPORTER_OTLP_ENDPOINT`, then `TELEMETRY_ENDPOINT`, then the endpoint in `apps/sim/telemetry.config.ts`. This precedence governs the server SDK only — the `/api/telemetry` relay reads `TELEMETRY_ENDPOINT` and nothing else. Sampling resolves the same way: `TELEMETRY_SAMPLING_RATIO`, then `OTEL_TRACES_SAMPLER_ARG`, defaulting to 1.0. Editing `telemetry.config.ts` only changes the last fallback, so an environment variable set anywhere in your stack silently wins over it.
+The endpoint is resolved by precedence, first match wins: `OTEL_EXPORTER_OTLP_ENDPOINT`, then `TELEMETRY_ENDPOINT`, then the endpoint in `apps/sim/telemetry.config.ts`. This precedence governs the server SDK only — the `/api/telemetry` relay reads `TELEMETRY_ENDPOINT`, then the endpoint in `telemetry.config.ts`, and never `OTEL_EXPORTER_OTLP_ENDPOINT`. Sampling resolves the same way: `TELEMETRY_SAMPLING_RATIO`, then `OTEL_TRACES_SAMPLER_ARG`, defaulting to 1.0. Editing `telemetry.config.ts` only changes the last fallback, so an environment variable set anywhere in your stack silently wins over it.
 
 The app does not read `OTEL_SERVICE_NAME`: server spans use the literal service name `mothership`, even when Helm sets `sim-app`. Use `mothership` in collector filters.
 
