@@ -2,42 +2,65 @@ name: checks
 
 on:
   workflow_call:
+    inputs:
+      base:
+        description: Optional comparison commit for a scoped manual check
+        type: string
+        required: false
   workflow_dispatch:
+    inputs:
+      base:
+        description: Compare to this full commit SHA (empty runs all checks)
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 jobs:
-  # Which checks a pull request's changes can affect (.github/scripts/ci-changes.sh). A job is
-  # skipped only when the script prints `false` for its flag; an unset flag, and every push or
-  # dispatch (the deploy chain's checks), runs it. Every gated job needs this one, so its failure
-  # skips them and fails `ci` below.
+  # Attribute changes before dependency installation or service startup. Unknown inputs run all.
   changes:
     name: changes
-    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: &runner-2vcpu ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      full: ${{ github.event_name != 'pull_request' || steps.classify.outputs.full != 'false' }}
-      test: ${{ github.event_name != 'pull_request' || steps.classify.outputs.test != 'false' }}
-      build: ${{ github.event_name != 'pull_request' || steps.classify.outputs.build != 'false' }}
-      desktop_live: ${{ github.event_name != 'pull_request' || steps.classify.outputs.desktop_live != 'false' }}
+      integration: ${{ steps.classify.outputs.integration }}
+      http: ${{ steps.classify.outputs.http }}
+      production: ${{ steps.classify.outputs.production }}
+      e2e_build: ${{ steps.classify.outputs.e2e_build }}
+      desktop_live: ${{ steps.classify.outputs.desktop_live }}
+      test: ${{ steps.classify.outputs.test }}
+      test_app: ${{ steps.classify.outputs.test_app }}
+      build: ${{ steps.classify.outputs.build }}
+      http_matrix: ${{ steps.classify.outputs.http_matrix }}
+      production_matrix: ${{ steps.classify.outputs.production_matrix }}
+      test_matrix: ${{ steps.classify.outputs.test_matrix }}
+      test_packages: ${{ steps.classify.outputs.test_packages }}
     steps:
-      - name: Checkout code (mirror)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
-        with:
-          fetch-depth: 2
       - name: Checkout code
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 2
-      - name: Classify the pull request's changes
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+      - name: Install only the pinned task planner
+        continue-on-error: true
+        run: bun install --global "turbo@$(jq -r .devDependencies.turbo package.json)"
+      - name: Attribute changes to CI tasks
         id: classify
-        if: github.event_name == 'pull_request'
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
+          CI_PLAN_PATH: ${{ runner.temp }}/ci-plan.json
         run: bash .github/scripts/ci-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+      - name: Upload task attribution
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-plan
+          path: ${{ runner.temp }}/ci-plan.json
+          retention-days: 7
 
   integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
@@ -51,7 +74,7 @@ jobs:
     # free for this public repository and have enough memory for the app, Postgres and Redis.
     name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/8)
     needs: changes
-    if: needs.changes.outputs.full == 'true'
+    if: needs.changes.outputs.integration == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -171,23 +194,12 @@ jobs:
   e2e:
     name: e2e (${{ matrix.group }})
     needs: [changes, e2e-build]
-    if: needs.changes.outputs.full == 'true'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
+    if: needs.changes.outputs.http == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - group: scim
-            runner: blacksmith-4vcpu-ubuntu-2404
-          - group: cli
-            runner: blacksmith-4vcpu-ubuntu-2404
-          - group: stop-after
-            runner: blacksmith-4vcpu-ubuntu-2404
-          - group: desktop-inbox
-            runner: blacksmith-4vcpu-ubuntu-2404
-          - group: seo
-            runner: blacksmith-4vcpu-ubuntu-2404
+      matrix: ${{ fromJSON(needs.changes.outputs.http_matrix) }}
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -219,24 +231,13 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      # A same-repository pull request checks out through a git mirror on a sticky disk, so a slow
-      # clone from GitHub (1 in 10 took a minute or more, up to 4) no longer sets the run's pace.
-      # The mirror is one disk per repository that job steps can write to, so fork pull requests
-      # and pushes, whose checks gate a deploy, keep the plain checkout: same trust split as the
-      # setup action's caches.
-      - &checkout-mirror
-        name: Checkout code (mirror)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
-      - &checkout-plain
-        name: Checkout code
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+      - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          provider: ${{ vars.CI_PROVIDER }}
+          provider: github
 
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
@@ -295,38 +296,12 @@ jobs:
   e2e-production:
     name: e2e (${{ matrix.name }})
     needs: [changes, e2e-build]
-    if: needs.changes.outputs.full == 'true'
+    if: needs.changes.outputs.production == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - group: mobile
-            name: mobile, chromium, 1/2
-            browser: chromium
-            shard: '1/2'
-            artifact: mobile-chromium-1
-          - group: mobile
-            name: mobile, chromium, 2/2
-            browser: chromium
-            shard: '2/2'
-            artifact: mobile-chromium-2
-          - group: mobile
-            name: mobile, webkit, 1/2
-            browser: webkit
-            shard: '1/2'
-            artifact: mobile-webkit-1
-          - group: mobile
-            name: mobile, webkit, 2/2
-            browser: webkit
-            shard: '2/2'
-            artifact: mobile-webkit-2
-          - group: project-files
-            name: project-files
-            browser: ''
-            shard: ''
-            artifact: project-files
+      matrix: ${{ fromJSON(needs.changes.outputs.production_matrix) }}
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -356,8 +331,20 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      - *checkout-mirror
-      - *checkout-plain
+      # A same-repository pull request checks out through a git mirror on a sticky disk, so a slow
+      # clone from GitHub (1 in 10 took a minute or more, up to 4) no longer sets the run's pace.
+      # The mirror is one disk per repository that job steps can write to, so fork pull requests
+      # and pushes, whose checks gate a deploy, keep the plain checkout: same trust split as the
+      # setup action's caches.
+      - &checkout-mirror
+        name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+      - &checkout-plain
+        name: Checkout code
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -479,6 +466,7 @@ jobs:
           BETTER_AUTH_URL: http://127.0.0.1:3020
           REDIS_URL: redis://127.0.0.1:6379
           SIM_AGENT_API_URL: http://127.0.0.1:3022
+          SIM_DESKTOP_E2E_APP_SERVER: start
           NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3023
           SOCKET_SERVER_URL: http://127.0.0.1:3023
           NEXT_PUBLIC_FORCE_HOSTED: 'false'
@@ -540,11 +528,21 @@ jobs:
           SIM_DESKTOP_E2E_SIM_URL=http://127.0.0.1:3021 \
           SIM_DESKTOP_E2E_PROXY_PORT=3020 \
           SIM_DESKTOP_E2E_AGENT_PORT=3022 \
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$report_dir/desktop-tests.json" \
           SIM_DESKTOP_E2E_DATABASE_URL="$DATABASE_URL" \
           SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
           SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
-            ${{ matrix.filter }} --output "$report_dir/desktop-tools-results" --retries=0
+            ${{ matrix.filter }} --output "$report_dir/desktop-tools-results" --retries=0 --reporter=line,json
+
+      - name: Upload Electron coverage and timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-reports-${{ matrix.tests }}
+          path: ${{ runner.temp }}/e2e/desktop-tests.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload Electron E2E results and server logs
         if: failure()
@@ -723,7 +721,7 @@ jobs:
   test-types:
     name: test-types
     needs: changes
-    if: needs.changes.outputs.test == 'true'
+    if: needs.changes.outputs.test_app == 'true'
     runs-on: *runner-4vcpu
     timeout-minutes: 10
 
@@ -753,15 +751,15 @@ jobs:
   # the other workspaces. Each shard keeps its own Turbo cache: pass-through args are part of the
   # task hash, so a shard only ever replays its own result.
   test:
-    name: test (${{ matrix.shard }}/2)
+    name: test (${{ matrix.shard }}/${{ needs.changes.outputs.test_app == 'true' && '2' || '1' }})
     needs: changes
     if: needs.changes.outputs.test == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2]
+      matrix: ${{ fromJSON(needs.changes.outputs.test_matrix) }}
+
 
     steps:
       - *checkout-mirror-depth2
@@ -779,7 +777,7 @@ jobs:
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
       - name: Verify shell placeholder compilation in Bash
-        if: matrix.shard == 1
+        if: matrix.shard == 1 && needs.changes.outputs.test_app == 'true'
         working-directory: apps/sim
         env:
           SHELL_PLACEHOLDERS_REPORT_PATH: ${{ runner.temp }}/shell-placeholders.json
@@ -801,13 +799,21 @@ jobs:
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
+          TEST_APP: ${{ needs.changes.outputs.test_app }}
+          TEST_PACKAGES: ${{ needs.changes.outputs.test_packages }}
           SHARD: ${{ matrix.shard }}
         run: |
           if [ "$SHARD" = 1 ]; then
             bun run test:scripts
-            bunx turbo run test --filter='!@sim/app'
+            filters=()
+            while IFS= read -r package; do filters+=("--filter=$package"); done < <(jq -r '.[]' <<< "$TEST_PACKAGES")
+            if [ "${#filters[@]}" -gt 0 ]; then
+              bunx turbo run test "${filters[@]}" --filter='!@sim/app'
+            fi
           fi
-          bunx turbo run test --filter=@sim/app -- --shard="$SHARD/2"
+          if [ "$TEST_APP" = true ]; then
+            bunx turbo run test --filter=@sim/app -- --shard="$SHARD/2"
+          fi
 
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-
@@ -888,7 +894,7 @@ jobs:
   e2e-build:
     name: build (e2e)
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.desktop_live == 'true'
+    if: needs.changes.outputs.e2e_build == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 25
 
@@ -963,8 +969,8 @@ jobs:
     runs-on: *runner-2vcpu
     timeout-minutes: 5
     steps:
-      - *checkout-mirror
-      - *checkout-plain
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
       - name: Require every check to pass
         env:
           NEEDS: ${{ toJSON(needs) }}

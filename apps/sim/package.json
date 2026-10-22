@@ -40,7 +40,16 @@
     "generate-docs": "bun run ../../scripts/generate-docs.ts",
     "org:consolidate-users": "bun run scripts/consolidate-users-into-organization.ts",
     "verify:oracledb": "node scripts/oracledb-patch-self-test.cjs --worker lib/internal/oracledb/oracle-worker.cjs",
-    "build:cli-runtime": "bun build ../../packages/sim-cli/src/runtime.ts --target=node --format=esm --packages=bundle --outfile=../../packages/sim-cli/dist/runtime.js"
+    "build:cli-runtime": "bun build ../../packages/sim-cli/src/runtime.ts --target=node --format=esm --packages=bundle --outfile=../../packages/sim-cli/dist/runtime.js",
+    "ci:e2e-scim": "bash ../../.github/scripts/http-e2e.sh scim",
+    "ci:e2e-cli": "bash ../../.github/scripts/http-e2e.sh cli",
+    "ci:e2e-stop-after": "bash ../../.github/scripts/http-e2e.sh stop-after",
+    "ci:e2e-desktop-inbox": "bash ../../.github/scripts/http-e2e.sh desktop-inbox",
+    "ci:e2e-project-files": "bash ../../.github/scripts/http-e2e.sh project-files",
+    "ci:e2e-mobile": "bash ../../.github/scripts/http-e2e.sh mobile",
+    "ci:e2e-seo": "bash ../../.github/scripts/http-e2e.sh seo",
+    "ci:integration": "vitest run --mode integration",
+    "ci:desktop-live": "cd ../desktop && bunx --no-install playwright test e2e/desktop-tools-live-sim.spec.ts"
   },
   "dependencies": {
     "@1password/sdk": "0.5.0",

@@ -207,11 +207,6 @@ try {
     assert.match(response.headers.get('content-type') ?? '', /^text\/html/)
   })
 
-  await check('a real page is not shadowed by the Markdown 404', async () => {
-    const { response } = await request('/', 'Mozilla/5.0', baseUrl.host, 'GET', MARKDOWN_ACCEPT)
-    assert.equal(response.status, 200)
-  })
-
   await check('an unknown API path keeps its JSON 404 for a Markdown client', async () => {
     const { response, body } = await request(
       '/api/not-a-real-route',

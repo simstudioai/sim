@@ -5,10 +5,7 @@
 #
 # A skip passes only for a gated job whose `changes` flag is exactly `false`:
 #
-#   integration, e2e, e2e-build, e2e-production  full
-#   test, test-types                         test
-#   build                                    build
-#   desktop-live                             desktop_live
+#   Each job maps to its own explicit selection flag below. No inferred skip is accepted.
 #
 # Every other skip fails: an ungated job (lint, `changes` itself), a gated job whose flag is
 # `true`, missing, or anything else (a failed or skipped `changes` leaves no outputs). A failure
@@ -24,13 +21,21 @@ if ! jq -e 'type == "object"' <<< "$needs" > /dev/null 2>&1; then
 fi
 
 failed="$(jq -r '
-  {"integration": "full", "e2e": "full", "e2e-build": "full", "e2e-production": "full", "test": "test",
-   "test-types": "test", "build": "build", "desktop-live": "desktop_live"} as $gate
+  {"integration": "integration", "e2e": "http", "e2e-build": "e2e_build", "e2e-production": "production", "test": "test",
+   "test-types": "test_app", "build": "build", "desktop-live": "desktop_live"} as $gate
+  | . as $needs
+  | (($gate | keys) + ["changes", "lint"]) as $required
+  | ($required - keys) as $missing
+  | if ($missing | length) > 0 then
+      $missing[] | "\(.): missing"
+    else
+      $needs
   | (.changes.outputs // {}) as $flags
   | to_entries[]
   | select(.value.result != "success")
   | select(.value.result != "skipped" or $gate[.key] == null or $flags[$gate[.key]] != "false")
   | "\(.key): \(.value.result)"
+    end
 ' <<< "$needs")"
 if [ -n "$failed" ]; then
   echo "::error::Checks did not pass:"
