@@ -9,6 +9,8 @@
  * headings, and running furniture can be recovered afterwards.
  */
 
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
+
 /** One text item as pdf.js streams it; every field is untrusted. */
 export interface PdfTextItem {
   str?: unknown
@@ -263,14 +265,17 @@ export function normalizePdfWhitespace(text: string): string {
  * outward from each hyphen rather than matching `\p{L}+-\p{L}+`, which retries
  * from every letter of a long hyphen-free line.
  */
-export function collectCompounds(lines: Iterable<PdfLine>): Set<string> {
+export async function collectCompounds(pages: Iterable<readonly PdfLine[]>): Promise<Set<string>> {
   const compounds = new Set<string>()
-  for (const line of lines) {
-    const text = line.text
-    for (let at = text.indexOf('-'); at !== -1; at = text.indexOf('-', at + 1)) {
-      const start = letterRunStart(text, at)
-      const end = letterRunEnd(text, at + 1)
-      if (start < at && end > at + 1) compounds.add(text.slice(start, end).toLowerCase())
+  for (const lines of pages) {
+    await yieldWhenSliceExpires()
+    for (const line of lines) {
+      const text = line.text
+      for (let at = text.indexOf('-'); at !== -1; at = text.indexOf('-', at + 1)) {
+        const start = letterRunStart(text, at)
+        const end = letterRunEnd(text, at + 1)
+        if (start < at && end > at + 1) compounds.add(text.slice(start, end).toLowerCase())
+      }
     }
   }
   return compounds
@@ -294,14 +299,17 @@ function letterRunEnd(text: string, index: number): number {
  * Lowercase words of three to `MAX_COLLECTED_WORD_CHARS` letters seen anywhere
  * in the document, capped at `MAX_COLLECTED_WORDS` entries.
  */
-export function collectWords(lines: Iterable<PdfLine>): Set<string> {
+export async function collectWords(pages: Iterable<readonly PdfLine[]>): Promise<Set<string>> {
   const words = new Set<string>()
-  for (const line of lines) {
-    for (const match of line.text.matchAll(WORD_TOKEN)) {
-      const word = match[0]
-      if (word.length < 3 || word.length > MAX_COLLECTED_WORD_CHARS) continue
-      words.add(word.toLowerCase())
-      if (words.size >= MAX_COLLECTED_WORDS) return words
+  for (const lines of pages) {
+    await yieldWhenSliceExpires()
+    for (const line of lines) {
+      for (const match of line.text.matchAll(WORD_TOKEN)) {
+        const word = match[0]
+        if (word.length < 3 || word.length > MAX_COLLECTED_WORD_CHARS) continue
+        words.add(word.toLowerCase())
+        if (words.size >= MAX_COLLECTED_WORDS) return words
+      }
     }
   }
   return words
@@ -311,15 +319,18 @@ export function collectWords(lines: Iterable<PdfLine>): Set<string> {
  * Character-weighted modal height of the document's prose-like lines; falls
  * back to every line when nothing reads as prose. 0 when unknown.
  */
-export function dominantLineHeight(lines: Iterable<PdfLine>): number {
+export async function dominantLineHeight(pages: Iterable<readonly PdfLine[]>): Promise<number> {
   const prose = new Map<number, number>()
   const all = new Map<number, number>()
-  for (const line of lines) {
-    if (line.height <= 0) continue
-    const key = Math.round(line.height * 10) / 10
-    const text = line.text.trim()
-    all.set(key, (all.get(key) ?? 0) + text.length)
-    if (isProseLike(text)) prose.set(key, (prose.get(key) ?? 0) + text.length)
+  for (const lines of pages) {
+    await yieldWhenSliceExpires()
+    for (const line of lines) {
+      if (line.height <= 0) continue
+      const key = Math.round(line.height * 10) / 10
+      const text = line.text.trim()
+      all.set(key, (all.get(key) ?? 0) + text.length)
+      if (isProseLike(text)) prose.set(key, (prose.get(key) ?? 0) + text.length)
+    }
   }
   const weights = prose.size > 0 ? prose : all
   let best = 0
@@ -410,13 +421,19 @@ function sameHeightRuns(lines: readonly PdfLine[]): number[] {
  * Whether heading markers make sense for a document: false when so many lines
  * qualify that the dominant height is not the body text.
  */
-export function headingMarkersViable(lines: Iterable<PdfLine>, bodyHeight: number): boolean {
+export async function headingMarkersViable(
+  pages: Iterable<readonly PdfLine[]>,
+  bodyHeight: number
+): Promise<boolean> {
   let total = 0
   let candidates = 0
-  for (const line of lines) {
-    if (line.height <= 0) continue
-    total++
-    if (isHeadingCandidate(line, bodyHeight)) candidates++
+  for (const lines of pages) {
+    await yieldWhenSliceExpires()
+    for (const line of lines) {
+      if (line.height <= 0) continue
+      total++
+      if (isHeadingCandidate(line, bodyHeight)) candidates++
+    }
   }
   return total === 0 || candidates / total <= MAX_HEADING_LINE_FRACTION
 }

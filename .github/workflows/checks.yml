@@ -949,13 +949,15 @@ jobs:
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
         run: bunx turbo run build --filter=@sim/app
 
-      # Everything `next start` reads; node_modules and the source tree come from e2e-production's own
-      # checkout and setup, at the same workspace path and lockfile. Source maps are over half the
-      # build and only serve stack traces and devtools, which the suite never reads.
+      # Everything `next start` reads, including the spreadsheet parse worker it spawns (named, so a
+      # missing bundle fails packaging as it fails docker/app.Dockerfile); node_modules and the source
+      # tree come from e2e-production's own checkout and setup, at the same workspace path and
+      # lockfile. Source maps are over half the build and only serve stack traces and devtools, which
+      # the suite never reads.
       - name: Package the build for e2e-production
         run: >-
           tar -I 'zstd -T0' -cf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
-          --exclude .next/cache --exclude .next/trace --exclude '*.map' .next
+          --exclude .next/cache --exclude .next/trace --exclude '*.map' .next dist/xlsx-worker.mjs
 
       # Already zstd-compressed, so stored without zip compression. `overwrite` lets a re-run of
       # this job replace the earlier attempt's build; three days covers re-running a failed shard
