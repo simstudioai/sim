@@ -303,6 +303,23 @@ describe('compactExecutionPayload', () => {
     expect(compacted.every(isLargeArrayManifest)).toBe(true)
   })
 
+  it('spills subflow results once their aggregate is one byte over the threshold', async () => {
+    const results = () => [{ text: 'é"\\'.repeat(5) }, undefined, [1, null], 'plain']
+    const bytes = Buffer.byteLength(JSON.stringify({ results: results() }), 'utf8')
+
+    const fitting = await compactSubflowResults(results(), {
+      thresholdBytes: bytes,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+    expect(fitting).toEqual(results())
+
+    const over = await compactSubflowResults(results(), {
+      thresholdBytes: bytes - 1,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+    expect(over.map((result) => isLargeValueRef(result))).toEqual([true, false, true, true])
+  })
+
   it('reuses already-compacted subflow entries instead of rebuilding them', async () => {
     const unchanged = { rows: [{ id: 1, data: { name: 'a' } }], meta: { count: 1 } }
     const file = { id: 'f1', key: 'k1', url: 'u', name: 'a.txt', size: 3, type: 'text/plain' }
