@@ -12,6 +12,7 @@ import {
   normalizeOtlpTracesUrl,
   resolveOtlpTarget,
 } from '@/lib/monitoring/otlp'
+import telemetryConfig from '@/telemetry.config'
 
 const logger = createLogger('TelemetryAPI')
 
@@ -67,7 +68,7 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
   }
   if (isTelemetryDisabled()) return false
 
-  const target = resolveOtlpTarget()
+  const target = resolveOtlpTarget(telemetryConfig.endpoint)
   const endpoint = normalizeOtlpTracesUrl(target.endpoint)
   const timeout = DEFAULT_TIMEOUT
 
