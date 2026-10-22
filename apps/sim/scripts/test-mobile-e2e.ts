@@ -21,6 +21,7 @@ import postgres from 'postgres'
  * Requires MOBILE_E2E_BASE_URL, MOBILE_E2E_DATABASE_URL, MOBILE_E2E_AUTH_SECRET,
  * and MOBILE_E2E_REPORT_PATH. Install Chromium and WebKit with Playwright first.
  * MOBILE_E2E_BROWSER and MOBILE_E2E_VIEWPORT narrow a diagnostic rerun.
+ * MOBILE_E2E_SHARD (index/count, one-based) partitions all viewports across CI jobs.
  */
 const logger = createLogger('MobileE2E')
 const expect = browserExpect.configure({ timeout: 20_000 })
@@ -104,6 +105,12 @@ assert(
   !selectedViewport || viewports.some((viewport) => viewport.name === selectedViewport),
   'Unknown viewport'
 )
+const shard = /^([1-9]\d*)\/([1-9]\d*)$/.exec(process.env.MOBILE_E2E_SHARD || '1/1')
+assert(shard, 'MOBILE_E2E_SHARD must be index/count, one-based')
+const shardIndex = Number(shard[1]) - 1
+const shardCount = Number(shard[2])
+assert(shardIndex < shardCount && shardCount <= viewports.length, 'Invalid viewport shard')
+assert(!selectedViewport || shardCount === 1, 'Select either a viewport or a shard')
 
 interface CheckResult {
   name: string
@@ -1278,7 +1285,8 @@ try {
     })
     if (!browser) continue
     try {
-      for (const viewport of viewports) {
+      for (const [index, viewport] of viewports.entries()) {
+        if (index % shardCount !== shardIndex) continue
         if (selectedViewport && selectedViewport !== viewport.name) continue
         await exerciseViewport(browser, browserName, cookie, viewport)
       }
