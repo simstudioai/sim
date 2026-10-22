@@ -2,7 +2,7 @@
 
 The `changes` job runs Turborepo 2.9.14's `affectedTasks` query before installing application dependencies or provisioning services. `turbo.json` records package dependency propagation; `apps/sim/turbo.json` partitions the app into shared runtime, server, workspace UI, and acceptance tasks. `.github/ci-suites.json` turns those tasks into job matrices. The uploaded `ci-plan` artifact names changed files, selected tasks, attribution reasons, and any fallback.
 
-A PR compares its merge base with the checked-out merge commit. Pushes and normal manual runs execute all checks. A manual `checks` run can supply a full base commit SHA to reproduce a scoped plan. Missing history, an empty diff, unknown files outside the workspace graph, root script/CI changes, or a planner error run every check. Missing selection outputs fail the aggregate gate. The gate also rejects an omitted dependency, any failed/cancelled job, and any skip that its explicit selection flag did not authorize.
+A PR compares its merge base with the checked-out merge commit. Main/staging pushes execute all checks; the parent `ci` workflow skips checks on `dev` pushes, while PRs targeting `dev` still run checks. A manual `checks` run executes all checks unless supplied a full base commit SHA to reproduce a scoped plan. Missing history, an empty diff, unknown files outside the workspace graph, root script/CI changes, or a planner error run every check. Missing selection outputs fail the aggregate gate. The gate also rejects an omitted dependency, any failed/cancelled job, and any skip that its explicit selection flag did not authorize.
 
 | Change | Expensive checks selected |
 | --- | --- |
@@ -22,7 +22,7 @@ SEO depends on workspace UI and server code: landing pages reuse workspace prici
 
 `affectedTasks` already uses task inputs. Do not enable `futureFlags.affectedUsingTaskInputs` just for this planner: that flag also changes pruning, which can pull CI-only cross-app task dependencies into production Docker contexts.
 
-Affected type-checks follow the package graph too; repository audits and lint always run. Workspace-only unit jobs use a free GitHub runner and do not start the app test shards.
+Affected type-checks follow the package graph too; repository audits and lint run whenever the checks workflow runs. Workspace-only unit jobs use a free GitHub runner and do not start the app test shards.
 
 Database integration and lightweight HTTP suites run on free standard GitHub runners with matching GitHub cache setup. A same-source integration comparison of 16 jobs per provider (32 total) had a slowest shard of 6m 04s on 2-vCPU Blacksmith versus 6m 55s on free GitHub, with identical coverage. GitHub trades the observed 51 seconds for zero runner compute cost. This is one paired sample, not a long-run percentile estimate. These explicitly selected GitHub jobs do not follow `CI_PROVIDER`.
 
