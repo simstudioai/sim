@@ -128,6 +128,51 @@ describe('compactExecutionPayload', () => {
     })
   })
 
+  it('spills or rejects an oversized child of an object whose toJSON serializes small', async () => {
+    const value = () => ({ nested: { toJSON: () => 1, big: 'x'.repeat(2000) } })
+    const options = { thresholdBytes: 500, ...TEST_EXECUTION_CONTEXT }
+
+    const compacted = await compactExecutionPayload(value(), options)
+    expect(isLargeValueRef(compacted.nested.big)).toBe(true)
+
+    await expect(
+      compactExecutionPayload(value(), { ...options, rejectLargeValues: true })
+    ).rejects.toMatchObject({ name: 'PayloadSizeLimitError', maxBytes: 500, observedBytes: 2002 })
+  })
+
+  it('sizes a parent by what toJSON returns under its key, not on its own', async () => {
+    const compacted = await compactExecutionPayload(
+      { wrapper: { inner: { toJSON: (key: string) => (key === '' ? 'ok' : 'x'.repeat(2000)) } } },
+      { thresholdBytes: 500, ...TEST_EXECUTION_CONTEXT }
+    )
+
+    expect(isLargeValueRef(compacted.wrapper)).toBe(true)
+  })
+
+  it('spills a value exactly one byte over the threshold, counting JSON escapes and omissions', async () => {
+    const payload = () => ({
+      text: 'é"\\\n😀\ud800 line',
+      lone: 'a\udc00b',
+      list: [undefined, () => 1, 1.5, -0, Number.NaN, 'ünï'],
+      omitted: undefined,
+      fn: () => 1,
+      nested: { empty: {}, none: null, '키"': [[]] },
+    })
+    const bytes = Buffer.byteLength(JSON.stringify(payload()), 'utf8')
+
+    const fitting = await compactExecutionPayload(
+      { payload: payload() },
+      { thresholdBytes: bytes, preserveRoot: true, ...TEST_EXECUTION_CONTEXT }
+    )
+    expect(isLargeValueRef(fitting.payload)).toBe(false)
+
+    const over = await compactExecutionPayload(
+      { payload: payload() },
+      { thresholdBytes: bytes - 1, preserveRoot: true, ...TEST_EXECUTION_CONTEXT }
+    )
+    expect(over.payload).toMatchObject({ __simLargeValueRef: true, size: bytes })
+  })
+
   it('does not double-spill existing refs', async () => {
     const compacted = await compactExecutionPayload(
       { results: [[{ payload: 'x'.repeat(2048) }]] },
@@ -256,6 +301,23 @@ describe('compactExecutionPayload', () => {
 
     expect(compacted).toEqual([manifest, manifest])
     expect(compacted.every(isLargeArrayManifest)).toBe(true)
+  })
+
+  it('spills subflow results once their aggregate is one byte over the threshold', async () => {
+    const results = () => [{ text: 'é"\\'.repeat(5) }, undefined, [1, null], 'plain']
+    const bytes = Buffer.byteLength(JSON.stringify({ results: results() }), 'utf8')
+
+    const fitting = await compactSubflowResults(results(), {
+      thresholdBytes: bytes,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+    expect(fitting).toEqual(results())
+
+    const over = await compactSubflowResults(results(), {
+      thresholdBytes: bytes - 1,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+    expect(over.map((result) => isLargeValueRef(result))).toEqual([true, false, true, true])
   })
 
   it('reuses already-compacted subflow entries instead of rebuilding them', async () => {
