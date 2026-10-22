@@ -34,3 +34,5 @@ Every HTTP and browser group consumes the same production build in an isolated j
 The long-import and lease-expiration checks remain: they prove distinct survival/uncertain-outcome behavior across real process failure. Likewise, the two integration provision paths remain because migrations create constraints/triggers that schema push does not.
 
 Local planner validation is `bun run test:scripts scripts/ci-changes.test.ts scripts/ci-gate.test.ts`. It executes real Turbo queries in small Git fixtures; no application build or database is required. Full builds, services, browser suites, and Electron checks run on hosted CI.
+
+The separate `desktop-e2e` workflow retains its desktop-specific path filters. Its macOS shell smoke suite is partitioned by Playwright across three isolated runners; serial test-file groups stay intact. Packaging smoke and the weekly Electron canary remain separate. Each shard uploads its small JSON coverage/timing report.
