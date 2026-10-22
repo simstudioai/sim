@@ -149,20 +149,23 @@ function isWithheldPath(span: QueryTraceSpan, path: string): boolean {
   return false
 }
 
-/** The path as given first; under `output.` when the head is not a span-level key. */
+/**
+ * The path as given first; under `output.` when the head is not a span-level key. A
+ * direct path through a withheld content field (`thinking`) stays unknown rather than
+ * falling back to a same-named key under output.
+ */
 function resolveSpanPathWithFallback(span: QueryTraceSpan, path: string): ResolvedSpanPath {
   const direct = resolveSpanPath(span, path)
   if (direct !== undefined) return { value: direct, path }
+  if (isWithheldPath(span, path)) return { value: undefined, path, withheld: true }
   const head = path.split('.')[0] ?? ''
-  const unresolved = (candidates: string[]): ResolvedSpanPath =>
-    candidates.some((candidate) => isWithheldPath(span, candidate))
-      ? { value: undefined, path, withheld: true }
-      : { value: undefined, path }
-  if (SPAN_LEVEL_KEYS.has(head)) return unresolved([path])
+  if (SPAN_LEVEL_KEYS.has(head)) return { value: undefined, path }
   const underOutput = `output.${path}`
   const value = resolveSpanPath(span, underOutput)
-  if (value === undefined) return unresolved([path, underOutput])
-  return { value, path: underOutput, resolvedUnder: 'output' }
+  if (value !== undefined) return { value, path: underOutput, resolvedUnder: 'output' }
+  return isWithheldPath(span, underOutput)
+    ? { value: undefined, path, withheld: true }
+    : { value: undefined, path }
 }
 
 function clipValue(value: unknown): unknown {

@@ -185,7 +185,7 @@ const PARTLY_WITHHELD_RUNS = {
         {
           name: 'Router',
           status: 'success',
-          output: { route: 'priority' },
+          output: { route: 'priority', thinking: 'not the omitted span thinking' },
           contentWithheld: true,
         },
       ],
@@ -241,6 +241,11 @@ describe('logs query on a marked span whose read field is intact', () => {
     const thinking = await logsQueryPartlyWithheld({ field: 'thinking' })
     expect(thinking.rows[0].note).toMatch(/value unknown/)
     expect(thinking.contentWithheld).toBe(2)
+
+    const shadowed = await logsQueryPartlyWithheld({ field: 'thinking', where: 'route=priority' })
+    expect(shadowed.rows[0]).toMatchObject({ runId: 'run-1', value: null })
+    expect(shadowed.rows[0].note).toMatch(/value unknown/)
+    expect(shadowed.fieldResolvedUnder).toBeUndefined()
 
     const toolInput = await logsQueryPartlyWithheld({ field: 'toolCalls.0.input.query' })
     expect(toolInput.rows[1].note).toMatch(/value unknown/)
