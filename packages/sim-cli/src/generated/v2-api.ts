@@ -20373,7 +20373,7 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 100,
         describe:
-          'Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
+          'Maximum log entries per page. When execution data is returned (`includeTraceSpans` or `includeFinalOutput`), a page holds at most 20 entries, and fewer when their stored traces are large; follow `nextCursor` for the rest. A page whose execution data is withheld by permissions is not capped. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
       },
       cursor: {
         kind: 'string',

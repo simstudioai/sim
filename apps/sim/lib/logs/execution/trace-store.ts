@@ -29,6 +29,17 @@ export const SECRET_PROJECTION_VERSION = 1 as const
 export const TRACE_STORE_REF_KEY = 'traceStoreRef'
 
 /**
+ * Bytes of the stored archive a slim `execution_data` row points at, or 0 when
+ * the row carries its execution data inline. Read before materializing, so a
+ * caller can budget a page by what it is about to load.
+ */
+export function executionDataArchiveBytes(executionData: unknown): number {
+  if (!isRecordLike(executionData)) return 0
+  const ref = executionData[TRACE_STORE_REF_KEY]
+  return isLargeValueRef(ref) ? ref.size : 0
+}
+
+/**
  * The only metadata kept inline on the slim row (everything else lives in the
  * externalized object). Trace presence/count survives object expiry for log
  * diagnostics and handled-error filtering, while correlation preserves the server-issued binding used to

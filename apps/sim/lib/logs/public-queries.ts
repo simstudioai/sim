@@ -29,6 +29,9 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
+import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
+import { executionDataArchiveBytes } from '@/lib/logs/execution/trace-store'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { folderScopeCondition, type LogFolderScope } from '@/lib/logs/folder-scope'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
@@ -355,6 +358,44 @@ function readJobLogRows(
 }
 
 /**
+ * Rows a page that carries execution data may hold: one
+ * {@link MATERIALIZE_CONCURRENCY} wave. Each row is materialized from its
+ * archive and secret-projected before the page is validated and serialized in
+ * one synchronous pass, so the caller's `limit` alone would let one request hold
+ * a process's heap and event loop for as many traces as it asks for.
+ */
+const MATERIALIZED_LOG_PAGE_MAX = MATERIALIZE_CONCURRENCY
+
+/**
+ * Stored archive bytes a page that carries execution data may load. The row
+ * count alone does not bound a page: archives vary by orders of magnitude, and a
+ * page of the largest serializes past what one string can hold. The first row is
+ * always admitted, so a page of one oversized run still advances the walk.
+ */
+const MATERIALIZED_LOG_PAGE_BYTES = MAX_DURABLE_LARGE_VALUE_BYTES
+
+/**
+ * The page size a read may return: the caller's `limit`, narrowed when the page
+ * carries execution data. The narrowed page still mints its cursor from its own
+ * last row, so a walk resumes immediately after it — the caller follows
+ * `nextCursor` and sees every row once.
+ */
+function executionDataPageLimit(
+  rows: readonly (PublicWorkflowLogListRow | PublicLogListRow)[],
+  input: ReadPublicLogPageInput
+): number {
+  if (!input.includeExecutionData) return input.limit
+  let bytes = 0
+  let admitted = 0
+  for (const row of rows.slice(0, input.limit)) {
+    if ('executionData' in row) bytes += executionDataArchiveBytes(row.executionData)
+    if (admitted > 0 && bytes > MATERIALIZED_LOG_PAGE_BYTES) break
+    admitted += 1
+  }
+  return admitted
+}
+
+/**
  * Reads one page of the public log sequence, ordered by any of
  * {@link PUBLIC_LOG_SORT_FIELDS} and resumed from a shared keyset cursor.
  *
@@ -368,8 +409,11 @@ function readJobLogRows(
  * another page" without a count.
  */
 export async function readPublicLogPage(
-  input: ReadPublicLogPageInput
+  pageInput: ReadPublicLogPageInput
 ): Promise<KeysetPage<PublicLogListRow>> {
+  const input = pageInput.includeExecutionData
+    ? { ...pageInput, limit: Math.min(pageInput.limit, MATERIALIZED_LOG_PAGE_MAX) }
+    : pageInput
   const keys = publicLogKeyset<PublicWorkflowLogListRow>(input.sortBy, input.cursorKeys)
 
   // `folderScope` is checked separately from `jobLogsSelectable`, which reads
@@ -399,7 +443,7 @@ export async function readPublicLogPage(
   ])
 
   if (!includeJobRuns) {
-    const page = keysetPage(keys, workflowRows, input.limit)
+    const page = keysetPage(keys, workflowRows, executionDataPageLimit(workflowRows, input))
     return {
       data: page.data.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
       nextCursorKeys: page.nextCursorKeys,
@@ -419,7 +463,7 @@ export async function readPublicLogPage(
     mergedKeys,
     input.sortOrder
   )
-  return keysetPage(mergedKeys, merged, input.limit)
+  return keysetPage(mergedKeys, merged, executionDataPageLimit(merged, input))
 }
 
 /**
