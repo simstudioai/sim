@@ -145,7 +145,7 @@ Start one or more stopped EC2 instances
 | --------- | ---- | ----------- |
 | `instances` | array | State transition for each instance |
 |   ↳ `instanceId` | string | Instance ID |
-|   ↳ `currentState` | string | State after the request \(e.g., pending, stopping, shutting-down\) |
+|   ↳ `currentState` | string | State after the request \(e.g., pending, running\) |
 |   ↳ `previousState` | string | State before the request |
 
 </ReferenceDetails>
@@ -173,7 +173,7 @@ Stop one or more running EC2 instances
 | --------- | ---- | ----------- |
 | `instances` | array | State transition for each instance |
 |   ↳ `instanceId` | string | Instance ID |
-|   ↳ `currentState` | string | State after the request \(e.g., pending, stopping, shutting-down\) |
+|   ↳ `currentState` | string | State after the request \(e.g., stopping, stopped\) |
 |   ↳ `previousState` | string | State before the request |
 
 </ReferenceDetails>
@@ -223,7 +223,7 @@ Permanently terminate one or more EC2 instances
 | --------- | ---- | ----------- |
 | `instances` | array | State transition for each instance |
 |   ↳ `instanceId` | string | Instance ID |
-|   ↳ `currentState` | string | State after the request \(e.g., pending, stopping, shutting-down\) |
+|   ↳ `currentState` | string | State after the request \(e.g., shutting-down, terminated\) |
 |   ↳ `previousState` | string | State before the request |
 
 </ReferenceDetails>

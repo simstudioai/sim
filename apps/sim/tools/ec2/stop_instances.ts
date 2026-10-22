@@ -90,7 +90,7 @@ export const stopInstancesTool: InternalToolConfig<
           },
           currentState: {
             type: 'string',
-            description: 'State after the request (e.g., pending, stopping, shutting-down)',
+            description: 'State after the request (e.g., stopping, stopped)',
             nullable: true,
           },
           previousState: {
