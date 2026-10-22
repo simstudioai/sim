@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -155,64 +156,62 @@ export const logsQueryCommand: AgentCliEngine = {
     const runItems = runs.data ?? []
     const normalizedBlockName = normalizeName(blockName)
 
-    const rows: (Record<string, unknown> | undefined)[] = new Array(runItems.length)
     let filteredOut = 0
     let missingTrace = 0
     let fieldResolvedUnder: 'output' | undefined
     let whereResolvedUnder: 'output' | undefined
-    for (let start = 0; start < runItems.length; start += TRACE_FETCH_CONCURRENCY) {
-      const chunk = runItems.slice(start, start + TRACE_FETCH_CONCURRENCY)
-      await Promise.all(
-        chunk.map(async (run, offset) => {
-          const base = {
-            runId: run.runId,
-            startedAt: run.startedAt,
-            runStatus: run.status,
-          }
-          let spans: QueryTraceSpan[]
-          try {
-            const trace = await runtime.client.request<{
-              data: { traceSpans?: QueryTraceSpan[] }
-            }>(`/api/v2/logs/${encodeURIComponent(run.runId)}`)
-            spans = trace.data.traceSpans ?? []
-          } catch {
-            missingTrace++
-            rows[start + offset] = { ...base, note: 'trace unavailable' }
-            return
-          }
-          const matches: QueryTraceSpan[] = []
-          collectSpansByName(spans, normalizedBlockName, matches)
-          const last = matches[matches.length - 1]
-          if (!last) {
-            // Under --where a run the block never reached cannot match; returning it as
-            // `hits: 0` made matches indistinguishable from padding.
-            if (wherePath) {
-              filteredOut++
-              return
-            }
-            rows[start + offset] = { ...base, hits: 0, value: null }
-            return
-          }
+    const rows = await mapWithConcurrency(
+      runItems,
+      TRACE_FETCH_CONCURRENCY,
+      async (run): Promise<Record<string, unknown> | undefined> => {
+        const base = {
+          runId: run.runId,
+          startedAt: run.startedAt,
+          runStatus: run.status,
+        }
+        let spans: QueryTraceSpan[]
+        try {
+          const trace = await runtime.client.request<{
+            data: { traceSpans?: QueryTraceSpan[] }
+          }>(`/api/v2/logs/${encodeURIComponent(run.runId)}`, {
+            query: { includeWorkflowState: 'false' },
+          })
+          spans = trace.data.traceSpans ?? []
+        } catch {
+          missingTrace++
+          return { ...base, note: 'trace unavailable' }
+        }
+        const matches: QueryTraceSpan[] = []
+        collectSpansByName(spans, normalizedBlockName, matches)
+        const last = matches[matches.length - 1]
+        if (!last) {
+          // Under --where a run the block never reached cannot match; returning it as
+          // `hits: 0` made matches indistinguishable from padding.
           if (wherePath) {
-            const matched = resolveSpanPathWithFallback(last, wherePath)
-            if (matched.resolvedUnder) whereResolvedUnder = matched.resolvedUnder
-            if (String(matched.value) !== whereValue) {
-              filteredOut++
-              return
-            }
+            filteredOut++
+            return undefined
           }
-          const resolved = resolveSpanPathWithFallback(last, field)
-          if (resolved.resolvedUnder) fieldResolvedUnder = resolved.resolvedUnder
-          rows[start + offset] = {
-            ...base,
-            hits: matches.length,
-            blockStatus: last.status ?? 'success',
-            value: clipValue(resolved.value),
-            ...(resolved.value === undefined ? { note: PATH_NOT_FOUND_NOTE } : {}),
+          return { ...base, hits: 0, value: null }
+        }
+        if (wherePath) {
+          const matched = resolveSpanPathWithFallback(last, wherePath)
+          if (matched.resolvedUnder) whereResolvedUnder = matched.resolvedUnder
+          if (String(matched.value) !== whereValue) {
+            filteredOut++
+            return undefined
           }
-        })
-      )
-    }
+        }
+        const resolved = resolveSpanPathWithFallback(last, field)
+        if (resolved.resolvedUnder) fieldResolvedUnder = resolved.resolvedUnder
+        return {
+          ...base,
+          hits: matches.length,
+          blockStatus: last.status ?? 'success',
+          value: clipValue(resolved.value),
+          ...(resolved.value === undefined ? { note: PATH_NOT_FOUND_NOTE } : {}),
+        }
+      }
+    )
 
     const kept = rows.filter((row): row is Record<string, unknown> => row !== undefined)
     return agentCliOk(
