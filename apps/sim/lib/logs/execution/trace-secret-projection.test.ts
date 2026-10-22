@@ -340,6 +340,34 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0].output).toEqual({ value: 'prefix {{LONG}} suffix' })
   })
 
+  it('lets pending macrotasks run mid-projection and still projects every span', async () => {
+    const spans = Array.from({ length: 30 }, (_, spanIndex) =>
+      createSpan({
+        id: `span-${spanIndex}`,
+        output: {
+          rows: Array.from({ length: 400 }, (_, row) => ({
+            name: `row ${row}`,
+            note: 'contains secretval inline',
+          })),
+        },
+      })
+    )
+    let macrotaskRan = false
+    setImmediate(() => {
+      macrotaskRan = true
+    })
+
+    const projected = await projectTraceSpansForSecrets(spans, {
+      registry: createRegistry([{ plaintext: 'secretval', replacement: '{{SECRET}}' }]),
+      store: STORE,
+    })
+
+    expect(macrotaskRan).toBe(true)
+    expect(projected[29].output).toEqual({
+      rows: expect.arrayContaining([{ name: 'row 399', note: 'contains {{SECRET}} inline' }]),
+    })
+  })
+
   it('projects a successfully resolved numeric Function result without mutating runtime output', async () => {
     const runtimeOutput = { result: 12345678, unchanged: 5678 }
     const source = createSpan({ output: runtimeOutput })
