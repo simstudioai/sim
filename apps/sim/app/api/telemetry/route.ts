@@ -65,9 +65,9 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
   }
   if (isTelemetryDisabled()) return false
 
-  const endpoint = normalizeOtlpTracesUrl(
-    process.env.TELEMETRY_ENDPOINT || telemetryConfig.endpoint
-  )
+  // TELEMETRY_ENDPOINT has always been the relay's full destination URL, so it is posted to as-is.
+  const endpoint =
+    process.env.TELEMETRY_ENDPOINT || normalizeOtlpTracesUrl(telemetryConfig.endpoint)
   const timeout = DEFAULT_TIMEOUT
 
   try {
