@@ -381,14 +381,14 @@ const MATERIALIZED_LOG_PAGE_BYTES = MAX_DURABLE_LARGE_VALUE_BYTES
  * `nextCursor` and sees every row once.
  */
 function executionDataPageLimit(
-  rows: readonly { executionData?: unknown }[],
+  rows: readonly (PublicWorkflowLogListRow | PublicLogListRow)[],
   input: ReadPublicLogPageInput
 ): number {
   if (!input.includeExecutionData) return input.limit
   let bytes = 0
   let admitted = 0
   for (const row of rows.slice(0, input.limit)) {
-    bytes += executionDataArchiveBytes(row.executionData)
+    if ('executionData' in row) bytes += executionDataArchiveBytes(row.executionData)
     if (admitted > 0 && bytes > MATERIALIZED_LOG_PAGE_BYTES) break
     admitted += 1
   }

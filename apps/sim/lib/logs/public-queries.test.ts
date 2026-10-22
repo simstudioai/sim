@@ -449,6 +449,7 @@ describe('public log page carrying execution data', () => {
       includeJobRuns: true,
       sortBy: 'startedAt',
       sortOrder: 'desc',
+      cursorKeys: undefined,
       limit: 100,
     })
 
