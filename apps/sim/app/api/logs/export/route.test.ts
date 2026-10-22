@@ -243,8 +243,9 @@ describe('GET /api/logs/export', () => {
       logRow(0, { executionData: { message: 'm', traceSpans } }),
     ])
 
-    const response = await GET(makeRequest())
-    const reader = response.body!.getReader()
+    const response = await GET(makeRequest(), undefined)
+    if (!response.body) throw new Error('expected a streamed export body')
+    const reader = response.body.getReader()
     const decoder = new TextDecoder()
     const header = decoder.decode((await reader.read()).value)
 
