@@ -6244,6 +6244,7 @@ type GetLogResponseRef1 = {
     toolCost?: number
   }
   relativeStartMs?: number
+  contentWithheld?: true
   toolCalls?: Array<{
     id?: string
     name?: string
@@ -9037,6 +9038,7 @@ type ListLogsResponseRef2 = {
     toolCost?: number
   }
   relativeStartMs?: number
+  contentWithheld?: true
   toolCalls?: Array<{
     id?: string
     name?: string

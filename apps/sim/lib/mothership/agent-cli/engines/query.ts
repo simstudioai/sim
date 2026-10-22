@@ -23,6 +23,13 @@ const MAX_LIMIT = 50
 const TRACE_FETCH_CONCURRENCY = 5
 const VALUE_MAX_CHARS = 600
 const PATH_NOT_FOUND_NOTE = 'path not found on span'
+/**
+ * The log projection withheld this span's content rather than return what it could not
+ * prove safe to display, so an unresolved content path says nothing about the run.
+ */
+const CONTENT_WITHHELD_NOTE = 'span content withheld by the log projection; value unknown'
+const WHERE_WITHHELD_NOTE =
+  'span content withheld by the log projection; --where could not be checked, run kept'
 
 /**
  * Keys that live on the span itself. A path whose head is anything else is read
@@ -56,6 +63,7 @@ interface QueryTraceSpan {
   duration?: number
   input?: Record<string, unknown>
   output?: Record<string, unknown>
+  contentWithheld?: true
   children?: QueryTraceSpan[]
 }
 
@@ -158,6 +166,7 @@ export const logsQueryCommand: AgentCliEngine = {
 
     let filteredOut = 0
     let missingTrace = 0
+    let contentWithheld = 0
     let fieldResolvedUnder: 'output' | undefined
     let whereResolvedUnder: 'output' | undefined
     const rows = await mapWithConcurrency(
@@ -193,23 +202,34 @@ export const logsQueryCommand: AgentCliEngine = {
           }
           return { ...base, hits: 0, value: null }
         }
+        const matchedRow = {
+          ...base,
+          hits: matches.length,
+          blockStatus: last.status ?? 'success',
+        }
+        let whereWithheld = false
         if (wherePath) {
           const matched = resolveSpanPathWithFallback(last, wherePath)
           if (matched.resolvedUnder) whereResolvedUnder = matched.resolvedUnder
-          if (String(matched.value) !== whereValue) {
+          // Filtering on a withheld value would silently drop a run that may well match.
+          whereWithheld = matched.value === undefined && last.contentWithheld === true
+          if (!whereWithheld && String(matched.value) !== whereValue) {
             filteredOut++
             return undefined
           }
         }
         const resolved = resolveSpanPathWithFallback(last, field)
         if (resolved.resolvedUnder) fieldResolvedUnder = resolved.resolvedUnder
-        return {
-          ...base,
-          hits: matches.length,
-          blockStatus: last.status ?? 'success',
-          value: clipValue(resolved.value),
-          ...(resolved.value === undefined ? { note: PATH_NOT_FOUND_NOTE } : {}),
-        }
+        const fieldWithheld = resolved.value === undefined && last.contentWithheld === true
+        if (whereWithheld || fieldWithheld) contentWithheld++
+        const note = fieldWithheld
+          ? CONTENT_WITHHELD_NOTE
+          : resolved.value === undefined
+            ? PATH_NOT_FOUND_NOTE
+            : whereWithheld
+              ? WHERE_WITHHELD_NOTE
+              : undefined
+        return { ...matchedRow, value: clipValue(resolved.value), ...(note ? { note } : {}) }
       }
     )
 
@@ -230,6 +250,7 @@ export const logsQueryCommand: AgentCliEngine = {
               }
             : {}),
           ...(missingTrace ? { missingTrace } : {}),
+          ...(contentWithheld ? { contentWithheld } : {}),
           rows: kept,
         },
         null,

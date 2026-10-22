@@ -82,6 +82,8 @@ interface ProjectionContext {
   sourceLargeValueBytes: number
   storedLargeValueBytes: number
   storedLargeValueCount: number
+  /** Content fields omitted so far; a span compares it across its own fields to set `contentWithheld`. */
+  omittedContentFields: number
 }
 
 interface OversizedHydrationGate {
@@ -162,6 +164,7 @@ function createProjectionContext(
     manifestIds: new WeakMap<object, string>(),
     nextManifestId: 0,
     largeValueCount: 0,
+    omittedContentFields: 0,
     sourceLargeValueBytes: 0,
     storedLargeValueBytes: 0,
     storedLargeValueCount: 0,
@@ -808,6 +811,7 @@ async function sanitizeContentField(
     logger.warn('Omitting trace content that could not be sanitized', {
       failure: describeProjectionFailure(error),
     })
+    context.omittedContentFields += 1
     return OMIT
   }
 }
@@ -927,6 +931,7 @@ async function sanitizeTraceSpan(
   }
 
   let projected = omit(span, ['displayResolvedSecretTraceProvenance']) as TraceSpan
+  const omittedBefore = context.omittedContentFields
 
   for (const key of ['input', 'output', 'thinking', 'errorMessage'] as const) {
     const value = span[key]
@@ -960,6 +965,8 @@ async function sanitizeTraceSpan(
     }
     projected.providerTiming = { ...span.providerTiming, segments }
   }
+
+  if (context.omittedContentFields > omittedBefore) projected.contentWithheld = true
 
   assertContentIsSafe(projected, depth)
 
@@ -1074,6 +1081,7 @@ function structuralOnlySpan(
 
   return {
     ...structural,
+    contentWithheld: true,
     ...(modelToolCalls
       ? {
           modelToolCalls: projectBoundedArray(modelToolCalls, (call) =>
