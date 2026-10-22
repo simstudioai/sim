@@ -71,6 +71,7 @@
     "duckduckgo",
     "dynamodb",
     "dynatrace",
+    "ec2",
     "elasticsearch",
     "elevenlabs",
     "emailbison",

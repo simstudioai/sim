@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21",
+  "updatedAt": "2026-10-22",
   "integrations": [
     {
       "type": "onepassword",
@@ -975,6 +975,162 @@
       "integrationType": "databases",
       "tags": ["cloud", "data-analytics"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "ec2",
+      "slug": "amazon-ec2",
+      "name": "Amazon EC2",
+      "description": "Manage EC2 instances, Elastic IPs, VPC networking, and EBS",
+      "longDescription": "Integrate Amazon EC2 into workflows. Describe and control instances, manage Elastic IP addresses, inspect VPCs, subnets, route tables, NAT and internet gateways, security groups, and network interfaces, add and revoke security group ingress rules, inspect network ACLs, VPC endpoints, and peering connections, work with EBS volumes and snapshots, list AMIs and key pairs, and tag resources. Requires an AWS access key with the matching ec2:* IAM permissions.",
+      "bgColor": "linear-gradient(45deg, #C8511B 0%, #FF9900 100%)",
+      "iconName": "EC2Icon",
+      "docsUrl": "https://docs.sim.ai/integrations/ec2",
+      "operations": [
+        {
+          "name": "Describe Instances",
+          "description": "List EC2 instances with their state, type, networking, and tags"
+        },
+        {
+          "name": "Describe Instance Status",
+          "description": "Get status checks and scheduled events for EC2 instances"
+        },
+        {
+          "name": "Start Instances",
+          "description": "Start one or more stopped EC2 instances"
+        },
+        {
+          "name": "Stop Instances",
+          "description": "Stop one or more running EC2 instances"
+        },
+        {
+          "name": "Reboot Instances",
+          "description": "Request a reboot of one or more EC2 instances"
+        },
+        {
+          "name": "Terminate Instances",
+          "description": "Permanently terminate one or more EC2 instances"
+        },
+        {
+          "name": "Describe Elastic IPs",
+          "description": "List Elastic IP addresses and what they are associated with"
+        },
+        {
+          "name": "Allocate Elastic IP",
+          "description": "Allocate a new Elastic IP address for use in a VPC"
+        },
+        {
+          "name": "Associate Elastic IP",
+          "description": "Associate an Elastic IP address with an instance or network interface"
+        },
+        {
+          "name": "Disassociate Elastic IP",
+          "description": "Disassociate an Elastic IP address from its instance or network interface"
+        },
+        {
+          "name": "Release Elastic IP",
+          "description": "Release an Elastic IP address back to AWS"
+        },
+        {
+          "name": "Describe NAT Gateways",
+          "description": "List NAT gateways with their state, subnet, and IP addresses"
+        },
+        {
+          "name": "Describe Route Tables",
+          "description": "List VPC route tables with their routes and subnet associations"
+        },
+        {
+          "name": "Describe VPCs",
+          "description": "List VPCs with their CIDR blocks and state"
+        },
+        {
+          "name": "Describe Subnets",
+          "description": "List subnets with their CIDR, Availability Zone, and free IP count"
+        },
+        {
+          "name": "Describe Security Groups",
+          "description": "List security groups with their inbound and outbound rules"
+        },
+        {
+          "name": "Authorize Security Group Ingress",
+          "description": "Add an inbound rule to a security group"
+        },
+        {
+          "name": "Revoke Security Group Ingress",
+          "description": "Remove inbound rules from a security group by rule ID or by matching protocol, ports, and source"
+        },
+        {
+          "name": "Describe Network ACLs",
+          "description": "List network ACLs with their inbound and outbound rules and subnet associations"
+        },
+        {
+          "name": "Describe Internet Gateways",
+          "description": "List internet gateways and the VPCs they are attached to"
+        },
+        {
+          "name": "Describe Network Interfaces",
+          "description": "List elastic network interfaces with their IPs, attachment, and security groups"
+        },
+        {
+          "name": "Describe VPC Endpoints",
+          "description": "List VPC endpoints with their service, type, state, and network placement"
+        },
+        {
+          "name": "Describe VPC Peering Connections",
+          "description": "List VPC peering connections with their status and both VPCs"
+        },
+        {
+          "name": "Describe EBS Volumes",
+          "description": "List EBS volumes with their size, type, state, and attachments"
+        },
+        {
+          "name": "Delete EBS Volume",
+          "description": "Permanently delete an EBS volume that is not attached to an instance"
+        },
+        {
+          "name": "Describe EBS Snapshots",
+          "description": "List EBS snapshots owned by the account (or by the owners you specify)"
+        },
+        {
+          "name": "Create EBS Snapshot",
+          "description": "Create a point-in-time snapshot of an EBS volume"
+        },
+        {
+          "name": "Delete EBS Snapshot",
+          "description": "Permanently delete an EBS snapshot"
+        },
+        {
+          "name": "Describe AMIs",
+          "description": "List AMIs owned by the account (or by the owners you specify)"
+        },
+        {
+          "name": "Describe Key Pairs",
+          "description": "List EC2 key pairs with their type, fingerprint, and creation time"
+        },
+        {
+          "name": "Create Tags",
+          "description": "Add or overwrite tags on one or more EC2 resources"
+        },
+        {
+          "name": "Delete Tags",
+          "description": "Remove tags from one or more EC2 resources"
+        },
+        {
+          "name": "Describe Regions",
+          "description": "List AWS Regions available to the account"
+        },
+        {
+          "name": "Describe Availability Zones",
+          "description": "List Availability Zones, Local Zones, and Wavelength Zones in the region"
+        }
+      ],
+      "operationCount": 34,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "monitoring"],
+      "updatedAt": "2026-10-22"
     },
     {
       "type": "rds",

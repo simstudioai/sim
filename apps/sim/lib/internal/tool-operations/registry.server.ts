@@ -17,6 +17,43 @@ const STS_TOOL_IDS = [
   'sts_get_access_key_info',
 ] as const
 
+const EC2_TOOL_IDS = [
+  'ec2_describe_instances',
+  'ec2_describe_instance_status',
+  'ec2_start_instances',
+  'ec2_stop_instances',
+  'ec2_reboot_instances',
+  'ec2_terminate_instances',
+  'ec2_describe_addresses',
+  'ec2_allocate_address',
+  'ec2_associate_address',
+  'ec2_disassociate_address',
+  'ec2_release_address',
+  'ec2_describe_nat_gateways',
+  'ec2_describe_route_tables',
+  'ec2_describe_vpcs',
+  'ec2_describe_subnets',
+  'ec2_describe_security_groups',
+  'ec2_describe_internet_gateways',
+  'ec2_describe_network_interfaces',
+  'ec2_describe_volumes',
+  'ec2_describe_snapshots',
+  'ec2_create_snapshot',
+  'ec2_create_tags',
+  'ec2_delete_tags',
+  'ec2_describe_regions',
+  'ec2_describe_availability_zones',
+  'ec2_describe_network_acls',
+  'ec2_describe_vpc_endpoints',
+  'ec2_describe_vpc_peering_connections',
+  'ec2_describe_images',
+  'ec2_describe_key_pairs',
+  'ec2_authorize_security_group_ingress',
+  'ec2_revoke_security_group_ingress',
+  'ec2_delete_volume',
+  'ec2_delete_snapshot',
+] as const
+
 const APPCONFIG_TOOL_IDS = [
   'appconfig_create_application',
   'appconfig_create_configuration_profile',
@@ -1457,6 +1494,9 @@ registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
 
 registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/sts/execute-tool')).executeStsTool
+})
+registerFamily(handlerLoaders, EC2_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ec2/execute-tool')).executeEc2Tool
 })
 registerFamily(handlerLoaders, APPCONFIG_TOOL_IDS, async () => {
   return (await import('@/lib/internal/appconfig/execute-tool')).executeAppConfigTool

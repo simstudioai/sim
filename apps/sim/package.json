@@ -65,6 +65,7 @@
     "@aws-sdk/client-cloudwatch-logs": "3.1150.0",
     "@aws-sdk/client-codepipeline": "3.1150.0",
     "@aws-sdk/client-dynamodb": "3.1150.0",
+    "@aws-sdk/client-ec2": "3.1150.0",
     "@aws-sdk/client-iam": "3.1150.0",
     "@aws-sdk/client-identitystore": "3.1150.0",
     "@aws-sdk/client-lambda": "3.1150.0",

@@ -72,6 +72,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   duckduckgo: 'DuckDuckGo',
   dynamodb: 'Amazon DynamoDB',
   dynatrace: 'Dynatrace',
+  ec2: 'Amazon EC2',
   elasticsearch: 'Elasticsearch',
   elevenlabs: 'ElevenLabs',
   emailbison: 'Email Bison',
