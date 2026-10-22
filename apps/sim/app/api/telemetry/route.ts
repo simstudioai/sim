@@ -7,11 +7,7 @@ import { parseRequest } from '@/lib/api/server'
 import { isProd } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  isTelemetryDisabled,
-  normalizeOtlpTracesUrl,
-  resolveOtlpTarget,
-} from '@/lib/monitoring/otlp'
+import { isTelemetryDisabled, normalizeOtlpTracesUrl } from '@/lib/monitoring/otlp'
 import telemetryConfig from '@/telemetry.config'
 
 const logger = createLogger('TelemetryAPI')
@@ -58,8 +54,9 @@ function createSafeAttributes(
 }
 
 /**
- * Forwards a browser telemetry event as one span to the collector the server's own OpenTelemetry
- * export uses, and not at all when the operator turned telemetry off.
+ * Forwards a browser telemetry event as one span, and not at all when the operator turned telemetry
+ * off. Browser events are unauthenticated input, so they never travel with the operator's
+ * collector credentials: they go to `TELEMETRY_ENDPOINT` or the configured anonymous collector.
  */
 async function forwardToCollector(data: Record<string, unknown>): Promise<boolean> {
   if (!data || typeof data !== 'object') {
@@ -68,8 +65,9 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
   }
   if (isTelemetryDisabled()) return false
 
-  const target = resolveOtlpTarget(telemetryConfig.endpoint)
-  const endpoint = normalizeOtlpTracesUrl(target.endpoint)
+  const endpoint = normalizeOtlpTracesUrl(
+    process.env.TELEMETRY_ENDPOINT || telemetryConfig.endpoint
+  )
   const timeout = DEFAULT_TIMEOUT
 
   try {
@@ -124,7 +122,6 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
       const options = {
         method: 'POST',
         headers: {
-          ...target.headers,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
