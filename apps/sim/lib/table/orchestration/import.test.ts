@@ -161,6 +161,50 @@ describe('performTableCsvImport', () => {
     expect(mockImportAppendRows).not.toHaveBeenCalled()
   })
 
+  it('reports the row limit for an over-limit file before contending for the job slot', async () => {
+    mockMarkTableJobRunning.mockResolvedValue(false)
+    mockGetMaxRowsPerTable.mockResolvedValue(11)
+    const threeRows = `${CSV}g@h.i,Gus\n`
+
+    const append = await performTableCsvImport(importParams())
+    const replaceWithinLimit = await performTableCsvImport(
+      importParams({ mode: 'replace', fileStream: csvStream(threeRows) })
+    )
+    mockGetMaxRowsPerTable.mockResolvedValue(2)
+    const replaceOverLimit = await performTableCsvImport(
+      importParams({ mode: 'replace', fileStream: csvStream(threeRows) })
+    )
+
+    expect(append).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(append.error).toContain('Append would exceed table row limit')
+    expect(replaceWithinLimit).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(replaceOverLimit).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(replaceOverLimit.error).toContain('Replace would exceed table row limit (2)')
+  })
+
+  it('lets timers run while coercing a large file instead of holding the event loop', async () => {
+    const rowCount = 50_000
+    const lines = ['email,name']
+    for (let i = 0; i < rowCount; i++) lines.push(`user${i}@example.com,Name ${i}`)
+    let timerFired = false
+    let timerFiredBeforeWrite = false
+    mockGetMaxRowsPerTable.mockResolvedValue(-1)
+    mockImportAppendRows.mockImplementation(async () => {
+      timerFiredBeforeWrite = timerFired
+      return { inserted: [], table: TABLE }
+    })
+
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+    const result = await performTableCsvImport(
+      importParams({ fileStream: csvStream(`${lines.join('\n')}\n`) })
+    )
+
+    expect(result.success).toBe(true)
+    expect(timerFiredBeforeWrite).toBe(true)
+  })
+
   it('rejects an archived table and a table with a job already running', async () => {
     const archived = await performTableCsvImport(
       importParams({ table: { ...TABLE, archivedAt: new Date() } })
