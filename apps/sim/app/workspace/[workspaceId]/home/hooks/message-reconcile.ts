@@ -88,6 +88,7 @@ function toRawPersistedContentBlockBody(block: ContentBlock): PersistedContentBl
           ...(block.toolCall.activityDescription
             ? { activityDescription: block.toolCall.activityDescription }
             : {}),
+          ...(block.toolCall.activity ? { activity: block.toolCall.activity } : {}),
           ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
           ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
           ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   MothershipStreamV1CompletionStatus,
@@ -8,6 +9,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 
 const persistedToolStateSchema = z.enum([
   ...Object.values(MothershipStreamV1ToolOutcome),
@@ -23,6 +25,12 @@ const persistedToolCallSchema = z.object({
   name: z.string(),
   state: persistedToolStateSchema,
   activityDescription: z.string().optional(),
+  /**
+   * Display grouping, held beside `params`; older rows carry it in `params.activity`. Validated
+   * where history is read (`normalizeMessage`), which keeps the protocol schemas out of every page
+   * that imports this contract.
+   */
+  activity: z.custom<ToolActivity>(isRecordLike).optional(),
   params: z.record(z.string(), z.unknown()).optional(),
   result: z
     .object({ success: z.boolean(), output: z.unknown().optional(), error: z.string().optional() })

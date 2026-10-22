@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   firstWordOf,
   getToolCompletedTitle,
@@ -54,6 +55,33 @@ export function readToolActivity(
     }
   }
   return undefined
+}
+
+/**
+ * The display grouping a call frame's arguments supply. A gateway's resolved operation owns its
+ * arguments, `activity` included, so its frames supply none and the call keeps the grouping it
+ * inherited from the gateway. Read before the frame rebinds the call to its operation.
+ */
+export function readFrameActivity(
+  frame: { toolName: string; args?: Record<string, unknown> },
+  call: { name?: string; resolvedOperation?: boolean } | undefined
+): ToolActivity | undefined {
+  const ownsArguments =
+    frame.toolName !== CallIntegrationTool.id &&
+    (call?.name === CallIntegrationTool.id || call?.resolvedOperation === true)
+  return ownsArguments ? undefined : readToolActivity(frame.args)
+}
+
+/**
+ * A call's display grouping: held beside its arguments, or read from them where it was never
+ * separated (older history, a call still streaming).
+ */
+export function readCallActivity(
+  call:
+    | { activity?: ToolActivity; params?: Record<string, unknown>; streamingArgs?: string }
+    | undefined
+): ToolActivity | undefined {
+  return call?.activity ?? readToolActivity(call?.params, call?.streamingArgs)
 }
 
 /** Two actions on one object, so adjacent summary phrases can share it ("listed, read tables"). */

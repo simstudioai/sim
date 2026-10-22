@@ -20,7 +20,6 @@ import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
@@ -64,7 +63,7 @@ import type {
   ToolCallState,
 } from '@/lib/mothership/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
-import { readToolActivity } from '@/lib/mothership/tools/activity'
+import { readCallActivity, readFrameActivity } from '@/lib/mothership/tools/activity'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import {
@@ -146,11 +145,6 @@ function applyToolDisplay(toolCall: ToolCallState | undefined): void {
 
 const INTEGRATION_GATEWAY_TOOL = 'call_integration_tool'
 
-/** A call's display grouping: carried in its own arguments, or inherited and held beside them. */
-function toolCallActivity(toolCall: ToolCallState | undefined): ToolActivity | undefined {
-  return toolCall?.activity ?? readToolActivity(toolCall?.params)
-}
-
 function handleToolArgsDelta(
   data: { argumentsDelta: string; toolCallId: string; toolName: string },
   context: StreamingContext
@@ -213,6 +207,7 @@ function rebindResolvedIntegrationCall(
   }
   toolCall.name = toolName
   toolCall.params = args
+  toolCall.resolvedOperation = true
   applyToolDisplay(toolCall)
   return true
 }
@@ -586,19 +581,17 @@ async function handleCallPhase(
     existing.activityDescription ??= activityDescription
   }
   /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
-  const argsActivity = readToolActivity(args)
-  const suppliedActivity = argsActivity ?? toolCallActivity(existing)
+  const suppliedActivity =
+    readFrameActivity({ toolName, args }, existing) ?? readCallActivity(existing)
   const activity = suppliedActivity?.completedTitle
     ? suppliedActivity
     : suppliedActivity &&
       Array.from(context.toolCalls.values())
         .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
-        .map(toolCallActivity)
+        .map(readCallActivity)
         .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
-  // Only a label the frame's own arguments carry is completed in place. An inherited one stays
-  // off the arguments, which execute as given (an MCP schema refuses keys it never declared).
-  const displayArgs = activity && argsActivity ? { ...args, activity } : args
-  if (existing && activity && !argsActivity) existing.activity = activity
+  // Kept off `args`, which execute as given (an MCP schema refuses keys it never declared).
+  if (existing && activity) existing.activity = activity
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
@@ -616,8 +609,8 @@ async function handleCallPhase(
 
   if (isSubagent) {
     if (wasToolResultSeen(context, toolCallId) || existing?.endTime) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
-        if (existing) updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        if (existing) updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -627,8 +620,8 @@ async function handleCallPhase(
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
-        updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -640,7 +633,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      displayArgs,
+      args,
       parentToolCallId!,
       agentId,
       ui,
@@ -653,7 +646,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      displayArgs,
+      args,
       existing,
       agentId,
       ui,
@@ -664,6 +657,7 @@ async function handleCallPhase(
 
   const registered = context.toolCalls.get(toolCallId)
   if (registered && data.workspaceId) registered.targetWorkspaceId = data.workspaceId
+  if (registered && activity) registered.activity = activity
   if (isPartial || data.replay) return
   if (!isSubagent && wasToolResultSeen(context, toolCallId)) return
   if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {

@@ -4,6 +4,7 @@ import type { PersistedToolState } from '@/lib/api/contracts/copilot-messages'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import {
@@ -104,7 +105,9 @@ describe('persisted-message', () => {
   it.each([
     ['with its arguments', { category_id: null }],
     ['without arguments', undefined],
-  ])("persists a resolved operation's inherited grouping %s", (_case, params) => {
+    ['with its own activity argument', { title: 'Ship it', activity: 'Development' }],
+  ])("keeps a resolved operation's inherited grouping beside its arguments %s", (_case, params) => {
+    const grouping = { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' }
     const persisted = buildPersistedAssistantMessage({
       success: true,
       content: '',
@@ -118,15 +121,17 @@ describe('persisted-message', () => {
             name: 'mcp-server-get_overview',
             status: 'success',
             params,
-            activity: { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' },
+            activity: grouping,
           },
         },
       ],
     })
-    expect(persisted.contentBlocks?.[0].toolCall?.params).toEqual({
-      ...params,
-      activity: { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' },
-    })
+    // utils-lint-allow: exercises the JSON persistence boundary a stored row crosses
+    const stored = JSON.parse(JSON.stringify(persisted)) as Record<string, unknown>
+    const reloaded = toDisplayMessage(normalizeMessage(stored)).contentBlocks?.[0].toolCall
+
+    expect(reloaded?.params).toEqual(params)
+    expect(readCallActivity(reloaded)).toEqual(grouping)
   })
 
   it('preserves activity metadata on legacy tool blocks without inferring it from old titles', () => {

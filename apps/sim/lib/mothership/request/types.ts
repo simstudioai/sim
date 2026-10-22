@@ -43,11 +43,13 @@ export interface ToolCallState {
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
   /**
-   * Display grouping the call inherited rather than carried in its own arguments (a gateway's
-   * grouping on its resolved operation). Kept out of `params`, which execute as given; it is
-   * merged back only into the persisted arguments, where history reads it.
+   * Display grouping, from the call's own arguments or inherited (a gateway's grouping on its
+   * resolved operation), with titles completed from its activity's earlier calls. Held beside
+   * `params`, which execute and persist as given.
    */
   activity?: ToolActivity
+  /** A gateway call rebound to its resolved operation, whose arguments are the operation's own. */
+  resolvedOperation?: boolean
   /** Accumulated partial JSON of the arguments while the model streams them. */
   streamingArgs?: string
   params?: Record<string, unknown>
