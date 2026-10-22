@@ -9,12 +9,14 @@ A PR compares its merge base with the checked-out merge commit. Pushes and norma
 | Independent SDK | That workspace's tests and type-check; no app build, services, or browsers |
 | App unit test | App test shards and test type check |
 | Integration test | Both provision paths; no HTTP/browser job merely for the test edit |
-| Workspace UI | Mobile and live Electron, plus app tests/build |
+| Workspace UI | Database integration, mobile and live Electron, plus app tests/build |
 | Landing content | SEO, app tests/build; no database integration or Electron |
 | Shared runtime or transitive dependency | All dependent boundaries |
 | One E2E harness | Its acceptance group and the shared production build |
 
 The server boundary deliberately includes all API routes and backend domains. Shared modules and unclassified app source remain broad inputs: this is safer than pretending a route's static imports describe database, dynamic registry, or background-worker dependencies. Files read outside a package graph need explicit inputs: CLI acceptance imports `packages/sim-cli/src/embed.ts`, app tests read docs content, and live Electron and realtime acceptance cross app boundaries. When adding such a dependency, update the corresponding task inputs/dependencies and the real Git/Turbo selector scenarios.
+
+Integration also depends on workspace UI because the desktop executor integration suite runs the production workspace stream dispatcher against PostgreSQL and Redis. Its explicit harness inputs include the database and realtime Vitest configs and integration setup files, which runtime tasks exclude.
 
 `affectedTasks` already uses task inputs. Do not enable `futureFlags.affectedUsingTaskInputs` just for this planner: that flag also changes pruning, which can pull CI-only cross-app task dependencies into production Docker contexts.
 

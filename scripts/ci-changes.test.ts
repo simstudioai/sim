@@ -139,13 +139,15 @@ describe('CI task attribution through real Turborepo', () => {
       e2e_build: false,
     })
   })
-  it('selects browser and Electron checks for workspace UI without server-only suites', () => {
-    const plan = classifyFiles(['apps/sim/app/workspace/[workspaceId]/home/page.tsx'])
+  it('selects integration and browser checks for workspace code shared with desktop execution', () => {
+    const plan = classifyFiles([
+      'apps/sim/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event.ts',
+    ])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual(['mobile'])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
-      integration: false,
+      integration: true,
       test_app: true,
       build: true,
       e2e_build: true,
@@ -190,6 +192,16 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([])
     expect(plan.flags).toMatchObject({ integration: true, test_app: false, build: false })
+  })
+  it.each([
+    'packages/db/vitest.config.ts',
+    'packages/db/vitest.integration.setup.ts',
+    'apps/realtime/vitest.config.ts',
+    'apps/realtime/vitest.integration.setup.ts',
+  ])('runs integration checks when sibling collection or setup changes: %s', (file) => {
+    const plan = classifyFiles([file])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags.integration).toBe(true)
   })
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],

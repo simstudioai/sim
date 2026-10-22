@@ -80,7 +80,7 @@
       "outputs": []
     },
     "ci:integration": {
-      "dependsOn": ["ci:server", "@sim/realtime#ci:runtime"],
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
       "inputs": [
         "**/*.integration.ts",
         "vitest.config.ts",
@@ -88,7 +88,11 @@
         "$TURBO_ROOT$/vitest.shared.ts",
         "$TURBO_ROOT$/vitest.integration-durations.json",
         "$TURBO_ROOT$/packages/db/**/*.integration.ts",
-        "$TURBO_ROOT$/apps/realtime/**/*.integration.ts"
+        "$TURBO_ROOT$/packages/db/vitest.config.ts",
+        "$TURBO_ROOT$/packages/db/vitest.integration.setup.ts",
+        "$TURBO_ROOT$/apps/realtime/**/*.integration.ts",
+        "$TURBO_ROOT$/apps/realtime/vitest.config.ts",
+        "$TURBO_ROOT$/apps/realtime/vitest.integration.setup.ts"
       ],
       "cache": false
     },
