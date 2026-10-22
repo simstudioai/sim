@@ -46,7 +46,8 @@ export const describeRegionsTool: InternalToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'EC2 filters as a JSON array, e.g. [{"Name":"vpc-id","Values":["vpc-0abc"]}]',
+      description:
+        'EC2 filters as a JSON array, e.g. [{"Name":"opt-in-status","Values":["opted-in"]}]',
     },
   },
 

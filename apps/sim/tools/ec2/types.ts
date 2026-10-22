@@ -605,3 +605,228 @@ export interface Ec2DescribeAvailabilityZonesResponse extends ToolResponse {
     }[]
   }
 }
+
+export interface Ec2DescribeNetworkAclsParams extends Ec2ConnectionParams {
+  networkAclIds?: string | null
+  filters?: unknown | null
+  maxResults?: number | null
+  nextToken?: string | null
+}
+
+export interface Ec2DescribeNetworkAclsResponse extends ToolResponse {
+  output: {
+    networkAcls: {
+      networkAclId: string
+      vpcId: string | null
+      isDefault: boolean
+      ownerId: string | null
+      entries: {
+        ruleNumber: number | null
+        egress: boolean
+        ruleAction: string | null
+        protocol: string | null
+        cidrBlock: string | null
+        ipv6CidrBlock: string | null
+        fromPort: number | null
+        toPort: number | null
+        icmpType: number | null
+        icmpCode: number | null
+      }[]
+      associations: {
+        associationId: string | null
+        subnetId: string | null
+      }[]
+      tags: Record<string, string>
+    }[]
+    nextToken: string | null
+  }
+}
+
+export interface Ec2DescribeVpcEndpointsParams extends Ec2ConnectionParams {
+  vpcEndpointIds?: string | null
+  filters?: unknown | null
+  maxResults?: number | null
+  nextToken?: string | null
+}
+
+export interface Ec2DescribeVpcEndpointsResponse extends ToolResponse {
+  output: {
+    vpcEndpoints: {
+      vpcEndpointId: string
+      vpcEndpointType: string | null
+      vpcId: string | null
+      serviceName: string | null
+      state: string | null
+      privateDnsEnabled: boolean
+      routeTableIds: string[]
+      subnetIds: string[]
+      networkInterfaceIds: string[]
+      securityGroupIds: string[]
+      dnsNames: string[]
+      creationTimestamp: string | null
+      ownerId: string | null
+      tags: Record<string, string>
+    }[]
+    nextToken: string | null
+  }
+}
+
+export interface Ec2DescribeVpcPeeringConnectionsParams extends Ec2ConnectionParams {
+  vpcPeeringConnectionIds?: string | null
+  filters?: unknown | null
+  maxResults?: number | null
+  nextToken?: string | null
+}
+
+export interface Ec2DescribeVpcPeeringConnectionsResponse extends ToolResponse {
+  output: {
+    vpcPeeringConnections: {
+      vpcPeeringConnectionId: string
+      status: string | null
+      statusMessage: string | null
+      requesterVpc: {
+        vpcId: string | null
+        ownerId: string | null
+        region: string | null
+        cidrBlock: string | null
+      }
+      accepterVpc: {
+        vpcId: string | null
+        ownerId: string | null
+        region: string | null
+        cidrBlock: string | null
+      }
+      expirationTime: string | null
+      tags: Record<string, string>
+    }[]
+    nextToken: string | null
+  }
+}
+
+export interface Ec2DescribeImagesParams extends Ec2ConnectionParams {
+  imageIds?: string | null
+  owners?: string | null
+  filters?: unknown | null
+  maxResults?: number | null
+  nextToken?: string | null
+}
+
+export interface Ec2DescribeImagesResponse extends ToolResponse {
+  output: {
+    images: {
+      imageId: string
+      name: string | null
+      description: string | null
+      state: string | null
+      ownerId: string | null
+      ownerAlias: string | null
+      public: boolean
+      architecture: string | null
+      platformDetails: string | null
+      rootDeviceType: string | null
+      virtualizationType: string | null
+      creationDate: string | null
+      deprecationTime: string | null
+      lastLaunchedTime: string | null
+      tags: Record<string, string>
+    }[]
+    nextToken: string | null
+  }
+}
+
+export interface Ec2DescribeKeyPairsParams extends Ec2ConnectionParams {
+  keyNames?: string | null
+  keyPairIds?: string | null
+  filters?: unknown | null
+}
+
+export interface Ec2DescribeKeyPairsResponse extends ToolResponse {
+  output: {
+    keyPairs: {
+      keyPairId: string
+      keyName: string | null
+      keyType: string | null
+      keyFingerprint: string | null
+      createTime: string | null
+      tags: Record<string, string>
+    }[]
+  }
+}
+
+export interface Ec2AuthorizeSecurityGroupIngressParams extends Ec2ConnectionParams {
+  groupId: string
+  ipProtocol: string
+  fromPort?: number | null
+  toPort?: number | null
+  cidrIp?: string | null
+  cidrIpv6?: string | null
+  sourceGroupId?: string | null
+  description?: string | null
+}
+
+export interface Ec2AuthorizeSecurityGroupIngressResponse extends ToolResponse {
+  output: {
+    authorized: boolean
+    securityGroupRules: {
+      securityGroupRuleId: string
+      groupId: string
+      ipProtocol: string | null
+      fromPort: number | null
+      toPort: number | null
+      cidrIpv4: string | null
+      cidrIpv6: string | null
+      referencedGroupId: string | null
+      description: string | null
+    }[]
+  }
+}
+
+export interface Ec2RevokeSecurityGroupIngressParams extends Ec2ConnectionParams {
+  groupId: string
+  ipProtocol?: string | null
+  fromPort?: number | null
+  toPort?: number | null
+  cidrIp?: string | null
+  cidrIpv6?: string | null
+  sourceGroupId?: string | null
+  securityGroupRuleIds?: string | null
+}
+
+export interface Ec2RevokeSecurityGroupIngressResponse extends ToolResponse {
+  output: {
+    revoked: boolean
+    revokedRules: {
+      securityGroupRuleId: string
+      ipProtocol: string | null
+      fromPort: number | null
+      toPort: number | null
+      cidrIpv4: string | null
+      cidrIpv6: string | null
+      referencedGroupId: string | null
+      description: string | null
+    }[]
+    unmatchedRuleCount: number
+  }
+}
+
+export interface Ec2DeleteVolumeParams extends Ec2ConnectionParams {
+  volumeId: string
+}
+
+export interface Ec2DeleteVolumeResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    volumeId: string
+  }
+}
+
+export interface Ec2DeleteSnapshotParams extends Ec2ConnectionParams {
+  snapshotId: string
+}
+
+export interface Ec2DeleteSnapshotResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    snapshotId: string
+  }
+}

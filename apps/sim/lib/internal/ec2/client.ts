@@ -27,11 +27,9 @@ export function toIsoString(value?: Date): string | null {
 
 /** Flattens EC2's `[{ Key, Value }]` tag list into a plain `{ key: value }` record. */
 export function tagsToRecord(tags?: Tag[]): Record<string, string> {
-  const record: Record<string, string> = {}
-  for (const tag of tags ?? []) {
-    if (tag.Key) record[tag.Key] = tag.Value ?? ''
-  }
-  return record
+  return Object.fromEntries(
+    (tags ?? []).flatMap((tag) => (tag.Key ? [[tag.Key, tag.Value ?? '']] : []))
+  )
 }
 
 export function recordToTags(tags: Record<string, string>): Tag[] {

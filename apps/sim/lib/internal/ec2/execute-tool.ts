@@ -3,15 +3,21 @@ import type { z } from 'zod'
 import {
   executeEc2AllocateAddress,
   executeEc2AssociateAddress,
+  executeEc2AuthorizeSecurityGroupIngress,
   executeEc2CreateSnapshot,
   executeEc2CreateTags,
+  executeEc2DeleteSnapshot,
   executeEc2DeleteTags,
+  executeEc2DeleteVolume,
   executeEc2DescribeAddresses,
   executeEc2DescribeAvailabilityZones,
+  executeEc2DescribeImages,
   executeEc2DescribeInstanceStatus,
   executeEc2DescribeInstances,
   executeEc2DescribeInternetGateways,
+  executeEc2DescribeKeyPairs,
   executeEc2DescribeNatGateways,
+  executeEc2DescribeNetworkAcls,
   executeEc2DescribeNetworkInterfaces,
   executeEc2DescribeRegions,
   executeEc2DescribeRouteTables,
@@ -19,10 +25,13 @@ import {
   executeEc2DescribeSnapshots,
   executeEc2DescribeSubnets,
   executeEc2DescribeVolumes,
+  executeEc2DescribeVpcEndpoints,
+  executeEc2DescribeVpcPeeringConnections,
   executeEc2DescribeVpcs,
   executeEc2DisassociateAddress,
   executeEc2RebootInstances,
   executeEc2ReleaseAddress,
+  executeEc2RevokeSecurityGroupIngress,
   executeEc2StartInstances,
   executeEc2StopInstances,
   executeEc2TerminateInstances,
@@ -30,15 +39,21 @@ import {
 import {
   ec2AllocateAddressInputSchema,
   ec2AssociateAddressInputSchema,
+  ec2AuthorizeSecurityGroupIngressInputSchema,
   ec2CreateSnapshotInputSchema,
   ec2CreateTagsInputSchema,
+  ec2DeleteSnapshotInputSchema,
   ec2DeleteTagsInputSchema,
+  ec2DeleteVolumeInputSchema,
   ec2DescribeAddressesInputSchema,
   ec2DescribeAvailabilityZonesInputSchema,
+  ec2DescribeImagesInputSchema,
   ec2DescribeInstanceStatusInputSchema,
   ec2DescribeInstancesInputSchema,
   ec2DescribeInternetGatewaysInputSchema,
+  ec2DescribeKeyPairsInputSchema,
   ec2DescribeNatGatewaysInputSchema,
+  ec2DescribeNetworkAclsInputSchema,
   ec2DescribeNetworkInterfacesInputSchema,
   ec2DescribeRegionsInputSchema,
   ec2DescribeRouteTablesInputSchema,
@@ -46,10 +61,13 @@ import {
   ec2DescribeSnapshotsInputSchema,
   ec2DescribeSubnetsInputSchema,
   ec2DescribeVolumesInputSchema,
+  ec2DescribeVpcEndpointsInputSchema,
+  ec2DescribeVpcPeeringConnectionsInputSchema,
   ec2DescribeVpcsInputSchema,
   ec2DisassociateAddressInputSchema,
   ec2InstanceIdsInputSchema,
   ec2ReleaseAddressInputSchema,
+  ec2RevokeSecurityGroupIngressInputSchema,
   ec2StopInstancesInputSchema,
 } from '@/lib/internal/ec2/schema'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
@@ -283,6 +301,78 @@ export const executeEc2Tool: InternalToolOperationHandler = async ({ toolId, inp
         input,
         executeEc2DescribeAvailabilityZones,
         'Failed to describe availability zones',
+        signal
+      )
+    case 'ec2_describe_network_acls':
+      return executeOperation(
+        ec2DescribeNetworkAclsInputSchema,
+        input,
+        executeEc2DescribeNetworkAcls,
+        'Failed to describe network ACLs',
+        signal
+      )
+    case 'ec2_describe_vpc_endpoints':
+      return executeOperation(
+        ec2DescribeVpcEndpointsInputSchema,
+        input,
+        executeEc2DescribeVpcEndpoints,
+        'Failed to describe VPC endpoints',
+        signal
+      )
+    case 'ec2_describe_vpc_peering_connections':
+      return executeOperation(
+        ec2DescribeVpcPeeringConnectionsInputSchema,
+        input,
+        executeEc2DescribeVpcPeeringConnections,
+        'Failed to describe VPC peering connections',
+        signal
+      )
+    case 'ec2_describe_images':
+      return executeOperation(
+        ec2DescribeImagesInputSchema,
+        input,
+        executeEc2DescribeImages,
+        'Failed to describe AMIs',
+        signal
+      )
+    case 'ec2_describe_key_pairs':
+      return executeOperation(
+        ec2DescribeKeyPairsInputSchema,
+        input,
+        executeEc2DescribeKeyPairs,
+        'Failed to describe key pairs',
+        signal
+      )
+    case 'ec2_authorize_security_group_ingress':
+      return executeOperation(
+        ec2AuthorizeSecurityGroupIngressInputSchema,
+        input,
+        executeEc2AuthorizeSecurityGroupIngress,
+        'Failed to authorize security group ingress',
+        signal
+      )
+    case 'ec2_revoke_security_group_ingress':
+      return executeOperation(
+        ec2RevokeSecurityGroupIngressInputSchema,
+        input,
+        executeEc2RevokeSecurityGroupIngress,
+        'Failed to revoke security group ingress',
+        signal
+      )
+    case 'ec2_delete_volume':
+      return executeOperation(
+        ec2DeleteVolumeInputSchema,
+        input,
+        executeEc2DeleteVolume,
+        'Failed to delete EBS volume',
+        signal
+      )
+    case 'ec2_delete_snapshot':
+      return executeOperation(
+        ec2DeleteSnapshotInputSchema,
+        input,
+        executeEc2DeleteSnapshot,
+        'Failed to delete EBS snapshot',
         signal
       )
     default:

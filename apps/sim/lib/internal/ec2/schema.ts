@@ -94,26 +94,38 @@ const tagsSchema = z.preprocess(
   (value) => {
     const parsed = parseJsonString(value)
     if (Array.isArray(parsed)) {
-      const record: Record<string, string> = {}
+      const entries: [string, string][] = []
       for (const entry of parsed) {
         if (!isRecordLike(entry)) return parsed
         const tag = isRecordLike(entry.cells) ? entry.cells : entry
         const key = tag.Key ?? tag.key
         if (typeof key !== 'string') return parsed
-        if (key.trim() === '') continue
-        record[key.trim()] = String(tag.Value ?? tag.value ?? '')
+        if (key.trim() !== '') entries.push([key.trim(), String(tag.Value ?? tag.value ?? '')])
       }
-      return record
+      return Object.fromEntries(entries)
     }
     if (isRecordLike(parsed)) {
       return Object.fromEntries(Object.entries(parsed).map(([key, val]) => [key, String(val)]))
     }
     return parsed
   },
+  // z.record rebuilds the object and silently drops a `__proto__` key, so validate entries in place.
   z
-    .record(z.string().min(1).max(128), z.string().max(256), {
-      message: 'Tags must be a JSON object of key/value pairs',
-    })
+    .custom<Record<string, string>>(
+      (value) =>
+        isRecordLike(value) &&
+        Object.entries(value).every(
+          ([key, tagValue]) =>
+            key.length >= 1 &&
+            key.length <= 128 &&
+            typeof tagValue === 'string' &&
+            tagValue.length <= 256
+        ),
+      {
+        message:
+          'Tags must be a JSON object of key/value pairs (keys up to 128 characters, values up to 256)',
+      }
+    )
     .refine((tags) => Object.keys(tags).length <= 50, {
       message: 'A maximum of 50 tags can be provided',
     })
@@ -272,6 +284,91 @@ export const ec2DescribeAvailabilityZonesInputSchema = connectionSchema.extend({
   filters: filtersSchema,
 })
 
+export const ec2DescribeNetworkAclsInputSchema = connectionSchema.extend({
+  networkAclIds: idListSchema('network ACL IDs'),
+  filters: filtersSchema,
+  ...paginationSchema,
+})
+
+export const ec2DescribeVpcEndpointsInputSchema = connectionSchema.extend({
+  vpcEndpointIds: idListSchema('VPC endpoint IDs'),
+  filters: filtersSchema,
+  ...paginationSchema,
+})
+
+export const ec2DescribeVpcPeeringConnectionsInputSchema = connectionSchema.extend({
+  vpcPeeringConnectionIds: idListSchema('VPC peering connection IDs'),
+  filters: filtersSchema,
+  ...paginationSchema,
+})
+
+export const ec2DescribeImagesInputSchema = connectionSchema.extend({
+  imageIds: idListSchema('image IDs'),
+  owners: idListSchema('owners'),
+  filters: filtersSchema,
+  ...paginationSchema,
+})
+
+export const ec2DescribeKeyPairsInputSchema = connectionSchema.extend({
+  keyNames: idListSchema('key names'),
+  keyPairIds: idListSchema('key pair IDs'),
+  filters: filtersSchema,
+})
+
+const portSchema = z.coerce.number().int().min(-1).max(65535).optional()
+
+/** One ingress rule: protocol, port range, and exactly one source. */
+const ingressRuleFields = {
+  groupId: z.string().min(1, 'Security group ID is required'),
+  ipProtocol: z.string().min(1).optional(),
+  fromPort: portSchema,
+  toPort: portSchema,
+  cidrIp: z.string().min(1).optional(),
+  cidrIpv6: z.string().min(1).optional(),
+  sourceGroupId: z.string().min(1).optional(),
+}
+
+function countSources(input: { cidrIp?: string; cidrIpv6?: string; sourceGroupId?: string }) {
+  return [input.cidrIp, input.cidrIpv6, input.sourceGroupId].filter(Boolean).length
+}
+
+export const ec2AuthorizeSecurityGroupIngressInputSchema = connectionSchema
+  .extend({
+    ...ingressRuleFields,
+    ipProtocol: z.string().min(1, 'IP protocol is required'),
+    description: z.string().max(255).optional(),
+  })
+  .refine((input) => countSources(input) === 1, {
+    message: 'Provide exactly one of cidrIp, cidrIpv6, or sourceGroupId',
+  })
+
+export const ec2RevokeSecurityGroupIngressInputSchema = connectionSchema
+  .extend({
+    ...ingressRuleFields,
+    securityGroupRuleIds: idListSchema('security group rule IDs'),
+  })
+  .refine(
+    (input) => !input.securityGroupRuleIds || (countSources(input) === 0 && !input.ipProtocol),
+    { message: 'Clear the protocol and source fields when revoking by security group rule ID' }
+  )
+  .refine(
+    (input) =>
+      Boolean(input.securityGroupRuleIds) ||
+      (Boolean(input.ipProtocol) && countSources(input) === 1),
+    {
+      message:
+        'Provide security group rule IDs, or a protocol with exactly one of cidrIp, cidrIpv6, or sourceGroupId',
+    }
+  )
+
+export const ec2DeleteVolumeInputSchema = connectionSchema.extend({
+  volumeId: z.string().min(1, 'Volume ID is required'),
+})
+
+export const ec2DeleteSnapshotInputSchema = connectionSchema.extend({
+  snapshotId: z.string().min(1, 'Snapshot ID is required'),
+})
+
 export type Ec2DescribeInstancesInput = z.output<typeof ec2DescribeInstancesInputSchema>
 export type Ec2DescribeInstanceStatusInput = z.output<typeof ec2DescribeInstanceStatusInputSchema>
 export type Ec2InstanceIdsInput = z.output<typeof ec2InstanceIdsInputSchema>
@@ -301,3 +398,18 @@ export type Ec2DescribeRegionsInput = z.output<typeof ec2DescribeRegionsInputSch
 export type Ec2DescribeAvailabilityZonesInput = z.output<
   typeof ec2DescribeAvailabilityZonesInputSchema
 >
+export type Ec2DescribeNetworkAclsInput = z.output<typeof ec2DescribeNetworkAclsInputSchema>
+export type Ec2DescribeVpcEndpointsInput = z.output<typeof ec2DescribeVpcEndpointsInputSchema>
+export type Ec2DescribeVpcPeeringConnectionsInput = z.output<
+  typeof ec2DescribeVpcPeeringConnectionsInputSchema
+>
+export type Ec2DescribeImagesInput = z.output<typeof ec2DescribeImagesInputSchema>
+export type Ec2DescribeKeyPairsInput = z.output<typeof ec2DescribeKeyPairsInputSchema>
+export type Ec2AuthorizeSecurityGroupIngressInput = z.output<
+  typeof ec2AuthorizeSecurityGroupIngressInputSchema
+>
+export type Ec2RevokeSecurityGroupIngressInput = z.output<
+  typeof ec2RevokeSecurityGroupIngressInputSchema
+>
+export type Ec2DeleteVolumeInput = z.output<typeof ec2DeleteVolumeInputSchema>
+export type Ec2DeleteSnapshotInput = z.output<typeof ec2DeleteSnapshotInputSchema>

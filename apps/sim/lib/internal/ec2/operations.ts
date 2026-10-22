@@ -1,15 +1,21 @@
 import {
   AllocateAddressCommand,
   AssociateAddressCommand,
+  AuthorizeSecurityGroupIngressCommand,
   CreateSnapshotCommand,
   CreateTagsCommand,
+  DeleteSnapshotCommand,
   DeleteTagsCommand,
+  DeleteVolumeCommand,
   DescribeAddressesCommand,
   DescribeAvailabilityZonesCommand,
+  DescribeImagesCommand,
   DescribeInstanceStatusCommand,
   DescribeInstancesCommand,
   DescribeInternetGatewaysCommand,
+  DescribeKeyPairsCommand,
   DescribeNatGatewaysCommand,
+  DescribeNetworkAclsCommand,
   DescribeNetworkInterfacesCommand,
   DescribeRegionsCommand,
   DescribeRouteTablesCommand,
@@ -17,6 +23,8 @@ import {
   DescribeSnapshotsCommand,
   DescribeSubnetsCommand,
   DescribeVolumesCommand,
+  DescribeVpcEndpointsCommand,
+  DescribeVpcPeeringConnectionsCommand,
   DescribeVpcsCommand,
   DisassociateAddressCommand,
   type EC2Client,
@@ -27,23 +35,31 @@ import {
   type IpPermission,
   RebootInstancesCommand,
   ReleaseAddressCommand,
+  RevokeSecurityGroupIngressCommand,
   StartInstancesCommand,
   StopInstancesCommand,
   TerminateInstancesCommand,
+  type VpcPeeringConnectionVpcInfo,
 } from '@aws-sdk/client-ec2'
 import { createEc2Client, recordToTags, tagsToRecord, toIsoString } from '@/lib/internal/ec2/client'
 import type {
   Ec2AllocateAddressInput,
   Ec2AssociateAddressInput,
+  Ec2AuthorizeSecurityGroupIngressInput,
   Ec2CreateSnapshotInput,
   Ec2CreateTagsInput,
+  Ec2DeleteSnapshotInput,
   Ec2DeleteTagsInput,
+  Ec2DeleteVolumeInput,
   Ec2DescribeAddressesInput,
   Ec2DescribeAvailabilityZonesInput,
+  Ec2DescribeImagesInput,
   Ec2DescribeInstanceStatusInput,
   Ec2DescribeInstancesInput,
   Ec2DescribeInternetGatewaysInput,
+  Ec2DescribeKeyPairsInput,
   Ec2DescribeNatGatewaysInput,
+  Ec2DescribeNetworkAclsInput,
   Ec2DescribeNetworkInterfacesInput,
   Ec2DescribeRegionsInput,
   Ec2DescribeRouteTablesInput,
@@ -51,10 +67,13 @@ import type {
   Ec2DescribeSnapshotsInput,
   Ec2DescribeSubnetsInput,
   Ec2DescribeVolumesInput,
+  Ec2DescribeVpcEndpointsInput,
+  Ec2DescribeVpcPeeringConnectionsInput,
   Ec2DescribeVpcsInput,
   Ec2DisassociateAddressInput,
   Ec2InstanceIdsInput,
   Ec2ReleaseAddressInput,
+  Ec2RevokeSecurityGroupIngressInput,
   Ec2StopInstancesInput,
 } from '@/lib/internal/ec2/schema'
 
@@ -796,5 +815,283 @@ export async function executeEc2DescribeAvailabilityZones(
       optInStatus: zone.OptInStatus ?? null,
     }))
     return { availabilityZones }
+  })
+}
+
+export async function executeEc2DescribeNetworkAcls(
+  input: Ec2DescribeNetworkAclsInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new DescribeNetworkAclsCommand({
+        ...(input.networkAclIds && { NetworkAclIds: input.networkAclIds }),
+        ...(input.filters && { Filters: input.filters }),
+        ...pageParams(input.networkAclIds, input),
+      }),
+      { abortSignal: signal }
+    )
+    const networkAcls = (response.NetworkAcls ?? []).map((acl) => ({
+      networkAclId: acl.NetworkAclId ?? '',
+      vpcId: acl.VpcId ?? null,
+      isDefault: acl.IsDefault ?? false,
+      ownerId: acl.OwnerId ?? null,
+      entries: (acl.Entries ?? []).map((entry) => ({
+        ruleNumber: entry.RuleNumber ?? null,
+        egress: entry.Egress ?? false,
+        ruleAction: entry.RuleAction ?? null,
+        protocol: entry.Protocol ?? null,
+        cidrBlock: entry.CidrBlock ?? null,
+        ipv6CidrBlock: entry.Ipv6CidrBlock ?? null,
+        fromPort: entry.PortRange?.From ?? null,
+        toPort: entry.PortRange?.To ?? null,
+        icmpType: entry.IcmpTypeCode?.Type ?? null,
+        icmpCode: entry.IcmpTypeCode?.Code ?? null,
+      })),
+      associations: (acl.Associations ?? []).map((association) => ({
+        associationId: association.NetworkAclAssociationId ?? null,
+        subnetId: association.SubnetId ?? null,
+      })),
+      tags: tagsToRecord(acl.Tags),
+    }))
+    return { networkAcls, nextToken: response.NextToken ?? null }
+  })
+}
+
+export async function executeEc2DescribeVpcEndpoints(
+  input: Ec2DescribeVpcEndpointsInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new DescribeVpcEndpointsCommand({
+        ...(input.vpcEndpointIds && { VpcEndpointIds: input.vpcEndpointIds }),
+        ...(input.filters && { Filters: input.filters }),
+        ...pageParams(input.vpcEndpointIds, input),
+      }),
+      { abortSignal: signal }
+    )
+    const vpcEndpoints = (response.VpcEndpoints ?? []).map((endpoint) => ({
+      vpcEndpointId: endpoint.VpcEndpointId ?? '',
+      vpcEndpointType: endpoint.VpcEndpointType ?? null,
+      vpcId: endpoint.VpcId ?? null,
+      serviceName: endpoint.ServiceName ?? null,
+      state: endpoint.State ?? null,
+      privateDnsEnabled: endpoint.PrivateDnsEnabled ?? false,
+      routeTableIds: endpoint.RouteTableIds ?? [],
+      subnetIds: endpoint.SubnetIds ?? [],
+      networkInterfaceIds: endpoint.NetworkInterfaceIds ?? [],
+      securityGroupIds: (endpoint.Groups ?? [])
+        .map((group) => group.GroupId)
+        .filter((id): id is string => Boolean(id)),
+      dnsNames: (endpoint.DnsEntries ?? [])
+        .map((entry) => entry.DnsName)
+        .filter((name): name is string => Boolean(name)),
+      creationTimestamp: toIsoString(endpoint.CreationTimestamp),
+      ownerId: endpoint.OwnerId ?? null,
+      tags: tagsToRecord(endpoint.Tags),
+    }))
+    return { vpcEndpoints, nextToken: response.NextToken ?? null }
+  })
+}
+
+function mapPeeringVpc(info?: VpcPeeringConnectionVpcInfo) {
+  return {
+    vpcId: info?.VpcId ?? null,
+    ownerId: info?.OwnerId ?? null,
+    region: info?.Region ?? null,
+    cidrBlock: info?.CidrBlock ?? null,
+  }
+}
+
+export async function executeEc2DescribeVpcPeeringConnections(
+  input: Ec2DescribeVpcPeeringConnectionsInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new DescribeVpcPeeringConnectionsCommand({
+        ...(input.vpcPeeringConnectionIds && {
+          VpcPeeringConnectionIds: input.vpcPeeringConnectionIds,
+        }),
+        ...(input.filters && { Filters: input.filters }),
+        ...pageParams(input.vpcPeeringConnectionIds, input),
+      }),
+      { abortSignal: signal }
+    )
+    const vpcPeeringConnections = (response.VpcPeeringConnections ?? []).map((connection) => ({
+      vpcPeeringConnectionId: connection.VpcPeeringConnectionId ?? '',
+      status: connection.Status?.Code ?? null,
+      statusMessage: connection.Status?.Message ?? null,
+      requesterVpc: mapPeeringVpc(connection.RequesterVpcInfo),
+      accepterVpc: mapPeeringVpc(connection.AccepterVpcInfo),
+      expirationTime: toIsoString(connection.ExpirationTime),
+      tags: tagsToRecord(connection.Tags),
+    }))
+    return { vpcPeeringConnections, nextToken: response.NextToken ?? null }
+  })
+}
+
+export async function executeEc2DescribeImages(
+  input: Ec2DescribeImagesInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new DescribeImagesCommand({
+        ...(input.imageIds && { ImageIds: input.imageIds }),
+        // Without an owner scope a list call returns every public AMI in the region.
+        ...(input.owners ? { Owners: input.owners } : !input.imageIds && { Owners: ['self'] }),
+        ...(input.filters && { Filters: input.filters }),
+        ...pageParams(input.imageIds, input),
+      }),
+      { abortSignal: signal }
+    )
+    const images = (response.Images ?? []).map((image) => ({
+      imageId: image.ImageId ?? '',
+      name: image.Name ?? null,
+      description: image.Description || null,
+      state: image.State ?? null,
+      ownerId: image.OwnerId ?? null,
+      ownerAlias: image.ImageOwnerAlias ?? null,
+      public: image.Public ?? false,
+      architecture: image.Architecture ?? null,
+      platformDetails: image.PlatformDetails ?? null,
+      rootDeviceType: image.RootDeviceType ?? null,
+      virtualizationType: image.VirtualizationType ?? null,
+      creationDate: image.CreationDate ?? null,
+      deprecationTime: image.DeprecationTime ?? null,
+      lastLaunchedTime: image.LastLaunchedTime ?? null,
+      tags: tagsToRecord(image.Tags),
+    }))
+    return { images, nextToken: response.NextToken ?? null }
+  })
+}
+
+export async function executeEc2DescribeKeyPairs(
+  input: Ec2DescribeKeyPairsInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new DescribeKeyPairsCommand({
+        ...(input.keyNames && { KeyNames: input.keyNames }),
+        ...(input.keyPairIds && { KeyPairIds: input.keyPairIds }),
+        ...(input.filters && { Filters: input.filters }),
+      }),
+      { abortSignal: signal }
+    )
+    const keyPairs = (response.KeyPairs ?? []).map((keyPair) => ({
+      keyPairId: keyPair.KeyPairId ?? '',
+      keyName: keyPair.KeyName ?? null,
+      keyType: keyPair.KeyType ?? null,
+      keyFingerprint: keyPair.KeyFingerprint ?? null,
+      createTime: toIsoString(keyPair.CreateTime),
+      tags: tagsToRecord(keyPair.Tags),
+    }))
+    return { keyPairs }
+  })
+}
+
+function toIpPermission(input: {
+  ipProtocol?: string
+  fromPort?: number
+  toPort?: number
+  cidrIp?: string
+  cidrIpv6?: string
+  sourceGroupId?: string
+  description?: string
+}): IpPermission {
+  const description = input.description ? { Description: input.description } : {}
+  return {
+    IpProtocol: input.ipProtocol,
+    ...(input.fromPort !== undefined && { FromPort: input.fromPort }),
+    ...(input.toPort !== undefined && { ToPort: input.toPort }),
+    ...(input.cidrIp && { IpRanges: [{ CidrIp: input.cidrIp, ...description }] }),
+    ...(input.cidrIpv6 && { Ipv6Ranges: [{ CidrIpv6: input.cidrIpv6, ...description }] }),
+    ...(input.sourceGroupId && {
+      UserIdGroupPairs: [{ GroupId: input.sourceGroupId, ...description }],
+    }),
+  }
+}
+
+export async function executeEc2AuthorizeSecurityGroupIngress(
+  input: Ec2AuthorizeSecurityGroupIngressInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new AuthorizeSecurityGroupIngressCommand({
+        GroupId: input.groupId,
+        IpPermissions: [toIpPermission(input)],
+      }),
+      { abortSignal: signal }
+    )
+    const securityGroupRules = (response.SecurityGroupRules ?? []).map((rule) => ({
+      securityGroupRuleId: rule.SecurityGroupRuleId ?? '',
+      groupId: rule.GroupId ?? input.groupId,
+      ipProtocol: rule.IpProtocol ?? null,
+      fromPort: rule.FromPort ?? null,
+      toPort: rule.ToPort ?? null,
+      cidrIpv4: rule.CidrIpv4 ?? null,
+      cidrIpv6: rule.CidrIpv6 ?? null,
+      referencedGroupId: rule.ReferencedGroupInfo?.GroupId ?? null,
+      description: rule.Description ?? null,
+    }))
+    return { authorized: response.Return ?? true, securityGroupRules }
+  })
+}
+
+export async function executeEc2RevokeSecurityGroupIngress(
+  input: Ec2RevokeSecurityGroupIngressInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    const response = await client.send(
+      new RevokeSecurityGroupIngressCommand({
+        GroupId: input.groupId,
+        ...(input.securityGroupRuleIds
+          ? { SecurityGroupRuleIds: input.securityGroupRuleIds }
+          : { IpPermissions: [toIpPermission(input)] }),
+      }),
+      { abortSignal: signal }
+    )
+    const revokedRules = (response.RevokedSecurityGroupRules ?? []).map((rule) => ({
+      securityGroupRuleId: rule.SecurityGroupRuleId ?? '',
+      ipProtocol: rule.IpProtocol ?? null,
+      fromPort: rule.FromPort ?? null,
+      toPort: rule.ToPort ?? null,
+      cidrIpv4: rule.CidrIpv4 ?? null,
+      cidrIpv6: rule.CidrIpv6 ?? null,
+      referencedGroupId: rule.ReferencedGroupId ?? null,
+      description: rule.Description ?? null,
+    }))
+    const unmatchedRuleCount = response.UnknownIpPermissions?.length ?? 0
+    return {
+      revoked: (response.Return ?? true) && unmatchedRuleCount === 0,
+      revokedRules,
+      unmatchedRuleCount,
+    }
+  })
+}
+
+export async function executeEc2DeleteVolume(input: Ec2DeleteVolumeInput, signal?: AbortSignal) {
+  return withClient(input, async (client) => {
+    await client.send(new DeleteVolumeCommand({ VolumeId: input.volumeId }), {
+      abortSignal: signal,
+    })
+    return { deleted: true, volumeId: input.volumeId }
+  })
+}
+
+export async function executeEc2DeleteSnapshot(
+  input: Ec2DeleteSnapshotInput,
+  signal?: AbortSignal
+) {
+  return withClient(input, async (client) => {
+    await client.send(new DeleteSnapshotCommand({ SnapshotId: input.snapshotId }), {
+      abortSignal: signal,
+    })
+    return { deleted: true, snapshotId: input.snapshotId }
   })
 }

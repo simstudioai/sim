@@ -43,6 +43,15 @@ const EC2_TOOL_IDS = [
   'ec2_delete_tags',
   'ec2_describe_regions',
   'ec2_describe_availability_zones',
+  'ec2_describe_network_acls',
+  'ec2_describe_vpc_endpoints',
+  'ec2_describe_vpc_peering_connections',
+  'ec2_describe_images',
+  'ec2_describe_key_pairs',
+  'ec2_authorize_security_group_ingress',
+  'ec2_revoke_security_group_ingress',
+  'ec2_delete_volume',
+  'ec2_delete_snapshot',
 ] as const
 
 const APPCONFIG_TOOL_IDS = [

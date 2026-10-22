@@ -43,7 +43,7 @@ export const describeVpcsTool: InternalToolConfig<Ec2DescribeVpcsParams, Ec2Desc
         type: 'json',
         required: false,
         visibility: 'user-or-llm',
-        description: 'EC2 filters as a JSON array, e.g. [{"Name":"vpc-id","Values":["vpc-0abc"]}]',
+        description: 'EC2 filters as a JSON array, e.g. [{"Name":"is-default","Values":["false"]}]',
       },
       maxResults: {
         type: 'number',

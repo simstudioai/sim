@@ -981,7 +981,7 @@
       "slug": "amazon-ec2",
       "name": "Amazon EC2",
       "description": "Manage EC2 instances, Elastic IPs, VPC networking, and EBS",
-      "longDescription": "Integrate Amazon EC2 into workflows. Describe and control instances, manage Elastic IP addresses, inspect VPCs, subnets, route tables, NAT and internet gateways, security groups, and network interfaces, work with EBS volumes and snapshots, and tag resources. Requires an AWS access key with the matching ec2:* IAM permissions.",
+      "longDescription": "Integrate Amazon EC2 into workflows. Describe and control instances, manage Elastic IP addresses, inspect VPCs, subnets, route tables, NAT and internet gateways, security groups, and network interfaces, add and revoke security group ingress rules, inspect network ACLs, VPC endpoints, and peering connections, work with EBS volumes and snapshots, list AMIs and key pairs, and tag resources. Requires an AWS access key with the matching ec2:* IAM permissions.",
       "bgColor": "linear-gradient(45deg, #C8511B 0%, #FF9900 100%)",
       "iconName": "EC2Icon",
       "docsUrl": "https://docs.sim.ai/integrations/ec2",
@@ -1051,6 +1051,18 @@
           "description": "List security groups with their inbound and outbound rules"
         },
         {
+          "name": "Authorize Security Group Ingress",
+          "description": "Add an inbound rule to a security group"
+        },
+        {
+          "name": "Revoke Security Group Ingress",
+          "description": "Remove inbound rules from a security group by rule ID or by matching protocol, ports, and source"
+        },
+        {
+          "name": "Describe Network ACLs",
+          "description": "List network ACLs with their inbound and outbound rules and subnet associations"
+        },
+        {
           "name": "Describe Internet Gateways",
           "description": "List internet gateways and the VPCs they are attached to"
         },
@@ -1059,8 +1071,20 @@
           "description": "List elastic network interfaces with their IPs, attachment, and security groups"
         },
         {
+          "name": "Describe VPC Endpoints",
+          "description": "List VPC endpoints with their service, type, state, and network placement"
+        },
+        {
+          "name": "Describe VPC Peering Connections",
+          "description": "List VPC peering connections with their status and both VPCs"
+        },
+        {
           "name": "Describe EBS Volumes",
           "description": "List EBS volumes with their size, type, state, and attachments"
+        },
+        {
+          "name": "Delete EBS Volume",
+          "description": "Permanently delete an EBS volume that is not attached to an instance"
         },
         {
           "name": "Describe EBS Snapshots",
@@ -1069,6 +1093,18 @@
         {
           "name": "Create EBS Snapshot",
           "description": "Create a point-in-time snapshot of an EBS volume"
+        },
+        {
+          "name": "Delete EBS Snapshot",
+          "description": "Permanently delete an EBS snapshot"
+        },
+        {
+          "name": "Describe AMIs",
+          "description": "List AMIs owned by the account (or by the owners you specify)"
+        },
+        {
+          "name": "Describe Key Pairs",
+          "description": "List EC2 key pairs with their type, fingerprint, and creation time"
         },
         {
           "name": "Create Tags",
@@ -1087,7 +1123,7 @@
           "description": "List Availability Zones, Local Zones, and Wavelength Zones in the region"
         }
       ],
-      "operationCount": 25,
+      "operationCount": 34,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
