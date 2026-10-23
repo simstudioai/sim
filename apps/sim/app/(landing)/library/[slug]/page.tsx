@@ -53,7 +53,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const backlinks = linkingPosts.slice(0, MAX_BACKLINKS)
   const related = await getRelatedPosts(slug, {
     limit: MAX_RELATED,
-    exclude: new Set(backlinks.map((p) => p.slug)),
+    exclude: new Set(linkingPosts.map((p) => p.slug)),
   })
   const hasAfterArticle = backlinks.length > 0 || comparisons.length > 0
 
