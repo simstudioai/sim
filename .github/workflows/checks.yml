@@ -950,6 +950,7 @@ jobs:
           # lint's type-check and the `build` job's own `next build` (generated route types too)
           # already enforce.
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
+          NEXT_BUILD_DISABLE_SOURCE_MAPS: 'true'
         run: bunx turbo run build --filter=@sim/app
 
       # Everything `next start` reads, including the spreadsheet parse worker it spawns (named, so a

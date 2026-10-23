@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps: !isTruthy(env.NEXT_BUILD_DISABLE_SOURCE_MAPS),
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
   },
@@ -169,6 +169,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
+    turbopackInputSourceMaps: !isTruthy(env.NEXT_BUILD_DISABLE_SOURCE_MAPS),
     /**
      * Turbopack's dev filesystem cache stays ON (this is also the Next default
      * since v16.1). It is what makes a dev-server restart cheap: without it every
