@@ -379,6 +379,18 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     })
   })
 
+  async function waitForDocumentLock(): Promise<number> {
+    return vi.waitFor(async () => {
+      const [row] = await db.execute<{ pid: number }>(sql`
+        SELECT pid FROM pg_stat_activity
+        WHERE wait_event_type = 'Lock' AND datname = current_database()
+          AND (query ILIKE 'update "document" set "acl"%'
+            OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
+      if (!row) throw new Error('Document ACL writer has not reached the held row')
+      return row.pid
+    })
+  }
+
   describe('fence-last pages', () => {
     /**
      * A processing commit holds a document row for its whole write. A page waiting on it must not
@@ -409,17 +421,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         leaseTransaction(ids.connectorId, adminLease())
       )
       try {
-        let waiter: number | undefined
-        for (let attempt = 0; attempt < 100 && waiter === undefined; attempt++) {
-          const [row] = await db.execute<{ pid: number }>(sql`
-            SELECT pid FROM pg_stat_activity
-            WHERE wait_event_type = 'Lock' AND datname = current_database()
-              AND (query ILIKE 'update "document" set "acl"%'
-                OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
-          waiter = row?.pid
-          if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
-        }
-        expect(waiter).toBeDefined()
+        const waiter = await waitForDocumentLock()
         const connectorLocks = await db.execute<{ mode: string }>(sql`
           SELECT mode FROM pg_locks
           WHERE pid = ${waiter} AND relation = 'knowledge_connector'::regclass`)
@@ -522,17 +524,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         lease: createMemberSyncLease(members.connectorId, members.runId),
       })
       try {
-        let waiter: number | undefined
-        for (let attempt = 0; attempt < 200 && waiter === undefined; attempt++) {
-          const [row] = await db.execute<{ pid: number }>(sql`
-            SELECT pid FROM pg_stat_activity
-            WHERE wait_event_type = 'Lock' AND datname = current_database()
-              AND (query ILIKE 'update "document" set "acl"%'
-                OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
-          waiter = row?.pid
-          if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
-        }
-        expect(waiter).toBeDefined()
+        const waiter = await waitForDocumentLock()
         const connectorLocks = await db.execute<{ mode: string }>(sql`
           SELECT mode FROM pg_locks
           WHERE pid = ${waiter} AND relation = 'knowledge_connector'::regclass`)
