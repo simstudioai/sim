@@ -37,6 +37,7 @@ vi.mock('@sim/db', async (importOriginal) => {
       max: 4,
       prepare: false,
       fetch_types: false,
+      connection: {},
       onnotice: () => {},
       transform: {
         value: {
