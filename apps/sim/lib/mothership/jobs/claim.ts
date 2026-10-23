@@ -5,7 +5,8 @@ import { jobOccurrenceId, nextJobOccurrence } from '@/lib/mothership/jobs/occurr
 /** The trigger every job run record carries; the logs surface lists runs under it. */
 export const JOB_RUN_TRIGGER = 'mothership'
 
-const dueJob = (now: Date) =>
+/** A live job whose next occurrence is due; `workflow_schedule_due_job_idx` covers it. */
+export const dueJob = (now: Date) =>
   and(
     eq(workflowSchedule.sourceType, 'job'),
     isNull(workflowSchedule.archivedAt),

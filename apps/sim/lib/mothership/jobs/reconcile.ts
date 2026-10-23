@@ -1,7 +1,7 @@
 import { copilotRuns, db, jobExecutionLogs, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { requestRunStop } from '@/lib/mothership/async-runs/repository'
 import { JOB_RUN_TRIGGER } from '@/lib/mothership/jobs/claim'
 import { dispatchJobOccurrence } from '@/lib/mothership/jobs/dispatch'
@@ -22,7 +22,17 @@ const JOB_RUN_TIME_LIMIT_MS = 6 * 60 * 60_000
 
 const RECONCILE_BATCH_SIZE = 100
 
-function openJobRuns(status: 'queued' | 'running') {
+type OpenJobRunStatus = 'queued' | 'running'
+
+/** An occurrence's run record that has not ended; `job_execution_logs_open_idx` covers it. */
+export const openJobRun = (statuses: OpenJobRunStatus[]) =>
+  and(
+    inArray(jobExecutionLogs.status, statuses),
+    eq(jobExecutionLogs.trigger, JOB_RUN_TRIGGER),
+    isNotNull(jobExecutionLogs.occurrenceAt)
+  )
+
+function openJobRuns(status: OpenJobRunStatus) {
   return db
     .select({
       executionId: jobExecutionLogs.executionId,
@@ -39,13 +49,7 @@ function openJobRuns(status: 'queued' | 'running') {
     .from(jobExecutionLogs)
     .innerJoin(workflowSchedule, eq(workflowSchedule.id, jobExecutionLogs.scheduleId))
     .leftJoin(copilotRuns, eq(copilotRuns.streamId, jobExecutionLogs.executionId))
-    .where(
-      and(
-        eq(jobExecutionLogs.status, status),
-        eq(jobExecutionLogs.trigger, JOB_RUN_TRIGGER),
-        isNotNull(jobExecutionLogs.occurrenceAt)
-      )
-    )
+    .where(openJobRun([status]))
     .orderBy(asc(jobExecutionLogs.startedAt))
     .limit(RECONCILE_BATCH_SIZE)
 }

@@ -88,13 +88,25 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const inheritedEnv = {
     REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
+    COPILOT_API_KEY: process.env.COPILOT_API_KEY,
   }
   if (url) process.env.REDIS_URL = url
+  process.env.COPILOT_API_KEY = 'job-lane-fixture-key'
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
   return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server, finish }) }
 })
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+
+/** Spied so the idle tick can prove it neither claims nor reconciles. */
+vi.mock('@/lib/mothership/jobs/claim', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/mothership/jobs/claim')>()
+  return { ...actual, claimDueJobOccurrences: vi.fn(actual.claimDueJobOccurrences) }
+})
+vi.mock('@/lib/mothership/jobs/reconcile', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/mothership/jobs/reconcile')>()
+  return { ...actual, reconcileJobRuns: vi.fn(actual.reconcileJobRuns) }
+})
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const { controllers } = vi.hoisted(() => ({ controllers: new Map<string, AbortController>() }))
@@ -122,7 +134,7 @@ import {
 } from '@sim/db/schema'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { ABANDONED_RUN_CURSOR_KEY } from '@/lib/mothership/async-runs/orphaned-runs'
 import { chatPubSub } from '@/lib/mothership/chat-status'
@@ -130,7 +142,7 @@ import { recordJobRunSpend } from '@/lib/mothership/jobs/budget'
 import { claimDueJobOccurrences } from '@/lib/mothership/jobs/claim'
 import { dispatchJobOccurrence } from '@/lib/mothership/jobs/dispatch'
 import { finalizeJobRun } from '@/lib/mothership/jobs/finalize'
-import { runJobLane } from '@/lib/mothership/jobs/lane'
+import { jobLaneWorkQuery, runJobLane } from '@/lib/mothership/jobs/lane'
 import { jobOccurrenceId, MIN_JOB_CADENCE_MS } from '@/lib/mothership/jobs/occurrence'
 import { JOB_DISPATCH_GRACE_MS, reconcileJobRuns } from '@/lib/mothership/jobs/reconcile'
 import { takeOverAbandonedRuns } from '@/lib/mothership/request/application/abandoned-runs'
@@ -139,6 +151,18 @@ import {
   chatStreamLockKey,
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
+
+interface QueryPlan {
+  'Node Type': string
+  'Index Name'?: string
+  'Shared Hit Blocks': number
+  'Shared Read Blocks': number
+  Plans?: QueryPlan[]
+}
+
+function planNodes(plan: QueryPlan): QueryPlan[] {
+  return [plan, ...(plan.Plans ?? []).flatMap(planNodes)]
+}
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -314,6 +338,61 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     await db.delete(user).where(eq(user.id, userId))
     chatPubSub?.dispose()
     await closeRedisConnection()
+  })
+
+  it('does nothing but one indexed probe on a tick with no live jobs', async () => {
+    /** What the archive migration leaves behind: retired jobs and their finished run logs. */
+    const archivedIds = Array.from({ length: 2_000 }, () => generateId())
+    await db.insert(workflowSchedule).values(
+      archivedIds.map((id) => ({
+        id,
+        triggerType: 'schedule',
+        sourceType: 'job',
+        status: 'disabled',
+        archivedAt: new Date(),
+        nextRunAt: new Date(Date.now() - 60_000),
+        sourceUserId: userId,
+        sourceWorkspaceId: workspaceId,
+      }))
+    )
+    await db.insert(jobExecutionLogs).values(
+      Array.from({ length: 5_000 }, () => {
+        const id = generateId()
+        return {
+          id,
+          executionId: id,
+          workspaceId,
+          level: 'info',
+          status: 'completed',
+          trigger: 'mothership',
+          startedAt: new Date(Date.now() - 60_000),
+        }
+      })
+    )
+    await db.execute(sql`ANALYZE workflow_schedule, job_execution_logs`)
+    const now = new Date()
+    vi.mocked(claimDueJobOccurrences).mockClear()
+    vi.mocked(reconcileJobRuns).mockClear()
+
+    try {
+      expect(await runJobLane(now)).toEqual({ claimed: 0 })
+      expect(claimDueJobOccurrences).not.toHaveBeenCalled()
+      expect(reconcileJobRuns).not.toHaveBeenCalled()
+
+      const plans = await db.execute<{ 'QUERY PLAN': { Plan: QueryPlan }[] }>(
+        sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${jobLaneWorkQuery(now)}`
+      )
+      const plan = plans[0]['QUERY PLAN'][0].Plan
+      const nodes = planNodes(plan)
+      expect(nodes.some((node) => node['Node Type'] === 'Seq Scan')).toBe(false)
+      expect(nodes.map((node) => node['Index Name']).filter(Boolean)).toEqual(
+        expect.arrayContaining(['workflow_schedule_due_job_idx', 'job_execution_logs_open_idx'])
+      )
+      expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(20)
+    } finally {
+      await db.delete(jobExecutionLogs).where(eq(jobExecutionLogs.workspaceId, workspaceId))
+      await db.delete(workflowSchedule).where(inArray(workflowSchedule.id, archivedIds))
+    }
   })
 
   it('records an occurrence once when two ticks claim it at the same time, and starts it once', async () => {

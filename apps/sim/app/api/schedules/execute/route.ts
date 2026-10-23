@@ -50,7 +50,7 @@ import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
 } from '@/lib/execution/manual-cancellation'
-import { isJobLaneEnabled, runJobLane } from '@/lib/mothership/jobs/lane'
+import { runJobLane } from '@/lib/mothership/jobs/lane'
 import {
   buildCarrierReconciledMetadata,
   carrierNotReconciledSql,
@@ -1789,13 +1789,11 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     await Promise.allSettled(schedulePromises)
   }
 
-  if (isJobLaneEnabled()) {
-    try {
-      const { claimed } = await runJobLane()
-      totalSchedules += claimed
-    } catch (error) {
-      logger.error(`[${requestId}] Scheduled job lane failed`, { error: toError(error).message })
-    }
+  try {
+    const { claimed } = await runJobLane()
+    totalSchedules += claimed
+  } catch (error) {
+    logger.error(`[${requestId}] Scheduled job lane failed`, { error: toError(error).message })
   }
 
   const totalCount = totalSchedules
