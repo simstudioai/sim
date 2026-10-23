@@ -46,8 +46,8 @@ const admittedBillingRequestId = sql<
 
 /**
  * Open records that need this pass, oldest first. Every queued record does; a running one only
- * once its turn ended, its time limit passed without a Stop, or its spend-cap link is missing,
- * so a backlog of healthy long runs never hides the ones that finished.
+ * once its turn ended or its run row is gone, its time limit passed without a Stop, or its
+ * spend-cap link is missing, so a backlog of healthy long runs never hides the ones that finished.
  */
 function openJobRuns(status: OpenJobRunStatus, now: Date) {
   const needsAction =
@@ -55,6 +55,7 @@ function openJobRuns(status: OpenJobRunStatus, now: Date) {
       ? undefined
       : or(
           inArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+          isNull(copilotRuns.id),
           and(
             lte(jobExecutionLogs.startedAt, new Date(now.getTime() - JOB_RUN_TIME_LIMIT_MS)),
             sql`${jobExecutionLogs.executionData}->>'deadlineStopRequestedAt' IS NULL`
@@ -101,7 +102,10 @@ export async function reconcileJobRuns(now: Date): Promise<void> {
   for (const row of [...queued, ...running]) {
     try {
       if (!row.runStatus) {
-        if (row.status !== 'queued') continue
+        if (row.status === 'running') {
+          await finalizeJobRun(row.executionId)
+          continue
+        }
         if (!row.scheduleId) {
           await endUnstartedJobRun(
             row.executionId,

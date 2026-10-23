@@ -79,7 +79,8 @@ async function lastAssistantText(tx: DbOrTx, chatId: string, streamId: string): 
  * under a row lock, so the turn's own end and a reconciler pass settle it exactly once: one
  * outcome, one change to the job's failure streak. An outcome the agent reported is kept; a
  * turn that ended well without one is `not_met`, summarized by its last reply, and is not a
- * failure. Returns false while the turn is still live.
+ * failure. A run whose row is gone (its chat was deleted) ends `interrupted`. Returns false while
+ * the turn is still live.
  */
 export async function finalizeJobRun(executionId: string): Promise<boolean> {
   let disabledScheduleId: string | null = null
@@ -108,13 +109,17 @@ export async function finalizeJobRun(executionId: string): Promise<boolean> {
       .from(copilotRuns)
       .where(eq(copilotRuns.streamId, executionId))
       .limit(1)
-    if (!run || !TERMINAL_RUN_STATUSES.includes(run.status)) return false
+    if (run && !TERMINAL_RUN_STATUSES.includes(run.status)) return false
 
     const reported = REPORTED_JOB_OUTCOMES.find((outcome) => outcome === record.outcome)
     const deadlineStopped = toRecord(record.executionData).deadlineStopRequestedAt !== undefined
     let outcome: JobRunOutcome
     let summary: string
-    if (run.status === 'complete' && reported) {
+    if (!run) {
+      /** A started run's row is gone (its chat was deleted): nothing will ever end it otherwise. */
+      outcome = 'interrupted'
+      summary = 'The run was removed before it finished.'
+    } else if (run.status === 'complete' && reported) {
       outcome = reported
       summary = record.summary ?? ''
     } else if (run.status === 'complete') {
@@ -127,7 +132,7 @@ export async function finalizeJobRun(executionId: string): Promise<boolean> {
       outcome = 'failed'
       summary = run.error ?? 'The run failed.'
     }
-    const endedAt = run.completedAt ?? new Date()
+    const endedAt = run?.completedAt ?? new Date()
     await tx
       .update(jobExecutionLogs)
       .set({

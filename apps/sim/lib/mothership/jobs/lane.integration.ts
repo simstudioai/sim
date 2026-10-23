@@ -648,6 +648,24 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     await reconcileUntilSettled(occurrenceId)
   })
 
+  it('ends a running occurrence whose run was removed, instead of re-reading it forever', async () => {
+    const { chatId, scheduleId, occurrenceId } = await seedJob()
+    worker.legs.set(occurrenceId, [{ text: 'Working.', mode: 'hang' }])
+    await runJobLane(new Date())
+    await waitFor(async () => worker.open.has(occurrenceId), 'the leg')
+    controllers.get(occurrenceId)?.abort(new StreamControllerSupersededError())
+    worker.open.get(occurrenceId)?.response.socket?.destroy()
+    worker.open.delete(occurrenceId)
+    await waitFor(async () => !(await redis().get(chatStreamLockKey(chatId))), 'the lock to lapse')
+    await db.delete(copilotRuns).where(eq(copilotRuns.streamId, occurrenceId))
+
+    await reconcileJobRuns(new Date(Date.now() + 6 * 60 * 60_000 + 60_000))
+
+    expect(await runsOf(scheduleId)).toEqual([
+      expect.objectContaining({ status: 'complete', outcome: 'interrupted' }),
+    ])
+  }, 60_000)
+
   it('ends a queued occurrence whose job was deleted, so the lane goes idle', async () => {
     const { scheduleId, occurrenceId } = await seedJob()
     await claimDueJobOccurrences(new Date(), 10)
