@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { createWorkflowRecord } from '@sim/testing/factories/permission.factory'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { idempotencyServiceMock } from '@sim/testing/mocks/idempotency-service.mock'
 import {
@@ -19,13 +18,39 @@ vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 vi.mock('@/lib/webhooks/polling/utils', () => webhooksPollingUtilsMock)
 
 import { gmailPollingHandler } from '@/lib/webhooks/polling/gmail'
-import type { PollWebhookContext, WebhookRecord } from '@/lib/webhooks/polling/types'
+import type {
+  PollWebhookContext,
+  WebhookRecord,
+  WorkflowRecord,
+} from '@/lib/webhooks/polling/types'
 
 const { mockUpdateWebhookProviderConfig: mockUpdateConfig, mockResolveOAuthCredential } =
   webhooksPollingUtilsMockFns
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
 
 const EXPIRED_HISTORY_ID = '30000'
+
+const WORKFLOW: WorkflowRecord = {
+  id: 'gmail-listener',
+  userId: 'gmail-owner',
+  workspaceId: 'gmail-workspace',
+  folderId: null,
+  sortOrder: 0,
+  name: 'Gmail listener',
+  description: null,
+  lastSynced: new Date('2026-10-01T00:00:00.000Z'),
+  createdAt: new Date('2026-10-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-10-01T00:00:00.000Z'),
+  isDeployed: true,
+  deployedAt: new Date('2026-10-01T00:00:00.000Z'),
+  isPublicApi: false,
+  locked: false,
+  forkSyncExcluded: false,
+  runCount: 0,
+  lastRunAt: null,
+  variables: {},
+  archivedAt: null,
+}
 
 interface MailboxState {
   profileHistoryId: string
@@ -61,9 +86,7 @@ function context(providerConfig: Record<string, unknown>): PollWebhookContext {
   }
   return {
     webhookData,
-    workflowData: createWorkflowRecord({
-      id: 'gmail-listener',
-    }) as PollWebhookContext['workflowData'],
+    workflowData: WORKFLOW,
     requestId: 'gmail-request',
     logger: createLogger('GmailTest'),
   }
@@ -115,7 +138,6 @@ function persistedHistoryIds() {
 
 describe('gmailPollingHandler expired history cursor', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveOAuthCredential.mockResolvedValue('access-token')
     mockProcessEvent.mockResolvedValue({ success: true })
   })
