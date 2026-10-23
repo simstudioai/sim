@@ -6,8 +6,14 @@
  * it is called with the raw host key blob during `connect`, before any
  * credential is used, and a `false` return aborts the connection.
  */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sftpConnector } from '@/connectors/sftp/sftp'
+
+const mockValidateDatabaseHost = inputValidationMockFns.mockValidateDatabaseHost
 
 const S_IFDIR = 0o040755
 const S_IFREG = 0o100644
@@ -26,16 +32,11 @@ const SERVER_HOST_KEY = Buffer.from('ssh-ed25519 fake host key bytes')
 const SERVER_FINGERPRINT = 'vavRyluclyEjo81XjQIzVxoqZgtAY47GuKLG6j6aCGM'
 const OTHER_FINGERPRINT = 'Gg8WhyW1o7SY1nxHGvP4EuvFvVCSjtSBclGk7qnas5E'
 
-const { mockValidateDatabaseHost, clientConnects } = vi.hoisted(() => ({
-  mockValidateDatabaseHost: vi.fn(),
+const { clientConnects } = vi.hoisted(() => ({
   clientConnects: [] as Array<Record<string, unknown>>,
 }))
 
-vi.mock('@/components/icons', () => ({ SftpIcon: () => null }))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 /**
  * The factory is evaluated before this module's own imports are initialized, so
@@ -104,10 +105,10 @@ vi.mock('ssh2', () => {
 
 /** Minimal SFTP subsystem: one directory holding one indexable text file. */
 const fakeSftp = {
-  stat(path: string, cb: (err: Error | null, attrs?: unknown) => void) {
+  stat(_path: string, cb: (err: Error | null, attrs?: unknown) => void) {
     cb(null, { mode: S_IFDIR, size: 0, mtime: 0 })
   },
-  lstat(path: string, cb: (err: Error | null, attrs?: unknown) => void) {
+  lstat(_path: string, cb: (err: Error | null, attrs?: unknown) => void) {
     cb(null, { mode: S_IFREG, size: 10, mtime: 1_700_000_000 })
   },
   opendir(path: string, cb: (err: Error | null, handle?: Buffer) => void) {

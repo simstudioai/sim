@@ -10,7 +10,7 @@ export const jupyterDeleteSessionTool: InternalToolConfig<
 > = {
   id: 'jupyter_delete_session',
   name: 'Jupyter Delete Session',
-  description: 'Delete a session on a Jupyter server (does not shut down its kernel)',
+  description: 'Delete a session and shut down its associated kernel on a Jupyter server',
   version: '1.0.0',
 
   params: {

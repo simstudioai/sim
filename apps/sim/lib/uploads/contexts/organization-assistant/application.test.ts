@@ -1,14 +1,23 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
 import sharp from 'sharp'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ download: vi.fn(), config: vi.fn(), create: vi.fn() }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mocks.download }))
-vi.mock('@/lib/uploads/upload-session/service', () => ({ createUploadSession: mocks.create }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/uploads/config', () => ({ getServeStoragePrefix: () => 's3' }))
+const hoisted = vi.hoisted(() => ({}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 import {
   authorizeOrganizationAttachmentControl,
@@ -20,7 +29,14 @@ import {
 import { ASSISTANT_IMAGE_MAX_BYTES } from '@/lib/uploads/shared/assistant-images'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  ...hoisted,
+  create: uploadSessionMockFns.mockCreateUploadSession,
+  download: storageServiceMockFns.mockDownloadFile,
+}
+
+const principal = createSessionPrincipal()
 const key = 'assistant/org-1/user-1/upload-1/image.png'
 const session: UploadSessionRecord = {
   id: 'upload-1',
@@ -108,7 +124,7 @@ describe('private organization Assistant images', () => {
   it.each([
     { key: 'https://example.com/image.png' },
     { key: 'assistant/org-1/user-1/../image.png' },
-    { principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const },
+    { principal: createPersonalApiKeyPrincipal() },
   ])('rejects invalid references or non-session callers before loading', async (input) => {
     await expect(read(input)).rejects.toMatchObject({ code: 'not_found' })
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()

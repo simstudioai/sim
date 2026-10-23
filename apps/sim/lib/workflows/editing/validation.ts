@@ -41,8 +41,10 @@ import { getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import {
+  getHostedModels,
   isAutoModel,
   isCustomModelId,
+  isEvaluationModel,
   isKnownModelId,
   suggestModelIdsForUnknownModel,
 } from '@/providers/models'
@@ -485,6 +487,9 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
   }
   if (isAutoModel(model)) {
     return `${where}: sim-auto cannot be a fallback model; it already routes and falls back on its own`
+  }
+  if (isEvaluationModel(model)) {
+    return `${where}: ${model} is an evaluation model and cannot serve as a chat fallback`
   }
   if (!isKnownModelId(model) && !isCustomModelId(model)) {
     const suggestions = suggestModelIdsForUnknownModel(model)
@@ -1385,67 +1390,6 @@ function collectSelectorFields(
 }
 
 /**
- * Validates selector IDs in the workflow state exist in the database.
- * Returns validation errors for any invalid selector IDs.
- *
- * `options.includeCredentials` controls whether oauth-input credential fields
- * are validated (the edit path defaults to skipping them since they are
- * pre-validated; the lint opts in to close that gap).
- */
-export async function validateWorkflowSelectorIds(
-  workflowState: any,
-  context: { userId: string; workspaceId?: string },
-  options: { includeCredentials?: boolean } = {}
-): Promise<ValidationError[]> {
-  const logger = createLogger('EditWorkflowSelectorValidation')
-  const errors: ValidationError[] = []
-
-  const selectorsToValidate = collectSelectorFields(workflowState, options)
-
-  if (selectorsToValidate.length === 0) {
-    return errors
-  }
-
-  logger.info('Validating selector IDs', {
-    selectorCount: selectorsToValidate.length,
-    userId: context.userId,
-    workspaceId: context.workspaceId,
-  })
-
-  // Validate each selector field
-  for (const selector of selectorsToValidate) {
-    const result = await validateSelectorIds(selector.selectorType, selector.value, context)
-
-    if (result.invalid.length > 0) {
-      // Include warning info (like available credentials) in the error message for better LLM feedback
-      const warningInfo = result.warning ? `. ${result.warning}` : ''
-      errors.push({
-        blockId: selector.blockId,
-        blockType: selector.blockType,
-        field: selector.fieldName,
-        value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} — they do not exist in this workspace or you lack access. Discover valid ids first (glob/read the matching workspace resource, e.g. environment/credentials.json, knowledgebases/*/meta.json, tables/*/meta.json) instead of guessing${warningInfo}`,
-      })
-    } else if (result.warning) {
-      // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
-      logger.warn(result.warning, {
-        blockId: selector.blockId,
-        fieldName: selector.fieldName,
-      })
-    }
-  }
-
-  if (errors.length > 0) {
-    logger.warn('Found invalid selector IDs', {
-      errorCount: errors.length,
-      errors: errors.map((e) => ({ blockId: e.blockId, field: e.field, error: e.error })),
-    })
-  }
-
-  return errors
-}
-
-/**
  * Lint-facing Tier-2 resolution: validate every ACTIVE credential/resource
  * member (including oauth-input) against the workspace and return the references
  * that do not resolve to an accessible entity. This is the "set in basic mode
@@ -1631,7 +1575,6 @@ export async function preValidateCredentialInputs(
   workflowState?: Record<string, unknown>
 ): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
   const { isHosted } = await import('@/lib/core/config/env-flags')
-  const { getHostedModels } = await import('@/providers/utils')
 
   const logger = createLogger('PreValidateCredentials')
   const errors: ValidationError[] = []

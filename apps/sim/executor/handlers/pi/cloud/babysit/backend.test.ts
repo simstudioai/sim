@@ -1,8 +1,9 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockWithPiSandbox,
   mockFetchSnapshot,
   mockFetchThreads,
   mockFetchChecks,
@@ -11,9 +12,7 @@ const {
   mockRequestReview,
   mockReviewLanded,
   mockResolvePiSandboxLifetime,
-  mockSleepUntilAborted,
 } = vi.hoisted(() => ({
-  mockWithPiSandbox: vi.fn(),
   mockFetchSnapshot: vi.fn(),
   mockFetchThreads: vi.fn(),
   mockFetchChecks: vi.fn(),
@@ -22,15 +21,10 @@ const {
   mockRequestReview: vi.fn(),
   mockReviewLanded: vi.fn(),
   mockResolvePiSandboxLifetime: vi.fn(),
-  mockSleepUntilAborted: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: mockWithPiSandbox,
-}))
-vi.mock('@/lib/data-drains/destinations/utils', () => ({
-  sleepUntilAborted: mockSleepUntilAborted,
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/execution/remote-sandbox/pi-lifetime')>()
@@ -59,6 +53,8 @@ import { runBabysitPiWithOptions } from '@/executor/handlers/pi/cloud/babysit/ba
 import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/cloud/babysit/round'
 import { DIFF_PATH } from '@/executor/handlers/pi/cloud/shared'
 import type { PiBabysitContinuationParams } from '@/executor/handlers/pi/core/backend'
+
+const { mockWithPiSandbox } = remoteSandboxMockFns
 
 afterAll(resetEnvMock)
 
@@ -231,7 +227,6 @@ describe('runBabysitPiWithOptions', () => {
     mockRequestReview.mockReset()
     mockReviewLanded.mockReset()
     mockResolvePiSandboxLifetime.mockReturnValue(getMaxExecutionTimeout())
-    mockSleepUntilAborted.mockResolvedValue(undefined)
     mockFetchDiagnostics.mockResolvedValue(new Map([['check:ci', 'failure output']]))
     mockReplyAndResolve.mockResolvedValue({
       repliesPosted: 1,

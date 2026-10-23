@@ -131,9 +131,9 @@ describe.each([false, true])('image input rules (collaborative=%s)', (collaborat
 })
 
 describe.each([
-  { name: 'image', extension: 'image', source: '![Audit image](https://example.com/logo.png)' },
-  { name: 'link', extension: 'markdownLinkInputRule', source: '[Audit link](https://example.com)' },
-])('$name input-rule event boundaries', ({ name, extension, source }) => {
+  { name: 'image', source: '![Audit image](https://example.com/logo.png)' },
+  { name: 'link', source: '[Audit link](https://example.com)' },
+])('$name input-rule event boundaries', ({ name, source }) => {
   function assertConverted(editor: Editor) {
     expect(editor.getHTML()).toContain(
       name === 'image' ? 'src="https://example.com/logo.png"' : 'href="https://example.com"'
@@ -217,7 +217,7 @@ describe.each([
     expect(editor.getText()).toBe(`Prefix ${source}\n\nAfter`)
   })
 
-  it('undoes a collaborative conversion without removing peer text', () => {
+  it('undoes a collaborative conversion to its source, then the input, without removing peer text', () => {
     const seed = markdownToYDoc('TARGET\n\nAfter')
     const a = createPeer(seed)
     const b = createPeer(seed)
@@ -232,8 +232,13 @@ describe.each([
     Y.applyUpdate(a.doc, Y.encodeStateAsUpdate(b.doc))
     expect(a.editor.commands.undo()).toBe(true)
     Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc))
+    expect(a.editor.getText()).toBe(`Prefix ${source}\n\nPeer text`)
+    expect(b.editor.getJSON()).toEqual(a.editor.getJSON())
+    expect(a.editor.commands.undo()).toBe(true)
+    Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc))
     expect(a.editor.getText()).toBe('TARGET\n\nPeer text')
     expect(b.editor.getJSON()).toEqual(a.editor.getJSON())
+    expect(a.editor.commands.redo()).toBe(true)
     expect(a.editor.commands.redo()).toBe(true)
     Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc))
     assertConverted(a.editor)

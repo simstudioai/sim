@@ -76,30 +76,8 @@ export interface PineconeUpsertTextParams extends PineconeBaseParams {
 }
 
 // Upsert Vectors
-interface PineconeUpsertVectorsParams extends PineconeBaseParams {
-  vectors: {
-    id: string
-    values: number[]
-    metadata?: Record<string, any>
-    sparseValues?: {
-      indices: number[]
-      values: number[]
-    }
-  }[]
-}
 
 // Search Text
-interface PineconeSearchQuery {
-  inputs?: { text: string }
-  vector?: {
-    values: number[]
-    sparse_values?: number[]
-    sparse_indices?: number[]
-  }
-  id?: string
-  top_k: number
-  filter?: Record<string, any>
-}
 
 interface PineconeRerank {
   model: string
@@ -123,17 +101,6 @@ export interface PineconeSearchHit {
   fields?: Record<string, any>
 }
 
-interface PineconeSearchResponse {
-  result: {
-    hits: PineconeSearchHit[]
-  }
-  usage: {
-    read_units: number
-    embed_total_tokens?: number
-    rerank_units?: number
-  }
-}
-
 // Fetch Vectors
 export interface PineconeFetchParams extends PineconeBaseParams {
   ids: string[]
@@ -143,33 +110,6 @@ export interface PineconeVector {
   id: string
   values: number[]
   metadata?: Record<string, any>
-}
-
-interface PineconeUsage {
-  readUnits: number
-}
-
-interface PineconeFetchResponse {
-  vectors: Record<string, PineconeVector>
-  namespace?: string
-  usage: PineconeUsage
-}
-
-interface PineconeParams {
-  apiKey: string
-  indexHost: string
-  operation: 'query' | 'upsert' | 'delete'
-  // Query operation
-  queryVector?: number[]
-  topK?: number
-  includeMetadata?: boolean
-  includeValues?: boolean
-  // Upsert operation
-  vectors?: Array<{
-    id: string
-    values: number[]
-    metadata?: Record<string, any>
-  }>
 }
 
 // Search Vector

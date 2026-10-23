@@ -2,46 +2,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CloudFormationIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type {
-  CloudFormationCancelUpdateStackResponse,
-  CloudFormationCreateChangeSetResponse,
-  CloudFormationCreateStackResponse,
-  CloudFormationDeleteStackResponse,
-  CloudFormationDescribeChangeSetResponse,
-  CloudFormationDescribeStackDriftDetectionStatusResponse,
-  CloudFormationDescribeStackEventsResponse,
-  CloudFormationDescribeStacksResponse,
-  CloudFormationDetectStackDriftResponse,
-  CloudFormationExecuteChangeSetResponse,
-  CloudFormationGetTemplateResponse,
-  CloudFormationGetTemplateSummaryResponse,
-  CloudFormationListStackResourcesResponse,
-  CloudFormationUpdateStackResponse,
-  CloudFormationValidateTemplateResponse,
-} from '@/tools/cloudformation/types'
 
-export const CloudFormationBlock: BlockConfig<
-  | CloudFormationDescribeStacksResponse
-  | CloudFormationListStackResourcesResponse
-  | CloudFormationDetectStackDriftResponse
-  | CloudFormationDescribeStackDriftDetectionStatusResponse
-  | CloudFormationDescribeStackEventsResponse
-  | CloudFormationGetTemplateResponse
-  | CloudFormationValidateTemplateResponse
-  | CloudFormationCreateStackResponse
-  | CloudFormationUpdateStackResponse
-  | CloudFormationDeleteStackResponse
-  | CloudFormationCancelUpdateStackResponse
-  | CloudFormationCreateChangeSetResponse
-  | CloudFormationDescribeChangeSetResponse
-  | CloudFormationExecuteChangeSetResponse
-  | CloudFormationGetTemplateSummaryResponse
-> = {
+export const CloudFormationBlock: BlockConfig = {
   type: 'cloudformation',
   name: 'CloudFormation',
   description: 'Manage and inspect AWS CloudFormation stacks, resources, and drift',
   longDescription:
-    'Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.',
+    'Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   docsLink: 'https://docs.sim.ai/integrations/cloudformation',

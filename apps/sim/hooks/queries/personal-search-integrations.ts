@@ -8,6 +8,8 @@ import {
   listPersonalSearchIntegrationsContract,
   type PersonalSearchIntegrationsQuery,
 } from '@/lib/api/contracts/knowledge/personal-integrations'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
@@ -35,8 +37,16 @@ export function usePersonalSearchIntegrations(
 export function useConnectPersonalSearchIntegration() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: async (body: ConnectPersonalSearchIntegrationBody) =>
-      (await requestJson(connectPersonalSearchIntegrationContract, { body })).data,
+    mutationFn: async ({
+      signal,
+      ...body
+    }: ConnectPersonalSearchIntegrationBody & { signal?: AbortSignal }) => {
+      if (isDesktopApp()) {
+        await connectDesktopSource({ kind: 'personal-search', body }, signal)
+        return null
+      }
+      return (await requestJson(connectPersonalSearchIntegrationContract, { body, signal })).data
+    },
     onSettled: (_data, _error, body) =>
       Promise.all([
         client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),

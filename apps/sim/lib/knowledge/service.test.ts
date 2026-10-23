@@ -1,41 +1,29 @@
 import {
   dbChainMockFns,
-  hasMockCondition,
   permissionsMock,
   permissionsMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 
-const {
-  mockApplyStorageUsageDeltasInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 import {
   attachKnowledgeBaseConnectors,
-  findActiveKnowledgeBasesByExactName,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+
+const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 /**
  * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the
@@ -64,31 +52,6 @@ describe('getWorkspaceKnowledgeBases — paging', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     expect(result.data).toHaveLength(2)
     expect(result.nextCursorKeys).not.toBeNull()
-  })
-})
-
-/**
- * A VFS path names one knowledge base exactly. Resolving it by reading every base whose name
- * merely CONTAINS the term, then filtering in JS, makes a single-row lookup scale with the
- * workspace — the sibling `findActiveTablesByExactName` is the shape to match.
- */
-describe('findActiveKnowledgeBasesByExactName', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-  })
-
-  it('matches the name exactly and reads at most two rows', async () => {
-    await findActiveKnowledgeBasesByExactName('ws-1', 'Docs')
-
-    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
-    expect(
-      hasMockCondition(
-        condition,
-        (node) =>
-          node.type === 'eq' && node.left === schemaMock.knowledgeBase.name && node.right === 'Docs'
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
   })
 })
 
@@ -330,18 +293,16 @@ describe('knowledge base counts with live source permissions', () => {
         id: 'kb-1',
         workspaceId: 'ws-1',
         chunkingConfig: {},
-        docCount: 2,
-        tokenCount: 10,
         createdAt: new Date('2026-01-01'),
       },
     ])
-    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
+    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 }])
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { countsFor: access })
     expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
     expect(getForConnectors).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalledWith({
       connectorId: schemaMock.knowledgeConnector.id,
     })
-    expect(dbChainMockFns.groupBy).toHaveBeenCalledOnce()
   })
 
   it('does not retain stale totals when a live source no longer authorizes its documents', async () => {

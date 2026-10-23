@@ -15,7 +15,6 @@ import {
   INCIDENT_STATE_OPTIONS,
   PRIORITY_OPTIONS,
 } from '@/tools/servicenow/constants'
-import type { ServiceNowResponse } from '@/tools/servicenow/types'
 import { getTrigger } from '@/triggers'
 
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
@@ -169,7 +168,7 @@ export const ServiceNowBlock = {
   sunset: { status: 'legacy', replacedBy: 'servicenow_v2' },
   description: 'Create, read, update, and delete ServiceNow records',
   longDescription:
-    'Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.',
+    'Create or update incidents and change requests, order catalog items, and process approvals. Read configuration items, knowledge articles, users, and groups, and transfer attachments. Generic record, aggregate, and table-scoped attachment operations accept a table name. Connect with your ServiceNow instance URL, username, and password.',
   docsLink: 'https://docs.sim.ai/integrations/servicenow',
   category: 'tools',
   integrationType: IntegrationType.Support,
@@ -1923,7 +1922,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       'servicenow_webhook',
     ],
   },
-} satisfies BlockConfig<ServiceNowResponse>
+} satisfies BlockConfig
 
 export const ServiceNowV2Block: BlockConfig = {
   ...ServiceNowBlock,

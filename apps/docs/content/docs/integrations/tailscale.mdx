@@ -1,14 +1,13 @@
 ---
 title: Tailscale
 description: Manage devices and network settings in your Tailscale tailnet
+integration:
+  type: "tailscale"
+  color: "#2E2D2D"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="tailscale"
-  color="#2E2D2D"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Tailscale](https://tailscale.com) to manage devices, DNS, ACLs, auth keys, users, and routes in a tailnet.
@@ -24,23 +23,22 @@ The Tailscale block uses API key authentication. To get an API key:
 
 You must have an **Owner**, **Admin**, **IT admin**, or **Network admin** role to generate API keys.
 
-## Tailnet Identifier
+## Tailnet identifier [#tailnet-identifier]
 
 Every operation requires a **tailnet** parameter. This is typically your organization's domain name (e.g., `example.com`). You can also use `"-"` to refer to your default tailnet.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.
-
-
 
 ## Actions
 
 ### Tailscale List Devices
 
 List all devices in the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,9 +69,13 @@ List all devices in the tailnet
 |   ↳ `created` | string | Creation timestamp |
 | `count` | number | Total number of devices |
 
+</ReferenceDetails>
+
 ### Tailscale Get Device
 
 Get details of a specific device by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +109,13 @@ Get details of a specific device by ID
 | `machineKey` | string | Machine key |
 | `nodeKey` | string | Node key |
 
+</ReferenceDetails>
+
 ### Tailscale Delete Device
 
 Remove a device from the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -126,9 +132,13 @@ Remove a device from the tailnet
 | `success` | boolean | Whether the device was successfully deleted |
 | `deviceId` | string | ID of the deleted device |
 
+</ReferenceDetails>
+
 ### Tailscale Authorize Device
 
 Authorize or deauthorize a device on the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -147,9 +157,13 @@ Authorize or deauthorize a device on the tailnet
 | `deviceId` | string | Device ID |
 | `authorized` | boolean | Authorization status after the operation |
 
+</ReferenceDetails>
+
 ### Tailscale Set Device Tags
 
 Set tags on a device in the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -168,9 +182,13 @@ Set tags on a device in the tailnet
 | `deviceId` | string | Device ID |
 | `tags` | array | Tags set on the device |
 
+</ReferenceDetails>
+
 ### Tailscale Get Device Routes
 
 Get the subnet routes for a device
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +205,13 @@ Get the subnet routes for a device
 | `advertisedRoutes` | array | Subnet routes the device is advertising |
 | `enabledRoutes` | array | Subnet routes that are approved/enabled |
 
+</ReferenceDetails>
+
 ### Tailscale Set Device Routes
 
 Set the enabled subnet routes for a device
+
+<ReferenceDetails>
 
 #### Input
 
@@ -207,9 +229,13 @@ Set the enabled subnet routes for a device
 | `advertisedRoutes` | array | Subnet routes the device is advertising |
 | `enabledRoutes` | array | Subnet routes that are now enabled |
 
+</ReferenceDetails>
+
 ### Tailscale Update Device Key
 
 Enable or disable key expiry on a device
+
+<ReferenceDetails>
 
 #### Input
 
@@ -228,9 +254,13 @@ Enable or disable key expiry on a device
 | `deviceId` | string | Device ID |
 | `keyExpiryDisabled` | boolean | Whether key expiry is now disabled |
 
+</ReferenceDetails>
+
 ### Tailscale Expire Device Key
 
 Immediately expire a device's node key, requiring it to re-authenticate before it can reconnect to the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -247,9 +277,13 @@ Immediately expire a device's node key, requiring it to re-authenticate before i
 | `success` | boolean | Whether the device's key was successfully expired |
 | `deviceId` | string | Device ID |
 
+</ReferenceDetails>
+
 ### Tailscale List DNS Nameservers
 
 Get the DNS nameservers configured for the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -264,9 +298,13 @@ Get the DNS nameservers configured for the tailnet
 | --------- | ---- | ----------- |
 | `dns` | array | List of DNS nameserver addresses |
 
+</ReferenceDetails>
+
 ### Tailscale Set DNS Nameservers
 
 Set the DNS nameservers for the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -283,9 +321,13 @@ Set the DNS nameservers for the tailnet
 | `dns` | array | Updated list of DNS nameserver addresses |
 | `magicDNS` | boolean | Whether MagicDNS is enabled |
 
+</ReferenceDetails>
+
 ### Tailscale Get DNS Preferences
 
 Get the DNS preferences for the tailnet including MagicDNS status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +342,13 @@ Get the DNS preferences for the tailnet including MagicDNS status
 | --------- | ---- | ----------- |
 | `magicDNS` | boolean | Whether MagicDNS is enabled |
 
+</ReferenceDetails>
+
 ### Tailscale Set DNS Preferences
 
 Set DNS preferences for the tailnet (enable/disable MagicDNS)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +364,13 @@ Set DNS preferences for the tailnet (enable/disable MagicDNS)
 | --------- | ---- | ----------- |
 | `magicDNS` | boolean | Updated MagicDNS status |
 
+</ReferenceDetails>
+
 ### Tailscale Get DNS Search Paths
 
 Get the DNS search paths configured for the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -335,9 +385,13 @@ Get the DNS search paths configured for the tailnet
 | --------- | ---- | ----------- |
 | `searchPaths` | array | List of DNS search path domains |
 
+</ReferenceDetails>
+
 ### Tailscale Set DNS Search Paths
 
 Set the DNS search paths for the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -353,9 +407,13 @@ Set the DNS search paths for the tailnet
 | --------- | ---- | ----------- |
 | `searchPaths` | array | Updated list of DNS search path domains |
 
+</ReferenceDetails>
+
 ### Tailscale List Users
 
 List all users in the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,9 +439,13 @@ List all users in the tailnet
 |   ↳ `deviceCount` | number | Number of devices owned by user |
 | `count` | number | Total number of users |
 
+</ReferenceDetails>
+
 ### Tailscale Suspend User
 
 Suspend a user's access to the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -400,9 +462,13 @@ Suspend a user's access to the tailnet
 | `success` | boolean | Whether the user was successfully suspended |
 | `userId` | string | ID of the suspended user |
 
+</ReferenceDetails>
+
 ### Tailscale Delete User
 
 Delete a user from the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -419,9 +485,13 @@ Delete a user from the tailnet
 | `success` | boolean | Whether the user was successfully deleted |
 | `userId` | string | ID of the deleted user |
 
+</ReferenceDetails>
+
 ### Tailscale Create Auth Key
 
 Create a new auth key for the tailnet to pre-authorize devices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +522,13 @@ Create a new auth key for the tailnet to pre-authorize devices
 |   ↳ `preauthorized` | boolean | Whether devices are pre-authorized |
 |   ↳ `tags` | array | Tags applied to devices using this key |
 
+</ReferenceDetails>
+
 ### Tailscale List Auth Keys
 
 List all auth keys in the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -480,9 +554,13 @@ List all auth keys in the tailnet
 |     ↳ `tags` | array | Tags applied to devices |
 | `count` | number | Total number of auth keys |
 
+</ReferenceDetails>
+
 ### Tailscale Get Auth Key
 
 Get details of a specific auth key
+
+<ReferenceDetails>
 
 #### Input
 
@@ -507,9 +585,13 @@ Get details of a specific auth key
 |   ↳ `preauthorized` | boolean | Whether devices are pre-authorized |
 |   ↳ `tags` | array | Tags applied to devices using this key |
 
+</ReferenceDetails>
+
 ### Tailscale Delete Auth Key
 
 Revoke and delete an auth key
+
+<ReferenceDetails>
 
 #### Input
 
@@ -526,9 +608,13 @@ Revoke and delete an auth key
 | `success` | boolean | Whether the auth key was successfully deleted |
 | `keyId` | string | ID of the deleted auth key |
 
+</ReferenceDetails>
+
 ### Tailscale Get ACL
 
 Get the current ACL policy for the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -544,9 +630,13 @@ Get the current ACL policy for the tailnet
 | `acl` | string | ACL policy as JSON string |
 | `etag` | string | ETag for the current ACL version \(use with If-Match header for updates\) |
 
+</ReferenceDetails>
+
 ### Tailscale Set ACL
 
 Replace the ACL policy file for the tailnet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -563,5 +653,7 @@ Replace the ACL policy file for the tailnet
 | --------- | ---- | ----------- |
 | `acl` | string | Updated ACL policy as JSON string |
 | `etag` | string | ETag for the new ACL version \(use with If-Match header for future updates\) |
+
+</ReferenceDetails>
 
 

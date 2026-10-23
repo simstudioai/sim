@@ -1,35 +1,10 @@
-import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { mcpPubsubMock } from '@sim/testing/mocks/mcp-pubsub.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    MCP_SERVER_UPDATED: 'mcp_server_updated',
-    MCP_TOOL_UPDATED: 'mcp_tool_updated',
-  },
-  AuditResourceType: {
-    MCP_SERVER: 'mcp_server',
-    MCP_TOOL: 'mcp_tool',
-  },
-  recordAudit: vi.fn(),
-  auditUpdatedFields: auditMock.auditUpdatedFields,
-}))
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  workflow: schemaMock.workflow,
-  workflowMcpServer: schemaMock.workflowMcpServer,
-  workflowMcpTool: schemaMock.workflowMcpTool,
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  eq: vi.fn(),
-  inArray: vi.fn(),
-  isNull: vi.fn(),
-  ne: vi.fn(),
-  sql: Object.assign(vi.fn(), { raw: vi.fn((value: string) => value) }),
-}))
-vi.mock('@/lib/mcp/pubsub', () => ({ mcpPubSub: undefined }))
-vi.mock('@/lib/workflows/triggers/trigger-utils.server', () => ({
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
+vi.mock('@/lib/workflows/triggers/utils.server', () => ({
   hasValidStartBlock: vi.fn(),
 }))
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
@@ -41,7 +16,7 @@ import {
   performCreateWorkflowMcpServer,
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration/workflow-mcp-lifecycle'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 describe('workflow MCP lifecycle orchestration', () => {
   beforeEach(() => {

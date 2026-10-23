@@ -5,22 +5,22 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  knowledgeSearchUseCaseMock,
+  knowledgeSearchUseCaseMockFns,
+} from '@sim/testing/mocks/knowledge-search-use-case.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockSearch } = vi.hoisted(() => ({
-  mockSearch: vi.fn(),
-}))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mockSearch },
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 
 import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import { POST, V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES } from '@/app/api/v2/knowledge/search/route'
+
+const mockSearch = knowledgeSearchUseCaseMockFns.mockSearchKnowledgeExecute
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' } as const

@@ -16,7 +16,9 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import {
   addPermissionGroupMemberTx,
@@ -31,6 +33,7 @@ import {
   permissionRank,
   readWorkspacePermission,
   revokeWorkspaceAccessTx,
+  stopRunsWithoutWorkspaceAccessTx,
 } from '@/lib/workspaces/access/workspace-access'
 import {
   type MappingRow,
@@ -58,9 +61,24 @@ export interface ProjectionDelta {
   removed: ProjectionGrant[]
   /** Workspace grants whose level changed in either direction. */
   raised: ProjectionGrant[]
+  /**
+   * Chat runs the withdrawals stopped in the caller's transaction. Whoever owns that transaction
+   * delivers their Stop with `deliverRunStops` once it commits.
+   */
+  stoppedRuns: StoppedRun[]
 }
 
-const EMPTY_DELTA: ProjectionDelta = { added: [], removed: [], raised: [] }
+function emptyDelta(): ProjectionDelta {
+  return { added: [], removed: [], raised: [], stoppedRuns: [] }
+}
+
+type ProjectionChanges = Omit<ProjectionDelta, 'stoppedRuns'>
+
+function addChanges(total: ProjectionChanges, changes: ProjectionChanges): void {
+  total.added.push(...changes.added)
+  total.removed.push(...changes.removed)
+  total.raised.push(...changes.raised)
+}
 
 /** Users per transaction when projecting outside a request's own transaction; the organization lock is held for the batch. */
 export const PROJECTION_BATCH_SIZE = 25
@@ -195,7 +213,7 @@ async function findForeignWorkspaces(
 
 /** Applies one grant. `skipped` means the grant describes nothing this server can apply. */
 async function applyGrant(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     organizationId: string
     userId: string
@@ -259,13 +277,18 @@ async function applyGrant(
  * is simply inert for that one person.
  */
 async function setOrganizationRole(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string,
   userId: string,
   role: 'admin' | 'member'
 ): Promise<GrantOutcome> {
   try {
-    const change = await changeMemberRoleTx(tx, { organizationId, userId, role })
+    const change = await changeMemberRoleTx(tx, {
+      organizationId,
+      userId,
+      role,
+      deferRunStops: true,
+    })
     return change.changed ? 'applied' : 'unchanged'
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'conflict') {
@@ -284,16 +307,17 @@ async function setOrganizationRole(
 }
 
 /**
- * Withdraws one grant. Returns false when the grant must stay in place — the
- * access could not be handed on — so the provenance row survives and the next
- * pass retries instead of forgetting.
+ * Withdraws one grant, returning the workspaces where it may have ended the
+ * user's access. Returns null when the grant must stay in place — the access
+ * could not be handed on — so the provenance row survives and the next pass
+ * retries instead of forgetting.
  *
  * Adopted access — held by hand before any mapping covered it — is the person's
  * own, so the directory only forgets its record of it, unless the organization
  * has made the directory the source of truth.
  */
 async function withdrawGrant(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     organizationId: string
     userId: string
@@ -301,13 +325,13 @@ async function withdrawGrant(
     lockManualMembership: boolean
     foreignWorkspaceIds: Set<string>
   }
-): Promise<boolean> {
+): Promise<string[] | null> {
   const { grant } = params
-  if (grant.origin === 'adopted' && !params.lockManualMembership) return true
+  if (grant.origin === 'adopted' && !params.lockManualMembership) return []
   switch (grant.targetKind) {
     case 'workspace': {
       /** The workspace belongs to another tenant now; its access is theirs to manage. Forget the grant. */
-      if (params.foreignWorkspaceIds.has(grant.targetId)) return true
+      if (params.foreignWorkspaceIds.has(grant.targetId)) return []
       /**
        * A grant raised by hand above what the directory set is left alone. The
        * directory said "at least write"; someone deliberately made it admin, and
@@ -318,13 +342,13 @@ async function withdrawGrant(
         workspaceId: grant.targetId,
         userId: params.userId,
       })
-      if (!current) return true
+      if (!current) return []
       if (
         !params.lockManualMembership &&
         grant.permissionType &&
         permissionRank(current) > permissionRank(grant.permissionType)
       ) {
-        return true
+        return []
       }
       if (!params.lockManualMembership && grant.baselinePermission) {
         if (permissionRank(current) > permissionRank(grant.baselinePermission)) {
@@ -335,11 +359,12 @@ async function withdrawGrant(
             to: grant.baselinePermission,
           })
         }
-        return true
+        return []
       }
       const outcome = await revokeWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,
         userId: params.userId,
+        deferRunStops: true,
       })
       if (!outcome.revoked) {
         logger.warn('Left workspace access in place: ownership could not be handed on', {
@@ -347,14 +372,21 @@ async function withdrawGrant(
           userId: params.userId,
           reason: outcome.reason,
         })
-        return false
+        return null
       }
-      return true
+      return [grant.targetId]
     }
-    case 'org_role':
-      if (grant.targetId !== 'admin') return true
-      await setOrganizationRole(tx, params.organizationId, params.userId, 'member')
-      return true
+    case 'org_role': {
+      if (grant.targetId !== 'admin') return []
+      const demoted = await setOrganizationRole(tx, params.organizationId, params.userId, 'member')
+      if (demoted !== 'applied') return []
+      /** An organization admin reaches every organization workspace; the demotion may end any of them. */
+      const workspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.organizationId, params.organizationId))
+      return workspaces.map(({ id }) => id)
+    }
     case 'permission_group':
       try {
         await removePermissionGroupMemberTx(tx, {
@@ -368,7 +400,7 @@ async function withdrawGrant(
          * target column carries no foreign key. Withdrawing from nothing is
          * complete, not a failure.
          */
-        if (error instanceof PermissionGroupNotFoundError) return true
+        if (error instanceof PermissionGroupNotFoundError) return []
         /**
          * An administrator moved the group back to governing everyone, and its
          * last member cannot leave without emptying it. The grant stays on
@@ -381,11 +413,11 @@ async function withdrawGrant(
             userId: params.userId,
             conflict: error.message,
           })
-          return false
+          return null
         }
         throw error
       }
-      return true
+      return []
   }
 }
 
@@ -398,7 +430,7 @@ async function withdrawGrant(
  * without a dry-run mode.
  */
 export async function reconcileUserProjection(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     connectionId: string
     organizationId: string
@@ -412,7 +444,7 @@ export async function reconcileUserProjection(
     .where(and(eq(scimUser.id, params.scimUserId), eq(scimUser.connectionId, params.connectionId)))
     .limit(1)
 
-  if (!record) return EMPTY_DELTA
+  if (!record) return emptyDelta()
 
   /**
    * Taken before any target is touched. The organization lock is the root of
@@ -450,19 +482,20 @@ export async function reconcileUserProjection(
   })
   const plan = planGrantChanges(desired, current, actual)
 
-  const delta: ProjectionDelta = { added: [], removed: [], raised: [] }
+  const delta = emptyDelta()
+  const accessEndedIn = new Set<string>()
   const lockManualMembership = params.settings.lockManualMembership === true
 
   /** Withdrawals first, so a move between groups frees its workspace slot. */
   for (const grant of plan.withdraw) {
-    const withdrawn = await withdrawGrant(tx, {
+    const accessEnded = await withdrawGrant(tx, {
       organizationId: params.organizationId,
       userId: record.userId,
       grant,
       lockManualMembership,
       foreignWorkspaceIds,
     })
-    if (!withdrawn) continue
+    if (!accessEnded) continue
     await tx
       .delete(scimProjectionGrant)
       .where(
@@ -473,6 +506,7 @@ export async function reconcileUserProjection(
         )
       )
     delta.removed.push(grant)
+    for (const workspaceId of accessEnded) accessEndedIn.add(workspaceId)
   }
 
   for (const { grant, previousGrant } of plan.apply) {
@@ -571,27 +605,37 @@ export async function reconcileUserProjection(
     else delta.added.push(grant)
   }
 
+  /**
+   * Runs are judged once every withdrawal and grant above is in place: a run in
+   * a workspace this pass takes away and gives back, by grant or by role, keeps
+   * going.
+   */
+  delta.stoppedRuns = await stopRunsWithoutWorkspaceAccessTx(tx, record.userId, [...accessEndedIn])
   return delta
 }
 
 /** Reconciles several users, in a stable order so concurrent syncs cannot deadlock. */
 export async function reconcileUsersProjection(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     connectionId: string
     organizationId: string
     scimUserIds: string[]
     settings: ScimConnectionSettings
   }
-): Promise<void> {
+): Promise<ProjectionDelta> {
+  const total = emptyDelta()
   for (const scimUserId of [...new Set(params.scimUserIds)].sort()) {
-    await reconcileUserProjection(tx, {
+    const delta = await reconcileUserProjection(tx, {
       connectionId: params.connectionId,
       organizationId: params.organizationId,
       scimUserId,
       settings: params.settings,
     })
+    addChanges(total, delta)
+    total.stoppedRuns.push(...delta.stoppedRuns)
   }
+  return total
 }
 
 /**
@@ -601,30 +645,27 @@ export async function reconcileUsersProjection(
  * and an administrator changing a mapping on a large group. One transaction over
  * thousands of users would hold the organization's advisory locks for its whole
  * duration, blocking every invitation and role change in the tenant meanwhile.
+ *
+ * Each batch's stopped runs are delivered once that batch commits, so a later
+ * batch that fails neither loses an earlier batch's Stops nor delivers its own.
  */
 export async function reconcileUsersProjectionInBatches(params: {
   connectionId: string
   organizationId: string
   scimUserIds: string[]
   settings: ScimConnectionSettings
-}): Promise<ProjectionDelta> {
-  const total: ProjectionDelta = { added: [], removed: [], raised: [] }
+}): Promise<ProjectionChanges> {
+  const changes: ProjectionChanges = { added: [], removed: [], raised: [] }
   const ids = [...new Set(params.scimUserIds)].sort()
   for (let start = 0; start < ids.length; start += PROJECTION_BATCH_SIZE) {
-    const batch = ids.slice(start, start + PROJECTION_BATCH_SIZE)
-    await db.transaction(async (tx) => {
-      for (const scimUserId of batch) {
-        const delta = await reconcileUserProjection(tx, {
-          connectionId: params.connectionId,
-          organizationId: params.organizationId,
-          scimUserId,
-          settings: params.settings,
-        })
-        total.added.push(...delta.added)
-        total.removed.push(...delta.removed)
-        total.raised.push(...delta.raised)
-      }
-    })
+    const { stoppedRuns, ...batch } = await db.transaction((tx) =>
+      reconcileUsersProjection(tx, {
+        ...params,
+        scimUserIds: ids.slice(start, start + PROJECTION_BATCH_SIZE),
+      })
+    )
+    deliverRunStops(stoppedRuns)
+    addChanges(changes, batch)
   }
-  return total
+  return changes
 }

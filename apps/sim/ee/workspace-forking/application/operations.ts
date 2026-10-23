@@ -14,6 +14,7 @@ export const forkOperations = {
   discover: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.discover',
     oauthScope: 'api:read',
   }),
@@ -23,6 +24,7 @@ export const forkOperations = {
   preview: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.preview',
     oauthScope: 'api:write',
   }),
@@ -32,6 +34,7 @@ export const forkOperations = {
   create: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.create',
     oauthScope: 'api:write',
   }),
@@ -41,6 +44,7 @@ export const forkOperations = {
   syncPreview: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.sync.preview',
     oauthScope: 'api:write',
   }),
@@ -50,6 +54,7 @@ export const forkOperations = {
   sync: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.sync',
     oauthScope: 'api:write',
   }),
@@ -59,6 +64,7 @@ export const forkOperations = {
   mappingsRead: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.mappings.read',
     oauthScope: 'api:read',
   }),
@@ -68,6 +74,7 @@ export const forkOperations = {
   mappingsUpdate: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.mappings.update',
     oauthScope: 'api:write',
   }),
@@ -77,6 +84,7 @@ export const forkOperations = {
   rollback: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.rollback',
     oauthScope: 'api:write',
   }),
@@ -86,6 +94,7 @@ export const forkOperations = {
   unlink: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.unlink',
     oauthScope: 'api:write',
   }),
@@ -95,7 +104,21 @@ export const forkOperations = {
   exclusions: defineWorkspaceOperation({
     ...adminPolicy,
     capability: 'none',
+    contentDelivery: 'none',
     id: 'workspaces.fork.exclusions',
+    oauthScope: 'api:write',
+  }),
+  /**
+   * Admin on the calling workspace is sufficient; the write fans out to the whole lineage
+   * because the default must be uniform, and it never moves an existing workflow.
+   *
+   * permission-group-exempt: the new-workflow fork-sync default is workspace configuration governed by the admin role.
+   */
+  syncDefault: defineWorkspaceOperation({
+    ...adminPolicy,
+    capability: 'none',
+    contentDelivery: 'none',
+    id: 'workspaces.fork.sync_default',
     oauthScope: 'api:write',
   }),
 } as const

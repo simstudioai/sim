@@ -28,6 +28,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   listAvailable: defineWorkspaceOperation({
@@ -36,6 +37,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
@@ -44,6 +46,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   readAvailableByIdOrTitle: defineWorkspaceOperation({
@@ -51,6 +54,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot', 'executor'],
   }),
@@ -60,14 +64,7 @@ export const customToolOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  save: defineWorkspaceOperation({
-    id: 'custom_tools.save',
-    oauthScope: 'api:write',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -76,15 +73,8 @@ export const customToolOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
-  }),
-  updateAvailable: defineWorkspaceOperation({
-    id: 'custom_tools.update_available',
-    oauthScope: 'api:write',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'custom_tools.use',
-    ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'custom_tools.delete',
@@ -92,15 +82,8 @@ export const customToolOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
-  }),
-  deleteAvailable: defineWorkspaceOperation({
-    id: 'custom_tools.delete_available',
-    oauthScope: 'api:write',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'custom_tools.use',
-    ...HUMAN_PRINCIPAL_POLICY,
   }),
 } as const
 

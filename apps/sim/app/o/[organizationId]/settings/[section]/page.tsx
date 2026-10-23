@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
@@ -12,6 +11,7 @@ import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standa
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -40,8 +40,8 @@ export async function generateMetadata({
 
 /**
  * One settings surface for the organization view. An organization section runs
- * through the organization gate; an account section needs only the sign-in the
- * layout already established, and renders through the account plane's renderer.
+ * through the organization gate; account sections use the account renderer,
+ * with platform administration restricted to platform admins.
  */
 export default async function OrganizationSettingsSectionPage({
   params,
@@ -82,12 +82,17 @@ export default async function OrganizationSettingsSectionPage({
     return <OrganizationSettings section={resolved.section} />
   }
 
-  /** Account sections read URL params via nuqs, so the renderer sits under a boundary; nothing stands in for it. */
+  if (resolved.section === 'admin' || resolved.section === 'mothership') {
+    if (!(await isPlatformAdmin(session.user.id))) notFound()
+  }
+
+  /**
+   * No Suspense boundary: a fallback mounted with the section puts React's 300ms reveal floor
+   * under every switch (see the workspace section layout).
+   */
   const content = (
     <SettingsSectionProvider plane='account' section={resolved.section}>
-      <Suspense fallback={null}>
-        <AccountSettingsRenderer section={resolved.section} />
-      </Suspense>
+      <AccountSettingsRenderer section={resolved.section} />
     </SettingsSectionProvider>
   )
 

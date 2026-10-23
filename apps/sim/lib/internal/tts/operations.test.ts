@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   synthesizeAzure: vi.fn(),
@@ -9,8 +16,6 @@ const mocks = vi.hoisted(() => ({
   synthesizeLegacyElevenLabs: vi.fn(),
   synthesizeOpenAi: vi.fn(),
   synthesizePlayHt: vi.fn(),
-  uploadExecutionFile: vi.fn(),
-  uploadFile: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/tts/client', () => ({
@@ -23,15 +28,14 @@ vi.mock('@/lib/internal/tts/client', () => ({
   synthesizeOpenAi: mocks.synthesizeOpenAi,
   synthesizePlayHt: mocks.synthesizePlayHt,
 }))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { uploadFile: mocks.uploadFile },
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 import { executeOpenAiTts } from '@/lib/internal/tts/operations'
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+
+const { mockUploadFile } = storageServiceMockFns
 
 const AUDIO = {
   audioBuffer: Buffer.from('audio'),
@@ -40,7 +44,10 @@ const AUDIO = {
 }
 
 describe('TTS operations', () => {
+  afterAll(resetUrlsMock)
+
   beforeEach(() => {
+    urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
     for (const synthesize of [
       mocks.synthesizeAzure,
       mocks.synthesizeCartesia,
@@ -53,7 +60,7 @@ describe('TTS operations', () => {
     ]) {
       synthesize.mockResolvedValue(AUDIO)
     }
-    mocks.uploadExecutionFile.mockResolvedValue({
+    mockUploadExecutionFile.mockResolvedValue({
       id: 'file-1',
       name: 'speech.mp3',
       url: 'https://execution.example/speech.mp3',
@@ -61,7 +68,7 @@ describe('TTS operations', () => {
       type: AUDIO.mimeType,
       key: 'execution/speech.mp3',
     })
-    mocks.uploadFile.mockResolvedValue({
+    mockUploadFile.mockResolvedValue({
       key: 'copilot/speech.mp3',
       path: '/api/files/serve/copilot/speech.mp3',
       size: AUDIO.audioBuffer.length,
@@ -74,8 +81,8 @@ describe('TTS operations', () => {
       { requestId: 'request-1', userId: 'user-1' }
     )
 
-    expect(mocks.uploadExecutionFile).not.toHaveBeenCalled()
-    expect(mocks.uploadFile).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockUploadFile).toHaveBeenCalledWith(
       expect.objectContaining({ context: 'copilot', file: AUDIO.audioBuffer })
     )
     expect(result).toEqual({

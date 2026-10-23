@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -20,7 +20,10 @@ import { getBlock as getRealBlock } from '@/blocks/registry'
  * route the barrel's `getBlock` to the real registry via a spy on the shared
  * barrel namespace — it patches whichever instance the cached module reads.
  */
-const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+let getBlockSpy: MockInstance<typeof blocksBarrel.getBlock>
+beforeEach(() => {
+  getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+})
 
 afterAll(() => {
   getBlockSpy.mockRestore()
@@ -123,6 +126,168 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it.each([
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: '42' },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: '' },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: null },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: false },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: 0 },
+    { operation: 'convert_prospect', value: '42' },
+  ])(
+    'preserves bare Greenhouse input $value during import normalization',
+    ({ operation, value }) => {
+      const legacySubBlocks: Record<string, unknown> = {
+        operation,
+        id: { id: 'id', type: 'short-input', value: 'unrelated-candidate' },
+        update_application_id: value,
+        convert_prospect_job_id: '<lookup.job.id>',
+      }
+      const block = makeBlock({
+        type: 'greenhouse_v2',
+        subBlocks: legacySubBlocks as BlockState['subBlocks'],
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      const saved = result.blocks['block-1'].subBlocks
+      expect(saved.id.value).toBe(value)
+      expect(saved.job_id.value).toBe('<lookup.job.id>')
+      expect(saved).not.toHaveProperty('update_application_id')
+      expect(migrateSubblockIds(result.blocks).migrated).toBe(false)
+    }
+  )
+
+  it('retains wrapped Greenhouse source metadata while replacing the canonical target', () => {
+    const source = {
+      id: 'update_application_id',
+      type: 'short-input' as const,
+      value: '42',
+      metadata: { source: { reference: 'candidate-lookup' } },
+    }
+    const block = makeBlock({
+      type: 'greenhouse_v2',
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'update_application' },
+        id: { id: 'id', type: 'short-input', value: 'unrelated-candidate' },
+        update_application_id: source,
+      },
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.blocks['block-1'].subBlocks.id).toMatchObject({
+      value: '42',
+      metadata: source.metadata,
+    })
+    expect(block.subBlocks.update_application_id).toBe(source)
+  })
+
+  it('preserves a bare Greenhouse array over a stale list filter during import', () => {
+    const legacySubBlocks: Record<string, unknown> = {
+      operation: { id: 'operation', type: 'dropdown', value: 'create_application' },
+      job_ids: { id: 'job_ids', type: 'short-input', value: '99' },
+      create_application_job_ids: [42, 81],
+    }
+    const block = makeBlock({
+      type: 'greenhouse_v2',
+      subBlocks: legacySubBlocks as BlockState['subBlocks'],
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.blocks['block-1'].subBlocks.job_ids.value).toEqual([42, 81])
+    expect(result.blocks['block-1'].subBlocks).not.toHaveProperty('create_application_job_ids')
+  })
+
+  it.each(['42', ''])(
+    'preserves the active Greenhouse alias %j over an unrelated stored target',
+    (value) => {
+      const block = makeBlock({
+        type: 'greenhouse_v2',
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' },
+          id: { id: 'id', type: 'short-input', value: 'stale-candidate' },
+          update_application_id: { id: 'update_application_id', type: 'short-input', value },
+          job_id: { id: 'job_id', type: 'short-input', value: '123' },
+          convert_prospect_job_id: {
+            id: 'convert_prospect_job_id',
+            type: 'short-input',
+            value: '<lookup.job.id>',
+          },
+          created_at_filter: {
+            id: 'created_at_filter',
+            type: 'code',
+            value: '{"gte":"2026-01-01"}',
+          },
+        },
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      const saved = result.blocks['block-1'].subBlocks
+      expect(saved.id.value).toBe(value)
+      expect(saved.job_id.value).toBe('<lookup.job.id>')
+      expect(saved).not.toHaveProperty('update_application_id')
+      expect(saved).not.toHaveProperty('convert_prospect_job_id')
+      expect(saved).not.toHaveProperty('created_at_filter')
+      expect(block.subBlocks.id.value).toBe('stale-candidate')
+      expect(migrateSubblockIds(result.blocks).migrated).toBe(false)
+    }
+  )
+
+  it.each([undefined, 'unrecognized_operation'])(
+    'preserves incomplete Greenhouse imports with operation %j',
+    (operation) => {
+      const block = makeBlock({
+        type: 'greenhouse_v2',
+        subBlocks: {
+          ...(operation
+            ? { operation: { id: 'operation', type: 'dropdown' as const, value: operation } }
+            : {}),
+          update_application_id: { id: 'update_application_id', type: 'short-input', value: '42' },
+          created_at_filter: {
+            id: 'created_at_filter',
+            type: 'code',
+            value: '{"gte":"2026-01-01"}',
+          },
+        },
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      expect(result.migrated).toBe(false)
+      expect(result.blocks['block-1']).toBe(block)
+    }
+  )
+
+  it('drops inactive Greenhouse aliases before a later operation switch can overwrite a new value', () => {
+    const block = makeBlock({
+      type: 'greenhouse_v2',
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'create_candidate' },
+        id: { id: 'id', type: 'short-input', value: null },
+        update_application_id: { id: 'update_application_id', type: 'short-input', value: '' },
+      },
+    })
+    const first = migrateSubblockIds({ 'block-1': block })
+    expect(first.blocks['block-1'].subBlocks).not.toHaveProperty('update_application_id')
+    const edited = {
+      ...first.blocks['block-1'],
+      subBlocks: {
+        ...first.blocks['block-1'].subBlocks,
+        operation: { id: 'operation', type: 'dropdown' as const, value: 'update_application' },
+        id: { id: 'id', type: 'short-input' as const, value: '123' },
+      },
+    }
+    const second = migrateSubblockIds({ 'block-1': edited })
+    expect(second.blocks['block-1'].subBlocks.id.value).toBe('123')
+    expect(second.migrated).toBe(false)
+  })
+
+  it('leaves the legacy Greenhouse block unchanged', () => {
+    const block = makeBlock({
+      type: 'greenhouse',
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'get_candidate' },
+        id: { id: 'id', type: 'short-input', value: '42' },
+        update_application_id: { id: 'update_application_id', type: 'short-input', value: '99' },
+      },
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.migrated).toBe(false)
+    expect(result.blocks['block-1']).toBe(block)
+  })
+
   it('preserves MCP canonical modes through the full normalization pipeline', () => {
     const block = makeBlock({
       type: 'mcp',

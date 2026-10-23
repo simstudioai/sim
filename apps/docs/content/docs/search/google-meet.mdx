@@ -1,0 +1,65 @@
+---
+title: Google Meet
+description: Find recent transcripts and generated-note links from Meet conferences
+---
+
+Google Meet Search finds recent finalized transcripts and generated-note links. It uses **Member accounts** and your Meet permissions. Use Drive for saved note bodies and older documents; use Calendar for scheduled meetings.
+
+## Connect
+
+1. An admin adds **Google Meet → Member accounts** in **Settings → Sources**.
+2. In **Integrations**, select **Connect** beside Google Meet and authorize your Google account. Your Workspace administrator may need to approve the app.
+3. Return to Sim, confirm the account appears, then search a phrase from a recent meeting and read the result.
+
+No service account is required. Search only reads conference records and artifacts, using the connection's `meetings.space.readonly` scope. Its `meetings.space.created` scope supports workflow actions.
+
+## Search recent meetings
+
+Use plain words or a phrase with optional meeting start dates. Native queries support:
+
+| Field | Behavior |
+| --- | --- |
+| `kind: transcript` | Searches finalized speech and participant names. |
+| `kind: smart_notes` | Finds generated-note metadata and a Google Docs link, without searching or returning the note body. |
+| No kind | Searches both artifact types. |
+| `project` | Known `spaces/ID` or meeting code. |
+
+Meet has no title or full-text search endpoint. Sim matches terms locally within at most three recent conferences and five finalized artifacts per call, reporting bounded coverage. Narrow dates or supply a known space; missing results do not establish absence.
+
+Dates use actual conference start, with an exclusive upper bound. Boolean operators, ownership filters, and modification-date filters are unsupported.
+
+## Read transcripts and saved documents
+
+Reads retrieve complete finalized transcripts within request, entry, and byte limits. Speaker attribution and timestamps are preserved. Incomplete reads are rejected rather than presented as complete transcripts. Sim does not process recording audio or generate missing artifacts.
+
+Conference records and transcript entries expire 30 days after the conference ends. Transcription or note-taking must have been enabled. [Meet conference records](https://developers.google.com/workspace/meet/api/reference/rest/v2/conferenceRecords), [artifact retention](https://developers.google.com/workspace/meet/api/guides/artifacts).
+
+Connect **Google Drive** to read saved transcripts and note bodies, including older shared documents remaining in the organizer's Drive. Use a Drive query such as `fullText contains 'rollback' and mimeType = 'application/vnd.google-apps.document'`. Drive dates mean modification time, not meeting dates; document sharing and retention still apply.
+
+Connect **Google Calendar** for scheduled meetings and invitations. A calendar event does not prove a transcript or recording exists.
+
+## Disconnect and troubleshoot
+
+Disconnect through the **…** menu beside Google Meet in **Integrations** and confirm. Workflows using the connection lose access too. This does not delete Drive transcripts or notes.
+
+| Problem | Check |
+| --- | --- |
+| Connect unavailable or permission denied | Ask an admin to enable the source and complete Google OAuth setup; Workspace app approval may also be needed. |
+| **Reconnect** needed | Authorize the account again. |
+| Transcript missing | Check meeting dates/space, transcription settings, and the 30-day API window. Use Drive for older saved documents and note bodies. |
+
+## Self-hosted operator setup
+
+Follow [Google OAuth setup](/platform/self-hosting/integrations-oauth#google), enable **Google Meet REST API**, and configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Register:
+
+```text
+https://<your-sim-domain>/api/auth/oauth2/callback/google-meet
+```
+
+The Meet scopes are sensitive. External OAuth apps may require Google verification; see [Meet authorization](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize). The canonical setup guide contains the full member scope list and consent steps.
+
+## Related docs
+
+- [Google Drive](/search/google-drive)
+- [Google Calendar](/search/google-calendar)
+- [Contact support](mailto:help@sim.ai)

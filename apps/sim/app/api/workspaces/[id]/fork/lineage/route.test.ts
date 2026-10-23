@@ -1,56 +1,51 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
+import {
+  workspaceForkingLineageMock,
+  workspaceForkingLineageMockFns,
+} from '@sim/testing/mocks/workspace-forking-lineage.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const {
-  mockAuthorizeWorkspaceOperation,
-  mockGetForkParent,
-  mockGetForkChildren,
-  mockGetUndoableRunForTarget,
-  mockGetEffectiveWorkspacePermission,
-} = vi.hoisted(() => ({
-  mockAuthorizeWorkspaceOperation: vi.fn(),
-  mockGetForkParent: vi.fn(),
-  mockGetForkChildren: vi.fn(),
+const { mockGetUndoableRunForTarget } = vi.hoisted(() => ({
   mockGetUndoableRunForTarget: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertForkingEnabled: vi.fn(),
-  ForkError: class extends Error {},
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  getForkParent: mockGetForkParent,
-  getForkChildren: mockGetForkChildren,
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 
 vi.mock('@/ee/workspace-forking/lib/promote/promote-run-store', () => ({
   getUndoableRunForTarget: mockGetUndoableRunForTarget,
 }))
 
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  authorizeWorkspaceOperation: mockAuthorizeWorkspaceOperation,
-  requireAllowedWorkspacePrincipal: vi.fn(),
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
-    id,
-    organizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/workspaces/[id]/fork/lineage/route'
 
+const { mockGetForkParent, mockGetForkChildren } = workspaceForkingLineageMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockAuthorizeWorkspaceOperation =
+  workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation
+const { mockGetEffectiveWorkspacePermission } = permissionsMockFns
+permissionsMockFns.mockGetWorkspaceWithOwner.mockImplementation(async (id: string) => ({
+  id,
+  organizationId: null,
+  allowPersonalApiKeys: true,
+}))
 
 const WORKSPACE_ID = 'workspace-1'
 const VIEWER_ID = 'user-1'
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 const parentNode = { id: 'parent-1', name: 'Parent', organizationId: 'org-1' }
 const childCreatedAt = new Date('2026-01-02T03:04:05.000Z')

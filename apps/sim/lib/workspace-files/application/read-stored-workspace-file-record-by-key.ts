@@ -6,7 +6,8 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { type FileMetadataRecord, getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
-import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { workspaceFileDelegationPolicy } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
@@ -70,7 +71,7 @@ export const readStoredWorkspaceFileRecordByKey = defineAuthorizedWorkspaceUseCa
           principal.resourceScope.chatId === context.file.chatId),
     },
   },
-  async execute({ input, context }): Promise<{ file: FileMetadataRecord }> {
+  async execute({ input, context, principal }): Promise<{ file: FileMetadataRecord }> {
     const file = await getFileMetadataByKey(input.key)
     if (
       !file ||
@@ -84,6 +85,18 @@ export const readStoredWorkspaceFileRecordByKey = defineAuthorizedWorkspaceUseCa
     ) {
       throw new StoredWorkspaceFileUnavailableError()
     }
+    /** Callers read and hand on this key's raw bytes, which no redaction reaches. */
+    await requireAdmittedWorkspaceFile(
+      principal,
+      context.workspaceId,
+      {
+        id: file.id,
+        key: file.key,
+        storageContext: context.file.context === 'mothership' ? 'mothership' : 'workspace',
+        contentUpdatedAt: file.contentUpdatedAt,
+      },
+      'opaque'
+    )
     return { file }
   },
 })

@@ -1,12 +1,12 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface TemporalBaseParams {
+interface TemporalBaseParams {
   serverUrl: string
   namespace: string
   apiKey?: string
 }
 
-export interface TemporalExecutionSummary {
+interface TemporalExecutionSummary {
   workflowId: string | null
   runId: string | null
   workflowType: string | null
@@ -18,7 +18,7 @@ export interface TemporalExecutionSummary {
   taskQueue: string | null
 }
 
-export interface TemporalPendingActivity {
+interface TemporalPendingActivity {
   activityId: string | null
   activityType: string | null
   state: string | null
@@ -26,7 +26,7 @@ export interface TemporalPendingActivity {
   lastFailureMessage: string | null
 }
 
-export interface TemporalHistoryEventSummary {
+interface TemporalHistoryEventSummary {
   eventId: number | null
   eventTime: string | null
   eventType: string | null
@@ -189,7 +189,7 @@ export interface TemporalResetWorkflowResponse extends ToolResponse {
   }
 }
 
-export interface TemporalScheduleSummary {
+interface TemporalScheduleSummary {
   scheduleId: string | null
   workflowType: string | null
   paused: boolean
@@ -306,21 +306,3 @@ export interface TemporalTerminateWorkflowResponse extends ToolResponse {
     workflowId: string
   }
 }
-
-export type TemporalResponse =
-  | TemporalStartWorkflowResponse
-  | TemporalSignalWorkflowResponse
-  | TemporalSignalWithStartResponse
-  | TemporalQueryWorkflowResponse
-  | TemporalUpdateWorkflowResponse
-  | TemporalDescribeWorkflowResponse
-  | TemporalListWorkflowsResponse
-  | TemporalCountWorkflowsResponse
-  | TemporalGetWorkflowHistoryResponse
-  | TemporalCancelWorkflowResponse
-  | TemporalTerminateWorkflowResponse
-  | TemporalResetWorkflowResponse
-  | TemporalListSchedulesResponse
-  | TemporalDescribeScheduleResponse
-  | TemporalScheduleMutationResponse
-  | TemporalDescribeTaskQueueResponse

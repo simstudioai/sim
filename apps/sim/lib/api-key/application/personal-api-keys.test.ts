@@ -1,35 +1,38 @@
 import { apiKey, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
   withheld: vi.fn(),
   display: vi.fn(),
-  audit: vi.fn(),
-  analytics: vi.fn(),
 }))
 vi.mock('@/lib/users/application/preferences-authorization', () => ({
-  authorizeAccountPreferences: mocks.authorize,
+  authorizeAccountPreferences: hoisted.authorize,
 }))
 vi.mock('@/lib/permission-groups/user-scope.server', () => ({
-  isCapabilityWithheldForUser: mocks.withheld,
+  isCapabilityWithheldForUser: hoisted.withheld,
 }))
-vi.mock('@/lib/api-key/auth', () => ({ getApiKeyDisplayFormat: mocks.display }))
+vi.mock('@/lib/api-key/auth', () => ({ getApiKeyDisplayFormat: hoisted.display }))
 vi.mock('@/lib/api-key/orchestration', () => ({ performCreatePersonalApiKey: vi.fn() }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { PERSONAL_API_KEY_REVOKED: 'personal_api_key.revoked' },
-  AuditResourceType: { API_KEY: 'api_key' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   listPersonalApiKeys,
   revokePersonalApiKey,
 } from '@/lib/api-key/application/personal-api-keys'
 
-const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  audit: auditMockFns.mockRecordAudit,
+  analytics: posthogServerMockFns.mockCaptureServerEvent,
+}
+
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 beforeEach(() => {
   resetDbChainMock()
   mocks.authorize.mockResolvedValue('actor')

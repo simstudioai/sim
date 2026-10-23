@@ -24,12 +24,16 @@ interface SidebarSeparatorProps {
 export function SidebarItem({ item }: SidebarItemProps) {
   const pathname = usePathname()
   const { prefetch, setOpen } = useSidebar()
+  const [prefetchIntent, setPrefetchIntent] = useState(false)
   const active = item.url === pathname
 
   return (
     <ChipLink
       href={item.url}
-      prefetch={prefetch}
+      prefetch={prefetchIntent ? null : prefetch}
+      onMouseEnter={() => setPrefetchIntent(true)}
+      onFocus={() => setPrefetchIntent(true)}
+      onTouchStart={() => setPrefetchIntent(true)}
       fullWidth
       active={active}
       data-active={active}
@@ -48,6 +52,7 @@ export function SidebarFolder({ item, children }: SidebarFolderProps) {
   const contentId = useId()
   const pathname = usePathname()
   const { prefetch, open: drawerOpen, setOpen } = useSidebar()
+  const [prefetchIntent, setPrefetchIntent] = useState(false)
   const [manualOpen, setManualOpen] = useState<{ pathname: string; open: boolean } | null>(null)
   if (manualOpen && manualOpen.pathname !== pathname) setManualOpen(null)
   const hasChildren = item.children.length > 0
@@ -69,7 +74,10 @@ export function SidebarFolder({ item, children }: SidebarFolderProps) {
       {item.index ? (
         <ChipLink
           href={item.index.url}
-          prefetch={prefetch}
+          prefetch={prefetchIntent ? null : prefetch}
+          onMouseEnter={() => setPrefetchIntent(true)}
+          onFocus={() => setPrefetchIntent(true)}
+          onTouchStart={() => setPrefetchIntent(true)}
           fullWidth
           active={active}
           data-active={active}
@@ -103,18 +111,8 @@ export function SidebarFolder({ item, children }: SidebarFolderProps) {
         </Chip>
       )}
       {hasChildren && (
-        <div
-          id={contentId}
-          inert={!open}
-          aria-hidden={!open}
-          className={cn(
-            'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out motion-reduce:transition-none',
-            open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-          )}
-        >
-          <div className='overflow-hidden'>
-            <div className='mt-px ml-4 flex flex-col gap-px'>{children}</div>
-          </div>
+        <div id={contentId} hidden={!open}>
+          {open && <div className='mt-px ml-4 flex flex-col gap-px'>{children}</div>}
         </div>
       )}
     </div>

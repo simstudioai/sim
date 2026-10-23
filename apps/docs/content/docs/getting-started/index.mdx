@@ -1,95 +1,85 @@
 ---
-title: Getting Started
-description: Build your first agent in 10 minutes — a people researcher with web search tools and structured output.
+title: Getting started
+description: Build a workflow that summarizes text, then inspect its output.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 
-Build a people research agent in 10 minutes. It takes a name through a chat interface, searches the web with AI search tools, and returns structured JSON with the person's location, profession, and education.
+Build and run a simple summarizer with a Start block and an Agent block.
 
-<Image
-  src="/static/getting-started/started-1.png"
-  alt="The finished people research workflow"
-  width={800}
-  height={340}
-/>
+You need a workspace where you can edit and run workflows, and access to a chat model. Configure model credentials if prompted. Model calls can incur [usage charges](/platform/costs).
 
-## Tutorial
+## Start in Chat
+
+Select **New chat** and ask:
+
+> Build a workflow that summarizes a product update in one sentence. Use a Start block and an Agent block, and open it beside this chat.
+
+Inspect the blocks and resolve any missing model credentials before running. You can ask Sim to refine the workflow or edit it directly in the side panel. See [Workflows in Chat](/chat/workflows).
+
+## Build it in the workflow builder
+
+To configure the same pattern yourself, follow these steps. This example keeps the update in the Agent's prompt; [connection tags](/workflows/connections) let you pass changing inputs later.
 
 <Steps>
-  <Step title="Create a workflow and add an Agent">
-    In the sidebar, click the **+** next to **Workflows** and name the new workflow "Getting Started". The **Start block** is already on the canvas — it's the entry point that receives your chat input.
+<Step>
 
-    Drag an **Agent block** onto the canvas and configure its **Messages**:
-    - **System**: "You are a people research agent. When given a person's name, use your search tools to find their location, profession, educational background, and other relevant details."
-    - **User**: insert `<start.input>` so the agent reads whatever the chat receives.
+### Create a workflow
 
-    Leave the **Model** on the default (`claude-sonnet-5`), or pick any other.
+Click **+** beside **Workflows** in the sidebar. The new workflow contains a **Start** block.
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-2.mp4" width={700} height={450} />
-    </div>
-  </Step>
+Open **Toolbar**, search for **Agent**, and click it to add the block. Connect Start's output handle to Agent's input handle if they are not already connected.
 
-  <Step title="Add search tools">
-    In the Agent block's **Tools** section, add **Exa** and **Linkup**. The agent decides when to call them.
+</Step>
+<Step>
 
-    <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-      <Video src="getting-started/started-3.mp4" width={700} height={450} />
-    </div>
-  </Step>
+### Give the Agent a task
 
-  <Step title="Test it">
-    Open the **Chat panel**, select `agent.content` as the output to display, and send: *"John is a software engineer from San Francisco who studied Computer Science at Stanford University."*
+Select Agent to open its fields in **Editor**. Choose an available chat model in **Model**. Rename the block **Summarize update** using the pencil beside its name.
 
-    The agent searches, then returns what it found.
+In **Messages**, set the message role to **User** and paste:
 
-    {/* Why this callout exists: the largest funnel drop in platform data (2026-06) is created-a-workflow -> first-successful-run, 92% -> 49% — this is the stall point it targets. */}
-    <Callout type="info">
-    If the run doesn't go green, open the output dropdown and read what each block returned — the failure is almost always visible there. The two most common causes are a missing API key on a tool and a reference pointing at a value that isn't there. For the full method, see [tracing a failure backward](/logs-debugging).
-    </Callout>
+```text
+Summarize this update in one sentence:
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-4.mp4" width={700} height={450} />
-    </div>
-  </Step>
+We launched the new dashboard on Monday. Customers can now filter
+reports by team and export them as CSV. The mobile layout is still
+in progress.
+```
 
-  <Step title="Add structured output">
-    In the Agent block's **Response Format**, click the magic wand (✨) and prompt: *"create a schema named person, that contains location, profession, and education"*. The schema is generated for you.
+</Step>
+<Step>
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-5.mp4" width={700} height={450} />
-    </div>
-  </Step>
+### Run and check the result
 
-  <Step title="Test the structured output">
-    Back in the **Chat panel**, select the new structured output option and send: *"Sarah is a marketing manager from New York who has an MBA from Harvard Business School."*
+Click **Run**. Expand **Logs** at the bottom of the builder, select **Summarize update**, and open **Output**.
 
-    The agent now returns JSON with `location`, `profession`, and `education` fields — ready for any downstream block to read by name.
+The `content` field contains the summary. It should look like this; the wording may vary:
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-6.mp4" width={700} height={450} />
-    </div>
-  </Step>
+> The new dashboard adds team filters and CSV exports, with the mobile layout still in progress.
+
+Change the update in **Messages** and run it again to see the result change.
+
+</Step>
 </Steps>
 
-## Next
+<Image
+  src="/static/getting-started/first-run.webp"
+  alt="The summarizer workflow open beside Chat, with Sim showing its latest successful output"
+  width={2400}
+  height={1200}
+  variant="overview"
+  background="san-francisco"
+  caption="Keep the workflow open beside Chat to inspect its blocks and ask about a run."
+/>
 
-<Cards>
-  <Card title="Workflows" href="/workflows">
-    The full model: blocks, connections, triggers, and how runs execute.
-  </Card>
-  <Card title="Agent block" href="/workflows/blocks/agent">
-    Everything the block you just used can do — tools, memory, skills, structured output.
-  </Card>
-  <Card title="Integrations" href="/integrations">
-    supported services your agents can act on, from Gmail to HubSpot.
-  </Card>
-  <Card title="Deploy it" href="/workflows/deployment">
-    Ship the workflow as an API, a chat, or an MCP server.
-  </Card>
-</Cards>
+## If the run fails [#fix-a-failed-run]
+
+Select the failed block in **Logs** and read its error. Check the selected model and its credentials, then run again. See [Logs and debugging](/logs-debugging) for more help.
+
+## Next steps
+
+- [Build a research agent](/getting-started/research-agent): Add web search tools and structured output.
+- [Pass data between blocks](/workflows/connections): Use references such as `<start.input>`.
+- [Deploy your workflow](/workflows/deployment): Make it available through an API, chat, or MCP server.

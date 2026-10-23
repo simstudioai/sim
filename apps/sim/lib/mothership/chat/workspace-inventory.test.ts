@@ -1,58 +1,79 @@
+import { knowledgeBaseUseCasesMock } from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { mcpUseCasesMock } from '@sim/testing/mocks/mcp-use-cases.mock'
+import { secretsUseCasesMock } from '@sim/testing/mocks/secrets-use-cases.mock'
+import { tableApplicationTablesMock } from '@sim/testing/mocks/table-application-tables.mock'
+import { workspaceFilesListMock } from '@sim/testing/mocks/workspace-files-list.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => {
+const { pages } = vi.hoisted(() => {
   const page = (body: Record<string, unknown>) => ({ execute: vi.fn(async () => body) })
   return {
-    mocks: {
+    pages: {
       workflows: page({
         workflows: [{ id: 'wf-1', name: 'Lead Scorer', folderPath: '/Sales', isDeployed: true }],
         nextCursorKeys: null,
       }),
-      tables: page({ tables: [{ table: { id: 'tbl_1', name: 'leads' } }], nextKeys: ['x'] }),
-      knowledge: page({ knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' } }] }),
-      files: page({
-        files: [{ id: 'wf_a', name: 'q3.md', folderPath: '/Reports', size: 12 }],
-        nextKeys: null,
+      skills: page({
+        skills: [
+          { id: 'builtin-research', name: 'research', description: 'Research a topic.' },
+          { id: 'skill-1', name: 'invoice-formatting', description: '' },
+        ],
+        hasMore: false,
       }),
-      skills: page({ skills: [{ name: 'research' }], hasMore: false }),
       customTools: page({ tools: [{ id: 'ct-1', title: 'Lookup' }] }),
-      mcp: page({ servers: [{ id: 'mcp-1', name: 'GitHub' }] }),
       credentials: page({
         credentials: [
           { id: 'cred-1', displayName: 'Slack bot', providerId: 'slack', type: 'service_account' },
         ],
         nextCursorKeys: null,
       }),
-      secrets: page({
-        secrets: [{ envKey: 'OPENAI_API_KEY', displayName: 'openai' }],
-        nextCursorKeys: null,
-      }),
     },
   }
 })
 
-vi.mock('@/lib/workflows/application/list-workflows', () => ({ listWorkflows: mocks.workflows }))
-vi.mock('@/lib/table/application/tables', () => ({ listTablesUseCase: mocks.tables }))
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  listKnowledgeBases: mocks.knowledge,
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  queryWorkspaceFilePage: mocks.files,
-}))
-vi.mock('@/lib/skills/application/use-cases', () => ({ listSkillsUseCase: mocks.skills }))
+vi.mock('@/lib/workflows/application/list-workflows', () => ({ listWorkflows: pages.workflows }))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
+vi.mock('@/lib/skills/application/use-cases', () => ({ listSkillsUseCase: pages.skills }))
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
-  listWorkspaceCustomToolsUseCase: mocks.customTools,
+  listWorkspaceCustomToolsUseCase: pages.customTools,
 }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({ listMcpServersUseCase: mocks.mcp }))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/credentials/application/list-workspace-credentials', () => ({
-  listWorkspaceCredentials: mocks.credentials,
+  listWorkspaceCredentials: pages.credentials,
 }))
-vi.mock('@/lib/secrets/application/use-cases', () => ({ listSecretsUseCase: mocks.secrets }))
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 
+const mocks = {
+  ...pages,
+  tables: tableApplicationTablesMock.listTablesUseCase,
+  knowledge: knowledgeBaseUseCasesMock.listKnowledgeBases,
+  files: workspaceFilesListMock.queryWorkspaceFilePage,
+  mcp: mcpUseCasesMock.listMcpServersUseCase,
+  secrets: secretsUseCasesMock.listSecretsUseCase,
+}
+mocks.tables.execute.mockImplementation(async () => ({
+  tables: [{ table: { id: 'tbl_1', name: 'leads' } }],
+  nextKeys: ['x'],
+}))
+mocks.knowledge.execute.mockImplementation(async () => ({
+  knowledgeBases: [{ knowledgeBase: { id: 'kb-1', name: 'Docs' } }],
+}))
+mocks.files.execute.mockImplementation(async () => ({
+  files: [{ id: 'wf_a', name: 'q3.md', folderPath: '/Reports', size: 12 }],
+  nextKeys: null,
+}))
+mocks.mcp.execute.mockImplementation(async () => ({ servers: [{ id: 'mcp-1', name: 'GitHub' }] }))
+mocks.secrets.execute.mockImplementation(async () => ({
+  secrets: [{ envKey: 'OPENAI_API_KEY', displayName: 'openai' }],
+  nextCursorKeys: null,
+}))
+
 describe('buildWorkspaceInventory', () => {
-  it('reads every world under the caller principal, by name and id, and names the capped worlds', async () => {
+  it('reads every world under the caller principal, by name and id, skills with their descriptions, and names the capped worlds', async () => {
     const principal = { kind: 'session', userId: 'user-1', sessionId: 's-1' } as const
     const inventory = await buildWorkspaceInventory(principal, 'ws-1')
     expect(inventory.workflows).toEqual([
@@ -60,6 +81,10 @@ describe('buildWorkspaceInventory', () => {
     ])
     expect(inventory.tables).toEqual([{ id: 'tbl_1', name: 'leads' }])
     expect(inventory.files).toEqual([{ path: 'files/Reports/q3.md', size: 12 }])
+    expect(inventory.skills).toEqual([
+      { id: 'builtin-research', name: 'research', description: 'Research a topic.' },
+      { id: 'skill-1', name: 'invoice-formatting' },
+    ])
     expect(inventory.credentials).toEqual([
       { id: 'cred-1', name: 'Slack bot', provider: 'slack', type: 'service_account' },
     ])

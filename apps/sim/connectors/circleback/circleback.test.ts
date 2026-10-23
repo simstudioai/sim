@@ -4,17 +4,19 @@
  * depends on. `listingCapped` and a truthful `hasMore` are the only things standing between
  * a partial listing and reconciliation purging the rest of the knowledge base.
  */
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
-vi.mock('@/components/icons', () => ({ CirclebackIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { circlebackConnector } from '@/connectors/circleback/circleback'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 function meeting(id: string) {
   return {

@@ -9,11 +9,11 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   createWorkspaceFileFolderOperation,
   listWorkspaceFileFoldersOperation,
-} from '@/lib/workspace-files/application/workspace-file-folders'
+} from '@/lib/workspace-files/application/folders'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export const GET = defineInternalJsonRoute({
   contract: listWorkspaceFileFoldersContract,

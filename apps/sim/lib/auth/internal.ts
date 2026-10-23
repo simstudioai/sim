@@ -306,7 +306,7 @@ export async function verifyInternalToken(
     }
 
     return { valid: false }
-  } catch (error) {
+  } catch {
     // Token verification failed
     return { valid: false }
   }

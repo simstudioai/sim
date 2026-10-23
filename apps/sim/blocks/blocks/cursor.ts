@@ -2,9 +2,8 @@ import { CursorIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { CursorResponse } from '@/tools/cursor/types'
 
-export const CursorBlock: BlockConfig<CursorResponse> = {
+export const CursorBlock: BlockConfig = {
   type: 'cursor',
   name: 'Cursor (Legacy)',
   description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
@@ -258,7 +257,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   },
 }
 
-export const CursorV2Block: BlockConfig<CursorResponse> = {
+export const CursorV2Block: BlockConfig = {
   ...CursorBlock,
   sunset: undefined,
   type: 'cursor_v2',

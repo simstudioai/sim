@@ -102,7 +102,7 @@ interface Rule {
 }
 
 /** Parse a canonical rule: `description`, optional `paths` list, then the body. */
-function parseRule(name: string, raw: string): Rule {
+export function parseRule(name: string, raw: string): Rule {
   if (!raw.startsWith('---\n')) {
     throw new Error(`${name}: rule must start with a '---' frontmatter block`)
   }
@@ -329,7 +329,9 @@ async function main() {
   )
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err)
-  process.exit(1)
-})
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : err)
+    process.exit(1)
+  })
+}

@@ -13,7 +13,7 @@ import {
   getMimeTypeFromExtension,
   processSingleFileToUserFile,
   resolveTrustedFileContext,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import { readTikTokApiResponse } from '@/tools/tiktok/utils'

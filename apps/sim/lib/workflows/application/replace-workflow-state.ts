@@ -12,11 +12,10 @@ import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
+import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
-import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
-import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
@@ -102,17 +101,7 @@ export interface ReplaceWorkflowStateResult {
  */
 export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.replaceState,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ReplaceWorkflowStateInput
-  }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<ReplaceWorkflowStateInput>,
   async execute({ principal, input, context }): Promise<ReplaceWorkflowStateResult> {
     await requireMutableWorkflow(context.workflowId)
 

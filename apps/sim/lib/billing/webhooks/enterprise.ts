@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { foldedEmail, organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
@@ -14,11 +14,6 @@ import {
 } from '@/lib/auth/security-policy'
 import { deriveEnterpriseCreditLimits } from '@/lib/billing/enterprise-credit-limits'
 import {
-  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
-  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
-  ENTERPRISE_PROVISION_EVENT_TYPE,
-  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
   type EnterpriseProvisionPayload,
   enterpriseMetadataDeliveryIsVerified,
   enterpriseMetadataIntentMatchesStripeSubscription,
@@ -26,6 +21,13 @@ import {
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import {
+  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
+  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
+  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
+  ENTERPRISE_PROVISION_EVENT_TYPE,
+  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
+} from '@/lib/billing/enterprise-outbox-events'
 import { getEnterpriseIssuanceSeatRequirement } from '@/lib/billing/enterprise-provisioning'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -43,6 +45,7 @@ import {
   enqueueOutboxEvents,
   patchOutboxEventPayload,
 } from '@/lib/core/outbox/service'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -50,6 +53,15 @@ import { parseEnterpriseSubscriptionMetadata } from '../types'
 
 const logger = createLogger('BillingEnterprise')
 
+/**
+ * Reconciles an Enterprise Stripe subscription onto the organization its metadata references.
+ *
+ * Transient conditions (lease or lock contention, database errors, an issuance whose Stripe
+ * writes have not landed yet) throw so Stripe redelivers the event. A referenced organization
+ * that does not exist is permanent: issuance commits the organization before it creates the
+ * Stripe subscription, and a deleted organization never returns, so the event is acknowledged
+ * with an error log instead of being retried until Stripe drops it.
+ */
 export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
   return processManualEnterpriseSubscription(event)
 }
@@ -60,6 +72,7 @@ async function processManualEnterpriseSubscription(event: Stripe.Event) {
   const previousAttributes: Record<string, unknown> = toRecord(rawPreviousAttributes)
   return withEnterpriseReconciliationLease(eventSubscription.id, (lease) =>
     reconcileManualEnterpriseSubscription(eventSubscription, lease, {
+      eventType: event.type,
       created: event.type === 'customer.subscription.created',
       previousStatus:
         typeof previousAttributes.status === 'string' ? previousAttributes.status : null,
@@ -70,7 +83,7 @@ async function processManualEnterpriseSubscription(event: Stripe.Event) {
 async function reconcileManualEnterpriseSubscription(
   eventSubscription: Stripe.Subscription,
   reconciliationLease: EnterpriseReconciliationLease,
-  trigger: { created: boolean; previousStatus: string | null }
+  trigger: { eventType: string; created: boolean; previousStatus: string | null }
 ) {
   // Stripe does not promise webhook ordering. Read the current object before
   // taking DB locks so a delayed created/updated event cannot overwrite newer
@@ -173,8 +186,10 @@ async function reconcileManualEnterpriseSubscription(
 
   const coreResult = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, referenceId)
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`stripe-subscription:${stripeSubscription.id}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'stripe_subscription',
+      `stripe-subscription:${stripeSubscription.id}`
     )
     // The authoritative Stripe read happened under a durable subscription
     // lease. Fence the write before touching billing state so a crashed holder
@@ -186,7 +201,7 @@ async function reconcileManualEnterpriseSubscription(
       .where(eq(organization.id, referenceId))
       .for('update')
       .limit(1)
-    if (!organizationRow) throw new Error('Enterprise organization not found')
+    if (!organizationRow) return { outcome: 'organization-missing' as const }
 
     const operationId = metadata.enterpriseOperationId
     let correlatedOperation: EnterpriseProvisionPayload | null = null
@@ -315,7 +330,7 @@ async function reconcileManualEnterpriseSubscription(
     }
 
     const configOperationId = metadata.simConfigOperationId
-    const existingMetadata = isRecordLike(existing?.metadata) ? existing.metadata : {}
+    const existingMetadata = toRecord(existing?.metadata)
     const configurationAlreadyApplied =
       typeof configOperationId === 'string' &&
       configOperationId.length > 0 &&
@@ -470,6 +485,7 @@ async function reconcileManualEnterpriseSubscription(
     }
 
     return {
+      outcome: 'reconciled' as const,
       subscriptionId: existing?.id ?? subscriptionRow.id,
       requestedByEmail: correlatedOperation?.request.requestedByEmail ?? null,
       requestedByUserId: correlatedOperation?.request.requestedByUserId ?? null,
@@ -487,6 +503,20 @@ async function reconcileManualEnterpriseSubscription(
       ...creditLimits,
     }
   })
+
+  if (coreResult.outcome === 'organization-missing') {
+    logger.error(
+      '[subscription] Enterprise subscription references an organization that does not exist; acknowledging without reconciling',
+      {
+        stripeSubscriptionId: stripeSubscription.id,
+        eventType: trigger.eventType,
+        referenceId,
+        stripeCustomerId,
+        status: stripeSubscription.status,
+      }
+    )
+    return
+  }
 
   const {
     subscriptionId,

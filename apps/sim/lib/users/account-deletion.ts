@@ -1,20 +1,24 @@
 import { db } from '@sim/db'
 import {
+  apiKey,
   dataDrains,
   document,
   knowledgeBase,
   member,
   organization,
   permissions,
+  project,
   tableRunDispatches,
   uploadSession,
   user,
+  workflowMcpServer,
   workspaceFile,
   workspaceFiles,
   workspaceFileVersion,
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
@@ -23,8 +27,31 @@ import type {
   AccountDeletionResource,
 } from '@/lib/api/contracts/user'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
-import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
+import {
+  acquireOrganizationMutationLock,
+  isSoleOwnerOfPaidOrganization,
+} from '@/lib/billing/organizations/membership'
+import {
+  findOrganizationSharedResourceSuccessor,
+  listSharedResourceOrganizationIdsForUser,
+  reassignOrganizationSharedResourcesTx,
+} from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
+import {
+  type ExecutionStopPlan,
+  recordExecutionStops,
+  signalExecutionStops,
+} from '@/lib/execution/removal-stop-records'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+import {
+  getProjectAccountDeletionBlockers,
+  prepareProjectsForAccountDeletion,
+} from '@/lib/projects/account-deletion'
 import { appendTableEvent, type TableEvent } from '@/lib/table/events'
 import {
   type CancelledCellMarker,
@@ -32,6 +59,18 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { isPublicStorageKey } from '@/lib/uploads/utils/file'
+import { recordDeletedAccountIdentities } from '@/lib/users/deleted-identity'
+import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
+import {
+  collectAccountStorageObjects,
+  enqueueAccountStorageCleanupInTx,
+} from '@/lib/users/storage-sweep'
+import {
+  listSharedResourceWorkspaceIdsForUser,
+  listUnresolvedSharedResourceWorkspaces,
+  reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx,
+} from '@/lib/workspaces/resource-handoff'
 import {
   reassignBilledAccountForUser,
   reassignOwnedWorkspacesForUser,
@@ -92,15 +131,18 @@ const WORKSPACE_COLUMNS = {
  * account's workflows, knowledge bases and files inside them would cascade away
  * with it.
  */
-async function loadRelatedWorkspaces(userId: string): Promise<WorkspaceRow[]> {
+async function loadRelatedWorkspaces(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceRow[]> {
   const [anchored, joined] = await Promise.all([
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(workspaceTable)
       .where(
         or(eq(workspaceTable.ownerId, userId), eq(workspaceTable.billedAccountUserId, userId))
       ),
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(permissions)
       .innerJoin(workspaceTable, eq(workspaceTable.id, permissions.entityId))
@@ -204,25 +246,10 @@ export interface AccountDeletionFacts {
 }
 
 /**
- * Turns the gathered facts into the full picture of an account deletion: what it
- * removes, what it hands off, and every reason it would be refused.
- *
- * The governing rule is that an account is erased only once it stands alone.
- * Nearly every table that points at `user.id` does so with `ON DELETE CASCADE`,
- * and those cascades do not distinguish a workflow in the account's own workspace
- * from a knowledge base it happened to create inside somebody else's — both would
- * go. Rather than chase that blast radius across every creator column (and
- * silently lose whichever one is added next), deletion refuses while the account
- * is still entangled and names the existing action that untangles it: leave the
- * workspace, leave the organization, cancel the plan. Each of those already hands
- * the account's content to a surviving member on its own well-tested path.
- *
- * What remains is provably private, so a workspace falls into exactly one bucket:
- *  - **delete** — nobody else can reach it, so it is erased with the account.
- *  - **transfer** — the account only pays for it or is recorded as its owner
- *    while holding no access to it, so moving that anchor to a real admin
- *    changes nothing anyone can see.
- *  - **blocked** — anything else.
+ * Classifies current memberships and workspace ownership/billing anchors. Shared memberships
+ * must be left before erasure; private workspaces are deleted, and orphaned anchors transfer
+ * to a surviving administrator. Execution dependencies are checked separately, and the final
+ * transaction repairs shared creator references from departures before this policy existed.
  */
 export function classifyAccountDeletion(facts: AccountDeletionFacts): AccountDeletionPlan {
   const blockers: AccountDeletionBlocker[] = []
@@ -302,6 +329,55 @@ function formatResourceNames(resources: AccountDeletionResource[]): string {
   return formatNames(resources.map((resource) => resource.name))
 }
 
+/** Public MCP actors and live shared keys cannot acquire a new identity through attribution handoff. */
+async function sharedExecutionDeletionBlockers(
+  executor: DbOrTx,
+  userId: string,
+  doomedWorkspaceIds: string[],
+  hold = false
+): Promise<AccountDeletionBlocker[]> {
+  const doomed = new Set(doomedWorkspaceIds)
+  const serverQuery = executor
+    .select({
+      id: workflowMcpServer.id,
+      name: workflowMcpServer.name,
+      workspaceId: workflowMcpServer.workspaceId,
+      isPublic: workflowMcpServer.isPublic,
+    })
+    .from(workflowMcpServer)
+    .where(eq(workflowMcpServer.createdBy, userId))
+  const servers = await (hold ? serverQuery.for('update') : serverQuery)
+  const keyQuery = executor
+    .select({
+      id: apiKey.id,
+      name: apiKey.name,
+      workspaceId: apiKey.workspaceId,
+      expiresAt: apiKey.expiresAt,
+    })
+    .from(apiKey)
+    .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'workspace')))
+  const keys = await (hold ? keyQuery.for('update') : keyQuery)
+  const retainedServers = servers.filter((row) => row.isPublic && !doomed.has(row.workspaceId))
+  const liveKeys = keys.filter(
+    (row) =>
+      row.workspaceId &&
+      !doomed.has(row.workspaceId) &&
+      (!row.expiresAt || row.expiresAt > new Date())
+  )
+  const blockers: AccountDeletionBlocker[] = []
+  if (retainedServers.length)
+    blockers.push({
+      code: 'shared_workspace',
+      message: `Public MCP servers ${formatResourceNames(retainedServers)} still use your account to execute. Ask a workspace admin to delete them or make them private before deleting your account. Restore an archived workspace first if needed.`,
+    })
+  if (liveKeys.length)
+    blockers.push({
+      code: 'shared_workspace',
+      message: `Workspace API keys ${formatResourceNames(liveKeys)} still depend on your account. Ask a workspace admin to replace and revoke them in Settings before deleting your account.`,
+    })
+  return blockers
+}
+
 /** Gathers the facts above and classifies them. */
 export async function getAccountDeletionPlan(userId: string): Promise<AccountDeletionPlan> {
   const [workspaces, organizationNames, paidOrgCheck, personalSubscription, drains] =
@@ -322,7 +398,7 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
         .limit(1),
     ])
 
-  return classifyAccountDeletion({
+  const plan = classifyAccountDeletion({
     workspaces,
     company: await loadWorkspaceCompany(userId, workspaces),
     organizationNames,
@@ -332,6 +408,43 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
     personalPlan: personalSubscription?.plan ?? null,
     hasDataDrains: drains.length > 0,
   })
+  const projectBlockers = await getProjectAccountDeletionBlockers(
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  plan.blockers.push(
+    ...projectBlockers.map((message) => ({ code: 'project_lifecycle' as const, message }))
+  )
+  plan.blockers.push(
+    ...(await sharedExecutionDeletionBlockers(
+      db,
+      userId,
+      plan.workspacesToDelete.map((row) => row.id)
+    ))
+  )
+  const unresolved = await listUnresolvedSharedResourceWorkspaces(
+    db,
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  if (unresolved.length) {
+    plan.blockers.push({
+      code: 'shared_workspace',
+      message:
+        'Shared resources still reference your account. Ask a workspace admin to assign an active billing account before deleting your account.',
+    })
+  }
+  for (const organizationId of await listSharedResourceOrganizationIdsForUser(db, userId)) {
+    if (!(await findOrganizationSharedResourceSuccessor(db, organizationId, userId))) {
+      plan.blockers.push({
+        code: 'organization_member',
+        message:
+          'Shared organization resources need an active organization owner before this account can leave or be deleted.',
+      })
+      break
+    }
+  }
+  return plan
 }
 
 interface StorageKeyRow {
@@ -392,31 +505,6 @@ function countKeys(batches: StorageKeyBatch[]): number {
 }
 
 /**
- * The account's own uploaded avatar, as a storage key.
- *
- * `user.image` holds either a `/api/files/serve/...` path (an upload we own) or
- * an absolute URL from an OAuth provider (which we must not try to delete). Only
- * the former yields a key, and only under the `profile-pictures/` prefix — the
- * image is personal data, so an erasure that leaves it in the bucket is not an
- * erasure.
- */
-export function extractProfilePictureKey(image: string | null): string | null {
-  if (!image) return null
-  try {
-    const parsed = new URL(image, 'http://placeholder')
-    if (parsed.origin !== 'http://placeholder') return null
-    const segments = parsed.pathname.split('/')
-    if (segments[1] !== 'api' || segments[2] !== 'files' || segments[3] !== 'serve') return null
-    let keySegments = segments.slice(4)
-    if (['s3', 'blob', 'gcs'].includes(keySegments[0])) keySegments = keySegments.slice(1)
-    const key = decodeURIComponent(keySegments.join('/'))
-    return key.startsWith('profile-pictures/') ? key : null
-  } catch {
-    return null
-  }
-}
-
-/**
  * Collects the account's private images and stored objects in workspaces that go with it.
  *
  * This has to run *before* the rows are deleted: they disappear with the
@@ -453,16 +541,6 @@ async function collectAccountStorageKeys(
   )
 
   if (!isUsingCloudStorage()) return batches
-
-  const [profile] = await db
-    .select({ image: user.image })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
-  const profilePictureKey = extractProfilePictureKey(profile?.image ?? null)
-  if (profilePictureKey) {
-    batches.push({ context: 'profile-pictures', keys: [profilePictureKey] })
-  }
 
   if (workspaceIds.length === 0) return batches
 
@@ -536,11 +614,27 @@ async function collectAccountStorageKeys(
  * time this runs the account is already gone, and the request must not report a
  * failure for work that cannot be undone. An orphaned object is recoverable from
  * the log; a deletion the caller believes failed is not.
+ *
+ * Keys a surviving row still names are kept (a legacy `kb/` object can back
+ * documents in more than one workspace); see `createStorageReferenceGuard`.
+ * World-readable keys are left to the delayed durable cleanup, whose guard also
+ * reads stored asset URLs, so this request never does.
  */
 async function purgeStorageObjects(userId: string, batches: StorageKeyBatch[]): Promise<void> {
-  for (const { context, keys } of batches) {
-    if (keys.length === 0) continue
+  const isReferenced = createStorageReferenceGuard()
+  for (const { context, keys: listed } of batches) {
+    const collected = listed.filter((key) => !isPublicStorageKey(key))
+    if (collected.length === 0) continue
     try {
+      const referenced = await isReferenced(collected)
+      if (referenced.size > 0) {
+        logger.warn('Keeping objects a surviving reference still names', {
+          context,
+          kept: referenced.size,
+        })
+      }
+      const keys = collected.filter((key) => !referenced.has(key))
+      if (keys.length === 0) continue
       const { failed } = await StorageService.deleteFiles(keys, context)
       for (const { key, error } of failed) {
         logger.error('Failed to erase stored object during account deletion', {
@@ -641,6 +735,15 @@ async function announceCancelledTableWork(
   }
 }
 
+interface DeleteUserAccountOptions {
+  /**
+   * Keep keyed digests of the account's sign-in identities so a new account on
+   * them gets no second free allowance. True for a holder-requested erasure;
+   * false for rolling back an account that was never handed to anyone.
+   */
+  recordIdentity: boolean
+}
+
 /**
  * Erases an account and everything only it can reach.
  *
@@ -659,29 +762,130 @@ async function announceCancelledTableWork(
  *    rather than treated as failures.
  * 3. **Purge storage last**, once that transaction has committed. Object
  *    deletion cannot be rolled back, so it must not precede the point of no
- *    return.
+ *    return. Before it, the account's ledger rows having cascaded away, the
+ *    shared reporting-usage prefixes that may still count them are discarded.
  *
  * The ordering inside step 2 is load-bearing too: Postgres evaluates the
  * `NO ACTION` check on `workspace.billed_account_user_id` *before* the `owner_id`
  * cascade that would have removed the very same workspace, so a workspace the
- * account bills for must be handed over or gone before the `user` row is touched.
+ * account bills for must be handed over or gone before the `user` row is deleted.
  *
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
  */
-export async function deleteUserAccount(userId: string): Promise<AccountDeletionPlan> {
+export async function deleteUserAccount(
+  userId: string,
+  { recordIdentity }: DeleteUserAccountOptions
+): Promise<AccountDeletionPlan> {
   const plan = await getAccountDeletionPlan(userId)
   if (plan.blockers.length > 0) throw new AccountDeletionBlockedError(plan.blockers)
 
   const doomedWorkspaceIds = plan.workspacesToDelete.map((workspace) => workspace.id)
   const doomed = new Set(doomedWorkspaceIds)
   const storageKeys = await collectAccountStorageKeys(userId, doomedWorkspaceIds)
+  const durableStorageObjects = await collectAccountStorageObjects({
+    userId,
+    workspaceIds: doomedWorkspaceIds,
+  })
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
+  let stoppedRuns: StoppedRun[] = []
+  let executionStops: ExecutionStopPlan['executions'] = []
+  /**
+   * Resolved while the account's settings still exist to route a superuser's runs. It only
+   * routes the best-effort push, so a failed lookup falls back to the default endpoint.
+   */
+  const mothershipBaseURL = await getMothershipBaseURL({ userId }).catch((error) => {
+    logger.warn('Run routing for the deleted account could not be read', {
+      userId,
+      error: getErrorMessage(error),
+    })
+    return undefined
+  })
 
   await db.transaction(async (tx) => {
+    /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
+    const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    for (const organizationId of sharedOrganizationIds) {
+      await acquireOrganizationMutationLock(tx, organizationId)
+    }
+    const workspaceIds = new Set([
+      ...doomedWorkspaceIds,
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ])
+    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
+      tx,
+      userId,
+      doomedWorkspaceIds,
+      [...workspaceIds]
+    )
+    /**
+     * An admitted insert may hold the user FK lock while waiting for a workspace above.
+     * Never wait in that cycle: refuse erasure atomically so the writer can finish. Keep
+     * the barrier through retention discovery, run cancellation, and deletion once acquired.
+     */
+    try {
+      await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, userId))
+        .for('update', { noWait: true })
+    } catch (error) {
+      if (getPostgresErrorCode(error) !== '55P03') throw error
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message: 'Your account is in use by another operation. Nothing was changed — try again.',
+        },
+      ])
+    }
+    /** Discovery preceded the barrier: refuse new scopes instead of acquiring locks out of order. */
+    const currentWorkspaceIds = [
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ]
+    const currentOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    if (
+      currentWorkspaceIds.some((id) => !workspaceIds.has(id)) ||
+      currentOrganizationIds.some((id) => !sharedOrganizationIds.includes(id))
+    ) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'Shared resources changed while your account was being deleted. Nothing was changed — try again.',
+        },
+      ])
+    }
+    const executionBlockers = await sharedExecutionDeletionBlockers(
+      tx,
+      userId,
+      doomedWorkspaceIds,
+      true
+    )
+    if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
+    /**
+     * A deleted person's Chat runs stop like their table runs below. Collected before the
+     * workspace and user deletes cascade their rows away; delivered after commit.
+     */
+    stoppedRuns = await stopLiveRunsTx(tx, { userId })
+    /** Queues the pre-read keys plus a delta of the account's rows written since, read under the account lock. */
+    await enqueueAccountStorageCleanupInTx(tx, {
+      userId,
+      workspaceIds: doomedWorkspaceIds,
+      objects: durableStorageObjects,
+    })
     if (doomedWorkspaceIds.length > 0) {
+      /**
+       * Workflow runs in the doomed workspaces lose their log rows to the cascade below, after
+       * which no cancel path can find them, and they would keep spending hosted keys for an
+       * account that no longer exists. The workspace rows are locked, so no new run can log
+       * here before commit; the stops commit with the erasure. After commit the in-flight runs
+       * are signalled at once and the outbox worker sweeps the job queue.
+       */
+      executionStops = await recordExecutionStops(tx, { workspaceIds: doomedWorkspaceIds })
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
        * gained a member since the preview is no longer private, and deleting it
@@ -721,6 +925,10 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       }
     }
 
+    if (projectIdsToDelete.length) {
+      await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
+    }
+
     /**
      * Sequential by necessity, not oversight: the billing pass reads `owner_id`
      * while it still names the departing account, and the ownership pass reads
@@ -739,28 +947,26 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ])
     }
 
-    /**
-     * Take the departing account's own row before cancelling anything it
-     * governs.
-     *
-     * Both cancels below are `WHERE capability_governed_user_id = userId`, so
-     * they only stop work that already exists. A dispatcher that read its
-     * status as active a moment earlier goes on to pre-stamp cells, and that
-     * insert's foreign key needs a `FOR KEY SHARE` on this very row — which
-     * `FOR UPDATE` conflicts with. Taking it first therefore splits every
-     * concurrent stamp cleanly in two: one that committed before us, which the
-     * marker cancel below then sees, and one that blocks until we commit and is
-     * refused by the (now absent) foreign key. Without the barrier a stamp
-     * landing between the marker cancel and the `user` delete is nulled by
-     * `ON DELETE SET NULL` and drained by a sibling worker as actorless — the
-     * ungated run this whole passage exists to prevent.
-     *
-     * The lock is held for the rest of the transaction, so a dispatcher holding
-     * a marker row we are about to cancel can deadlock with us; Postgres aborts
-     * one side and the deletion is retried by the person, which is the right
-     * trade against a silently ungated run.
-     */
-    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
+    for (const organizationId of sharedOrganizationIds) {
+      await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
+    }
+
+    const sharedWorkspaceIds = await listSharedResourceWorkspaceIdsForUser(tx, userId)
+    const { unresolved: resourceUnresolved } =
+      await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
+        tx,
+        workspaceIds: sharedWorkspaceIds,
+        departingUserId: userId,
+      })
+    if (resourceUnresolved.length > 0) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'Shared resources still reference your account. Ask a workspace admin to assign an active billing account before deleting your account. Nothing was changed.',
+        },
+      ])
+    }
 
     /**
      * Cancel every table run this account still governs before the `user` row
@@ -804,10 +1010,47 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      */
     cancelledMarkers = await cancelPendingMarkersForGovernedSubject(tx, userId)
 
-    await tx.delete(user).where(eq(user.id, userId))
+    await enqueueMemoryCleanup(tx, [
+      { kind: 'private_owner', userId },
+      ...doomedWorkspaceIds.map((workspaceId) => ({ kind: 'workspace' as const, workspaceId })),
+      ...projectIdsToDelete.map((projectId) => ({ kind: 'project' as const, projectId })),
+    ])
+
+    if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
+
+    try {
+      await tx.delete(user).where(eq(user.id, userId))
+    } catch (error) {
+      if (
+        (getPostgresErrorCode(error) === '23503' &&
+          getPostgresConstraintName(error) === 'project_owner_id_user_id_fk') ||
+        (getPostgresErrorCode(error) === '23514' &&
+          getPostgresConstraintName(error) === 'project_resource_creator_handoff')
+      ) {
+        throw new AccountDeletionBlockedError([
+          {
+            code: 'project_lifecycle',
+            message:
+              'A Project changed while your account was being deleted. Nothing was changed — try again.',
+          },
+        ])
+      }
+      throw error
+    }
   })
 
+  /**
+   * Not awaited: every second a run keeps going spends hosted keys, and nothing below should
+   * wait on Redis. It never throws and stops at its own deadline; the committed outbox stops
+   * repeat it and sweep the job queue.
+   */
+  void signalExecutionStops(executionStops)
+
+  await invalidateReportingUsagePrefixes()
+
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
+
+  deliverRunStops(stoppedRuns, { mothershipBaseURL })
 
   await purgeStorageObjects(userId, storageKeys)
 

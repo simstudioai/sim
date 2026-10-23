@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -21,9 +22,18 @@ interface HandlePostExecutionPauseStateArgs {
  * Every caller of `executeWorkflowCore` must call this after execution completes
  * to ensure HITL pause state is persisted to the database and queued resumes are drained.
  *
- * - If execution is paused with a valid snapshot: persists to `paused_executions` table
+ * - If the paused completion itself found the workspace or workflow deleted: nothing is left
+ *   to persist. A deletion landing after the paused log was written still fails
+ *   `persistPauseResult` and is force-failed below.
+ * - If execution is paused but its log was never finalized: marks execution as failed
  * - If execution is paused without a snapshot: marks execution as failed
+ * - If execution is paused with a valid snapshot: persists to `paused_executions` table
  * - If execution is not paused: processes any queued resume entries
+ *
+ * A pause is published only after the core's post-execution logging has persisted
+ * the paused log. A resume claims that log only once it has left `running`, so a
+ * pause published before then (or without it ever happening) is rejected as no
+ * longer resumable.
  */
 export async function handlePostExecutionPauseState({
   result,
@@ -33,7 +43,19 @@ export async function handlePostExecutionPauseState({
   loggingSession,
 }: HandlePostExecutionPauseStateArgs): Promise<void> {
   if (result.status === 'paused') {
-    if (!result.snapshotSeed) {
+    await loggingSession.waitForPostExecution()
+    if (!loggingSession.hasCompleted()) {
+      const deletedScope = loggingSession.getDeletedScope()
+      if (deletedScope) {
+        logger.info('Skipped persisting pause state: its scope was deleted', {
+          executionId,
+          deletedScope,
+        })
+        return
+      }
+      logger.error('Paused execution log was not finalized', { executionId })
+      await loggingSession.markAsFailed('Failed to record paused execution')
+    } else if (!result.snapshotSeed) {
       logger.error('Missing snapshot seed for paused execution', { executionId })
       await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
     } else {
@@ -54,7 +76,7 @@ export async function handlePostExecutionPauseState({
           retryable: isRetryableInfrastructureError(pauseError),
         })
         await loggingSession.markAsFailed(
-          `Failed to persist pause state: ${toError(pauseError).message}`
+          `Failed to persist pause state: ${getUserFacingErrorMessage(pauseError)}`
         )
       }
     }

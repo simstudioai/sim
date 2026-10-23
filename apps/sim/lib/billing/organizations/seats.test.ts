@@ -7,26 +7,21 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSyncSubscriptionUsageLimits, enqueueMock } = vi.hoisted(() => ({
+const { mockSyncSubscriptionUsageLimits } = vi.hoisted(() => ({
   mockSyncSubscriptionUsageLimits: vi.fn(),
-  enqueueMock: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organization', () => ({
   syncSubscriptionUsageLimits: mockSyncSubscriptionUsageLimits,
 }))
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: enqueueMock,
-}))
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  },
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -51,7 +46,6 @@ afterAll(resetEnvFlagsMock)
 describe('reconcileOrganizationSeats', () => {
   beforeEach(() => {
     resetDbChainMock()
-    enqueueMock.mockResolvedValue('evt-1')
     setEnvFlags({ isBillingEnabled: true })
   })
 
@@ -59,7 +53,7 @@ describe('reconcileOrganizationSeats', () => {
     resetDbChainMock()
   })
 
-  it('grows seats to the member count and enqueues a Stripe sync', async () => {
+  it('grows seats to the member count', async () => {
     queueReconcileReads([teamSub], [{ value: 2 }])
 
     const result = await reconcileOrganizationSeats({
@@ -72,13 +66,9 @@ describe('reconcileOrganizationSeats', () => {
       previousSeats: 1,
       seats: 2,
       reason: undefined,
-      outboxEventId: 'evt-1',
+      outboxEventId: 'subscription-seats-sync-event',
     })
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalledWith(expect.anything(), 'stripe.sync-subscription-seats', {
-      subscriptionId: 'sub-1',
-      reason: 'member-accepted-invite',
-    })
     expect(mockSyncSubscriptionUsageLimits).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'sub-1', referenceId: 'org-1', seats: 2 })
     )
@@ -94,7 +84,6 @@ describe('reconcileOrganizationSeats', () => {
 
     expect(result.changed).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalledOnce()
   })
 
   it('still records the seat audit when the post-commit usage-limit sync fails', async () => {
@@ -129,7 +118,6 @@ describe('reconcileOrganizationSeats', () => {
     expect(result.changed).toBe(true)
     expect(result.seats).toBe(2)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalled()
   })
 
   it('never drops below one seat', async () => {

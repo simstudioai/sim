@@ -30,7 +30,6 @@ import {
   useUpdateNodeInternals,
 } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
-import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -77,6 +76,10 @@ import {
   hasAdvancedValues,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  useScopedWorkflowId,
+  useWorkflowScope,
+} from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import {
@@ -111,7 +114,7 @@ import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
 import { useMcpToolServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
-import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
+import { useCredentialName } from '@/hooks/queries/oauth/credentials'
 import { useSandboxes } from '@/hooks/queries/sandboxes'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
@@ -649,9 +652,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const params = useParams()
   const { chatEnabled } = useDeploymentShape()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
+  const currentWorkflowId = useScopedWorkflowId()
 
   const {
     currentWorkflow,
@@ -674,7 +677,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
-  const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
@@ -834,9 +836,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       workflow_id: currentWorkflowId,
       kind: sunset.kind,
     })
-    sendMothershipMessage(sunset.prompt, [
-      { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
-    ])
+    sendMothershipMessage({
+      content: sunset.prompt,
+      contexts: [
+        { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
+      ],
+    })
   }
 
   const canonicalIndex = useMemo(

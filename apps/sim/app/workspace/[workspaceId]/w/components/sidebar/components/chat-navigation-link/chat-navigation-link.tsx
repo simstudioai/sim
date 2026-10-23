@@ -33,6 +33,7 @@ interface ChatNavigationLinkProps extends Omit<ComponentProps<typeof Link>, 'hre
   chatId: string
   href: string
   isCurrentRoute?: boolean
+  onSelectChat?: (chatId: string, shiftKey: boolean) => void
 }
 
 export function ChatNavigationLink(props: ChatNavigationLinkProps) {
@@ -46,6 +47,7 @@ function IntentAwareChatNavigationLink({
   isCurrentRoute = false,
   onBlur,
   onClick,
+  onSelectChat,
   onFocus,
   onMouseEnter,
   onMouseLeave,
@@ -66,9 +68,16 @@ function IntentAwareChatNavigationLink({
     prefetchTimerRef.current = null
   }, [])
 
+  /**
+   * Only a chat this tab has never loaded is worth reading ahead: a cached one
+   * opens on its cached copy and revalidates on mount, so prefetching it would
+   * reload the transcript for every chat the pointer crosses.
+   */
   const prefetchHistory = () => {
-    if (chatId !== 'new') {
-      void queryClient.prefetchQuery(mothershipChatHistoryQueryOptions(chatId))
+    if (chatId === 'new') return
+    const options = mothershipChatHistoryQueryOptions(chatId)
+    if (queryClient.getQueryData(options.queryKey) === undefined) {
+      void queryClient.prefetchQuery(options)
     }
   }
 
@@ -135,7 +144,16 @@ function IntentAwareChatNavigationLink({
       }}
       onTouchStart={onTouchStart}
       onClick={(event) => {
+        const isSelectionClick =
+          !event.defaultPrevented && !event.metaKey && !event.ctrlKey && !event.altKey
+        if (isSelectionClick && event.shiftKey && onSelectChat) {
+          event.preventDefault()
+          onSelectChat(chatId, true)
+        }
         onClick?.(event)
+        if (isSelectionClick && !event.defaultPrevented) {
+          onSelectChat?.(chatId, false)
+        }
         if (
           !event.defaultPrevented &&
           !event.metaKey &&

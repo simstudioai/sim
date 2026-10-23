@@ -2,7 +2,6 @@ import { MicrosoftWordIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { MicrosoftWordResponse } from '@/tools/microsoft_word/types'
 
 const DOCUMENT_FIELD = ['documentSelector', 'manualDocumentId'] as const
 
@@ -76,12 +75,12 @@ function requireString(value: unknown, label: string): string {
   return trimmed
 }
 
-export const MicrosoftWordBlock: BlockConfig<MicrosoftWordResponse> = {
+export const MicrosoftWordBlock: BlockConfig = {
   type: 'microsoft_word',
   name: 'Microsoft Word',
   description: 'Create, fill, read, edit, and export Word documents',
   longDescription:
-    'Integrate Microsoft Word into the workflow. Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.',
+    'Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_word',
   category: 'tools',
   integrationType: IntegrationType.Documents,

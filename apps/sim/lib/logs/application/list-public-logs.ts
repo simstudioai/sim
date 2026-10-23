@@ -13,14 +13,14 @@ import {
   logProjectionSubjectUserId,
   projectExecutionData,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import type { LogFilters } from '@/lib/logs/public-filters'
 import {
   type PublicLogListRow,
   type PublicLogSortField,
   readPublicLogPage,
 } from '@/lib/logs/public-queries'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ListPublicLogsInput {
   workspaceId: string

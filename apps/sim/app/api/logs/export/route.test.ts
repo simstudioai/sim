@@ -1,61 +1,48 @@
 import { workflowExecutionLogs } from '@sim/db/schema'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import {
-  authMockFns,
-  createMockRequest,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-const {
-  mockCheckWorkspaceAccess,
-  mockExpandFolderIdsWithDescendants,
-  mockMapWithConcurrency,
-  mockMaterializeExecutionDataForDisplay,
-  mockGetUserPermissionConfig,
-} = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
+const { mockExpandFolderIdsWithDescendants, mockMapWithConcurrency } = vi.hoisted(() => ({
   mockExpandFolderIdsWithDescendants: vi.fn(),
   mockMapWithConcurrency: vi.fn(),
-  mockMaterializeExecutionDataForDisplay: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: mockExpandFolderIdsWithDescendants,
 }))
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterializeExecutionDataForDisplay,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/core/utils/concurrency', () => ({
   MATERIALIZE_CONCURRENCY: 20,
   mapWithConcurrency: mockMapWithConcurrency,
 }))
 
+import { toCsvRow } from '@/lib/core/utils/csv'
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/export/route'
 
+const { mockMaterializeExecutionDataForDisplay } = traceStoreMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
 const STARTED_AT = new Date('2026-08-23T12:00:00.000Z')
 
 function makeRequest() {
-  return createMockRequest(
-    'GET',
-    undefined,
-    {},
-    'http://localhost:3000/api/logs/export?workspaceId=workspace-1'
-  )
+  return createMockRequest({ url: 'http://localhost:3000/api/logs/export?workspaceId=workspace-1' })
 }
 
 function logRow(index: number, overrides: Record<string, unknown> = {}) {
@@ -87,7 +74,20 @@ function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
 }
 
 describe('GET /api/logs/export', () => {
+  /**
+   * Every read advances past the export's CPU slice, so each piece of a row ends its slice. One
+   * clock for the whole file, never moving backwards, keeps the process-wide slice deadline it
+   * sets meaningful for every later test.
+   */
+  let fakeClockMs = 0
+  let clock: MockInstance<() => number> | undefined
+
   beforeEach(() => {
+    fakeClockMs = Math.max(fakeClockMs, performance.now())
+    clock = vi.spyOn(performance, 'now').mockImplementation(() => {
+      fakeClockMs += 20
+      return fakeClockMs
+    })
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
@@ -105,6 +105,10 @@ describe('GET /api/logs/export', () => {
         mapper: (item: unknown, index: number) => Promise<unknown>
       ) => Promise.all(items.map(mapper))
     )
+  })
+
+  afterEach(() => {
+    clock?.mockRestore()
   })
 
   it('returns only the CSV header when workspace access is denied', async () => {
@@ -228,6 +232,64 @@ describe('GET /api/logs/export', () => {
     resolveMaterialization?.([{ message: 'message-0' }])
 
     await expect(Promise.all([pendingRead, cancellation])).resolves.toBeDefined()
+  })
+
+  it('streams one large trace row in pieces with event-loop turns between them', async () => {
+    const content = 'say "hi", then wait\n'.repeat(100_000)
+    const traceSpans = [
+      { id: 'root', name: 'Workflow Execution', children: [{ output: { content } }] },
+    ]
+    queueTableRows(workflowExecutionLogs, [
+      logRow(0, { executionData: { message: 'm', traceSpans } }),
+    ])
+
+    const response = await GET(makeRequest(), undefined)
+    if (!response.body) throw new Error('expected a streamed export body')
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    const header = decoder.decode((await reader.read()).value)
+
+    let turns = 0
+    let streaming = true
+    const tick = () => {
+      if (!streaming) return
+      turns += 1
+      setImmediate(tick)
+    }
+    setImmediate(tick)
+    const turnsAtEachRowChunk: number[] = []
+    let row = ''
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        row += decoder.decode(value, { stream: true })
+        turnsAtEachRowChunk.push(turns)
+      }
+    } finally {
+      streaming = false
+    }
+    const turnsBetweenRowChunks = turnsAtEachRowChunk
+      .slice(1)
+      .map((turnsAtChunk, index) => turnsAtChunk - turnsAtEachRowChunk[index])
+
+    expect(header).toMatch(/^startedAt,.*\n$/)
+    expect(turnsAtEachRowChunk.length).toBeGreaterThan(1)
+    expect(turnsBetweenRowChunks.some((delta) => delta > 0)).toBe(true)
+    expect(row).toBe(
+      `${toCsvRow([
+        logRow(0).startedAt.toISOString(),
+        'info',
+        'Workflow',
+        'manual',
+        '500',
+        '0.01',
+        'workflow-1',
+        'execution-0',
+        'm',
+        JSON.stringify(traceSpans),
+      ])}\n`
+    )
   })
 
   it('blanks the cost column and span spend when the group withholds cost', async () => {

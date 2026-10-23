@@ -20,6 +20,7 @@ export {
   embedOpenRouter,
   getEmbeddingAggregateItemLimit,
   isBYOKEmbeddingCredentialRejection,
+  isBYOKEmbeddingQuotaExhaustion,
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings/client'
 export { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'

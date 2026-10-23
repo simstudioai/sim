@@ -146,11 +146,9 @@ export function workflowSearchSubflowFieldMatchesExpected(
 }
 
 export function parseWorkflowSearchSubflowReplacement({
-  blockType,
   fieldId,
   replacement,
 }: {
-  blockType: 'loop' | 'parallel'
   fieldId: WorkflowSearchSubflowFieldId
   replacement: string
 }):

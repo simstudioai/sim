@@ -9,8 +9,6 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
 }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-
 async function loadRuntime() {
   const [{ db }, schema, { eq, inArray, sql }, { alias }, membership, entitlement] =
     await Promise.all([
@@ -24,7 +22,7 @@ async function loadRuntime() {
   return { db, schema, eq, inArray, sql, alias, ...membership, ...entitlement }
 }
 
-describe.skipIf(!databaseUrl)('SCIM managed membership in PostgreSQL', () => {
+describe('SCIM managed membership in PostgreSQL', () => {
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
   let orgId: string
   let otherOrgId: string
@@ -34,7 +32,6 @@ describe.skipIf(!databaseUrl)('SCIM managed membership in PostgreSQL', () => {
   let managedEmail: string
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = databaseUrl
     runtime = await loadRuntime()
   }, 30_000)
 

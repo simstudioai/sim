@@ -2,15 +2,14 @@ import { toError } from '@sim/utils/errors'
 import { DynamoDBIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DynamoDBIntrospectResponse, DynamoDBResponse } from '@/tools/dynamodb/types'
 
-export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectResponse> = {
+export const DynamoDBBlock: BlockConfig = {
   type: 'dynamodb',
   name: 'Amazon DynamoDB',
   description: 'Get, put, query, scan, update, and delete items in Amazon DynamoDB tables',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
+    'Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
   docsLink: 'https://docs.sim.ai/integrations/dynamodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,

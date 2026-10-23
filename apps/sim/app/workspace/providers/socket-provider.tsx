@@ -25,10 +25,11 @@ import type {
   WorkflowRevertedBroadcast,
   WorkflowUpdatedBroadcast,
 } from '@sim/realtime-protocol/events'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { backoffWithJitter } from '@sim/utils/retry'
+import { randomFloat } from '@sim/utils/random'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
 import { getSocketUrl } from '@/lib/core/utils/urls'
@@ -39,7 +40,8 @@ import {
 } from '@/app/workspace/providers/socket-join-controller'
 import {
   isSocketWorkflowVisible,
-  resolveSocketWorkflowTarget,
+  releaseWorkflowRequest,
+  type WorkflowRequest,
 } from '@/app/workspace/providers/socket-join-target'
 import { mergePresenceRoster } from '@/app/workspace/providers/socket-presence-merge'
 import { refreshSessionQuery } from '@/hooks/queries/session'
@@ -69,6 +71,25 @@ const CONNECT_FAILURES_BEFORE_REPORT = 3
 const MAX_AUTH_RETRY_ATTEMPTS = 5
 const AUTH_RETRY_BASE_MS = 1000
 const AUTH_RETRY_MAX_MS = 30000
+
+/**
+ * Upper bound on an honored socket-token `Retry-After`. The token route's
+ * buckets refill over 60 s, so the default 30 s cap would retry into a 429.
+ */
+const SOCKET_TOKEN_RETRY_AFTER_MAX_MS = 5 * 60_000
+
+/** Up to +20% spread above a `Retry-After` floor, matching `backoffWithJitter`'s band. */
+const SOCKET_TOKEN_RETRY_AFTER_JITTER = 0.2
+
+/** A socket-token mint that failed for a retryable reason, with the server's `Retry-After`. */
+class SocketTokenUnavailableError extends Error {
+  readonly retryAfterMs: number | null
+
+  constructor(retryAfterMs: number | null) {
+    super('Failed to generate socket token')
+    this.retryAfterMs = retryAfterMs
+  }
+}
 
 function getTabSessionId(): string {
   if (typeof window === 'undefined') return ''
@@ -102,8 +123,8 @@ interface SocketContextType {
   blockedJoinWorkflowId: string | null
   currentWorkflowId: string | null
   currentSocketId: string | null
-  joinWorkflow: (workflowId: string) => void
-  leaveWorkflow: () => void
+  /** Requests the workflow's room for one mounted editor; call the returned release on unmount. */
+  joinWorkflow: (workflowId: string) => () => void
   retryConnection: () => void
   emitWorkflowOperation: WorkflowOperationEmit
   emitSubblockUpdate: SubblockUpdateEmit
@@ -136,8 +157,7 @@ const SocketContext = createContext<SocketContextType>({
   blockedJoinWorkflowId: null,
   currentWorkflowId: null,
   currentSocketId: null,
-  joinWorkflow: () => {},
-  leaveWorkflow: () => {},
+  joinWorkflow: () => () => {},
   retryConnection: () => {},
   emitWorkflowOperation: () => false,
   emitSubblockUpdate: () => false,
@@ -175,25 +195,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentSocketId, setCurrentSocketId] = useState<string | null>(null)
   const [authFailed, setAuthFailed] = useState(false)
   const [blockedJoinWorkflowId, setBlockedJoinWorkflowId] = useState<string | null>(null)
-  const [explicitWorkflowId, setExplicitWorkflowId] = useState<string | null>(null)
+  const [workflowRequests, setWorkflowRequests] = useState<WorkflowRequest[]>([])
+  const requestedWorkflowId = workflowRequests[workflowRequests.length - 1]?.workflowId ?? null
   const initializedRef = useRef(false)
   const socketRef = useRef<Socket | null>(null)
   const currentWorkflowIdRef = useRef<string | null>(null)
-  const explicitWorkflowIdRef = useRef<string | null>(explicitWorkflowId)
-  const joinControllerRef = useRef(new SocketJoinController())
+  const requestedWorkflowIdRef = useRef<string | null>(requestedWorkflowId)
+  const joinControllerRef = useRef<SocketJoinController | null>(null)
+  const joinController = (joinControllerRef.current ??= new SocketJoinController())
   const joinRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authRetryAttemptsRef = useRef(0)
   const authRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tokenRetryAttemptsRef = useRef(0)
   const sessionRejectedRef = useRef(false)
   const connectFailureCountRef = useRef(0)
   const connectFailureReportedRef = useRef(false)
   const queryClient = useQueryClient()
 
-  const params = useParams()
-  const urlWorkflowId = params?.workflowId as string | undefined
-  const urlWorkflowIdRef = useRef(urlWorkflowId)
-  urlWorkflowIdRef.current = urlWorkflowId
-  explicitWorkflowIdRef.current = explicitWorkflowId
+  requestedWorkflowIdRef.current = requestedWorkflowId
 
   const eventHandlers = useRef<{
     workflowOperation?: (data: WorkflowOperationBroadcast) => void
@@ -210,8 +229,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     operationFailed?: (data: OperationFailedBroadcast) => void
   }>({})
 
-  const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
-  const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+  const positionUpdateTimeoutsRef = useRef<Map<string, number> | null>(null)
+  const positionUpdateTimeouts = (positionUpdateTimeoutsRef.current ??= new Map())
+  const pendingPositionUpdatesRef = useRef<Map<string, any> | null>(null)
+  const pendingPositionUpdates = (pendingPositionUpdatesRef.current ??= new Map())
 
   /**
    * Presence is high-frequency (cursor frames many times per second) so it lives
@@ -233,18 +254,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     setCurrentWorkflowId(workflowId)
   }, [])
 
-  const getRequestedWorkflowId = useCallback(() => {
-    return resolveSocketWorkflowTarget({
-      routeWorkflowId: urlWorkflowIdRef.current ?? null,
-      explicitWorkflowId: explicitWorkflowIdRef.current,
-    })
-  }, [])
-
   const isWorkflowVisible = useCallback((workflowId?: string | null) => {
     return isSocketWorkflowVisible({
       workflowId: workflowId ?? currentWorkflowIdRef.current,
-      routeWorkflowId: urlWorkflowIdRef.current ?? null,
-      explicitWorkflowId: explicitWorkflowIdRef.current,
+      requestedWorkflowId: requestedWorkflowIdRef.current,
     })
   }, [])
 
@@ -267,11 +280,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       useOperationQueueStore.getState().cancelOperationsForWorkflow(workflowId)
     }
 
-    positionUpdateTimeouts.current.forEach((timeoutId) => {
+    positionUpdateTimeouts.forEach((timeoutId) => {
       clearTimeout(timeoutId)
     })
-    positionUpdateTimeouts.current.clear()
-    pendingPositionUpdates.current.clear()
+    positionUpdateTimeouts.clear()
+    pendingPositionUpdates.clear()
   }, [])
 
   const clearJoinedWorkflowState = useCallback(
@@ -338,7 +351,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         setIsRetryingWorkflowJoin(true)
         joinRetryTimeoutRef.current = setTimeout(() => {
           joinRetryTimeoutRef.current = null
-          executeJoinCommands(joinControllerRef.current.retryJoin(command.workflowId))
+          executeJoinCommands(joinController.retryJoin(command.workflowId))
         }, command.delayMs)
 
         logger.warn('Realtime unavailable while joining workflow, scheduling retry', {
@@ -364,7 +377,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       if (res.status === 401) {
         throw new Error('Authentication required')
       }
-      throw new Error('Failed to generate socket token')
+      throw new SocketTokenUnavailableError(
+        parseRetryAfter(res.headers.get('retry-after'), SOCKET_TOKEN_RETRY_AFTER_MAX_MS)
+      )
     }
     const body = await res.json().catch(() => ({}))
     const token = body?.token
@@ -404,33 +419,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           timestamp: new Date().toISOString(),
         })
 
-        const socketInstance = io(socketUrl, {
-          transports: ['websocket', 'polling'],
-          withCredentials: true,
-          reconnectionAttempts: Number.POSITIVE_INFINITY,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 30000,
-          timeout: 10000,
-          auth: async (cb) => {
-            // Reset per attempt so the flag describes THIS handshake only —
-            // otherwise one early 401 would still be set when a later, unrelated
-            // denial exhausts the retry budget.
-            sessionRejectedRef.current = false
-            try {
-              const freshToken = await generateSocketToken()
-              cb({ token: freshToken })
-            } catch (error) {
-              logger.error('Failed to generate fresh token for connection:', error)
-              if (error instanceof Error && error.message === 'Authentication required') {
-                // True auth failure - pass null token, server will reject with "Authentication required"
-                sessionRejectedRef.current = true
-                cb({ token: null })
-              }
-              // For server errors, don't call cb - connection will timeout and Socket.IO will retry
-            }
-          },
-        })
-
         /**
          * Reports a realtime connection that is not coming back.
          *
@@ -445,9 +433,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
          * Fires at most once per socket instance, at the point the toast
          * appears, rather than once per retry.
          *
-         * Called from `connect_error` and nowhere else. That is the only handler
-         * that sees exactly one event per attempt: a failed *reconnect* also
-         * emits the manager's `reconnect_error` (`manager.reconnect()` calls
+         * Called once per failed attempt: from `connect_error`, and from the auth
+         * callback when it ends an attempt itself because no token could be minted
+         * (that attempt never reaches `connect_error`). `connect_error` is the only
+         * socket handler that sees exactly one event per attempt: a failed
+         * *reconnect* also emits the manager's `reconnect_error` (`manager.reconnect()` calls
          * `open()`, whose error path emits `error` — which the socket re-emits as
          * `connect_error` — and then emits `reconnect_error` itself), so counting
          * in both would advance twice per try and trip the threshold early.
@@ -470,11 +460,84 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           })
         }
 
+        // Each auth callback owns one handshake; a token request that outlives it must
+        // not end the attempt that replaced it.
+        let authAttemptGeneration = 0
+
+        const socketInstance = io(socketUrl, {
+          transports: ['websocket', 'polling'],
+          withCredentials: true,
+          reconnectionAttempts: Number.POSITIVE_INFINITY,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 30000,
+          timeout: 10000,
+          auth: async (cb) => {
+            // Reset per attempt so the flag describes THIS handshake only —
+            // otherwise one early 401 would still be set when a later, unrelated
+            // denial exhausts the retry budget.
+            sessionRejectedRef.current = false
+            const attempt = ++authAttemptGeneration
+            try {
+              const freshToken = await generateSocketToken()
+              cb({ token: freshToken })
+            } catch (error) {
+              logger.error('Failed to generate fresh token for connection:', error)
+              if (error instanceof Error && error.message === 'Authentication required') {
+                // True auth failure - pass null token, server will reject with "Authentication required"
+                sessionRejectedRef.current = true
+                cb({ token: null })
+                return
+              }
+              if (
+                attempt !== authAttemptGeneration ||
+                !socketInstance.active ||
+                socketInstance.connected
+              ) {
+                return
+              }
+
+              // Withholding `cb` would park the transport until the server's 45 s connect
+              // timeout, and the Manager resets its backoff on every open, so pace it here.
+              tokenRetryAttemptsRef.current += 1
+              const retryAfterMs =
+                error instanceof SocketTokenUnavailableError ? error.retryAfterMs : null
+              const backoffMs = backoffWithJitter(tokenRetryAttemptsRef.current, null, {
+                baseMs: AUTH_RETRY_BASE_MS,
+                maxMs: AUTH_RETRY_MAX_MS,
+              })
+              // Spread tabs that share the same 429 window.
+              const delayMs =
+                retryAfterMs === null
+                  ? backoffMs
+                  : Math.max(
+                      backoffMs,
+                      retryAfterMs * (1 + SOCKET_TOKEN_RETRY_AFTER_JITTER * randomFloat())
+                    )
+              socketInstance.disconnect()
+              setIsConnected(false)
+              setIsConnecting(false)
+              setCurrentSocketId(null)
+              setIsReconnecting(true)
+              reportPersistentConnectFailure(getErrorMessage(error))
+              logger.warn('Socket token unavailable, reconnecting after delay', {
+                attempt: tokenRetryAttemptsRef.current,
+                delayMs: Math.round(delayMs),
+              })
+              clearAuthRetryTimeout()
+              authRetryTimeoutRef.current = setTimeout(() => {
+                authRetryTimeoutRef.current = null
+                socketInstance.connect()
+              }, delayMs)
+            }
+          },
+        })
+
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
           setIsReconnecting(false)
           authRetryAttemptsRef.current = 0
+          tokenRetryAttemptsRef.current = 0
           connectFailureCountRef.current = 0
           connectFailureReportedRef.current = false
           clearAuthRetryTimeout()
@@ -484,7 +547,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
           })
-          executeJoinCommands(joinControllerRef.current.setConnected(true))
+          executeJoinCommands(joinController.setConnected(true))
         })
 
         socketInstance.on('disconnect', (reason) => {
@@ -492,7 +555,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setIsConnecting(false)
           setIsRetryingWorkflowJoin(false)
           setCurrentSocketId(null)
-          executeJoinCommands(joinControllerRef.current.setConnected(false))
+          executeJoinCommands(joinController.setConnected(false))
           clearJoinedWorkflowState(false)
 
           if (socketInstance.active) {
@@ -605,7 +668,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
-          const result = joinControllerRef.current.handleJoinSuccess(workflowId)
+          const result = joinController.handleJoinSuccess(workflowId)
 
           if (result.ignored) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
@@ -623,7 +686,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('join-workflow-error', ({ workflowId, error, code, retryable }) => {
-          const result = joinControllerRef.current.handleJoinError({ workflowId, retryable })
+          const result = joinController.handleJoinError({ workflowId, retryable })
 
           if (result.ignored) {
             logger.debug('Ignoring stale join-workflow-error', {
@@ -668,7 +731,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('workflow-deleted', (data: WorkflowDeletedBroadcast) => {
           logger.warn(`Workflow ${data.workflowId} has been deleted`)
-          const result = joinControllerRef.current.handleWorkflowDeleted(data.workflowId)
+          const result = joinController.handleWorkflowDeleted(data.workflowId)
           if (result.shouldClearCurrent) {
             clearJoinedWorkflowState(true)
           }
@@ -678,7 +741,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('access-revoked', (data: AccessRevokedBroadcast) => {
           logger.warn(`Access to workflow ${data.workflowId} has been revoked`)
-          const result = joinControllerRef.current.handleAccessRevoked(data.workflowId)
+          const result = joinController.handleAccessRevoked(data.workflowId)
           if (result.shouldClearCurrent) {
             clearJoinedWorkflowState(true)
             // Surface the same blocked-join UX as a denied join: persistent
@@ -843,11 +906,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           logger.warn('Operation forbidden:', error)
 
           if (error?.type === 'SESSION_ERROR') {
-            const workflowId = getRequestedWorkflowId()
+            const workflowId = requestedWorkflowIdRef.current
 
             if (workflowId) {
               logger.info(`Session expired, rejoining workflow: ${workflowId}`)
-              executeJoinCommands(joinControllerRef.current.forceRejoinWorkflow(workflowId))
+              executeJoinCommands(joinController.forceRejoinWorkflow(workflowId))
             }
           }
         })
@@ -874,7 +937,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             logger.info('Ignoring workflow state for inactive room', {
               workflowId: workflowData?.id,
               currentWorkflowId: currentWorkflowIdRef.current,
-              desiredWorkflowId: urlWorkflowIdRef.current,
+              requestedWorkflowId: requestedWorkflowIdRef.current,
             })
             return
           }
@@ -931,11 +994,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     return () => {
       clearJoinRetryTimeout()
       clearAuthRetryTimeout()
-      positionUpdateTimeouts.current.forEach((timeoutId) => {
+      positionUpdateTimeouts.forEach((timeoutId) => {
         clearTimeout(timeoutId)
       })
-      positionUpdateTimeouts.current.clear()
-      pendingPositionUpdates.current.clear()
+      positionUpdateTimeouts.clear()
+      pendingPositionUpdates.clear()
 
       // Close socket on unmount
       if (socketRef.current) {
@@ -983,33 +1046,25 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       return
     }
 
-    const requestedWorkflowId = getRequestedWorkflowId()
-
     setBlockedJoinWorkflowId((prev) => (prev && prev !== requestedWorkflowId ? null : prev))
-    executeJoinCommands(joinControllerRef.current.requestWorkflow(requestedWorkflowId))
-  }, [
-    explicitWorkflowId,
-    getRequestedWorkflowId,
-    hydrationPhase,
-    urlWorkflowId,
-    executeJoinCommands,
-  ])
+    executeJoinCommands(joinController.requestWorkflow(requestedWorkflowId))
+  }, [requestedWorkflowId, hydrationPhase, executeJoinCommands])
 
   const joinWorkflow = useCallback(
     (workflowId: string) => {
       if (!user?.id) {
         logger.warn('Cannot join workflow: user not available')
-        return
+        return () => {}
       }
 
-      setExplicitWorkflowId(workflowId)
+      const token = generateId()
+      setWorkflowRequests((requests) => [...requests, { token, workflowId }])
+      return () => {
+        setWorkflowRequests((requests) => releaseWorkflowRequest(requests, token))
+      }
     },
     [user]
   )
-
-  const leaveWorkflow = useCallback(() => {
-    setExplicitWorkflowId(null)
-  }, [])
 
   /**
    * Retry socket connection after auth failure.
@@ -1043,7 +1098,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         logger.debug('Skipping workflow operation emit for inactive room', {
           workflowId,
           currentWorkflowId,
-          desiredWorkflowId: urlWorkflowIdRef.current,
+          requestedWorkflowId: requestedWorkflowIdRef.current,
           operation,
           target,
         })
@@ -1065,16 +1120,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             timestamp: Date.now(),
             operationId,
           })
-          pendingPositionUpdates.current.delete(blockId)
-          const timeoutId = positionUpdateTimeouts.current.get(blockId)
+          pendingPositionUpdates.delete(blockId)
+          const timeoutId = positionUpdateTimeouts.get(blockId)
           if (timeoutId) {
             clearTimeout(timeoutId)
-            positionUpdateTimeouts.current.delete(blockId)
+            positionUpdateTimeouts.delete(blockId)
           }
           return true
         }
 
-        pendingPositionUpdates.current.set(blockId, {
+        pendingPositionUpdates.set(blockId, {
           workflowId,
           operation,
           target,
@@ -1083,17 +1138,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           operationId,
         })
 
-        if (!positionUpdateTimeouts.current.has(blockId)) {
+        if (!positionUpdateTimeouts.has(blockId)) {
           const timeoutId = window.setTimeout(() => {
-            const latestUpdate = pendingPositionUpdates.current.get(blockId)
+            const latestUpdate = pendingPositionUpdates.get(blockId)
             if (latestUpdate) {
               socket.emit('workflow-operation', latestUpdate)
-              pendingPositionUpdates.current.delete(blockId)
+              pendingPositionUpdates.delete(blockId)
             }
-            positionUpdateTimeouts.current.delete(blockId)
+            positionUpdateTimeouts.delete(blockId)
           }, 33)
 
-          positionUpdateTimeouts.current.set(blockId, timeoutId)
+          positionUpdateTimeouts.set(blockId, timeoutId)
         }
         return true
       }
@@ -1288,7 +1343,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       currentWorkflowId,
       currentSocketId,
       joinWorkflow,
-      leaveWorkflow,
       retryConnection,
       emitWorkflowOperation,
       emitSubblockUpdate,
@@ -1319,7 +1373,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       currentWorkflowId,
       currentSocketId,
       joinWorkflow,
-      leaveWorkflow,
       retryConnection,
       emitWorkflowOperation,
       emitSubblockUpdate,

@@ -14,6 +14,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { durableSecretProvenanceFromPrivateBundle } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
@@ -32,7 +33,7 @@ import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folder
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
 import { splitWorkspaceFilePath } from '@/lib/mothership/tools/server/files/workspace-file'
-import { ShareValidationError } from '@/lib/public-shares/share-manager'
+import { ShareValidationError } from '@/lib/public-shares/manager'
 import {
   ArchiveError,
   type DecompressResult,
@@ -40,29 +41,29 @@ import {
   MAX_ARCHIVE_BYTES,
   statusForArchiveError,
 } from '@/lib/uploads/archive'
-import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import type {
   getWorkspaceFile,
   getWorkspaceFileWithCurrentVersion,
   WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getWorkspaceFileVersionsByKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { getWorkspaceFileVersionsByKey } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/file-version-store'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
   tryInferContextFromKey,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import {
   downloadFileFromStorage,
   downloadServableFileFromStorage,
-} from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import {
@@ -72,6 +73,14 @@ import {
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
 import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
+import {
+  createWorkspaceFileFolderOperation,
+  deleteWorkspaceFileFolderOperation,
+  ensureWorkspaceFileFolderPathOperation,
+  listWorkspaceFileFoldersOperation,
+  restoreWorkspaceFileFolderOperation,
+  updateWorkspaceFileFolderOperation,
+} from '@/lib/workspace-files/application/folders'
 import {
   listWorkspaceFilesInFolderScope,
   queryWorkspaceFilePage,
@@ -85,20 +94,15 @@ import {
 } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 import { readWorkspaceFileSecretProvenance } from '@/lib/workspace-files/application/read-workspace-file-secret-provenance'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import {
+  resolveWorkspaceFileReference,
+  resolveWorkspaceFileStorageKey,
+} from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
   getWorkspaceFileShares,
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
-import {
-  createWorkspaceFileFolderOperation,
-  deleteWorkspaceFileFolderOperation,
-  ensureWorkspaceFileFolderPathOperation,
-  listWorkspaceFileFoldersOperation,
-  restoreWorkspaceFileFolderOperation,
-  updateWorkspaceFileFolderOperation,
-} from '@/lib/workspace-files/application/workspace-file-folders'
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
 import type { WorkspaceFileContentEdit } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
@@ -108,6 +112,7 @@ import {
   MAX_ZIP_DOWNLOAD_FILES,
 } from '@/lib/workspace-files/limits'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
+import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 import { type FileTextLineRange, sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
@@ -490,21 +495,20 @@ async function bindSelectedContentFile(
     })
     return { file, ...source }
   }
-  if (!file.key || file.context !== 'workspace') return { file }
+  if (!file.key || tryInferContextFromKey(file.key) !== 'workspace') return { file }
 
-  let metadata: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
+  let metadata: Awaited<ReturnType<typeof resolveWorkspaceFileStorageKey>>
   try {
-    metadata = await resolveWorkspaceFileReference({
+    metadata = await resolveWorkspaceFileStorageKey({
       principal,
       operation: fileOperations.readContent,
       workspaceId,
-      reference: file.key,
+      key: file.key,
     })
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') return { file }
     throw error
   }
-  if (!metadata) return { file }
 
   return {
     file,
@@ -596,6 +600,7 @@ export async function getFileContentProvenance(
     ? { userId: ownerUserId, workspaceId }
     : undefined
   const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+  let unrecorded = 0
 
   for (const source of sources) {
     signal?.throwIfAborted()
@@ -605,7 +610,11 @@ export async function getFileContentProvenance(
     }
     const provenance = await readFileSourceSecretProvenance(principal, workspaceId, source.identity)
     signal?.throwIfAborted()
-    if (provenance.status !== 'exact' || (source.opaque && provenance.entries.length > 0)) {
+    if (provenance.status === 'unrecorded') {
+      unrecorded += 1
+      continue
+    }
+    if (provenance.status === 'unknown' || (source.opaque && provenance.entries.length > 0)) {
       accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }
@@ -625,6 +634,13 @@ export async function getFileContentProvenance(
     })
   }
 
+  if (unrecorded > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId,
+      recordCount: unrecorded,
+    })
+  }
   return accumulator.exportProvenance()
 }
 
@@ -905,6 +921,9 @@ async function expandFolderPathsToFileIds(args: {
   return (await expandFolderPathsToFiles(args)).map((file) => file.id)
 }
 
+/** How many same-named candidates an ambiguous scoped reference names. */
+const MAX_LISTED_NAME_MATCHES = 10
+
 /**
  * Resolves a typed file name inside a chosen folder to a canonical id.
  *
@@ -913,11 +932,10 @@ async function expandFolderPathsToFileIds(args: {
  * lookup takes the oldest match anywhere. When a folder was chosen it is the
  * only thing disambiguating the target, so the name is resolved inside it, by
  * id, so the slash-in-a-folder-name hazard of a path-shaped reference never
- * arises.
+ * arises. Shared by every operation that writes to a named file.
  *
- * Shared by every operation that writes to a named file, because each of them
- * has the same way to go wrong and this logic has already been rewritten twice
- * under review.
+ * The lookups filter by exact id or name in SQL, so the size of the folder
+ * never bounds whether one file in it can be named.
  */
 async function resolveScopedFileReference(args: {
   principal: Principal
@@ -927,64 +945,76 @@ async function resolveScopedFileReference(args: {
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
 }): Promise<string> {
-  const { fileName } = args
+  const { fileName, principal, workspaceId } = args
   const folderPaths = args.folderPaths ?? (args.folderPath ? [args.folderPath] : [])
   if (folderPaths.length === 0) return fileName
   const scopeLabel = folderPaths.join(', ')
 
-  const scoped = await expandFolderPathsToFiles({
-    principal: args.principal,
-    workspaceId: args.workspaceId,
-    folderPaths,
-    includeSubfolders: args.includeSubfolders,
-  })
   /*
-   * An exact id inside the scope wins outright. Matching id and name together
-   * let a file NAMED like an id outproduce the file that actually carries it:
-   * `wf_` is a legal filename prefix, so a caller passing a real id could be
-   * answered with a different file that merely happens to be called that.
+   * A reference that is a real file id resolves to that file or to nothing,
+   * never to a name match: `wf_` is a legal filename prefix, so a file merely
+   * named like an id must not answer a caller who named a file exactly. Decided
+   * by looking the id up rather than by its shape.
    */
-  const byId = scoped.find((file) => file.id === fileName)
-  if (byId) return byId.id
-
-  /*
-   * A reference that IS a real file id, but for a file outside this folder, is
-   * out of scope — never a name match. Falling through would answer a caller
-   * who named one file exactly with a different file that happens to be called
-   * like that id, which is the same lookalike hazard pointed the other way.
-   *
-   * Decided by looking the id up rather than by its shape, because `wf_` is a
-   * legal filename prefix and inferring from it is what this resolution has
-   * twice been wrong about.
-   */
-  let exactIdExists = false
-  try {
-    await readWorkspaceFileMetadata.execute({
-      principal: args.principal,
-      input: { fileId: fileName, assertedWorkspaceId: args.workspaceId },
+  const fileIdExists = async () => {
+    try {
+      await readWorkspaceFileMetadata.execute({
+        principal,
+        input: { fileId: fileName, assertedWorkspaceId: workspaceId },
+      })
+      return true
+    } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'not_found') return false
+      throw error
+    }
+  }
+  const [folderScope, exactIdExists] = await Promise.all([
+    resolveWorkspaceFolderScope({
+      principal,
+      workspaceId,
+      folderPaths,
+      includeSubfolders: args.includeSubfolders,
+    }),
+    fileIdExists(),
+  ])
+  const findInScope = (match: { fileId: string } | { name: string }, limit: number) =>
+    queryWorkspaceFilePage.execute({
+      principal,
+      input: {
+        workspaceId,
+        folderScope,
+        ...match,
+        sortBy: 'uploadedAt',
+        sortOrder: 'asc',
+        limit,
+      },
     })
-    exactIdExists = true
-  } catch (error) {
-    if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
-  }
+
   if (exactIdExists) {
-    throw new OrchestrationError('not_found', `File ${fileName} is not in ${scopeLabel}`)
+    const { files } = await findInScope({ fileId: fileName }, 1)
+    if (files.length === 0) {
+      throw new OrchestrationError('not_found', `File ${fileName} is not in ${scopeLabel}`)
+    }
+    return files[0].id
   }
 
-  const matches = scoped.filter((file) => file.name === fileName)
+  const { files: matches, nextKeys } = await findInScope(
+    { name: fileName },
+    MAX_LISTED_NAME_MATCHES
+  )
   if (matches.length === 0) {
     throw new OrchestrationError('not_found', `No file named ${fileName} in ${scopeLabel}`)
   }
   /*
    * A recursive scope can hold the same name at several depths, and writing to
-   * whichever the walk happened to reach first is a silent write to an
-   * arbitrary file. Refusing names the candidates so the caller can pick one,
-   * which is the whole reason the scope exists.
+   * whichever comes first is a silent write to an arbitrary file. Refusing
+   * names the candidates so the caller can pick one.
    */
   if (matches.length > 1) {
+    const count = nextKeys ? `More than ${matches.length}` : `${matches.length}`
     throw new OrchestrationError(
       'validation',
-      `${matches.length} files named ${fileName} under ${scopeLabel}: ${matches
+      `${count} files named ${fileName} under ${scopeLabel}: ${matches
         .map((file) => file.id)
         .join(', ')}. Give the file ID, name a deeper folder, or set includeSubfolders to false.`
     )
@@ -1384,14 +1414,6 @@ export async function executeFileManageOperation(
             leafName,
           })
           if (existing) {
-            // Writing into a file someone else owns must not hand its owner an
-            // exact, re-resolvable secret lineage, exactly as appending does.
-            const overwriteProvenance =
-              writeProvenance?.status === 'exact' &&
-              writeProvenance.entries.length > 0 &&
-              existing.uploadedBy !== userId
-                ? { status: 'unknown' as const }
-                : writeProvenance
             const { file: overwritten } = await updateWorkspaceFileContent.execute({
               principal,
               input: {
@@ -1403,7 +1425,7 @@ export async function executeFileManageOperation(
                 provenanceMode: 'replace_empty',
                 expectedUpdatedAt: existing.contentUpdatedAt ?? undefined,
                 expectedRevision,
-                ...(overwriteProvenance ? { secretProvenance: overwriteProvenance } : {}),
+                ...(writeProvenance ? { secretProvenance: writeProvenance } : {}),
               },
             })
 
@@ -1534,11 +1556,11 @@ export async function executeFileManageOperation(
               resolvedFileId = record.fileId
             else if (typeof record.key === 'string' && record.key) {
               resolvedFileId = (
-                await resolveWorkspaceFileReference({
+                await resolveWorkspaceFileStorageKey({
                   principal,
                   operation: fileOperations.updateShare,
                   workspaceId,
-                  reference: record.key,
+                  key: record.key,
                 })
               ).id
             }
@@ -1629,14 +1651,9 @@ export async function executeFileManageOperation(
             )
           }
           const appendedProvenance = appendedResolution.provenanceBySelection?.get('content')
-          const secretProvenance =
-            appendedProvenance?.status === 'exact' &&
-            appendedProvenance.entries.length > 0 &&
-            existing.uploadedBy !== userId
-              ? { status: 'unknown' as const }
-              : appendedProvenance
-                ? mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
-                : undefined
+          const secretProvenance = appendedProvenance
+            ? mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
+            : undefined
           const { content: existingBuffer } = await readWorkspaceFileContent.execute({
             principal,
             input: {
@@ -2173,7 +2190,7 @@ export async function executeFileManageOperation(
           if (selection.missingPath !== undefined) {
             throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
           }
-          rootId = [...selection.folderIds][0] ?? null
+          rootId = selection.scope?.folderIds.values().next().value ?? null
         }
 
         const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1

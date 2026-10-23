@@ -1,44 +1,47 @@
 ---
 title: Google Sheets
 description: Read, write, and update data with sheet selection
+integration:
+  type: "google_sheets_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_sheets_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Sheets](https://www.google.com/sheets/about/) is a cloud-based spreadsheet platform that allows teams and individuals to create, edit, and collaborate on spreadsheets in real-time. Widely used for data tracking, reporting, and lightweight database needs, Google Sheets integrates with many tools and services.
+Use [Google Sheets](https://www.google.com/sheets/about/) to read and write cell ranges, append rows, clear values, and create or inspect spreadsheets. Batch actions read, update, or clear multiple ranges; sheet-copy actions duplicate sheets within or between spreadsheets.
 
-With the Google Sheets integration in Sim, you can:
-
-- **Read data**: Retrieve cell values from specific ranges in a spreadsheet
-- **Write data**: Write values to specific cell ranges
-- **Update data**: Modify existing cell values in a spreadsheet
-- **Append rows**: Add new rows of data to the end of a sheet
-- **Clear ranges**: Remove data from specific cell ranges
-- **Manage spreadsheets**: Create new spreadsheets or retrieve metadata about existing ones
-- **Batch operations**: Perform batch read, update, and clear operations across multiple ranges
-- **Copy sheets**: Duplicate sheets within or between spreadsheets
-
-In Sim, the Google Sheets integration enables your agents to read from, write to, and manage spreadsheets as part of automated workflows. This is ideal for automated reporting, data synchronization, record-keeping, and building data pipelines that use spreadsheets as a collaborative data layer.
+Provide the spreadsheet ID and range required by the selected operation. Read the returned values or update counts before passing data to later workflow steps.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google Sheets account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-sheets` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
 
+## Use the block [#usage-instructions]
+
+Select a sheet to read, write, append, update, or clear cell values. Create spreadsheets, inspect their metadata, copy sheets, and run batch range operations.
 
 ## Actions
 
 ### Read from Google Sheets V2
 
 Read data from a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,9 +65,13 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Write to Google Sheets V2
 
 Write data to a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +95,13 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Update Google Sheets V2
 
 Update data in a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +125,13 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Append to Google Sheets V2
 
 Append data to the end of a specific sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +156,13 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Clear Google Sheets Range V2
 
 Clear values from a specific range in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -163,9 +182,13 @@ Clear values from a specific range in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Get Spreadsheet Info V2
 
 Get metadata about a Google Sheets spreadsheet including title and sheet list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -191,9 +214,13 @@ Get metadata about a Google Sheets spreadsheet including title and sheet list
 |   ↳ `columnCount` | number | Number of columns in the sheet |
 |   ↳ `hidden` | boolean | Whether the sheet is hidden |
 
+</ReferenceDetails>
+
 ### Create Spreadsheet V2
 
 Create a new Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -216,9 +243,13 @@ Create a new Google Sheets spreadsheet
 |   ↳ `title` | string | The sheet title/name |
 |   ↳ `index` | number | The sheet index \(position\) |
 
+</ReferenceDetails>
+
 ### Batch Read Google Sheets V2
 
 Read multiple ranges from a Google Sheets spreadsheet in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -242,9 +273,13 @@ Read multiple ranges from a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Batch Update Google Sheets V2
 
 Update multiple ranges in a Google Sheets spreadsheet in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +308,13 @@ Update multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Batch Clear Google Sheets V2
 
 Clear multiple ranges in a Google Sheets spreadsheet in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -294,9 +333,13 @@ Clear multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Copy Sheet V2
 
 Copy a sheet from one spreadsheet to another
+
+<ReferenceDetails>
 
 #### Input
 
@@ -317,9 +360,13 @@ Copy a sheet from one spreadsheet to another
 | `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
 | `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
 
+</ReferenceDetails>
+
 ### Delete Rows from Google Sheets V2
 
 Delete rows from a sheet in a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -341,9 +388,13 @@ Delete rows from a sheet in a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Delete Sheet V2
 
 Delete a sheet/tab from a Google Sheets spreadsheet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +413,13 @@ Delete a sheet/tab from a Google Sheets spreadsheet
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Delete Spreadsheet V2
 
 Permanently delete a Google Sheets spreadsheet using the Google Drive API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -379,13 +434,15 @@ Permanently delete a Google Sheets spreadsheet using the Google Drive API
 | `spreadsheetId` | string | The ID of the deleted spreadsheet |
 | `deleted` | boolean | Whether the spreadsheet was successfully deleted |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### Google Sheets New Row Trigger
 

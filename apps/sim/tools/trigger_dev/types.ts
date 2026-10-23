@@ -218,7 +218,7 @@ export interface TriggerDevQueue {
 }
 
 /** Normalized environment variable returned by the env var tools */
-export interface TriggerDevEnvVar {
+interface TriggerDevEnvVar {
   name: string
   value: string
 }
@@ -248,14 +248,14 @@ export interface TriggerDevRunResult {
 }
 
 /** Span event entry attached to a run event or trace span */
-export interface TriggerDevSpanEvent {
+interface TriggerDevSpanEvent {
   name: string | null
   time: string | null
   properties: Record<string, unknown> | null
 }
 
 /** Normalized run event returned by the run events tool */
-export interface TriggerDevRunEvent {
+interface TriggerDevRunEvent {
   spanId: string | null
   parentId: string | null
   runId: string | null
@@ -533,7 +533,7 @@ export interface TriggerDevBatchTriggerTaskResponse extends ToolResponse {
 }
 
 /** Normalized batch returned by the get batch tool */
-export interface TriggerDevBatch {
+interface TriggerDevBatch {
   id: string
   status: string
   idempotencyKey: string | null
@@ -753,36 +753,3 @@ export interface TriggerDevDeleteScheduleResponse extends ToolResponse {
     scheduleId: string
   }
 }
-
-export type TriggerDevResponse =
-  | TriggerDevTriggerTaskResponse
-  | TriggerDevBatchTriggerTaskResponse
-  | TriggerDevGetBatchResponse
-  | TriggerDevBatchResultsResponse
-  | TriggerDevRunResponse
-  | TriggerDevRunResultResponse
-  | TriggerDevListRunsResponse
-  | TriggerDevRunActionResponse
-  | TriggerDevAddRunTagsResponse
-  | TriggerDevRunEventsResponse
-  | TriggerDevRunTraceResponse
-  | TriggerDevUpdateRunMetadataResponse
-  | TriggerDevScheduleResponse
-  | TriggerDevListSchedulesResponse
-  | TriggerDevDeleteScheduleResponse
-  | TriggerDevListEnvVarsResponse
-  | TriggerDevEnvVarResponse
-  | TriggerDevEnvVarActionResponse
-  | TriggerDevImportEnvVarsResponse
-  | TriggerDevQueueResponse
-  | TriggerDevListQueuesResponse
-  | TriggerDevDeploymentResponse
-  | TriggerDevListDeploymentsResponse
-  | TriggerDevPromoteDeploymentResponse
-  | TriggerDevExecuteQueryResponse
-  | TriggerDevQuerySchemaResponse
-  | TriggerDevCreateWaitpointTokenResponse
-  | TriggerDevCompleteWaitpointTokenResponse
-  | TriggerDevWaitpointTokenResponse
-  | TriggerDevListWaitpointTokensResponse
-  | TriggerDevListTimezonesResponse

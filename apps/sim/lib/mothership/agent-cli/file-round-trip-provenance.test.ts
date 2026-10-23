@@ -5,103 +5,64 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
+import type { StoredWorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
 import { copilotChats, workspace, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import { toArray, toRecord } from '@sim/utils/object'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   find: vi.fn(),
-  stream: vi.fn(),
-  head: vi.fn(),
-  permission: vi.fn(),
-  authenticate: vi.fn(),
-  decrypt: vi.fn(),
   create: vi.fn(),
   complete: vi.fn(),
   receipts: new Map<string, string>(),
-  logError: vi.fn(),
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mocks.logError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
 }))
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
-  createWorkspaceFileUploadOperation: { execute: mocks.create },
-  completeWorkspaceFileUploadOperation: { execute: mocks.complete },
-}))
-vi.mock('@/lib/core/config/redis', () => ({
-  getConfiguredRedisUrl: () => null,
-  onRedisReconnect: () => {},
-  getRedisClient: () => ({
-    eval: async (_script: string, _keys: number, key: string, value: string) => {
-      mocks.receipts.set(key, value)
-      return 1
-    },
-    get: async (key: string) => mocks.receipts.get(key) ?? null,
-  }),
+  createWorkspaceFileUploadOperation: { execute: hoisted.create },
+  completeWorkspaceFileUploadOperation: { execute: hoisted.complete },
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null) => permission === 'read',
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class extends Error {},
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/realtime/notify', () => ({
-  mergeEditIntoLiveFileDoc: vi.fn(),
-  notifyWorkspaceFilesChanged: vi.fn(),
-}))
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: vi.fn(),
-  incrementStorageUsageForBillingContextInTx: vi.fn(async () => 100),
-  maybeNotifyStorageLimitForBillingContext: vi.fn(),
-  resolveStorageBillingContext: vi.fn(async () => ({ workspaceId: 'workspace' })),
-}))
-vi.mock('@/lib/uploads', () => ({ getServePathPrefix: () => '/api/files/serve/s3/' }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-  downloadFile: vi.fn(),
-  downloadFileStream: mocks.stream,
-  hasCloudStorage: () => true,
-  headObject: mocks.head,
-  uploadFile: vi.fn(),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanup: vi.fn(),
   processWorkspaceFileStorageCleanupNow: vi.fn(),
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  assertWorkspaceFileFolderTarget: async () => null,
-  buildWorkspaceFileFolderPathMap: () => new Map(),
-  fileNameExistsInWorkspaceFolder: async () => false,
-  findWorkspaceFileFolderIdByPath: vi.fn(),
-  getWorkspaceFileFolderPath: vi.fn(),
-  listWorkspaceFileFolders: async () => [],
-  normalizeWorkspaceFileItemName: (name: string) => name,
-  resolveWorkspaceFileFolderTarget: async () => null,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 vi.mock('@/lib/folders/locks', () => ({ acquireFolderMutationLock: vi.fn() }))
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: async () => new Map([['reader', 'reader@example.test']]),
-  requireResolvedUserEmail: (values: Map<string, string>, id: string) => {
-    const email = values.get(id)
-    if (!email) throw new Error(`Missing fixture attribution for ${id}`)
-    return email
-  },
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: async () => [] }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: vi.fn() }))
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({
-    id: 'e2b',
-    findSessionSandbox: mocks.find,
-    resolveLifetimeMs: (milliseconds: number) => milliseconds,
-  }),
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   withSandboxSessionLock: async <T>(
     _key: string,
@@ -115,9 +76,51 @@ import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  stream: storageServiceMockFns.mockDownloadFileStream,
+  head: storageServiceMockFns.mockHeadObject,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  authenticate: v2RouteMocks.authenticate,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+  logError: getMockLogger('MothershipFileUploads').error,
+}
+redisConfigMockFns.mockGetRedisClient.mockReturnValue({
+  eval: async (_script: string, _keys: number, key: string, value: string) => {
+    mocks.receipts.set(key, value)
+    return 1
+  },
+  get: async (key: string) => mocks.receipts.get(key) ?? null,
+})
+storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
+uploadsMockFns.mockGetServePathPrefix.mockReturnValue('/api/files/serve/s3/')
+billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(100)
+billingStorageMockFns.mockResolveStorageBillingContext.mockResolvedValue({
+  workspaceId: 'workspace',
+})
+workspaceFileFoldersMockFns.mockBuildWorkspaceFileFolderPathMap.mockImplementation(() => new Map())
+workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(
+  (name: string) => name
+)
+usersQueriesMockFns.mockGetUserEmailsByIds.mockImplementation(
+  async () => new Map([['reader', 'reader@example.test']])
+)
+usersQueriesMockFns.mockRequireResolvedUserEmail.mockImplementation(
+  (values: ReadonlyMap<string, string>, id: string) => {
+    const email = values.get(id)
+    if (!email) throw new Error(`Missing fixture attribution for ${id}`)
+    return email
+  }
+)
+remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(() => ({
+  id: 'e2b',
+  findSessionSandbox: mocks.find,
+  resolveLifetimeMs: (milliseconds: number) => milliseconds,
+}))
 
 const WORKSPACE = '7727ef3f-8cf6-4686-b063-2bb006a10785'
 const CONTENT = 'ROUND_TRIP_CANARY_ONLY_FOR_LOCAL_TEST'
@@ -135,6 +138,9 @@ const SOURCE = {
   key: `workspace/${WORKSPACE}/123-abc-source.txt`,
   userId: 'reader',
   workspaceId: WORKSPACE,
+  entityType: 'workspace',
+  entityId: WORKSPACE,
+  organizationId: null,
   folderId: null,
   context: 'workspace',
   chatId: null,
@@ -177,21 +183,36 @@ function queueRead(file: typeof SOURCE, provenance: WorkspaceFileSecretProvenanc
     {
       workspaceId: WORKSPACE,
       fileId: file.id,
+      ownership: file,
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'owner',
     },
   ])
   queueTableRows(workspaceFiles, [file])
+  const sidecar = {
+    id: file.id,
+    key: file.key,
+    context: file.context,
+    fileContentUpdatedAt: REVISION,
+    secretProvenanceVersion: 1,
+    provenanceContentUpdatedAt: REVISION,
+    ...provenance,
+    entries: provenance.status === 'exact' ? provenance.entries : [],
+  }
+  queueTableRows(workspaceFiles, [sidecar])
   queueTableRows(workspaceFiles, [
     {
-      fileContentUpdatedAt: REVISION,
-      secretProvenanceVersion: 1,
-      provenanceContentUpdatedAt: REVISION,
-      ...provenance,
-      entries: provenance.status === 'exact' ? provenance.entries : [],
+      workspaceId: WORKSPACE,
+      fileId: file.id,
+      ownership: file,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'owner',
     },
   ])
+  queueTableRows(workspaceFiles, [file])
+  queueTableRows(workspaceFiles, [sidecar])
 }
 
 function execute(argv: string[], trace: ResolvedSecretTraceRegistry, sink?: string) {
@@ -302,12 +323,16 @@ beforeEach(async () => {
     })
     expect(result.created).toBe(true)
     const sidecar = dbChainMockFns.values.mock.calls
-      .map(([value]) => value)
+      .map(([value]) => toRecord(value))
       .find((value) => value.fileId === PUBLISHED.id && 'entries' in value)
     expect(sidecar).toMatchObject({ contentUpdatedAt: REVISION })
+    assert.isDefined(sidecar)
     storedProvenance =
       sidecar.status === 'exact'
-        ? { status: 'exact', entries: sidecar.entries }
+        ? {
+            status: 'exact',
+            entries: toArray<StoredWorkspaceFileSecretProvenanceEntry>(sidecar.entries),
+          }
         : { status: 'unknown' }
     registered = true
     queueTableRows(workspaceFiles, [PUBLISHED])
@@ -328,7 +353,6 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  vi.unstubAllGlobals()
   await rm(directory, { recursive: true, force: true })
 })
 

@@ -60,7 +60,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       return `${baseUrl}/batch/`
     },
     method: 'POST',
-    headers: (params) => ({
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => {

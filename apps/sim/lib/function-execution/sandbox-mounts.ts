@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import {
   assertUserFileContentAccess,
@@ -6,16 +7,13 @@ import {
   readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
 import { MAX_SANDBOX_URL_MOUNT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
-import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { generatePresignedDownloadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
-import {
-  isGeneratedDocumentSourceType,
-  resolveTrustedFileContext,
-} from '@/lib/uploads/utils/file-utils'
+import { isGeneratedDocumentSourceType, resolveTrustedFileContext } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('SandboxMounts')
@@ -277,7 +275,10 @@ export async function resolveUserFileMounts(args: {
   manifest: SandboxMountManifestEntry[]
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
   renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /** Mounts without producer provenance remain usable and report the recording gap. */
+  unprovenancedMountCount: number
 }> {
+  let unprovenancedMountCount = 0
   const sandboxFiles: SandboxFile[] = []
   const manifest: SandboxMountManifestEntry[] = []
   const budget = createSandboxMountBudget()
@@ -297,14 +298,16 @@ export async function resolveUserFileMounts(args: {
   for (const { userFile, mountPath } of args.planned) {
     const storageContext = resolveTrustedFileContext(userFile.key, userFile.context)
     await assertUserFileContentAccess(userFile, args.context)
-    if (args.context.principal && args.context.workspaceId) {
-      const source = await resolveStoredFileProvenanceSource(userFile, {
-        ...args.context,
-        principal: args.context.principal,
-        workspaceId: args.context.workspaceId,
-      })
-      if (source) addContributor(source.identity)
-    }
+    const source =
+      args.context.principal && args.context.workspaceId
+        ? await resolveStoredFileProvenanceSource(userFile, {
+            ...args.context,
+            principal: args.context.principal,
+            workspaceId: args.context.workspaceId,
+          })
+        : undefined
+    if (source) addContributor(source.identity)
+    else unprovenancedMountCount += 1
 
     await pushSandboxFileMount(
       sandboxFiles,
@@ -352,7 +355,15 @@ export async function resolveUserFileMounts(args: {
     })
   }
 
-  logger.info('Resolved sandbox file mounts', {
+  if (unprovenancedMountCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: args.context.workspaceId,
+      actorUserId: args.context.userId,
+      recordCount: unprovenancedMountCount,
+    })
+  }
+  logger.debug('Resolved sandbox file mounts', {
     mountCount: sandboxFiles.length,
     bufferedBytes: budget.buffered,
     urlBytes: budget.url,
@@ -361,6 +372,7 @@ export async function resolveUserFileMounts(args: {
   return {
     sandboxFiles,
     manifest,
+    unprovenancedMountCount,
     ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
     ...(renderedContributingFiles.size > 0
       ? { renderedContributingFiles: [...renderedContributingFiles.values()] }

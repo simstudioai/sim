@@ -1,16 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import type {
   GmailDraftBody,
   GmailEditDraftBody,
   GmailSendBody,
 } from '@/lib/api/contracts/tools/google'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { asObject, GmailClient } from '@/lib/internal/gmail/client'
+import { GmailClient } from '@/lib/internal/gmail/client'
 import { GmailOperationError } from '@/lib/internal/gmail/errors'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { base64UrlEncode, buildMimeMessage, buildSimpleEmailMessage } from '@/tools/gmail/utils'
 
@@ -178,7 +179,7 @@ export async function executeGmailDraft(input: GmailDraftBody, context: GmailMai
     { method: 'POST', body: JSON.stringify({ message }) },
     context.signal
   )
-  const draftMessage = asObject(data.message)
+  const draftMessage = toRecord(data.message)
   return {
     success: true,
     output: {
@@ -209,7 +210,7 @@ export async function executeGmailEditDraft(
     { method: 'PUT', body: JSON.stringify({ id: input.draftId, message }) },
     context.signal
   )
-  const draftMessage = asObject(data.message)
+  const draftMessage = toRecord(data.message)
   return {
     success: true,
     output: {

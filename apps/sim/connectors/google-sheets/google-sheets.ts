@@ -491,7 +491,7 @@ export const googleSheetsConnector: ConnectorConfig = {
 
   getDocument: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>,
+    _sourceConfig: Record<string, unknown>,
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {

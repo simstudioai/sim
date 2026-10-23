@@ -33,7 +33,11 @@ export const GET = defineInternalJsonRoute({
   parseOptions: {
     validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid query parameters'),
   },
-  mapInput: ({ query }) => ({ workspaceId: query.workspaceId, scope: query.scope }),
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    scope: query.scope,
+    includeCounts: query.includeCounts,
+  }),
   useCase: listInternalKnowledgeBases,
   present: internalKnowledgePresenters.list,
 })

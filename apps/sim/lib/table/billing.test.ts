@@ -1,28 +1,18 @@
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { tableConstantsMock, tableConstantsMockFns } from '@sim/testing/mocks/table-constants.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockResolveWorkspaceBillingPayer,
-  mockGetPlanTypeForLimits,
-  mockGetBillingDisabledTableLimits,
-  mockGetTablePlanLimits,
-} = vi.hoisted(() => ({
-  mockResolveWorkspaceBillingPayer: vi.fn(),
-  mockGetPlanTypeForLimits: vi.fn(),
-  mockGetBillingDisabledTableLimits: vi.fn(),
-  mockGetTablePlanLimits: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveWorkspaceBillingPayer: mockResolveWorkspaceBillingPayer,
-}))
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  getPlanTypeForLimits: mockGetPlanTypeForLimits,
-}))
-vi.mock('@/lib/table/constants', () => ({
-  getBillingDisabledTableLimits: mockGetBillingDisabledTableLimits,
-  getTablePlanLimits: mockGetTablePlanLimits,
-}))
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
+vi.mock('@/lib/table/constants', () => tableConstantsMock)
 
 import {
   assertRowCapacity,
@@ -31,6 +21,10 @@ import {
   TableRowLimitError,
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
+
+const { mockGetBillingDisabledTableLimits, mockGetTablePlanLimits } = tableConstantsMockFns
+const mockGetPlanTypeForLimits = billingPlanHelpersMockFns.mockGetPlanTypeForLimits
+const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
 
 const LIMITS = {
   free: { maxTables: 3, maxRowsPerTable: 1000 },

@@ -6,7 +6,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { workflowsUtilsMockFns } from '@sim/testing'
+ * import { workflowsUtilsMockFns } from '@sim/testing/mocks/workflows-utils.mock'
  *
  * workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({ id: 'wf-1', name: 'Test' })
  * ```
@@ -20,7 +20,6 @@ export const workflowsUtilsMockFns = {
   mockWorkflowHasResponseBlock: vi.fn(),
   mockCreateHttpResponseFromBlock: vi.fn(),
   mockValidateWorkflowPermissions: vi.fn(),
-  mockCreateWorkflowRecord: vi.fn(),
   mockUpdateWorkflowRecord: vi.fn(),
   mockDeleteWorkflowRecord: vi.fn(),
   mockSetWorkflowVariables: vi.fn(),
@@ -53,7 +52,6 @@ export const workflowsUtilsMock = {
   workflowHasResponseBlock: workflowsUtilsMockFns.mockWorkflowHasResponseBlock,
   createHttpResponseFromBlock: workflowsUtilsMockFns.mockCreateHttpResponseFromBlock,
   validateWorkflowPermissions: workflowsUtilsMockFns.mockValidateWorkflowPermissions,
-  createWorkflowRecord: workflowsUtilsMockFns.mockCreateWorkflowRecord,
   updateWorkflowRecord: workflowsUtilsMockFns.mockUpdateWorkflowRecord,
   deleteWorkflowRecord: workflowsUtilsMockFns.mockDeleteWorkflowRecord,
   setWorkflowVariables: workflowsUtilsMockFns.mockSetWorkflowVariables,

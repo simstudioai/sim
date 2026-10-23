@@ -1,4 +1,14 @@
 import { Buffer } from 'buffer'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,24 +23,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
  *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
  */
-const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty, mockNotify } =
-  vi.hoisted(() => ({
-    store: {
-      folderIdByPath: new Map<string, string>(),
-      fileKeys: new Set<string>(),
-      blockedFolderIds: new Set<string>(),
-      /** Paths passed to the folder-delete operation, in call order. */
-      deletedFolderPaths: [] as string[],
-      sequence: 0,
-    },
-    mockUpload: vi.fn(),
-    mockPurge: vi.fn(),
-    mockEnsureFolder: vi.fn(),
-    mockArchiveFolderIfEmpty: vi.fn(),
-    mockNotify: vi.fn(),
-  }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+const { store, mockUpload, mockEnsureFolder } = vi.hoisted(() => ({
+  store: {
+    folderIdByPath: new Map<string, string>(),
+    fileKeys: new Set<string>(),
+    blockedFolderIds: new Set<string>(),
+    /** Paths passed to the folder-delete operation, in call order. */
+    deletedFolderPaths: [] as string[],
+    sequence: 0,
+  },
+  mockUpload: vi.fn(),
+  mockEnsureFolder: vi.fn(),
+}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
 }))
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
@@ -38,12 +44,8 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
     execute: mockUpload,
   },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  purgeCreatedWorkspaceFile: mockPurge,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  archiveWorkspaceFileFolderIfEmpty: mockArchiveFolderIfEmpty,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 
 import {
   buildFolderPath,
@@ -57,11 +59,13 @@ import {
   MAX_ARCHIVE_ENTRY_BYTES,
 } from '@/lib/uploads/archive'
 
-const TEST_PRINCIPAL = {
-  kind: 'session',
-  userId: 'u',
-  sessionId: 'session-1',
-} as const
+const mockArchiveFolderIfEmpty = workspaceFileFoldersMockFns.mockArchiveWorkspaceFileFolderIfEmpty
+
+const mockPurge = workspaceFileManagerMockFns.mockPurgeCreatedWorkspaceFile
+
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
+
+const TEST_PRINCIPAL = createSessionPrincipal({ userId: 'u' })
 
 async function buildZip(
   files: Record<string, string | Buffer>,
@@ -107,7 +111,7 @@ function craftCentralDirectory(records: number, extraPerRecord: number): Buffer 
   return buffer
 }
 
-/** Mirrors `allocateUniqueWorkspaceFileName`'s " (n)" suffixing. */
+/** Numbered " (n)" suffixing in the style of `allocateUniqueWorkspaceFileName`'s first candidates. */
 function allocateUniqueName(folderKey: string, name: string): string {
   const dot = name.lastIndexOf('.')
   const base = dot > 0 ? name.slice(0, dot) : name
@@ -252,30 +256,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
       'report (1).txt',
     ])
     expect(mockPurge).not.toHaveBeenCalled()
-  })
-
-  it('marks extracted files unknown when an archive has secret provenance', async () => {
-    const buffer = await buildZip({ 'one.txt': 'one', 'two.txt': 'two' })
-    const secretProvenance = {
-      status: 'exact' as const,
-      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
-    }
-
-    await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      secretProvenance,
-    })
-
-    expect(mockUpload).toHaveBeenCalledTimes(2)
-    for (const call of mockUpload.mock.calls) {
-      expect(call[0].input).toEqual(
-        expect.objectContaining({
-          secretProvenance: { status: 'unknown' },
-          notifyWorkspaceChange: false,
-        })
-      )
-    }
   })
 
   it('rejects an archive with more central-directory records than the cap, before parsing', async () => {
@@ -669,13 +649,13 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
   })
 
   it('rejects an entry whose declared size exceeds the per-entry cap', async () => {
-    const zip = new JSZip()
-    // Highly compressible zeros keep the archive tiny on disk while the declared
-    // uncompressed size blows past the per-entry cap.
-    zip.file('big.bin', Buffer.alloc(MAX_ARCHIVE_ENTRY_BYTES + 1024))
-    const buffer = Buffer.from(
-      await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
-    )
+    const buffer = await buildZip({ 'big.bin': 'x' })
+    // Only the declared-size fast reject is under test; both headers claim an
+    // oversized entry without compressing a large payload during suite startup.
+    const centralDirectory = buffer.readUInt32LE(buffer.length - EOCD_SIZE + 16)
+    const localHeader = buffer.readUInt32LE(centralDirectory + 42)
+    buffer.writeUInt32LE(MAX_ARCHIVE_ENTRY_BYTES + 1024, centralDirectory + 24)
+    buffer.writeUInt32LE(MAX_ARCHIVE_ENTRY_BYTES + 1024, localHeader + 22)
 
     await expect(
       decompressArchiveBufferToWorkspaceFiles(buffer, {

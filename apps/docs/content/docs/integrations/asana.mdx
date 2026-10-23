@@ -1,31 +1,44 @@
 ---
 title: Asana
 description: Interact with Asana
+integration:
+  type: "asana"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="asana"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Asana](https://asana.com/) in Sim to manage tasks, projects, sections, comments, and followers. Workflows can create tasks, update their status or assignees, and read project and workspace data.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Service accounts and personal access tokens](/integrations/asana-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Asana into the workflow. Can read, write, and update tasks.
+Sim requests these scopes when someone connects an Asana account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/asana` |
+| Environment variables | `ASANA_CLIENT_ID`, `ASANA_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `default` | Full access to everything the account can reach in Asana |
+
+## Use the block [#usage-instructions]
+
+Read, write, and update tasks.
 
 ## Actions
 
 ### Asana Get Task
 
 Retrieve a single task by GID or get multiple tasks with filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,9 +75,13 @@ Retrieve a single task by GID or get multiple tasks with filters
 |   ↳ `name` | string | Task name |
 |   ↳ `completed` | boolean | Completion status |
 
+</ReferenceDetails>
+
 ### Asana Create Task
 
 Create a new task in Asana
+
+<ReferenceDetails>
 
 #### Input
 
@@ -89,9 +106,13 @@ Create a new task in Asana
 | `created_at` | string | Task creation timestamp |
 | `permalink_url` | string | URL to the task in Asana |
 
+</ReferenceDetails>
+
 ### Asana Update Task
 
 Update an existing task in Asana
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +137,13 @@ Update an existing task in Asana
 | `completed` | boolean | Whether the task is completed |
 | `modified_at` | string | Task last modified timestamp |
 
+</ReferenceDetails>
+
 ### Asana Get Projects
 
 Retrieve all projects from an Asana workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +162,13 @@ Retrieve all projects from an Asana workspace
 |   ↳ `name` | string | Project name |
 |   ↳ `resource_type` | string | Resource type \(project\) |
 
+</ReferenceDetails>
+
 ### Asana Search Tasks
 
 Search for tasks in an Asana workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +204,13 @@ Search for tasks in an Asana workspace
 |   ↳ `path` | string | API path |
 |   ↳ `uri` | string | Full URI |
 
+</ReferenceDetails>
+
 ### Asana Add Comment
 
 Add a comment (story) to an Asana task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -199,9 +232,13 @@ Add a comment (story) to an Asana task
 |   ↳ `gid` | string | Author GID |
 |   ↳ `name` | string | Author name |
 
+</ReferenceDetails>
+
 ### Asana Create Subtask
 
 Create a subtask under an existing Asana task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +263,13 @@ Create a subtask under an existing Asana task
 | `created_at` | string | Subtask creation timestamp |
 | `permalink_url` | string | URL to the subtask in Asana |
 
+</ReferenceDetails>
+
 ### Asana Delete Task
 
 Delete an Asana task by its GID (moves it to the trash)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +286,13 @@ Delete an Asana task by its GID (moves it to the trash)
 | `gid` | string | GID of the deleted task |
 | `deleted` | boolean | Whether the task was deleted |
 
+</ReferenceDetails>
+
 ### Asana Add Followers
 
 Add one or more followers to an Asana task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +313,13 @@ Add one or more followers to an Asana task
 |   ↳ `gid` | string | Follower GID |
 |   ↳ `name` | string | Follower name |
 
+</ReferenceDetails>
+
 ### Asana Create Project
 
 Create a new project in an Asana workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +344,13 @@ Create a new project in an Asana workspace
 | `modified_at` | string | Project last modified timestamp |
 | `permalink_url` | string | URL to the project in Asana |
 
+</ReferenceDetails>
+
 ### Asana Get Project
 
 Retrieve a single Asana project by its GID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -320,9 +373,13 @@ Retrieve a single Asana project by its GID
 | `modified_at` | string | Project last modified timestamp |
 | `permalink_url` | string | URL to the project in Asana |
 
+</ReferenceDetails>
+
 ### Asana List Workspaces
 
 List all Asana workspaces and organizations the authenticated user belongs to
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,9 +397,13 @@ List all Asana workspaces and organizations the authenticated user belongs to
 |   ↳ `name` | string | Workspace name |
 |   ↳ `resource_type` | string | Resource type \(workspace\) |
 
+</ReferenceDetails>
+
 ### Asana Create Section
 
 Create a new section in an Asana project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -361,9 +422,13 @@ Create a new section in an Asana project
 | `name` | string | Section name |
 | `created_at` | string | Section creation timestamp |
 
+</ReferenceDetails>
+
 ### Asana List Sections
 
 List all sections in an Asana project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,5 +446,7 @@ List all sections in an Asana project
 |   ↳ `gid` | string | Section GID |
 |   ↳ `name` | string | Section name |
 |   ↳ `resource_type` | string | Resource type \(section\) |
+
+</ReferenceDetails>
 
 

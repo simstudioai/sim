@@ -15,14 +15,18 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
-import { createReadableStreamFromLiteLLMStream } from '@/providers/litellm/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -237,9 +241,10 @@ export const litellmProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromLiteLLMStream(
-              streamResponse,
-              (content, usage) => {
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'LiteLLM',
+              request,
+              onComplete: ({ content, usage }) => {
                 let cleanContent = content
                 if (cleanContent && request.responseFormat) {
                   cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
@@ -265,8 +270,7 @@ export const litellmProvider: ProviderConfig = {
 
                 finalizeTiming()
               },
-              request
-            ),
+            }),
         })
 
         return streamingResult
@@ -371,7 +375,7 @@ export const litellmProvider: ProviderConfig = {
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1})`
         )
 
         const toolsStartTime = Date.now()
@@ -802,7 +806,7 @@ export const litellmProvider: ProviderConfig = {
         }
       }
 
-      logger.error('Error in LiteLLM request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in LiteLLM request:', {
         error: errorMessage,
         errorType,
         errorCode,

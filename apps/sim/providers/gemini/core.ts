@@ -7,7 +7,6 @@ import {
   type GoogleGenAI,
   type Interactions,
   type Part,
-  type Schema,
   type ThinkingConfig,
   type ToolConfig,
 } from '@google/genai'
@@ -21,40 +20,44 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
+import { applyGeminiResponseFormat } from '@/providers/gemini/config'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import { priceGeminiTokens, splitGeminiTokens, splitGeminiUsage } from '@/providers/gemini/usage'
 import {
   checkForForcedToolUsage,
-  cleanSchemaForGemini,
   convertToGeminiFormat,
   convertUsageMetadata,
   createReadableStreamFromGeminiStream,
   ensureStructResponse,
   extractAllFunctionCallParts,
   extractTextContent,
+  geminiRetryDelayMs,
   mapToThinkingBudget,
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
-import { getModelCapabilities, isKnownModelId } from '@/providers/models'
+import { getModelCapabilities, getThinkingLevelsForModel, isKnownModelId } from '@/providers/models'
+import { withProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError } from '@/providers/streaming-tool-loop-shared'
+import { isAbortError, providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
-import type {
-  FunctionCallResponse,
-  ProviderRequest,
-  ProviderResponse,
-  TimeSegment,
+import {
+  EmptyProviderInputError,
+  type FunctionCallResponse,
+  type ProviderRequest,
+  type ProviderResponse,
+  type TimeSegment,
 } from '@/providers/types'
 import {
   isDeepResearchModel,
-  isGemini3Model,
+  isGemini3OrLaterModel,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
+  toBareGeminiModelId,
 } from '@/providers/utils'
 import type { ExecutionState, GeminiProviderType, GeminiUsage } from './types'
 
@@ -360,19 +363,14 @@ function buildNextConfig(
   if (allForcedToolsUsed && request.responseFormat) {
     nextConfig.tools = undefined
     nextConfig.toolConfig = undefined
-    if (isGemini3Model(model)) {
-      logger.info('Gemini 3: Stripping tools after forced tool execution, schema already set')
-    } else {
-      nextConfig.responseMimeType = 'application/json'
-      nextConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      logger.info('Using structured output for final response after tool execution')
-    }
+    logger.info('Using structured output for final response after tool execution')
   } else if (state.currentToolConfig) {
     nextConfig.toolConfig = state.currentToolConfig
   } else {
     nextConfig.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } }
   }
 
+  applyGeminiResponseFormat(nextConfig, request.responseFormat, model)
   return nextConfig
 }
 
@@ -928,7 +926,7 @@ export async function executeDeepResearchRequest(
     const providerEndTime = Date.now()
     const duration = providerEndTime - providerStartTime
 
-    logger.error('Error in deep research request:', {
+    logger[providerFailureLogLevel(error, request.abortSignal)]('Error in deep research request:', {
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
@@ -962,6 +960,12 @@ export async function executeGeminiRequest(
   }
 
   const logger = createLogger(providerType === 'google' ? 'GoogleProvider' : 'VertexProvider')
+  const retryOptions = {
+    logger,
+    label: providerType === 'google' ? 'Gemini' : 'Vertex AI',
+    abortSignal: request.abortSignal,
+    retryAfterMs: geminiRetryDelayMs,
+  }
 
   logger.info(`Preparing ${providerType} Gemini request`, {
     model,
@@ -978,6 +982,12 @@ export async function executeGeminiRequest(
 
   try {
     const { contents, tools, systemInstruction } = convertToGeminiFormat(request, providerType)
+    /** The SDK refuses empty `contents` with an opaque "contents are required"; a system prompt alone is not enough. */
+    if (contents.length === 0) {
+      throw new EmptyProviderInputError(
+        'The Agent has no user message to send, and Gemini needs one alongside any system prompt. Add a user message, or check that the value it references (for example <start.input>) is not empty.'
+      )
+    }
 
     // Build configuration
     const geminiConfig: GenerateContentConfig = {}
@@ -998,35 +1008,29 @@ export async function executeGeminiRequest(
       geminiConfig.systemInstruction = systemInstruction
     }
 
-    // Handle response format
-    if (request.responseFormat && !tools?.length) {
-      geminiConfig.responseMimeType = 'application/json'
-      geminiConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      logger.info('Using Gemini native structured output format')
-    } else if (request.responseFormat && tools?.length && isGemini3Model(model)) {
-      geminiConfig.responseMimeType = 'application/json'
-      geminiConfig.responseJsonSchema = request.responseFormat.schema
-      logger.info('Using Gemini 3 structured output with tools (responseJsonSchema)')
-    } else if (request.responseFormat && tools?.length) {
-      logger.warn(
-        'Gemini 2 does not support responseFormat with tools. Structured output will be applied after tool execution.'
-      )
-    }
-
-    // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
+    // Gemini 3 and later take thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
     // includeThoughts is required for thought parts to appear; it is requested
     // only on agent-events runs so legacy runs keep the pre-agent-events payload.
-    if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+    const isGemini3 = isGemini3OrLaterModel(model)
+    // Gemini 3 has no off switch and omitting thinkingConfig means the model's default level, so
+    // 'none' sends the lowest declared level (levels are listed lowest-first; MINIMAL is closest to off).
+    // The catalog keys Vertex entries as vertex/<bare id>, so resource-name IDs are reduced first.
+    const catalogModelId = `${providerType === 'vertex' ? 'vertex/' : ''}${toBareGeminiModelId(model)}`
+    const thinkingLevel =
+      isGemini3 && request.thinkingLevel === 'none'
+        ? getThinkingLevelsForModel(catalogModelId)?.[0]
+        : request.thinkingLevel
+    if (thinkingLevel && thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
-      if (isGemini3Model(model)) {
-        thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
+      if (isGemini3) {
+        thinkingConfig.thinkingLevel = mapToThinkingLevel(thinkingLevel)
       } else {
-        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, request.thinkingLevel)
+        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, thinkingLevel)
       }
       geminiConfig.thinkingConfig = thinkingConfig
     } else if (
+      !isGemini3 &&
       request.thinkingLevel === 'none' &&
-      !isGemini3Model(model) &&
       supportsDisablingGemini25Thinking(model)
     ) {
       // Omitting thinkingConfig falls back to the API's dynamic default (ON for gemini-2.5-flash),
@@ -1079,17 +1083,19 @@ export async function executeGeminiRequest(
       }
     }
 
+    applyGeminiResponseFormat(geminiConfig, request.responseFormat, model)
+
     const initialCallTime = Date.now()
     /**
      * Gemini 2 cannot combine responseSchema with tools, so structured output
      * is applied on a final schema-configured request after tools settle — the
      * silent path does this; the live loop would break as soon as a turn has
-     * no calls and skip the schema. Gemini 3 carries responseJsonSchema
-     * alongside tools, so its live loop keeps structured output.
+     * no calls and skip the schema. Gemini 3 and later carry responseJsonSchema
+     * alongside automatic tools, or apply it after forced calls settle.
      */
     const hasActiveTools = Boolean(geminiConfig.tools?.length)
     const responseFormatNeedsFinalPass =
-      Boolean(request.responseFormat) && hasActiveTools && !isGemini3Model(model)
+      Boolean(request.responseFormat) && hasActiveTools && !isGemini3
     const liveToolLoopSupported = !responseFormatNeedsFinalPass
     const shouldStream = request.stream && !hasActiveTools
 
@@ -1148,12 +1154,14 @@ export async function executeGeminiRequest(
     if (shouldStream) {
       logger.info('Handling Gemini streaming response')
 
-      const streamGenerator = await ai.models.generateContentStream(
-        await prepareConversationGeneration(request, 'gemini', {
-          model,
-          contents,
-          config: geminiConfig,
-        })
+      const streamPayload = await prepareConversationGeneration(request, 'gemini', {
+        model,
+        contents,
+        config: geminiConfig,
+      })
+      const streamGenerator = await withProviderRetry(
+        () => ai.models.generateContentStream(streamPayload),
+        retryOptions
       )
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -1202,12 +1210,14 @@ export async function executeGeminiRequest(
     }
 
     // Non-streaming request
-    const response = await ai.models.generateContent(
-      await prepareConversationGeneration(request, 'gemini', {
-        model,
-        contents,
-        config: geminiConfig,
-      })
+    const responsePayload = await prepareConversationGeneration(request, 'gemini', {
+      model,
+      contents,
+      config: geminiConfig,
+    })
+    const response = await withProviderRetry(
+      () => ai.models.generateContent(responsePayload),
+      retryOptions
     )
     if (!extractAllFunctionCallParts(response.candidates?.[0]).length) {
       await captureProviderConversationStep(
@@ -1250,18 +1260,17 @@ export async function executeGeminiRequest(
         tools: undefined,
         toolConfig: undefined,
       }
-      if (request.responseFormat && !isGemini3Model(model)) {
-        finalConfig.responseMimeType = 'application/json'
-        finalConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      }
+      applyGeminiResponseFormat(finalConfig, request.responseFormat, model)
 
       const finalStartTime = Date.now()
-      const finalResponse = await ai.models.generateContent(
-        await prepareConversationGeneration(request, 'gemini', {
-          model,
-          contents: currentState.contents,
-          config: finalConfig,
-        })
+      const finalResponsePayload = await prepareConversationGeneration(request, 'gemini', {
+        model,
+        contents: currentState.contents,
+        config: finalConfig,
+      })
+      const finalResponse = await withProviderRetry(
+        () => ai.models.generateContent(finalResponsePayload),
+        retryOptions
       )
       if (!extractAllFunctionCallParts(finalResponse.candidates?.[0]).length) {
         await captureProviderConversationStep(
@@ -1375,12 +1384,14 @@ export async function executeGeminiRequest(
 
         /** Resolve the final turn, then project its settled answer when streaming was requested. */
         const nextModelStartTime = Date.now()
-        const nextResponse = await ai.models.generateContent(
-          await prepareConversationGeneration(request, 'gemini', {
-            model,
-            contents: state.contents,
-            config: nextConfig,
-          })
+        const nextResponsePayload = await prepareConversationGeneration(request, 'gemini', {
+          model,
+          contents: state.contents,
+          config: nextConfig,
+        })
+        const nextResponse = await withProviderRetry(
+          () => ai.models.generateContent(nextResponsePayload),
+          retryOptions
         )
         if (!extractAllFunctionCallParts(nextResponse.candidates?.[0]).length) {
           await captureProviderConversationStep(
@@ -1450,7 +1461,7 @@ export async function executeGeminiRequest(
     const providerEndTime = Date.now()
     const duration = providerEndTime - providerStartTime
 
-    logger.error('Error in Gemini request:', {
+    logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Gemini request:', {
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })

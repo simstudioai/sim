@@ -1,57 +1,77 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
-  workspace: vi.fn(),
-  banned: vi.fn(),
-  execution: vi.fn(),
   status: vi.fn(),
   acquire: vi.fn(),
-  internalAuth: vi.fn(),
   after: vi.fn(),
-  worker: vi.fn(),
 }))
-vi.mock('@/lib/mothership/request/http', () => ({ checkInternalApiKey: mocks.internalAuth }))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('next/server', async (original) => ({
   ...(await original<typeof import('next/server')>()),
-  after: mocks.after,
+  after: hoisted.after,
 }))
-vi.mock('@/lib/mothership/request/go/fetch', () => ({ fetchGo: mocks.worker }))
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: async () => 'http://worker',
-  getMothershipSourceEnvHeaders: () => ({}),
-}))
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
   ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mocks.authorize,
+  authorizeWorkspaceOperation: hoisted.authorize,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowRunApplicationContext: mocks.execution,
-}))
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
-  getWorkflowExecutionStatus: mocks.status,
+  getWorkflowExecutionStatus: hoisted.status,
 }))
 vi.mock('@/lib/mothership/request/session/abort', () => ({
-  acquirePendingChatStream: mocks.acquire,
+  acquirePendingChatStream: hoisted.acquire,
+  getLocalChatStreamLease: vi.fn(),
 }))
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { runEmbeddedCli } from 'sim/embed'
 import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
 import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { WorkflowWatchStatus } from '@/lib/mothership/generated/tasks'
+import { GET as taskStatusRoute } from '@/app/api/mothership/tasks/[taskId]/route'
 import { POST as watchRoute } from '@/app/api/mothership/tasks/workflow-status/route'
 import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
 import { TASK_DELEGATION_AUDIENCE } from './context'
 import { prepareTaskWake } from './prepare-wake'
 import { readTaskStatus } from './read-status'
 import { readWatchedWorkflowStatus } from './read-workflow-status'
+
+const mocks = {
+  ...hoisted,
+  banned: authBanMockFns.mockGetActivelyBannedUserIds,
+  internalAuth: copilotHttpMockFns.mockCheckInternalApiKey,
+  worker: mothershipGoFetchMockFns.mockFetchGo,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  execution: workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext,
+}
 
 const principal = createTrustedCopilotPrincipal(
   { userId: 'u', workspaceId: 'w', delegationId: 'test' },
@@ -70,7 +90,6 @@ const input = {
 
 beforeEach(() => {
   resetDbChainMock()
-  vi.clearAllMocks()
   queueTableRows(schemaMock.copilotChats, [{ userId: 'u', workspaceId: 'w' }])
   mocks.banned.mockResolvedValue([])
   mocks.workspace.mockResolvedValue({
@@ -83,6 +102,7 @@ beforeEach(() => {
   mocks.status.mockResolvedValue({ status: 'completed', error: null })
   mocks.acquire.mockResolvedValue(true)
   mocks.internalAuth.mockReturnValue({ success: true })
+  mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('http://worker')
 })
 
 describe('durable workflow watches', () => {
@@ -147,7 +167,7 @@ describe('durable workflow watches', () => {
   it('rejects disallowed principals before loading protected data', async () => {
     await expect(
       readWatchedWorkflowStatus.execute({
-        principal: { kind: 'session', userId: 'u', sessionId: 's' },
+        principal: createSessionPrincipal({ userId: 'u', sessionId: 's' }),
         input: { chatId: 'chat', executionId: 'exec' },
       })
     ).rejects.toThrow()
@@ -190,9 +210,10 @@ const CHAT_ID = '11111111-1111-4111-8111-111111111111'
 const TASK_ID = '22222222-2222-4222-8222-222222222222'
 const RUN_ID = '33333333-3333-4333-8333-333333333333'
 function request(path: string, body: string): NextRequest {
-  return new NextRequest(`http://localhost${path}`, {
+  return createMockRequest({
     method: 'POST',
-    body,
+    url: `http://localhost${path}`,
+    rawBody: body,
     headers: {
       'content-type': 'application/json',
       'x-mothership-user-id': 'u',
@@ -200,7 +221,7 @@ function request(path: string, body: string): NextRequest {
     },
   })
 }
-const routeContext = { params: Promise.resolve({}) }
+const routeContext = createRouteContext({})
 
 describe('worker HTTP contracts', () => {
   it('authenticates before reading an invalid body', async () => {
@@ -296,7 +317,7 @@ describe('task status access', () => {
   it('projects the authoritative task status after checking its canonical chat', async () => {
     mocks.worker.mockResolvedValue(statusResponse())
     const result = await readTaskStatus.execute({
-      principal: { kind: 'session', userId: 'u', sessionId: 's' },
+      principal: createSessionPrincipal({ userId: 'u', sessionId: 's' }),
       input: { taskId: TASK_ID },
     })
     expect(result).toEqual({ taskId: TASK_ID, status: 'stopped', summary: 'Stopped by the agent' })
@@ -306,7 +327,7 @@ describe('task status access', () => {
     mocks.worker.mockResolvedValue(statusResponse())
     await expect(
       readTaskStatus.execute({
-        principal: { kind: 'session', userId: 'other', sessionId: 's' },
+        principal: createSessionPrincipal({ userId: 'other', sessionId: 's' }),
         input: { taskId: TASK_ID },
       })
     ).rejects.toThrow('Chat not found')
@@ -316,9 +337,52 @@ describe('task status access', () => {
     mocks.worker.mockResolvedValue(new Response('{}', { status: 503 }))
     await expect(
       readTaskStatus.execute({
-        principal: { kind: 'session', userId: 'u', sessionId: 's' },
+        principal: createSessionPrincipal({ userId: 'u', sessionId: 's' }),
         input: { taskId: TASK_ID },
       })
     ).rejects.toThrow('Task service is unavailable')
+  })
+
+  /**
+   * The status read is a live call to the task service. When that service is
+   * down or slow the caller should see a retryable gateway status, not a 500
+   * that reads as a Sim fault; a later poll recovers on its own.
+   */
+  describe('through the route', () => {
+    beforeEach(() => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'u' }, session: { id: 's' } })
+    })
+
+    function readStatus(): Promise<Response> {
+      return taskStatusRoute(
+        createMockRequest('GET', undefined, {}, `http://localhost/api/mothership/tasks/${TASK_ID}`),
+        createRouteContext({ taskId: TASK_ID })
+      )
+    }
+
+    it('answers 503 when the task service is unavailable', async () => {
+      mocks.worker.mockResolvedValue(new Response('{}', { status: 503 }))
+      const response = await readStatus()
+      expect(response.status).toBe(503)
+      expect(await response.json()).toEqual({ error: 'Task service is unavailable' })
+    })
+
+    it('answers 504 when the task service does not answer in time', async () => {
+      mocks.worker.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+      const response = await readStatus()
+      expect(response.status).toBe(504)
+      expect(await response.json()).toEqual({ error: 'Task service timed out' })
+    })
+
+    it('still answers 200 with the task status', async () => {
+      mocks.worker.mockResolvedValue(statusResponse())
+      const response = await readStatus()
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        taskId: TASK_ID,
+        status: 'stopped',
+        summary: 'Stopped by the agent',
+      })
+    })
   })
 })

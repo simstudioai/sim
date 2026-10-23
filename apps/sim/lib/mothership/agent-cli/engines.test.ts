@@ -8,15 +8,6 @@ import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 
-const WORKFLOW_STATE = {
-  blocks: {
-    'block-1': { type: 'starter', name: 'Start', enabled: true },
-    'block-2': { type: 'agent', name: 'Summarize emails', enabled: true },
-  },
-  edges: [{ source: 'block-1', target: 'block-2', sourceHandle: 'source', id: 'edge-1' }],
-  variables: { apiBase: 'https://api.example.com' },
-}
-
 function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
   return {
     workspaceId: 'ws-1',
@@ -32,7 +23,6 @@ function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
 }
 
 const STATE_PATH = '/api/v2/workflows/wf-1/state'
-const stateResponse = { data: WORKFLOW_STATE }
 
 const RUNS_PATH = '/api/v2/workflows/wf-1/runs'
 const COUNT_ROWS_RUNS = {
@@ -111,6 +101,159 @@ describe('logs query', () => {
   })
 })
 
+const WITHHELD_RUNS = {
+  [RUNS_PATH]: {
+    data: [
+      { runId: 'run-1', status: 'completed' },
+      { runId: 'run-2', status: 'completed' },
+    ],
+  },
+  '/api/v2/logs/run-1': {
+    data: {
+      traceSpans: [{ name: 'Count rows', status: 'success', output: { result: { count: 6 } } }],
+    },
+  },
+  // The log projection withheld this span's content; its structure survived.
+  '/api/v2/logs/run-2': {
+    data: {
+      traceSpans: [{ name: 'Count rows', status: 'success', duration: 12, contentWithheld: true }],
+    },
+  },
+}
+
+async function logsQueryWithheld(flags: Record<string, string>) {
+  const result = await runEngine('logs query', ['wf-1'], runtimeWith(WITHHELD_RUNS), {
+    block: 'Count rows',
+    ...flags,
+  })
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout)
+}
+
+describe('logs query on a span whose content was withheld', () => {
+  it('reports withheld content instead of a missing path, and counts it', async () => {
+    const report = await logsQueryWithheld({ field: 'result.count' })
+    expect(report.rows[0]).toMatchObject({ runId: 'run-1', value: 6 })
+    expect(report.rows[1]).toMatchObject({ runId: 'run-2', hits: 1, value: null })
+    expect(report.rows[1].note).not.toBe('path not found on span')
+    expect(report.rows[1].note).toMatch(/withheld/)
+    expect(report.contentWithheld).toBe(1)
+  })
+
+  it('still answers structural paths on a withheld span', async () => {
+    const report = await logsQueryWithheld({ field: 'duration' })
+    expect(report.rows[1]).toMatchObject({ runId: 'run-2', value: 12 })
+    expect(report.rows[1].note).toBeUndefined()
+    expect(report.contentWithheld).toBeUndefined()
+  })
+
+  it('keeps a withheld run under --where as unchecked, not as a match or filtered out', async () => {
+    const report = await logsQueryWithheld({ where: 'result.count=6' })
+    expect(report.filteredOut).toBe(0)
+    expect(report.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1', 'run-2'])
+    expect(report.rows[0].whereUnchecked).toBeUndefined()
+    expect(report.rows[1].whereUnchecked).toBe(true)
+    expect(report.whereUnchecked).toBe(1)
+  })
+
+  it('counts an unchecked --where apart from a withheld --field', async () => {
+    const readableField = await logsQueryWithheld({ field: 'duration', where: 'result.count=6' })
+    expect(readableField.rows[1]).toMatchObject({ runId: 'run-2', value: 12 })
+    expect(readableField.rows[1].note).toMatch(/--where/)
+    expect(readableField.whereUnchecked).toBe(1)
+    expect(readableField.contentWithheld).toBeUndefined()
+
+    const withheldField = await logsQueryWithheld({ where: 'result.count=6' })
+    expect(withheldField.rows[1].note).toMatch(/value unknown/)
+    expect(withheldField.whereUnchecked).toBe(1)
+    expect(withheldField.contentWithheld).toBe(1)
+  })
+})
+
+// The projection omits a content field whole, so a span marked for its `thinking`
+// still carries an intact `output` whose missing keys are genuinely absent.
+const PARTLY_WITHHELD_RUNS = {
+  [RUNS_PATH]: {
+    data: [
+      { runId: 'run-1', status: 'completed' },
+      { runId: 'run-2', status: 'completed' },
+    ],
+  },
+  '/api/v2/logs/run-1': {
+    data: {
+      traceSpans: [
+        {
+          name: 'Router',
+          status: 'success',
+          output: { route: 'priority', thinking: 'not the omitted span thinking' },
+          contentWithheld: true,
+        },
+      ],
+    },
+  },
+  '/api/v2/logs/run-2': {
+    data: {
+      traceSpans: [
+        {
+          name: 'Router',
+          status: 'success',
+          output: { content: 'no route chosen' },
+          toolCalls: [{ name: 'lookup' }],
+          contentWithheld: true,
+        },
+      ],
+    },
+  },
+}
+
+async function logsQueryPartlyWithheld(flags: Record<string, string>) {
+  const result = await runEngine('logs query', ['wf-1'], runtimeWith(PARTLY_WITHHELD_RUNS), {
+    block: 'Router',
+    ...flags,
+  })
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout)
+}
+
+describe('logs query on a marked span whose read field is intact', () => {
+  it('filters out a run whose intact output lacks the --where key', async () => {
+    const report = await logsQueryPartlyWithheld({ where: 'output.route=priority' })
+    expect(report.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1'])
+    expect(report.filteredOut).toBe(1)
+    expect(report.whereUnchecked).toBeUndefined()
+
+    const viaFallback = await logsQueryPartlyWithheld({ where: 'route=priority' })
+    expect(viaFallback.rows.map((row: { runId: string }) => row.runId)).toEqual(['run-1'])
+    expect(viaFallback.filteredOut).toBe(1)
+  })
+
+  it('reports a key missing from intact output as not found, not withheld', async () => {
+    const report = await logsQueryPartlyWithheld({ field: 'output.route' })
+    expect(report.rows[1]).toMatchObject({
+      runId: 'run-2',
+      value: null,
+      note: 'path not found on span',
+    })
+    expect(report.contentWithheld).toBeUndefined()
+  })
+
+  it('reports a path through an omitted field as withheld', async () => {
+    const thinking = await logsQueryPartlyWithheld({ field: 'thinking' })
+    expect(thinking.rows[0].note).toMatch(/value unknown/)
+    expect(thinking.contentWithheld).toBe(2)
+
+    const shadowed = await logsQueryPartlyWithheld({ field: 'thinking', where: 'route=priority' })
+    expect(shadowed.rows[0]).toMatchObject({ runId: 'run-1', value: null })
+    expect(shadowed.rows[0].note).toMatch(/value unknown/)
+    expect(shadowed.fieldResolvedUnder).toBeUndefined()
+
+    const toolInput = await logsQueryPartlyWithheld({ field: 'toolCalls.0.input.query' })
+    expect(toolInput.rows[1].note).toMatch(/value unknown/)
+    const toolMissing = await logsQueryPartlyWithheld({ field: 'toolCalls.3.input.query' })
+    expect(toolMissing.rows[1].note).toBe('path not found on span')
+  })
+})
+
 const DEPS_STATE = {
   blocks: {
     'trigger-1': { type: 'starter', name: 'Start' },
@@ -136,6 +279,90 @@ const DEPS_STATE = {
 }
 
 describe('workflows deps', () => {
+  it('stops reading a wide object when its traversal budget is exhausted', async () => {
+    const value: Record<string, unknown> = {}
+    for (let index = 0; index < 10_001; index++) {
+      Object.defineProperty(value, String(index), {
+        enumerable: true,
+        get() {
+          if (index === 10_000) throw new Error('Read beyond the traversal budget')
+          return ''
+        },
+      })
+    }
+    const state = {
+      ...DEPS_STATE,
+      blocks: {
+        ...DEPS_STATE.blocks,
+        target: { ...DEPS_STATE.blocks.target, subBlocks: { code: { value } } },
+      },
+    }
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toMatch(/exceeds.*values/i)
+    expect(result.stdout).toBe('')
+  })
+
+  it.each([
+    { reason: 'text size', value: 'x'.repeat(1024 * 1024 + 1) },
+    { reason: 'reference count', value: '<fetchrows.result>'.repeat(10_001) },
+    { reason: 'nested value count', value: Array.from({ length: 10_001 }, () => '') },
+    {
+      reason: 'path depth',
+      value: `<fetchrows.${Array.from({ length: 129 }, () => 'nested').join('.')}>`,
+    },
+  ])(
+    'refuses excessive $reason instead of returning an incomplete dependency report',
+    async ({ value }) => {
+      const state = {
+        ...DEPS_STATE,
+        blocks: {
+          ...DEPS_STATE.blocks,
+          target: { ...DEPS_STATE.blocks.target, subBlocks: { code: { value } } },
+        },
+      }
+      const result = await runEngine(
+        'workflows deps',
+        ['wf-1', 'target'],
+        runtimeWith({ [STATE_PATH]: { data: state } }),
+        {}
+      )
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toMatch(/exceeds|maximum/i)
+      expect(result.stdout).toBe('')
+    }
+  )
+
+  it('groups block aliases and duplicate paths without changing first-reference order', async () => {
+    const state = structuredClone(DEPS_STATE)
+    state.blocks.target.subBlocks.code.value =
+      '<missing.value> <fetchrows.result> <fetch.result> <fetchrows.result.id> <fetchrows.result.id> {{TOKEN}} {{TOKEN}}'
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    expect(report.references).toEqual([
+      { token: 'missing.value', kind: 'unknown' },
+      {
+        token: 'fetchrows.result',
+        kind: 'block',
+        blockId: 'fetch',
+        blockName: 'Fetch rows',
+        paths: ['result', 'result.id'],
+      },
+    ])
+    expect(report.env).toEqual(['TOKEN'])
+    expect(report.mock['Fetch rows']).toEqual({ result: { id: null } })
+  })
+
   it('builds indexed mocks that round-trip through the actual reference navigator', async () => {
     const state = structuredClone(DEPS_STATE)
     state.blocks.target.subBlocks.code.value =

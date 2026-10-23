@@ -113,7 +113,7 @@ export const createCalendarV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_create_calendar_v2',
   name: 'Google Calendar Create Calendar',
-  description: 'Create a new secondary calendar. Returns API-aligned fields only.',
+  description: 'Create a new secondary calendar.',
   version: '2.0.0',
   oauth: createCalendarTool.oauth,
   params: createCalendarTool.params,

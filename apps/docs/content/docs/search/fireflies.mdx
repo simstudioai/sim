@@ -1,0 +1,33 @@
+---
+title: Fireflies
+description: Search meeting titles and spoken transcripts with your Fireflies account
+---
+
+Fireflies Search uses **Member accounts** and the official managed MCP connection. It searches meeting titles and spoken transcripts that your connected account can currently access.
+
+## Connect
+
+1. An admin adds **Fireflies** in **Settings → Sources**, using **Member accounts**.
+2. Each teammate opens **Integrations → Fireflies → Connect** and authorizes their account.
+3. Search a phrase such as `security approval` or `customer onboarding`, then read a result.
+
+The managed provider must be configured before **Connect** is available. It uses `https://api.fireflies.ai/mcp`. The API key for the Fireflies knowledge-base connector is a separate ingestion connection and cannot authorize member Search.
+
+## Queries and dates
+
+Use plain words or a phrase, up to 255 characters. Gmail operators, GitHub qualifiers, and Fireflies' experimental query grammar do not apply to this adapter.
+
+Use `startDate` and `endDate` for meeting dates; the upper bound is exclusive. Sim widens the provider's date-only bounds, then checks each actual meeting date. Fireflies exposes no transcript modification time, so modification-date filters cannot establish matching transcripts.
+
+The adapter calls `fireflies_get_transcripts` with JSON output and `scope: "all"` for keyword searches; date-only listings omit keyword scope. Each page returns up to 49 meetings, with one extra provider result used to detect continuation. Continue the numeric cursor with the same account and query.
+
+## Transcript evidence and limits
+
+Search previews can contain AI summaries. Read the meeting for speaker names and timestamps before quoting speech; summaries are labeled separately. An ongoing meeting returns speech recorded so far. Large transcripts are bounded and marked when truncated.
+
+Sim rechecks the current grant, provider setup, and Sim scope on every operation. Its fixed read-tool allowlist excludes sharing, deletion, and other writes. Schema changes, unsupported formats, provider failures, quotas, plan limits, and meeting permissions can affect retrieval; failures do not appear as complete searches with no matches.
+
+## Related docs
+
+- [Fireflies MCP tools](https://docs.fireflies.ai/mcp-tools/overview)
+- [Connect your account](/search/connect-your-account)

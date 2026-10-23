@@ -3,14 +3,26 @@ import { db } from '@sim/db'
 import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
-import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
-import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  OrchestrationError,
+  type OrchestrationErrorCode,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
+import type { WorkflowPersistGovernance } from '@/lib/workflows/persistence/block-access-guard'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -19,6 +31,8 @@ const logger = createLogger('WorkflowLifecycle')
 
 /** Partial unique index on `(workspace_id, coalesce(folder_id, ''), name) WHERE archived_at IS NULL`. */
 const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique'
+/** Primary key of `workflow`; only a caller-supplied `id` can collide with it. */
+const WORKFLOW_PRIMARY_KEY = 'workflow_pkey'
 const WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS = 8
 
 export interface PerformCreateWorkflowParams {
@@ -181,7 +195,10 @@ async function isWorkflowFolderInWorkspace(
 }
 
 /** Inserts only the workflow row so compound creation can commit its graph and receipt together. */
-export async function createWorkflowInTransaction(tx: DbOrTx, params: PerformCreateWorkflowParams) {
+export async function createWorkflowInTransaction(
+  tx: DbTransaction,
+  params: PerformCreateWorkflowParams & { variables?: WorkflowRowVariables }
+) {
   const folderId = params.folderId ?? null
   if (!(await isWorkflowFolderInWorkspace(folderId, params.workspaceId, tx))) {
     throw new OrchestrationError('not_found', 'Target folder not found')
@@ -189,24 +206,16 @@ export async function createWorkflowInTransaction(tx: DbOrTx, params: PerformCre
   const name = params.deduplicate
     ? await deduplicateWorkflowName(params.name, params.workspaceId, folderId, tx)
     : params.name
-  const sortOrder =
-    params.sortOrder ?? (await nextWorkflowSortOrder(params.workspaceId, folderId, tx))
-  const now = new Date()
-  const row = {
+  const row = await buildNewWorkflowRow(tx, {
     id: params.id ?? generateId(),
     userId: params.userId,
     workspaceId: params.workspaceId,
     folderId,
     name,
     description: params.description ?? null,
-    sortOrder,
-    lastSynced: now,
-    createdAt: now,
-    updatedAt: now,
-    isDeployed: false,
-    runCount: 0,
-    variables: {},
-  }
+    sortOrder: params.sortOrder ?? (await nextWorkflowSortOrder(params.workspaceId, folderId, tx)),
+    variables: params.variables,
+  })
   if (!params.deduplicate) {
     await tx.insert(workflow).values(row)
     return row
@@ -224,6 +233,47 @@ export async function createWorkflowInTransaction(tx: DbOrTx, params: PerformCre
     'conflict',
     'Concurrent workflow creation prevented assigning an available name; retry this request'
   )
+}
+
+type WorkflowRowVariables = (typeof workflow.$inferInsert)['variables']
+
+interface CreateWorkflowWithStateParams extends PerformCreateWorkflowParams {
+  state: WorkflowState
+  variables?: WorkflowRowVariables
+  governance: WorkflowPersistGovernance
+}
+
+/**
+ * Creates a workflow from supplied state in one transaction: the row (its name
+ * deduplicated under the workspace lock), its graph and its variables commit together,
+ * so a concurrent archive either refuses the create or finds it complete. Classified
+ * failures (archived workspace, missing folder, withheld block type) propagate; a
+ * persistence failure is logged and returned so the caller can report it.
+ */
+export async function createWorkflowWithState({
+  state,
+  governance,
+  ...params
+}: CreateWorkflowWithStateParams): Promise<
+  | { success: true; workflow: Awaited<ReturnType<typeof createWorkflowInTransaction>> }
+  | { success: false; error: string }
+> {
+  try {
+    const workflow = await db.transaction(async (tx) => {
+      const row = await createWorkflowInTransaction(tx, { ...params, deduplicate: true })
+      const saved = await saveWorkflowToNormalizedTables(row.id, state, governance, tx)
+      if (!saved.success) throw new Error(saved.error ?? 'Failed to save workflow state')
+      return row
+    })
+    return { success: true, workflow }
+  } catch (error) {
+    if (asOrchestrationError(error)) throw error
+    logger.error(`[${params.requestId ?? 'create'}] Failed to persist workflow state`, {
+      workspaceId: params.workspaceId,
+      error,
+    })
+    return { success: false, error: getErrorMessage(error, 'Failed to save workflow state') }
+  }
 }
 
 export async function performCreateWorkflowTransition(
@@ -269,21 +319,19 @@ export async function performCreateWorkflowTransition(
 
     try {
       await db.transaction(async (tx) => {
-        await tx.insert(workflow).values({
+        // Built per attempt inside the insert transaction, so the fork-sync policy is read
+        // with the write rather than carried across retries.
+        const row = await buildNewWorkflowRow(tx, {
           id: workflowId,
           userId: params.userId,
           workspaceId: params.workspaceId,
           folderId,
-          sortOrder,
           name,
-          description: params.description,
-          lastSynced: now,
-          createdAt: now,
-          updatedAt: now,
-          isDeployed: false,
-          runCount: 0,
-          variables: {},
+          description: params.description ?? null,
+          sortOrder,
+          now,
         })
+        await tx.insert(workflow).values(row)
 
         await saveWorkflowToNormalizedTables(
           workflowId,
@@ -308,10 +356,17 @@ export async function performCreateWorkflowTransition(
        * pre-check reports. Matching the constraint avoids relabeling a `23505` from
        * normalized workflow tables as a name collision.
        */
-      const isNameConflict =
-        getPostgresErrorCode(error) === '23505' &&
-        getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
-      if (!isNameConflict) {
+      const conflictingConstraint =
+        getPostgresErrorCode(error) === '23505' ? getPostgresConstraintName(error) : undefined
+      if (conflictingConstraint === WORKFLOW_PRIMARY_KEY) {
+        logger.warn(`[${requestId}] Workflow id is already taken`, { workflowId })
+        return {
+          success: false,
+          error: 'A workflow with this ID already exists',
+          errorCode: 'conflict',
+        }
+      }
+      if (conflictingConstraint !== WORKFLOW_NAME_UNIQUE_INDEX) {
         throw error
       }
 

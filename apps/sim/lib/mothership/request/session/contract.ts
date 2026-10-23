@@ -19,6 +19,7 @@ import type {
   StreamActivityCheckpoint,
   StreamTextCompletion,
   StreamTextPosition,
+  StreamToolDeadline,
   StreamToolReplay,
 } from '@/lib/mothership/generated/protocol'
 import { ResourcePayload } from '@/lib/mothership/generated/resources'
@@ -46,7 +47,7 @@ type EnvelopeToStreamEvent<T> = T extends {
         : TType extends 'complete'
           ? TPayload & StreamTextCompletion & StreamActivityCheckpoint
           : TType extends 'tool'
-            ? TPayload & StreamToolReplay
+            ? TPayload & StreamToolReplay & StreamToolDeadline
             : TType extends 'resource'
               ? ResourcePayload
               : TType extends 'run'
@@ -132,7 +133,7 @@ export interface SyntheticFilePreviewEventEnvelope {
 type ResourceEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'resource' }>
 type ToolEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'tool' }>
 type ToolReplayEnvelope<T extends ToolEnvelope = ToolEnvelope> = T extends ToolEnvelope
-  ? Omit<T, 'payload'> & { payload: T['payload'] & StreamToolReplay }
+  ? Omit<T, 'payload'> & { payload: T['payload'] & StreamToolReplay & StreamToolDeadline }
   : never
 
 type ContractEventEnvelope =

@@ -1,3 +1,5 @@
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,19 +10,13 @@ const { KEY, SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
+  ...emcnMock,
   Button: ({ children }: { children?: React.ReactNode }) => (
     <button type='button'>{children}</button>
   ),
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  Trash: () => null,
-}))
-
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -76,16 +72,19 @@ vi.mock(
   () => ({ useAccessibleReferencePrefixes: () => undefined })
 )
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table'
 
 function render(password: boolean) {
   return renderToStaticMarkup(
-    <Table
-      blockId='block-1'
-      subBlockId='variables'
-      columns={['Key', 'Value']}
-      password={password}
-    />
+    <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+      <Table
+        blockId='block-1'
+        subBlockId='variables'
+        columns={['Key', 'Value']}
+        password={password}
+      />
+    </WorkflowScopeProvider>
   )
 }
 

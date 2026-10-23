@@ -54,7 +54,7 @@ export const discordAddReactionTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

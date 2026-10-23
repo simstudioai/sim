@@ -1,178 +1,187 @@
 ---
 title: Passing files
-description: How file objects move between blocks, into workflows via the API, and back out in responses.
+description: Reference files between blocks, supply files to the v2 API, and download run outputs.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
-A file moves through a workflow as a standardized **file object**. Blocks receive it, act on it, and pass it on — this page covers the object's shape, how to reference it between blocks, and how files enter and leave through the API.
+Pass a file object to a compatible file input, or reference one of its properties when a block needs a specific value. Workflow file objects, API upload descriptors, and the API's run-file download records have different shapes.
 
-## File Objects
+## File objects
 
-When blocks output files (like Gmail attachments, generated images, or parsed documents), they return a standardized file object:
+Blocks that return platform files use a `UserFile` object. For example, a workspace file includes:
 
 ```json
 {
-  "id": "f_8c2...",
+  "id": "wf_V1StGXR8z5jdHi6BmyT7q",
   "name": "report.pdf",
-  "url": "https://...",
+  "url": "https://www.sim.ai/api/files/serve/ENCODED_STORAGE_KEY?context=workspace",
   "size": 245678,
   "type": "application/pdf",
-  "base64": "JVBERi0xLjQK..."
+  "key": "workspace/WORKSPACE_ID/FILE_STORAGE_KEY",
+  "context": "workspace"
 }
 ```
 
-You can access any of these properties when referencing files from previous blocks.
+The IDs, key, and URL above illustrate the fields. Use the values Sim returns; do not construct them yourself.
 
-## The File Block
+| Field | Meaning |
+| --- | --- |
+| `id` | Opaque file identifier |
+| `name` | Filename, including its extension |
+| `url` | Access URL; authentication and lifetime depend on its source |
+| `size` | Recorded file size in bytes |
+| `type` | MIME type |
+| `key` | Storage locator used by Sim; it is not a public access grant |
+| `context` | Optional storage context, such as `workspace` or `execution` |
+| `base64` | Optional encoded bytes; not included on every object |
+| `version` | Optional content version for a workspace file |
 
-The **File block** brings a file into a workflow. It accepts files from any source and outputs standardized file objects every block understands.
+The internal `key` and `context` fields may be omitted from output pickers and displayed logs. Their absence in a preview does not mean a file reference is unusable.
 
-**Inputs:**
-- **Uploaded files** - Drag and drop or select files directly
-- **External URLs** - Any publicly accessible file URL
-- **Files from other blocks** - Pass files from Gmail attachments, Slack downloads, etc.
+Generated documents can store generation source separately from the rendered download. Their recorded size or type can differ from the bytes a download returns.
 
-**Outputs:**
-- A list of `UserFile` objects with consistent structure (`id`, `name`, `url`, `size`, `type`, `base64`)
-- `contents` - Extracted text per file (the Get Content operation)
-- `combinedContent` - All fetched files' text merged into one string (the Fetch operation)
+**Read** returns file objects. **Get Content** returns extracted text in `contents`; **Fetch** returns file objects and `combinedContent`. For the operation settings, see [Using files in workflows](/files/using-in-workflows#the-file-block).
 
-**Example usage:**
+## Pass files between blocks [#passing-files-between-blocks]
 
-```
-// Get all files from the File block
+Use the output picker or type `<` in a reference-capable input to select an earlier block's output. Keep the array index when selecting one file:
+
+```text
 <file.files>
-
-// Get the first file
 <file.files[0]>
-
-// Get the first file's extracted text (Get Content operation)
+<gmail.attachments[0]>
+<gmail.attachments[0].name>
 <file.contents[0]>
 ```
 
-The File block automatically:
-- Detects file types from URLs and extensions
-- Extracts text from PDFs, CSVs, and documents
-- Generates base64 encoding for binary files
-- Creates presigned URLs for secure access
+Pass the full object to a file input when possible. The receiving block determines which formats, object or array inputs, and sizes it supports. Sim does not convert every file format for every block.
 
-Use the File block when you need to normalize files from different sources before passing them to other blocks like Vision, STT, or email integrations.
+Use `.base64` only when the object includes it. JavaScript without imports can explicitly read bytes with `await sim.files.readBase64(file)` or text with `await sim.files.readText(file)` under the Function helper limits. In remote Function code, `<file.files[0].path>` requests a file mount; it is a special indexed reference, not a UserFile property. See [Function files](/workflows/blocks/function#files).
 
-## Passing Files Between Blocks
+## Supply files to the API [#triggering-workflows-with-files]
 
-Reference files from previous blocks using the tag dropdown. Click in any file input field and type `<` to see available outputs.
+Before calling the workflow, add a **Files** input named `document` to the entry trigger's input format and deploy that version. The UI uses the field type `file[]`; `files` remains a legacy compatibility alias. With a Start block named `Start`, the first processed file is available as `<start.document[0]>`.
 
-**Common patterns:**
-
-```
-// Single file from a block
-<gmail.attachments[0]>
-
-// Pass the whole file object
-<file_parser.files[0]>
-
-// Access specific properties
-<gmail.attachments[0].name>
-<gmail.attachments[0].base64>
-```
-
-Most blocks accept the full file object and extract what they need automatically. You don't need to manually extract `base64` or `url` in most cases.
-
-## Triggering Workflows with Files
-
-When calling a workflow via API that expects file input, include files in your request:
+Set `WORKFLOW_ID` and `SIM_API_KEY` in your shell. On self-hosted Sim, replace the Cloud origin with your deployment URL. Put workflow fields inside the v2 request's `input` object.
 
 <Tabs items={['Base64', 'URL']}>
   <Tab value="Base64">
+    This example uploads a small text file containing `Hello, Sim.` followed by a newline. For another file, replace the encoded bytes, MIME type, and name together.
+
     ```bash
-    curl -X POST "https://sim.ai/api/v2/workflows/YOUR_WORKFLOW_ID/execute" \
-      -H "Content-Type: application/json" \
-      -H "x-api-key: YOUR_API_KEY" \
+    curl --fail-with-body -X POST \
+      "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/execute" \
+      -H "X-API-Key: $SIM_API_KEY" \
+      -H 'Content-Type: application/json' \
       -d '{
-        "document": {
-          "name": "report.pdf",
-          "base64": "JVBERi0xLjQK...",
-          "type": "application/pdf"
+        "input": {
+          "document": [{
+            "type": "file",
+            "data": "data:text/plain;base64,SGVsbG8sIFNpbS4K",
+            "name": "notes.txt",
+            "mime": "text/plain"
+          }]
         }
       }'
     ```
   </Tab>
   <Tab value="URL">
+    Replace the example URL with a downloadable file URL that passes your deployment's network policy.
+
     ```bash
-    curl -X POST "https://sim.ai/api/v2/workflows/YOUR_WORKFLOW_ID/execute" \
-      -H "Content-Type: application/json" \
-      -H "x-api-key: YOUR_API_KEY" \
+    curl --fail-with-body -X POST \
+      "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/execute" \
+      -H "X-API-Key: $SIM_API_KEY" \
+      -H 'Content-Type: application/json' \
       -d '{
-        "document": {
-          "name": "report.pdf",
-          "url": "https://example.com/report.pdf",
-          "type": "application/pdf"
+        "input": {
+          "document": [{
+            "type": "url",
+            "data": "https://example.com/report.pdf",
+            "name": "report.pdf",
+            "mime": "application/pdf"
+          }]
         }
       }'
     ```
   </Tab>
 </Tabs>
 
-The workflow's Start block should have an input field configured to receive the file parameter.
+For a new file, `type` selects `file` or `url`; it is not the MIME type. `data` is a base64 data URL or a download URL, `name` is required, and `mime` is optional. The engine stores accepted new input files in execution storage and supplies an array of UserFile objects to the file-typed field before blocks run.
 
-## Receiving Files in API Responses
+Authorized workspace-member callers can also supply an existing stored reference such as `{ "id": "CANONICAL_FILE_ID" }` or `{ "key": "STORAGE_KEY" }`. Public or system callers cannot use an arbitrary ID or key to read workspace files; their supplied stored references are limited to files already authorized for that execution. A caller-provided identifier does not grant access to neighboring files or another workspace.
 
-When a workflow outputs files, they're included in the response:
+## Download files from API responses [#receiving-files-in-api-responses]
+
+Return the file object or saved file ID through a [Response](/workflows/blocks/response) block. A synchronous v2 response wraps the result in `data.output` and includes `data.runId`, `data.status`, and `data.error`. Check the run status even when the HTTP request succeeds.
+
+For a completed run that returned an execution-produced file:
+
+1. Set `RUN_ID` to the returned run ID.
+2. Read the run with `includeOutput=true`.
+3. Take the file's `id` or `downloadPath` from `data.files` and download it with the same authentication.
+
+```bash
+curl --fail-with-body \
+  "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/runs/$RUN_ID?includeOutput=true" \
+  -H "X-API-Key: $SIM_API_KEY"
+```
+
+Each projected entry in `data.files` has this shape:
 
 ```json
 {
-  "success": true,
-  "output": {
-    "generatedFile": {
-      "name": "output.png",
-      "url": "https://...",
-      "base64": "iVBORw0KGgo...",
-      "type": "image/png",
-      "size": 34567
-    }
-  }
+  "id": "file_123",
+  "name": "output.png",
+  "size": 34567,
+  "type": "image/png",
+  "downloadPath": "/api/v2/workflows/WORKFLOW_ID/runs/RUN_ID/files/file_123",
+  "base64": null
 }
 ```
 
-Use `url` for direct downloads or `base64` for inline processing.
+Set `FILE_ID` to the returned file ID:
 
-## Blocks That Work with Files
+```bash
+curl --fail-with-body \
+  "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/runs/$RUN_ID/files/$FILE_ID" \
+  -H "X-API-Key: $SIM_API_KEY" \
+  --output output.png
+```
 
-**File inputs:**
-- **File** - Parse documents, images, and text files
-- **Agent** - Read images with a vision-capable model, or documents as text
-- **Mistral Parser** - Extract text from PDFs
+The ordinary `/api/files/serve/...` URL in a workflow file object requires a session and does not accept `X-API-Key`. Use the [run-file download endpoint](/api-reference/workflow-runs/downloadWorkflowRunFileV2) for execution artifacts. If you saved a workspace file with Write and returned its ID, use [Download file](/api-reference/files/downloadFile) at `/api/v2/files/{fileId}?workspaceId={workspaceId}`.
 
-**File outputs:**
-- **Gmail** - Email attachments
-- **Slack** - Downloaded files
-- **TTS** - Generated audio files
-- **Video Generator** - Generated videos
-- **Image Generator** - Generated images
+Execution files follow the run's retention lifecycle and may later return `404`. Save them to Files when later runs need a workspace resource. Returning a pointer or downloading it does not make a public share link.
 
-**File storage:**
-- **Supabase** - Upload/download from storage
-- **S3** - AWS S3 operations
-- **Google Drive** - Drive file operations
-- **Dropbox** - Dropbox file operations
+To inline eligible output bytes, request `includeFileBase64: true`. The execute request's `base64MaxBytes` can lower the 16 MiB total inline ceiling; it cannot raise it. Async execution rejects these options. On a run read, base64 requires `includeOutput=true` and has a per-file ceiling; an oversized file can return `413` with its download path. Use authenticated downloads for large outputs. See [Execute workflow](/api-reference/workflows/executeWorkflowV2) and [Get workflow run](/api-reference/workflow-runs/getWorkflowRunV2) for the full option contracts.
 
-<Callout type="info">
-  Files are automatically available to downstream blocks. The engine handles all file transfer and format conversion.
-</Callout>
+## File limits
 
-## Best Practices
+There is no single limit for every upload or read path. Storage quota, parser limits, sandbox budgets, and the receiving provider's limits apply independently.
 
-1. **Use file objects directly** - Pass the full file object rather than extracting individual properties. Blocks handle the conversion automatically.
+| Path | Current hard limit |
+| --- | --- |
+| Workspace direct upload | 5 GiB per file, subject to workspace storage quota |
+| Legacy buffered workspace upload | 100 MiB per file |
+| New base64 or URL input processed for a workflow file field | 20 MiB per file |
+| File Fetch | 100 MiB download; 30-second download timeout |
+| File Get Content | 64 MiB source per file and 64 MiB combined extracted text |
+| File Write text or existing-file input | 50 MiB per file |
+| Function buffered mounts | 10 MiB per file; 50 MiB total |
+| Function URL mounts | 500 MiB per file; 2 GiB total |
+| Function automatic exports | 20 files; 50 MiB total |
 
-2. **Check file types** - Ensure the file type matches what the receiving block expects. An Agent using a vision-capable model can read images, while the File block handles documents.
+Workspace uploads use upload sessions for large transfers; API callers should follow the [file upload API](/api-reference/files/createFileUpload) rather than assume a multipart JSON or buffered upload shares the 5 GiB ceiling. A large stored file can still exceed a parser, model, or third-party upload limit. See [Function](/workflows/blocks/function) and the receiving block's reference before processing it.
 
-3. **Consider file size** - Large files increase run time. For very large files, consider using storage blocks (S3, Supabase) for intermediate storage.
+## Blocks that work with files
 
-import { FAQ } from '@/components/ui/faq'
+| Task | Examples |
+| --- | --- |
+| Read or extract content | [File](/integrations/file), [Agent](/workflows/blocks/agent), [Mistral Parser](/integrations/mistral_parse) |
+| Analyze an image or transcribe audio | Vision, STT |
+| Receive or send attachments | [Gmail](/integrations/gmail), [Slack](/integrations/slack) |
+| Generate media | TTS, Image Generator, Video Generator |
+| Store files externally | [Supabase](/integrations/supabase), [S3](/integrations/s3), [Google Drive](/integrations/google_drive), [Dropbox](/integrations/dropbox) |
 
-<FAQ items={[
-  { question: "What is the maximum file size for uploads?", answer: "There is no single limit for every file path. Workspace storage, workflow uploads, Function mounts, and external tools have separate limits. Check the receiving operation before passing a large file; Function sandbox mounts currently limit each inline file to 10 MB." },
-  { question: "How do file fields work in the Start block's input format?", answer: "When you define a field with type 'files' in the Start block's input format, the engine automatically processes incoming file data (base64 or URL) and uploads it to storage, converting it into UserFile objects before the workflow runs." },
-]} />
+These integrations support particular file operations; check their format and authentication requirements. Agent attachment support depends on the selected model and provider.

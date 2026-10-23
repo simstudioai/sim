@@ -42,11 +42,19 @@
     "/api/v2/files": {
       "get": {
         "operationId": "listFiles",
-        "summary": "List Files",
+        "summary": "List files",
         "description": "List active workspace files with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find files available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -122,10 +130,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "size", "uploadedAt", "updatedAt"]
             }
@@ -183,6 +191,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                          "name": "data.csv",
+                          "size": 1024,
+                          "type": "text/csv",
+                          "key": "workspace/example/data.csv",
+                          "folderPath": "/Engineering",
+                          "uploadedByEmail": "jane@example.com",
+                          "uploadedAt": "2026-01-15T10:30:00Z",
+                          "updatedAt": "2026-01-15T10:30:00Z",
+                          "deletedAt": null
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
                 }
               }
             }
@@ -215,11 +246,19 @@
       },
       "post": {
         "operationId": "createFile",
-        "summary": "Create File",
+        "summary": "Create file",
         "description": "Create a workspace file from inline UTF-8 or base64 content. Use an upload session for streamed or larger files.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Inline content and placement for a new workspace file.",
@@ -227,6 +266,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateFileRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "notes.md",
+                    "content": "# Notes"
+                  }
+                }
               }
             }
           }
@@ -248,7 +297,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2FileResponse"
+                  "$ref": "#/components/schemas/V2CreatedFileResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "workspace/example/data.csv",
+                        "folderPath": "/Engineering",
+                        "uploadedByEmail": "jane@example.com",
+                        "uploadedAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z",
+                        "deletedAt": null
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -289,11 +358,19 @@
     "/api/v2/files/uploads": {
       "post": {
         "operationId": "createFileUpload",
-        "summary": "Create File Upload",
+        "summary": "Create file upload",
         "description": "Create a resumable upload session and receive either a signed PUT URL or multipart instructions.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.upload.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "File metadata required to create an upload session.",
@@ -301,6 +378,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateFileUploadRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "archive.zip",
+                    "contentType": "application/zip",
+                    "size": 1048576
+                  }
+                }
               }
             }
           }
@@ -360,11 +448,19 @@
     "/api/v2/files/uploads/{uploadId}": {
       "get": {
         "operationId": "getFileUpload",
-        "summary": "Get File Upload",
+        "summary": "Get file upload",
         "description": "Get an upload session's state to determine whether an interrupted transfer can resume. Requires the signed upload token and current workspace access.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.upload.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -448,11 +544,19 @@
       },
       "delete": {
         "operationId": "abortFileUpload",
-        "summary": "Abort File Upload",
+        "summary": "Abort file upload",
         "description": "Abort an incomplete upload session and discard its uploaded data. Completed uploads cannot be aborted.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.upload.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -541,11 +645,19 @@
     "/api/v2/files/uploads/{uploadId}/parts": {
       "post": {
         "operationId": "createFileUploadPartUrls",
-        "summary": "Create File Upload Part URLs",
+        "summary": "Create file upload part URLs",
         "description": "Create signed URLs for a bounded set of multipart upload part numbers.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.upload.parts",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -589,6 +701,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateFileUploadPartUrlsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "partNumbers": [1, 2]
+                  }
+                }
               }
             }
           }
@@ -651,11 +771,19 @@
     "/api/v2/files/uploads/{uploadId}/complete": {
       "post": {
         "operationId": "completeFileUpload",
-        "summary": "Complete File Upload",
+        "summary": "Complete file upload",
         "description": "Finalize an upload and register its workspace file. Repeating a completed upload returns the existing file.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.upload.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -744,11 +872,19 @@
     "/api/v2/files/{fileId}/text": {
       "get": {
         "operationId": "readFileText",
-        "summary": "Read File Text",
-        "description": "Extract text without changing the file. Accepts its ID or canonical path (`files/<folder>/<name>` or `uploads/<name>` for an unlisted chat upload); the response echoes the read path. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.\n\nOAuth scope: `api:read`.",
+        "summary": "Read file text",
+        "description": "Extract text without changing the file. Accepts its ID or canonical path (`files/<folder>/<name>` or `uploads/<name>` for an unlisted chat upload); the response echoes the read path. Use Unzip file to unpack archives or Download file for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.read_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -790,11 +926,11 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
             "schema": {
-              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 9007199254740991
             }
           },
@@ -866,11 +1002,19 @@
     "/api/v2/files/{fileId}/versions": {
       "get": {
         "operationId": "listFileVersions",
-        "summary": "List File Versions",
+        "summary": "List file versions",
         "description": "List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits, and repeated workflow writes by one author, fold into a version under ten minutes old and written in the last five. Renames and moves are not versions. Retention removes older versions by age and plan but keeps the newest ten, so numbers can have gaps.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.versions.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -964,6 +1108,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileVersionListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "version": 3,
+                          "isCurrent": true,
+                          "size": 1024,
+                          "contentType": "text/csv",
+                          "source": "api",
+                          "authors": [
+                            {
+                              "id": "usr_4kJ9mN2pQ7rS",
+                              "email": "jane@example.com"
+                            }
+                          ],
+                          "restoredFromVersion": null,
+                          "createdAt": "2026-01-15T10:30:00Z",
+                          "updatedAt": "2026-01-15T10:30:00Z",
+                          "supersededAt": null
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
                 }
               }
             }
@@ -995,11 +1167,19 @@
     "/api/v2/files/{fileId}/versions/{version}": {
       "get": {
         "operationId": "getFileVersion",
-        "summary": "Get File Version",
+        "summary": "Get file version",
         "description": "Get one version of a file. A version removed by retention, or one that never existed, returns `404`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.versions.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1057,6 +1237,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileVersionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "version": 3,
+                        "isCurrent": true,
+                        "size": 1024,
+                        "contentType": "text/csv",
+                        "source": "api",
+                        "authors": [
+                          {
+                            "id": "usr_4kJ9mN2pQ7rS",
+                            "email": "jane@example.com"
+                          }
+                        ],
+                        "restoredFromVersion": null,
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z",
+                        "supersededAt": null
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1086,11 +1291,19 @@
       },
       "delete": {
         "operationId": "deleteFileVersion",
-        "summary": "Delete File Version",
-        "description": "Permanently delete one earlier version and its stored content, for example to purge a leaked value from history before retention removes it. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete file version",
+        "description": "Permanently remove an earlier version from history and schedule deletion of its stored content. Storage cleanup may retry in the background. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.versions.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1148,6 +1361,18 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileVersionDeleteResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "version": 2,
+                        "deleted": true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1182,11 +1407,19 @@
     "/api/v2/files/{fileId}/versions/{version}/text": {
       "get": {
         "operationId": "readFileVersionText",
-        "summary": "Read File Version Text",
-        "description": "Extract the text of one version, exactly as Read File Text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.\n\nOAuth scope: `api:read`.",
+        "summary": "Read file version text",
+        "description": "Extract the text of one version, exactly as Read file text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.versions.read_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1241,11 +1474,11 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
             "schema": {
-              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 9007199254740991
             }
           },
@@ -1317,11 +1550,19 @@
     "/api/v2/files/{fileId}/versions/{version}/content": {
       "get": {
         "operationId": "downloadFileVersion",
-        "summary": "Download File Version",
-        "description": "Download the bytes of one version, served exactly as Download File serves the current bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "summary": "Download file version",
+        "description": "Download the bytes of one version, served exactly as Download file serves the current bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length` and cannot determine the download size.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.versions.download",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1426,11 +1667,19 @@
     "/api/v2/files/{fileId}/versions/{version}/revert": {
       "post": {
         "operationId": "revertFileVersion",
-        "summary": "Revert File Version",
-        "description": "Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MB returns `413`.\n\nOAuth scope: `api:write`.",
+        "summary": "Revert file version",
+        "description": "Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MiB returns `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.versions.revert",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1465,6 +1714,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RevertFileVersionRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "expectedCurrentVersion": 4
+                  }
+                }
               }
             }
           }
@@ -1487,6 +1745,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileVersionRevertResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "reverted": true,
+                        "file": {
+                          "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                          "name": "data.csv",
+                          "size": 1024,
+                          "type": "text/csv",
+                          "key": "workspace/example/data.csv",
+                          "folderPath": "/Engineering",
+                          "uploadedByEmail": "jane@example.com",
+                          "uploadedAt": "2026-01-15T10:30:00Z",
+                          "updatedAt": "2026-01-15T10:30:00Z",
+                          "deletedAt": null
+                        },
+                        "version": {
+                          "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "version": 5,
+                          "isCurrent": true,
+                          "size": 1024,
+                          "contentType": "text/csv",
+                          "source": "revert",
+                          "authors": [
+                            {
+                              "id": "usr_4kJ9mN2pQ7rS",
+                              "email": "jane@example.com"
+                            }
+                          ],
+                          "restoredFromVersion": 3,
+                          "createdAt": "2026-01-15T10:30:00Z",
+                          "updatedAt": "2026-01-15T10:30:00Z",
+                          "supersededAt": null
+                        },
+                        "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1527,11 +1827,19 @@
     "/api/v2/files/bulk-download": {
       "get": {
         "operationId": "bulkDownloadFiles",
-        "summary": "Bulk Download Files",
-        "description": "Stream selected files and recursive folder contents as a ZIP archive. Each selection parameter and the resolved set allow 100 entries; unmatched paths or excess entries return `400`. Total bytes are bounded. Downloads record an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "summary": "Bulk download files",
+        "description": "Stream selected files and recursive folder contents as a ZIP archive. Each selection parameter and the resolved set allow 100 entries; unmatched paths or excess entries return `400`. Total bytes are bounded. Downloads record an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length` and cannot determine the download size.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.download",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -1625,11 +1933,19 @@
     "/api/v2/files/{fileId}/unzip": {
       "post": {
         "operationId": "unzipFile",
-        "summary": "Unzip File",
-        "description": "Extract a ZIP archive into a new sibling folder and return counts and the destination path. Use List Files to inspect its contents. Large archives can take minutes; concurrent extraction of the same archive returns `409`. Size or processing-time limits return `413`.\n\nOAuth scope: `api:write`.",
+        "summary": "Unzip file",
+        "description": "Extract a ZIP archive into a new sibling folder and return counts and the destination path. Use List files to inspect its contents. Large archives can take minutes; concurrent extraction of the same archive returns `409`. Size or processing-time limits return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.extract_archive",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1714,11 +2030,19 @@
     "/api/v2/files/{fileId}": {
       "get": {
         "operationId": "downloadFile",
-        "summary": "Download File",
-        "description": "Download current file bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "summary": "Download file",
+        "description": "Download current file bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length` and cannot determine the download size.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.download",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1809,11 +2133,19 @@
       },
       "delete": {
         "operationId": "deleteFile",
-        "summary": "Delete File",
-        "description": "Archive a workspace file, retaining its stored bytes and removing API read access. List Files with `scope=archived` finds it; Restore File recovers it. Archiving an already archived file returns `404`.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete file",
+        "description": "Archive a workspace file, retaining its stored bytes and removing API read access. List files with `scope=archived` finds it; Restore file recovers it. Archiving an already archived file returns `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1888,11 +2220,19 @@
       },
       "patch": {
         "operationId": "renameFile",
-        "summary": "Rename File",
+        "summary": "Rename file",
         "description": "Rename a workspace file without changing its containing folder.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.rename",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1915,6 +2255,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RenameFileRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "renamed.csv"
+                  }
+                }
               }
             }
           }
@@ -1937,6 +2286,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "workspace/example/data.csv",
+                        "folderPath": "/Engineering",
+                        "uploadedByEmail": "jane@example.com",
+                        "uploadedAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z",
+                        "deletedAt": null
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1977,11 +2346,19 @@
     "/api/v2/files/{fileId}/restore": {
       "post": {
         "operationId": "restoreFile",
-        "summary": "Restore File",
+        "summary": "Restore file",
         "description": "Restore a soft-deleted file to its original folder, or the workspace root if that folder was archived. Name collisions add a `_restored` suffix; read `folderPath` and `name` from the response. Already-active files return unchanged, making retries safe. An archived workspace returns `400`; an unresolved name collision returns `409`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2004,6 +2381,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RestoreFileRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  }
+                }
               }
             }
           }
@@ -2026,6 +2411,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2RestoreFileResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                        "name": "data_restored.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "workspace/example/data.csv",
+                        "folderPath": "/",
+                        "uploadedByEmail": "jane@example.com",
+                        "uploadedAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z",
+                        "deletedAt": null
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2066,11 +2471,19 @@
     "/api/v2/files/{fileId}/metadata": {
       "get": {
         "operationId": "getFile",
-        "summary": "Get File Metadata",
-        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.\n\nOAuth scope: `api:read`.",
+        "summary": "Get file metadata",
+        "description": "Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List file versions and is the precondition Revert file version accepts.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.read_metadata",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2128,6 +2541,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileMetadataResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "workspace/example/data.csv",
+                        "folderPath": "/Engineering",
+                        "uploadedByEmail": "jane@example.com",
+                        "uploadedAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z",
+                        "deletedAt": null,
+                        "share": null,
+                        "currentVersion": 1,
+                        "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
+                      }
+                    }
+                  },
+                  "example2": {
+                    "summary": "Response example 2",
+                    "value": {
+                      "data": {
+                        "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "workspace/example/data.csv",
+                        "folderPath": "/Engineering",
+                        "uploadedByEmail": "jane@example.com",
+                        "uploadedAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-16T09:12:00Z",
+                        "deletedAt": null,
+                        "share": {
+                          "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+                          "token": "share-token-example",
+                          "url": "https://www.sim.ai/f/share-token-example",
+                          "isActive": true,
+                          "resourceType": "file",
+                          "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "authType": "public",
+                          "hasPassword": false,
+                          "allowedEmails": []
+                        },
+                        "currentVersion": 3,
+                        "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTZUMDk6MTI6MDAuMDAwWg"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2159,11 +2626,19 @@
     "/api/v2/audit-logs": {
       "get": {
         "operationId": "listAuditLogs",
-        "summary": "List Audit Logs",
+        "summary": "List audit logs",
         "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "audit_logs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Audit Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "action",
@@ -2211,24 +2686,24 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "description": "Include audit entries created at or after this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.",
             "schema": {
+              "description": "Include audit entries created at or after this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.",
               "type": "string",
               "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "description": "Include audit entries created at or before this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.",
             "schema": {
+              "description": "Include audit entries created at or before this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.",
               "type": "string",
               "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
             }
           },
           {
@@ -2307,6 +2782,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2AuditLogListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "audit_2c3d4e5f6g",
+                          "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                          "actorName": "Jane Smith",
+                          "actorEmail": "jane@example.com",
+                          "action": "file.uploaded",
+                          "resourceType": "file",
+                          "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "resourceName": "data.csv",
+                          "description": "Uploaded file \"data.csv\" via API",
+                          "metadata": {
+                            "fileSize": 1024,
+                            "fileType": "text/csv"
+                          },
+                          "createdAt": "2026-01-15T10:30:00Z"
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
                 }
               }
             }
@@ -2335,11 +2836,19 @@
     "/api/v2/audit-logs/{auditLogId}": {
       "get": {
         "operationId": "getAuditLog",
-        "summary": "Get Audit Log",
+        "summary": "Get audit log",
         "description": "Get one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "audit_logs.read_detail",
         "x-oauth-scope": "api:read",
         "tags": ["Audit Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "auditLogId",
@@ -2382,6 +2891,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2AuditLogResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "audit_2c3d4e5f6g",
+                        "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                        "actorName": "Jane Smith",
+                        "actorEmail": "jane@example.com",
+                        "action": "file.uploaded",
+                        "resourceType": "file",
+                        "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "resourceName": "data.csv",
+                        "description": "Uploaded file \"data.csv\" via API",
+                        "metadata": {
+                          "fileSize": 1024,
+                          "fileType": "text/csv"
+                        },
+                        "createdAt": "2026-01-15T10:30:00Z"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2413,11 +2945,19 @@
     "/api/v2/files/move": {
       "post": {
         "operationId": "moveFileItems",
-        "summary": "Move Files",
+        "summary": "Move files",
         "description": "Move up to 1,000 files to a folder path or the workspace root.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.move",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Files and destination selected for a bulk move.",
@@ -2425,6 +2965,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MoveFileItemsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "fileIds": ["wf_V1StGXR8z5jdHi6BmyT91"],
+                    "targetFolderPath": "/Archive"
+                  }
+                }
               }
             }
           }
@@ -2447,6 +2997,18 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2MoveFileItemsResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "movedItems": {
+                          "files": 1
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2487,11 +3049,19 @@
     "/api/v2/files/{fileId}/share": {
       "get": {
         "operationId": "getFileShare",
-        "summary": "Get File Share",
+        "summary": "Get file share",
         "description": "Get a file's public-share configuration. An unshared file returns `data: null`; a disabled share returns its configuration with `isActive: false`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.share.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2537,6 +3107,30 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2GetFileShareResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+                        "token": "share-token-example",
+                        "url": "https://www.sim.ai/f/share-token-example",
+                        "isActive": true,
+                        "resourceType": "file",
+                        "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "authType": "public",
+                        "hasPassword": false,
+                        "allowedEmails": []
+                      }
+                    }
+                  },
+                  "example2": {
+                    "summary": "Response example 2",
+                    "value": {
+                      "data": null
+                    }
+                  }
                 }
               }
             }
@@ -2566,11 +3160,19 @@
       },
       "patch": {
         "operationId": "upsertFileShare",
-        "summary": "Enable or Disable File Share",
+        "summary": "Enable or disable file share",
         "description": "Create or update a file's public share. `isActive` is required; other fields describe their behavior when access modes change. Enabling a protected mode on a previously unshared file requires its credential in the same request. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.share.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2593,6 +3195,23 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpsertFileShareRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isActive": true,
+                    "authType": "public"
+                  }
+                },
+                "example2": {
+                  "summary": "Request example 2",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isActive": false
+                  }
+                }
               }
             }
           }
@@ -2615,6 +3234,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2UpsertFileShareResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+                        "token": "share-token-example",
+                        "url": "https://www.sim.ai/f/share-token-example",
+                        "isActive": true,
+                        "resourceType": "file",
+                        "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "authType": "public",
+                        "hasPassword": false,
+                        "allowedEmails": []
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2652,11 +3289,19 @@
     "/api/v2/files/{fileId}/content": {
       "patch": {
         "operationId": "editFileContent",
-        "summary": "Edit File Content",
-        "description": "Edit part of a UTF-8 file; use Replace File Content to replace it entirely. Search-and-replace requires one exact match unless `replaceAll` is true. Anchored modes match trimmed complete lines; their input descriptions specify boundary handling. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.\n\nOAuth scope: `api:write`.",
+        "summary": "Edit file content",
+        "description": "Edit part of a UTF-8 file; use Replace file content to replace it entirely. Search-and-replace requires one exact match unless `replaceAll` is true. Anchored modes match trimmed complete lines; their input descriptions specify boundary handling. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2679,6 +3324,30 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EditFileContentRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "edit": {
+                      "mode": "search_replace",
+                      "search": "- based in NYC",
+                      "content": "- based in SF"
+                    }
+                  }
+                },
+                "example2": {
+                  "summary": "Request example 2",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "edit": {
+                      "mode": "insert_after",
+                      "anchor": "## Preferences",
+                      "content": "- prefers async updates"
+                    }
+                  }
+                }
               }
             }
           }
@@ -2701,6 +3370,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2EditedFileResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "file": {
+                          "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                          "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                          "name": "data.csv",
+                          "size": 1024,
+                          "type": "text/csv",
+                          "key": "workspace/example/data.csv",
+                          "folderPath": "/Engineering",
+                          "uploadedByEmail": "jane@example.com",
+                          "uploadedAt": "2026-01-15T10:30:00Z",
+                          "updatedAt": "2026-01-15T10:30:00Z",
+                          "deletedAt": null
+                        },
+                        "lineCount": 5
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2742,11 +3434,19 @@
       },
       "put": {
         "operationId": "updateFileContent",
-        "summary": "Replace File Content",
+        "summary": "Replace file content",
         "description": "Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2769,6 +3469,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateFileContentRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "content": "replacement text"
+                  }
+                }
               }
             }
           }
@@ -2791,6 +3500,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2WrittenFileResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                        "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "workspace/example/data.csv",
+                        "folderPath": "/Engineering",
+                        "uploadedByEmail": "jane@example.com",
+                        "uploadedAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z",
+                        "deletedAt": null,
+                        "revision": "d2ZfVjFTdEdYUjh6NWpkSGk2Qm15VDkxOjIwMjYtMDEtMTVUMTA6MzA6MDAuMDAwWg"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2831,11 +3561,19 @@
     "/api/v2/files/search": {
       "get": {
         "operationId": "searchFileContent",
-        "summary": "Search File Content",
+        "summary": "Search file content",
         "description": "Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and reported coverage. Missing matches are inconclusive if `complete` is false or `indexStatus.skippedFiles` or `indexStatus.partialFiles` is nonzero. `truncated` means additional matches exist beyond `maxResults`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.search_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2939,6 +3677,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileSearchResultsResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "results": [
+                          {
+                            "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                            "lineNumber": 4,
+                            "text": "- based in NYC"
+                          }
+                        ],
+                        "count": 1,
+                        "truncated": false,
+                        "complete": true,
+                        "indexStatus": {
+                          "readyFiles": 12,
+                          "pendingFiles": 0,
+                          "failedFiles": 0,
+                          "skippedFiles": 0,
+                          "partialFiles": 0
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2973,11 +3737,19 @@
     "/api/v2/files/bulk-delete": {
       "post": {
         "operationId": "bulkDeleteFiles",
-        "summary": "Delete Files",
-        "description": "Archive up to 1,000 workspace files while retaining their stored bytes. Use Restore File to recover each file.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete files",
+        "description": "Archive up to 1,000 workspace files while retaining their stored bytes. Use Restore file to recover each file.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace and files selected for deletion.",
@@ -2985,6 +3757,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkDeleteFilesRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "fileIds": ["wf_V1StGXR8z5jdHi6BmyT91"]
+                  }
+                }
               }
             }
           }
@@ -3007,6 +3788,18 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BulkDeleteFilesResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "deletedItems": {
+                          "files": 1
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -3044,11 +3837,19 @@
     "/api/v2/files/folders": {
       "get": {
         "operationId": "listFilesFolders",
-        "summary": "List Folders",
-        "description": "List workspace file folders with parent-path filtering and sorting. Use `scope=archived` to find paths accepted by Restore Folder. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "summary": "List folders",
+        "description": "List workspace file folders with parent-path filtering and sorting. Use `scope=archived` to find paths accepted by Restore folder. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "files.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3088,10 +3889,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -3204,11 +4005,19 @@
       },
       "post": {
         "operationId": "createFilesFolder",
-        "summary": "Create Folder",
+        "summary": "Create folder",
         "description": "Create a folder at the supplied workspace path.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace and canonical path for a new folder.",
@@ -3216,6 +4025,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateFileFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Engineering"
+                  }
+                }
               }
             }
           }
@@ -3276,11 +4094,19 @@
       },
       "patch": {
         "operationId": "relocateFilesFolder",
-        "summary": "Rename or Move Folder",
+        "summary": "Rename or move folder",
         "description": "Rename or move a folder and atomically update all descendant paths.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Current and destination canonical paths for a folder.",
@@ -3288,6 +4114,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RelocateFileFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Engineering",
+                    "destinationPath": "/Archive/Engineering"
+                  }
+                }
               }
             }
           }
@@ -3348,11 +4184,19 @@
       },
       "delete": {
         "operationId": "deleteFilesFolder",
-        "summary": "Delete Folder",
-        "description": "Archive an empty folder, or set `recursive=true` to archive its files and subfolders. Use Restore Folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete folder",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its files and subfolders. Use Restore folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3380,9 +4224,9 @@
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "description": "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
             "schema": {
-              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "description": "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
               "enum": [
                 "true",
                 "1",
@@ -3454,11 +4298,19 @@
     "/api/v2/files/folders/restore": {
       "post": {
         "operationId": "restoreFilesFolder",
-        "summary": "Restore Folder",
-        "description": "Restore a folder and the files and subfolders archived with it. Use the path from List Folders with `scope=archived`. A path that is not archived returns `404`.\n\nOAuth scope: `api:write`.",
+        "summary": "Restore folder",
+        "description": "Restore a folder and the files and subfolders archived with it. Use the path from List folders with `scope=archived`. A path that is not archived returns `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "files.folders.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope and archived folder path.",
@@ -3532,13 +4384,23 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+        "description": "Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {
@@ -3790,7 +4652,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -3836,6 +4698,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -4016,7 +4881,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4044,18 +4909,112 @@
           }
         ]
       },
-      "V2FileResponse": {
+      "V2CreatedFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique file identifier.",
+            "examples": ["wf_V1StGXR8z5jdHi6BmyT91"]
+          },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
+          "name": {
+            "type": "string",
+            "description": "Original file name.",
+            "examples": ["data.csv"]
+          },
+          "size": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes downloading the file returns.",
+            "examples": [1024]
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type a download serves.",
+            "examples": ["text/csv"]
+          },
+          "key": {
+            "type": "string",
+            "description": "Storage key for the file.",
+            "examples": ["workspace/example/data.csv"]
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "maxLength": 4096
+          },
+          "uploadedByEmail": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+            "description": "Current email address of the uploader.",
+            "examples": ["jane@example.com"]
+          },
+          "uploadedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the file was uploaded.",
+            "format": "date-time",
+            "examples": ["2026-01-15T10:30:00Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the last content or metadata write.",
+            "format": "date-time",
+            "examples": ["2026-01-15T10:30:00Z"]
+          },
+          "deletedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the file was archived by deleting it, or null while the file is active. Only an archived-scope file list returns files with a non-null value.",
+            "format": "date-time",
+            "examples": ["2026-01-16T09:00:00Z"]
+          },
+          "revision": {
+            "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "webUrl",
+          "name",
+          "size",
+          "type",
+          "key",
+          "folderPath",
+          "uploadedByEmail",
+          "uploadedAt",
+          "updatedAt",
+          "deletedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Created file",
+        "description": "A newly created workspace file, with the revision it produced."
+      },
+      "V2CreatedFileResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2File"
+            "$ref": "#/components/schemas/V2CreatedFile"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "File response",
-        "description": "A single workspace file.",
+        "title": "Created file response",
+        "description": "A newly created workspace file, with the revision it produced.",
         "examples": [
           {
             "data": {
@@ -4101,7 +5060,7 @@
           },
           "content": {
             "default": "",
-            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.",
+            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.",
             "type": "string",
             "maxLength": 70000000
           },
@@ -4683,7 +5642,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4767,7 +5726,7 @@
           "deleted": {
             "type": "boolean",
             "const": true,
-            "description": "Always true: the version and its stored content are gone."
+            "description": "True when the version was removed from history. Stored-content deletion may finish through a background retry."
           }
         },
         "required": ["fileId", "version", "deleted"],
@@ -5013,7 +5972,7 @@
             "maximum": 2147483647
           },
           "expectedRevision": {
-            "description": "Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.",
+            "description": "Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.",
             "type": "string",
             "minLength": 1
           }
@@ -5115,6 +6074,36 @@
         "title": "Delete file response",
         "description": "Deletion confirmation for one file."
       },
+      "V2FileResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2File"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "File response",
+        "description": "A single workspace file.",
+        "examples": [
+          {
+            "data": {
+              "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+              "name": "data.csv",
+              "size": 1024,
+              "type": "text/csv",
+              "key": "workspace/example/data.csv",
+              "folderPath": "/Engineering",
+              "uploadedByEmail": "jane@example.com",
+              "uploadedAt": "2026-01-15T10:30:00Z",
+              "updatedAt": "2026-01-15T10:30:00Z",
+              "deletedAt": null
+            }
+          }
+        ]
+      },
       "RenameFileRequest": {
         "type": "object",
         "properties": {
@@ -5153,7 +6142,7 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Restore file response",
-        "description": "The restored workspace file, at the root and under its post-restore name.",
+        "description": "The restored file, with its resulting folderPath and name.",
         "examples": [
           {
             "data": {
@@ -5254,7 +6243,7 @@
         ],
         "additionalProperties": false,
         "title": "File share",
-        "description": "Public-safe share configuration for a workspace file."
+        "description": "Public-safe share configuration for a file."
       },
       "V2FileMetadata": {
         "type": "object",
@@ -5347,7 +6336,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 2147483647,
-            "description": "Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since."
+            "description": "Current version number. List file versions returns the history. Pass this as `expectedCurrentVersion` to require that version to remain current; use `expectedRevision` to detect edits folded into the same version."
           }
         },
         "required": [
@@ -5562,7 +6551,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -5931,7 +6920,7 @@
                     "description": "Replacement text. An empty string clears the interior."
                   },
                   "occurrence": {
-                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "description": "Which beforeAnchor match to use, starting at 1. Defaults to 1. afterAnchor is the first match after it.",
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
@@ -5959,7 +6948,7 @@
                     "description": "Text to insert."
                   },
                   "occurrence": {
-                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "description": "Which anchor match to insert after, starting at 1. Defaults to 1.",
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
@@ -5987,7 +6976,7 @@
                     "description": "Ending boundary line. This end anchor remains."
                   },
                   "occurrence": {
-                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "description": "Which startAnchor match to use, starting at 1. Defaults to 1. endAnchor is the first match after it.",
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
@@ -6000,7 +6989,7 @@
             "description": "One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between."
           },
           "expectedRevision": {
-            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "description": "Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.",
             "type": "string",
             "minLength": 1
           }
@@ -6296,7 +7285,7 @@
           "content": {
             "type": "string",
             "maxLength": 70000000,
-            "description": "Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`."
+            "description": "Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content."
           },
           "encoding": {
             "default": "utf-8",
@@ -6305,7 +7294,7 @@
             "enum": ["utf-8", "base64"]
           },
           "expectedRevision": {
-            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "description": "Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.",
             "type": "string",
             "minLength": 1
           }
@@ -6451,7 +7440,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],

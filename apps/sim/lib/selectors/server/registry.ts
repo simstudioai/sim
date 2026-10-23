@@ -10,9 +10,11 @@ import { clickupSelectorAttachments } from '@/lib/selectors/server/providers/cli
 import { cloudWatchSelectorAttachments } from '@/lib/selectors/server/providers/cloudwatch'
 import { codaSelectorAttachments } from '@/lib/selectors/server/providers/coda'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
+import { fivetranSelectorAttachments } from '@/lib/selectors/server/providers/fivetran'
 import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
+import { helpScoutSelectorAttachments } from '@/lib/selectors/server/providers/helpscout'
 import { hubspotSelectorAttachments } from '@/lib/selectors/server/providers/hubspot'
 import { imapSelectorAttachments } from '@/lib/selectors/server/providers/imap'
 import { jiraSelectorAttachments } from '@/lib/selectors/server/providers/jira'
@@ -25,6 +27,8 @@ import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/mond
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
+import { planetScaleSelectorAttachments } from '@/lib/selectors/server/providers/planetscale'
+import { powerBISelectorAttachments } from '@/lib/selectors/server/providers/powerbi'
 import { sharepointSelectorAttachments } from '@/lib/selectors/server/providers/sharepoint'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
 import { snowflakeSelectorAttachments } from '@/lib/selectors/server/providers/snowflake'
@@ -48,9 +52,11 @@ export const serverSelectorRegistry = {
   ...cloudWatchSelectorAttachments,
   ...codaSelectorAttachments,
   ...confluenceSelectorAttachments,
+  ...fivetranSelectorAttachments,
   ...googleSelectorAttachments,
   ...githubSelectorAttachments,
   ...harmonicSelectorAttachments,
+  ...helpScoutSelectorAttachments,
   ...hubspotSelectorAttachments,
   ...imapSelectorAttachments,
   ...jiraSelectorAttachments,
@@ -62,6 +68,8 @@ export const serverSelectorRegistry = {
   ...netsuiteSelectorAttachments,
   ...notionSelectorAttachments,
   ...pipedriveSelectorAttachments,
+  ...planetScaleSelectorAttachments,
+  ...powerBISelectorAttachments,
   ...sharepointSelectorAttachments,
   ...slackSelectorAttachments,
   ...snowflakeSelectorAttachments,

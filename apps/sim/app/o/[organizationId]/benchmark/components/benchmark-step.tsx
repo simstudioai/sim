@@ -28,7 +28,16 @@ export function BenchmarkStep({
             pending && 'text-[var(--text-muted)]'
           )}
         >
-          {pending ? <Loader aria-label='Running' className='size-[14px] animate-spin' /> : number}
+          {pending ? (
+            <>
+              <Loader animate className='size-[14px]' />
+              <span role='status' className='sr-only'>
+                Running {title}
+              </span>
+            </>
+          ) : (
+            number
+          )}
         </span>
         <div className='min-w-0 flex-1'>
           <h2 id={`benchmark-step-${number}`} className='text-[var(--text-primary)] text-base'>

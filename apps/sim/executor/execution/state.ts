@@ -1,24 +1,15 @@
 import type { BlockStateController } from '@/executor/execution/types'
 import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
-import { SubflowNodeIdCodec } from '@/executor/utils/subflow-node-id-codec'
 import {
   buildOuterBranchScopedId,
+  extractBranchSuffix,
+  extractLoopSuffix,
   extractOuterBranchIndex,
+  normalizeLookupId,
   stripCloneSuffixes,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 
-function normalizeLookupId(id: string): string {
-  return SubflowNodeIdCodec.normalizeLookupId(id)
-}
-
-function extractBranchSuffix(id: string): string {
-  return SubflowNodeIdCodec.extractBranchSuffix(id)
-}
-
-function extractLoopSuffix(id: string): string {
-  return SubflowNodeIdCodec.extractLoopSuffix(id)
-}
 export interface LoopScope {
   iteration: number
   currentIterationOutputs: Map<string, NormalizedBlockOutput>

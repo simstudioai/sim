@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
@@ -8,6 +7,7 @@ import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/ex
 import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
+import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,
@@ -64,9 +64,7 @@ export async function resolveExecutorCredentialToken(
       throw new Error('Assistant credential use requires the authenticated person for this turn.')
     }
     const original = toolId ? getToolMetadata(toolId) : undefined
-    const tool = original
-      ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
-      : undefined
+    const tool = original ? projectAssistantConnectedAccountTool(original) : undefined
     if (
       !tool?.oauth?.required ||
       (!copilotExecutionContext.workspaceId && !copilotExecutionContext.organizationId) ||
@@ -127,14 +125,17 @@ export async function resolveExecutorCredentialToken(
   })
 
   if (!result.ok) {
+    const message = `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
+    // The resolver already logged the revocation once, at WARN, where it was classified.
+    if (result.code === OAUTH_CREDENTIAL_REVOKED) {
+      throw new CredentialRevokedError(message)
+    }
     logger.error(`[${requestId}] Credential token resolution failed`, {
       status: result.status,
       credentialId,
       code: result.code,
     })
-    throw new Error(
-      `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
-    )
+    throw new Error(message)
   }
 
   return result.token

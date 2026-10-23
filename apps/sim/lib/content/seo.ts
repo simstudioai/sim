@@ -17,14 +17,20 @@ export interface ContentSection {
   basePath: string
   /** Collection-page description used in `CollectionPage` JSON-LD. */
   description: string
+  /** Visible article text available for spoken summaries; defaults to headline and description. */
+  speakableSelectors?: readonly string[]
+  /** RSS feed path advertised by the index page's `<link rel="alternate">`, e.g. "/blog/rss.xml". */
+  feedPath?: string
 }
 
 export function buildPostMetadata(post: ContentMeta): Metadata {
   const base = new URL(post.canonical)
   const baseUrl = `${base.protocol}//${base.host}`
+  const searchTitle = post.seoTitle ?? post.title
+  const searchDescription = post.seoDescription ?? post.description
   return {
-    title: post.title,
-    description: post.description,
+    title: searchTitle,
+    description: searchDescription,
     keywords: post.tags,
     authors: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
       name: a.name,
@@ -37,8 +43,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
       : { index: true, follow: true, googleBot: { index: true, follow: true } },
     alternates: { canonical: post.canonical },
     openGraph: {
-      title: post.title,
-      description: post.description,
+      title: searchTitle,
+      description: searchDescription,
       url: post.canonical,
       siteName: 'Sim',
       locale: 'en_US',
@@ -60,8 +66,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
     },
     twitter: {
       card: 'summary_large_image',
-      title: post.title,
-      description: post.description,
+      title: searchTitle,
+      description: searchDescription,
       images: [post.ogImage],
       creator: post.author.url?.includes('x.com') ? `@${post.author.xHandle || ''}` : undefined,
       site: '@simdotai',
@@ -84,7 +90,10 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
  * posts that are genuinely technical/developer content (`post.technical`) —
  * general announcements (funding, company news) get `BlogPosting` alone.
  */
-export function buildArticleJsonLd(post: ContentMeta) {
+export function buildArticleJsonLd(
+  post: ContentMeta,
+  speakableSelectors: readonly string[] = ['[itemprop="headline"]', '[itemprop="description"]']
+) {
   return {
     '@type': post.technical ? ['BlogPosting', 'TechArticle'] : 'BlogPosting',
     url: post.canonical,
@@ -111,6 +120,7 @@ export function buildArticleJsonLd(post: ContentMeta) {
     })),
     publisher: {
       '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       url: SITE_URL,
       logo: {
@@ -130,7 +140,7 @@ export function buildArticleJsonLd(post: ContentMeta) {
     inLanguage: 'en-US',
     speakable: {
       '@type': 'SpeakableSpecification',
-      cssSelector: ['[itemprop="headline"]', '[itemprop="description"]'],
+      cssSelector: speakableSelectors,
     },
   }
 }
@@ -165,7 +175,7 @@ export function buildFaqJsonLd(items: { q: string; a: string }[] | undefined) {
 
 export function buildPostGraphJsonLd(post: ContentMeta, section: ContentSection) {
   const graph: Record<string, unknown>[] = [
-    buildArticleJsonLd(post),
+    buildArticleJsonLd(post, section.speakableSelectors),
     buildBreadcrumbJsonLd(post, section),
   ]
 
@@ -181,11 +191,8 @@ export function buildPostGraphJsonLd(post: ContentMeta, section: ContentSection)
 }
 
 /**
- * Filtered/paginated index variants render genuinely different lists, but
- * only the bare index is indexable — same policy as the integrations and
- * models catalogs — so canonical always points at the unfiltered index and
- * the variant itself is noindexed rather than asking Google to index every
- * tag/page permutation.
+ * Paginated collections contain distinct posts and use their own canonical
+ * URLs. Tag filters remain noindexed to avoid indexing list permutations.
  */
 export function buildIndexMetadata(
   section: ContentSection,
@@ -200,14 +207,19 @@ export function buildIndexMetadata(
     ? `Sim ${section.name.toLowerCase()} posts tagged "${tag}": ${section.description}`
     : section.description
 
-  const canonical = `${SITE_URL}${section.basePath}`
-  const isFiltered = Boolean(tag) || pageNum > 1
+  const isFiltered = Boolean(tag)
+  const canonical = `${SITE_URL}${section.basePath}${!isFiltered && pageNum > 1 ? `?page=${pageNum}` : ''}`
 
   return withFilteredNoindex(
     {
       title,
       description,
-      alternates: { canonical },
+      alternates: {
+        canonical,
+        ...(section.feedPath
+          ? { types: { 'application/rss+xml': `${SITE_URL}${section.feedPath}` } }
+          : {}),
+      },
       openGraph: {
         title: `${title} | Sim`,
         description,
@@ -293,7 +305,7 @@ export function buildAuthorMetadata(
   const canonical = `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(id)}`
   const description = `Read articles by ${name} on the Sim ${section.name.toLowerCase()}.`
   return {
-    title: `${name} | Sim ${section.name}`,
+    title: `${name} | ${section.name}`,
     description,
     alternates: { canonical },
     openGraph: {
@@ -363,9 +375,8 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
  *
  * `tag`/`page` describe which filtered/paginated variant `posts` came from,
  * so `url` reflects the actual page these `posts` are visible on rather than
- * always the bare section index - the same variant is `noindex`ed (see
- * `buildIndexMetadata`), but the graph still shouldn't attribute a partial
- * list to the unfiltered collection URL.
+ * always the bare section index. Only tag-filtered variants are noindexed;
+ * unfiltered pagination uses the same URL in metadata and structured data.
  */
 export function buildCollectionPageJsonLd(
   section: ContentSection,
@@ -388,6 +399,7 @@ export function buildCollectionPageJsonLd(
     description: section.description,
     publisher: {
       '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       url: SITE_URL,
       logo: {

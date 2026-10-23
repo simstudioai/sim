@@ -7,7 +7,7 @@ export interface McpResponse extends ToolResponse {
   output: Record<string, unknown>
 }
 
-export const McpBlock: BlockConfig<McpResponse> = {
+export const McpBlock: BlockConfig = {
   type: 'mcp',
   name: 'MCP',
   description: 'Discover and run authorized MCP operations',

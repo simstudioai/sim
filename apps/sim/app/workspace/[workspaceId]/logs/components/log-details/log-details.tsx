@@ -58,7 +58,6 @@ import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 /**
  * Deep imports on purpose: importing these back through the parent `logs/components`
  * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
@@ -78,6 +77,7 @@ import {
 import {
   formatDate,
   getDisplayStatus,
+  getLogWorkflowLabel,
   resolveLogWorkflowId,
   StatusBadge,
   TriggerBadge,
@@ -345,25 +345,17 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable nuqs setter; reset tab when switching logs
+    // stable nuqs setter; reset tab when switching logs
   }, [log.id])
 
   const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'
   const isWorkflowExecutionLog =
     (log.trigger === 'manual' && !!log.duration) || !!log.executionData?.traceSpans
 
-  /**
-   * The workflow this run belongs to, when it is still reachable. Null for Sim
-   * agent jobs and deleted workflows, which render their label as static text.
-   */
+  /** Null when the label renders as static text rather than a link. */
   const openableWorkflowId = resolveLogWorkflowId(log)
 
-  const workflowLabel =
-    log.trigger === 'mothership'
-      ? log.jobTitle || 'Untitled Job'
-      : openableWorkflowId
-        ? log.workflow?.name || 'Unknown'
-        : DELETED_WORKFLOW_LABEL
+  const workflowLabel = getLogWorkflowLabel(log)
 
   const hasCostInfo = !!(isWorkflowExecutionLog && log.cost)
   const showWorkflowState =
@@ -475,7 +467,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     const message = workflowName
       ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
       : 'This workflow run failed. Investigate the error in this run and help me fix it.'
-    if (sendMothershipMessage(message, [context])) return
+    if (sendMothershipMessage({ content: message, contexts: [context] })) return
     if (MothershipHandoffStorage.store({ message, contexts: [context] }, workspaceId)) {
       router.push(`/workspace/${workspaceId}/home`)
     }

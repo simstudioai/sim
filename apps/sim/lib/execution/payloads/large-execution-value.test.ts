@@ -4,10 +4,7 @@ import {
   LARGE_ARRAY_MANIFEST_VERSION,
   type LargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import {
-  collectLargeValueExecutionIds,
-  collectLargeValueKeys,
-} from '@/lib/execution/payloads/large-execution-value'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   LARGE_VALUE_REF_MARKER,
   LARGE_VALUE_REF_VERSION,
@@ -41,23 +38,7 @@ function largeArrayManifest(executionId: string): LargeArrayManifest {
   }
 }
 
-describe('collectLargeValueExecutionIds', () => {
-  it('collects deduplicated execution IDs from nested refs and manifests', () => {
-    const executionIds = collectLargeValueExecutionIds({
-      blockStates: {
-        upstream: {
-          output: {
-            directRef: largeValueRef('lv_ABCDEFGHIJKL', 'execution-a'),
-            inheritedManifest: largeArrayManifest('execution-b'),
-            duplicateRef: largeValueRef('lv_NOPQRSTUVWXY', 'execution-a'),
-          },
-        },
-      },
-    })
-
-    expect(executionIds).toEqual(['execution-a', 'execution-b'])
-  })
-
+describe('collectLargeValueKeys', () => {
   it('collects deduplicated storage keys from nested refs and manifests', () => {
     const keys = collectLargeValueKeys({
       directRef: largeValueRef('lv_ABCDEFGHIJKL', 'execution-a'),

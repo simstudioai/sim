@@ -3,8 +3,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
   claimServiceUsage,
+  closeAbandonedServiceMeters,
   finishServiceUsage,
-  serviceMeteringHealth,
 } from '@/lib/mothership/billing/service-store'
 import { ServiceUsageAcknowledgment, ServiceUsageReceipt } from '@/lib/mothership/generated/billing'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
@@ -17,8 +17,11 @@ export async function replayServiceUsage(): Promise<void> {
   if (running) return
   running = true
   try {
-    const health = await serviceMeteringHealth()
-    if (health?.unknown) logger.error('Service usage requires reconciliation', health)
+    for (const meter of await closeAbandonedServiceMeters())
+      logger.warn(
+        'Closed a tool meter that never finished; its provider spend may be unbilled',
+        meter
+      )
     for (const row of await claimServiceUsage()) {
       try {
         const receipt = ServiceUsageReceipt.parse({

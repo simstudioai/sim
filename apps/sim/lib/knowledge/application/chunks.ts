@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { ContentRefusedError } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -8,6 +9,7 @@ import {
   type DurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
+import { admitKnowledgeChunks } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -26,6 +28,7 @@ import {
 } from '@/lib/knowledge/chunks/service'
 import type { ChunkFilters } from '@/lib/knowledge/chunks/types'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import type { KnowledgeDocumentSnapshot } from '@/lib/knowledge/secret-provenance'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('KnowledgeChunkApplication')
@@ -65,6 +68,30 @@ export interface BulkKnowledgeChunksInput extends KnowledgeDocumentChunkInput {
   chunkIds: string[]
 }
 
+/**
+ * One chunk a result returns. A read is refused on its own when its gate refuses it; a committed
+ * write completes and then answers with the refusal (see `admitWrittenContent`).
+ */
+async function requireAdmittedChunk(
+  principal: Principal,
+  documentId: string,
+  chunk: { id: string; content: string },
+  options: {
+    written?: boolean
+    shown?: Record<string, unknown>
+    snapshot?: KnowledgeDocumentSnapshot
+  } = {}
+): Promise<void> {
+  /** `shown` is every other field the response adds beside the chunk, such as its document name. */
+  const value = options.shown ? { ...chunk, ...options.shown } : chunk
+  const admitted = await admitKnowledgeChunks(
+    principal,
+    [{ id: chunk.id, documentId, content: chunk.content, value, snapshot: options.snapshot }],
+    { written: options.written }
+  )
+  if (!options.written && !admitted.has(chunk.id)) throw new ContentRefusedError('knowledge-chunk')
+}
+
 function requireChunkReadable(context: ActiveKnowledgeDocumentContext): void {
   if (context.document.processingStatus !== 'completed') {
     throw new KnowledgeDocumentNotReadyError(context.document.processingStatus)
@@ -80,29 +107,6 @@ function requireChunkWritable(context: ActiveKnowledgeDocumentContext): void {
   }
 }
 
-function documentTags(context: ActiveKnowledgeDocumentContext) {
-  const document = context.document
-  return {
-    tag1: document.tag1 ?? null,
-    tag2: document.tag2 ?? null,
-    tag3: document.tag3 ?? null,
-    tag4: document.tag4 ?? null,
-    tag5: document.tag5 ?? null,
-    tag6: document.tag6 ?? null,
-    tag7: document.tag7 ?? null,
-    number1: document.number1 ?? null,
-    number2: document.number2 ?? null,
-    number3: document.number3 ?? null,
-    number4: document.number4 ?? null,
-    number5: document.number5 ?? null,
-    date1: document.date1 ?? null,
-    date2: document.date2 ?? null,
-    boolean1: document.boolean1 ?? null,
-    boolean2: document.boolean2 ?? null,
-    boolean3: document.boolean3 ?? null,
-  }
-}
-
 export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listChunks,
   resolveContext: ({
@@ -112,7 +116,7 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ListKnowledgeChunksInput
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     if (input.requireEnabledDocument && !context.document.enabled) {
       throw new OrchestrationError('not_found', 'Document not found')
     }
@@ -130,7 +134,22 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
       generateRequestId(),
       await context.access.get()
     )
-    return { ...result, workspaceId: context.workspaceId, documentId }
+    const admitted = await admitKnowledgeChunks(
+      principal,
+      result.chunks.map((chunk) => ({
+        id: chunk.id,
+        documentId,
+        content: chunk.content,
+        value: chunk,
+      }))
+    )
+    const chunks = result.chunks.filter((chunk) => admitted.has(chunk.id))
+    return {
+      ...result,
+      chunks,
+      workspaceId: context.workspaceId,
+      documentId,
+    }
   },
 })
 
@@ -138,8 +157,9 @@ export const readKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readChunk,
   resolveContext: ({ principal, input }: { principal: Principal; input: KnowledgeChunkInput }) =>
     resolveActiveKnowledgeChunkContext(input, principal),
-  async execute({ context }) {
+  async execute({ principal, context }) {
     requireChunkReadable(context)
+    await requireAdmittedChunk(principal, context.documentId, context.chunk)
     return {
       chunk: context.chunk,
       workspaceId: context.workspaceId,
@@ -183,7 +203,6 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
       createChunk(
         context.knowledgeBaseId,
         context.documentId,
-        documentTags(context),
         { content: input.content, enabled: input.enabled },
         generateRequestId(),
         context.workspaceId,
@@ -196,6 +215,11 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     } catch (error) {
       logger.warn('Failed to calculate cost for chunk upload', { error })
     }
+    await requireAdmittedChunk(principal, context.documentId, chunk, {
+      written: true,
+      shown: { documentId: context.documentId, documentName: context.document.filename },
+      snapshot: { filename: context.document.filename },
+    })
     return {
       chunk: {
         ...chunk,
@@ -259,6 +283,7 @@ export const updateKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
         provenance
       )
     )
+    await requireAdmittedChunk(principal, context.documentId, chunk, { written: true })
     return { chunk, workspaceId: context.workspaceId, documentId: context.documentId }
   },
 })

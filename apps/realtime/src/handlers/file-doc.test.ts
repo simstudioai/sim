@@ -4,7 +4,9 @@ import {
   FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
+import { fileDocAdmissionRoom } from '@sim/realtime-protocol/file-doc-target'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { flushMicrotasks } from '@sim/testing/helpers'
 import { sleep } from '@sim/utils/helpers'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
@@ -35,12 +37,12 @@ vi.mock('@/handlers/file-doc-app', () => ({
 import {
   applyMarkdownToLiveFileDoc,
   cleanupFileDocForSocket,
-  fileDocAdmissionRoom,
   flushAllFileDocRooms,
   invalidateLiveFileDocument,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
 import { FileDocInvalidatedError, getFileDocStore } from '@/handlers/file-doc-store'
+import { publishRoomPermission } from '@/handlers/room-permission'
 import * as permissions from '@/middleware/permissions'
 import {
   beginRoomPermissionRead,
@@ -54,13 +56,16 @@ const ROOM_NAME = 'workspace-file-doc:file-1'
 
 interface SentMessage {
   target: string
-  except?: string
+  except?: string[]
   event: string
   payload: unknown
 }
 
 /** An `io` mock that records every server-originated emit with its target/except. */
-function createIo(deliver?: (message: SentMessage) => void) {
+function createIo(
+  deliver?: (message: SentMessage) => void,
+  fetchSockets = async () => [...testSockets.values()]
+) {
   const sent: SentMessage[] = []
   const emit = (message: SentMessage) => {
     sent.push(message)
@@ -68,32 +73,42 @@ function createIo(deliver?: (message: SentMessage) => void) {
   }
   /** Records `io.in(socketId).socketsLeave(room)` — a socket forced out of a room from outside. */
   const left: { socketId: string; room: string }[] = []
-  const to = vi.fn((target: string) => ({
-    except: (exclude: string) => ({
-      emit: (event: string, payload: unknown) => emit({ target, except: exclude, event, payload }),
-    }),
-    emit: (event: string, payload: unknown) => emit({ target, event, payload }),
-  }))
+  const channel = (target: string, excluded: string[] = []) => ({
+    except: (exclude: string) => channel(target, [...excluded, exclude]),
+    emit: (event: string, payload: unknown) => emit({ target, except: excluded, event, payload }),
+    fetchSockets,
+  })
+  const to = vi.fn((target: string) => channel(target))
   const inFn = vi.fn((socketId: string) => ({
     socketsLeave: (room: string) => {
       left.push({ socketId, room })
     },
   }))
-  // Doc-sync frames fan out via `io.local.to(...)` (cross-task delivery rides the Redis stream, not the
-  // adapter). With the store disabled in tests, `local` is the whole room — mirror `to` so those emits
-  // are recorded identically. Awareness/presence still use `io.to(...)`.
-  return { io: { to, in: inFn, local: { to } } as unknown as IRoomManager['io'], sent, left }
+  // With the shared store disabled, local and adapter broadcasts reach the same clients.
+  return {
+    io: {
+      to,
+      in: inFn,
+      local: { to },
+      sockets: { sockets: testSockets },
+      serverSideEmit: vi.fn(),
+    } as unknown as IRoomManager['io'],
+    sent,
+    left,
+  }
 }
 
 /** Every socket id a test created, so `afterEach` can drop their rooms without a
  * hardcoded list drifting out of sync with the tests. */
 const createdSocketIds = new Set<string>()
+const testSockets = new Map<string, ReturnType<typeof createSocket>['socket']>()
 
 function createSocket(id: string, overrides?: Record<string, unknown>) {
   createdSocketIds.add(id)
   const handlers: Record<string, Handler> = {}
   const socket = {
     id,
+    data: {},
     userId: 'user-1',
     userName: 'Test User',
     // Set so the server's roster resolves the avatar from the socket (never the DB).
@@ -114,6 +129,7 @@ function createSocket(id: string, overrides?: Record<string, unknown>) {
     leave: vi.fn(),
     ...overrides,
   }
+  testSockets.set(id, socket)
   return { handlers, socket }
 }
 
@@ -140,10 +156,8 @@ function setup(id: string, io: IRoomManager['io'], socketOverrides?: Record<stri
 const FILE_DOC_FIELD = 'default'
 
 /** Let a fire-and-forget `void ensureServerSeed(...)` chain settle (mock resolves synchronously). */
-async function flushMicrotasks(): Promise<void> {
-  // Enough to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply).
-  for (let i = 0; i < 8; i++) await Promise.resolve()
-}
+/** Enough turns to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply). */
+const SEED_CHAIN_TICKS = 8
 
 /**
  * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
@@ -220,6 +234,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // map is cleared and never bleeds a counter into the next test.
     for (const id of createdSocketIds) cleanupFileDocForSocket(id, io, true)
     createdSocketIds.clear()
+    testSockets.clear()
     await getFileDocStore().shutdown()
   })
 
@@ -377,7 +392,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
       source.getText(FILE_DOC_FIELD).insert(0, 'Stale text')
       const acknowledge = vi.fn()
       try {
-        if (timing === 'before append') await invalidateLiveFileDocument('file-1', 2)
+        if (timing === 'before append')
+          await invalidateLiveFileDocument({ type: 'workspace-file-doc', id: 'file-1' }, 2)
         sent.length = 0
         handlers[FILE_DOC_EVENTS.UPDATE](
           {
@@ -390,7 +406,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         )
         if (timing !== 'before append') {
           expect(publish).toHaveBeenCalledTimes(1)
-          await invalidateLiveFileDocument('file-1', 2)
+          await invalidateLiveFileDocument({ type: 'workspace-file-doc', id: 'file-1' }, 2)
           if (timing === 'during append and reseed') {
             mockFetchFileDocSeed.mockResolvedValue({
               ...seedResult('Replacement', 'doc-new'),
@@ -442,7 +458,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     })
 
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     expect(socket.emit).toHaveBeenCalledWith(
       FILE_DOC_EVENTS.JOIN_ERROR,
@@ -494,12 +510,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks() // let the seed apply
+    await flushMicrotasks(SEED_CHAIN_TICKS) // let the seed apply
 
     // Last collaborator leaves without ever editing — projecting this seed back over the file could
     // clobber a concurrent copilot write, so the final flush must NOT persist.
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
   })
 
@@ -508,20 +524,20 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // A real user edit (socket-origin sync update) marks the doc dirty.
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
     )
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
@@ -551,7 +567,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     cleanupFileDocForSocket('socket-closing-update', io, true)
     const completed = vi.fn()
     const flush = flushAllFileDocRooms().then(completed)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(completed).not.toHaveBeenCalled()
     expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
     finishAppend()
@@ -591,8 +607,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
       const edit = new Y.Doc()
       edit.getText(FILE_DOC_FIELD).insert(0, 'edit after revocation')
-      const editFrame = () =>
-        handlers[FILE_DOC_EVENTS.MESSAGE](
+      const editFrame = async () =>
+        await handlers[FILE_DOC_EVENTS.MESSAGE](
           frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
             syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
           )
@@ -627,34 +643,121 @@ describe('setupWorkspaceFileDocHandlers', () => {
     }
   })
 
+  it('publishes write access to a socket only when it changes, not on every frame', async () => {
+    // A distinct user/file: role decisions recorded under fake timers outlive this test.
+    vi.useFakeTimers()
+    try {
+      const { io } = createIo()
+      const { socket, handlers } = setup('socket-capability', io, { userId: 'user-capability' })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-capability', clientId: 7 })
+      await vi.advanceTimersByTimeAsync(0)
+      const presence = awarenessFrame(7, 'Capability').frame
+      const sendFrames = async () => {
+        for (let sent = 0; sent < 3; sent++) {
+          void handlers[FILE_DOC_EVENTS.MESSAGE](presence)
+          await vi.advanceTimersByTimeAsync(0)
+        }
+      }
+      const published = () =>
+        socket.emit.mock.calls
+          .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
+          .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
+      const changeRole = async (workspacePermission: 'read' | 'write') => {
+        mockAuthorizeRoom.mockResolvedValue({
+          allowed: true,
+          status: 200,
+          workspaceId: 'ws-1',
+          workspacePermission,
+        })
+        await vi.advanceTimersByTimeAsync(ROLE_REVALIDATION_TTL_MS + 1_000)
+      }
+
+      await sendFrames()
+      expect(published()).toEqual([true])
+
+      await changeRole('read')
+      await sendFrames()
+      expect(published()).toEqual([true, false])
+
+      await changeRole('write')
+      await sendFrames()
+      expect(published()).toEqual([true, false, true])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('tells an admitted writer it can write even if its cached role lapses before the reply', async () => {
+    // A distinct user/file: role decisions recorded under fake timers outlive this test.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { io } = createIo()
+      const data: Record<string, unknown> = {}
+      // Registration records presence just before the reply; expire the role cache right there.
+      Object.defineProperty(data, 'fileDocPresence', {
+        set: () => vi.setSystemTime(Date.now() + ROLE_REVALIDATION_TTL_MS + 1),
+      })
+      const { socket, handlers } = setup('socket-lapse', io, { userId: 'user-lapse', data })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-lapse', clientId: 9 })
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_SUCCESS,
+        expect.objectContaining({ fileId: 'file-lapse', canWrite: true })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('publishes a re-validated permission only when it changes what the socket last heard', async () => {
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-sweep', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 8 })
+    await handlers[FILE_DOC_EVENTS.MESSAGE](awarenessFrame(8, 'Sweep').frame)
+    const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' } as const
+    const subscriber = socket as unknown as Parameters<typeof publishRoomPermission>[0]
+    const published = () =>
+      socket.emit.mock.calls
+        .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
+        .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
+
+    publishRoomPermission(subscriber, room, 'write')
+    publishRoomPermission(subscriber, room, 'write')
+    expect(published()).toEqual([true])
+
+    publishRoomPermission(subscriber, room, 'read')
+    publishRoomPermission(subscriber, room, 'read')
+    expect(published()).toEqual([true, false])
+  })
+
   it('applies + fans out an agent-streamed frame (SYNC_NO_PERSIST) but never persists it', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     const { io, sent } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     const before = sent.length
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'agent streamed this')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
     )
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // It fans out to the WHOLE room — no socket excluded — so peers AND a same-socket sibling provider see
     // the stream live (the emitting provider no-ops on its own echo).
     const fanout = sent
       .slice(before)
-      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && m.except === undefined)
+      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && !m.except?.includes('socket-1'))
     expect(fanout.length).toBeGreaterThan(0)
 
     // ...but it must NOT mark the doc dirty: a last-disconnect flush never persists agent content (the
     // copilot's final edit_content write is the authoritative durable persist).
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
   })
 
@@ -670,21 +773,21 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
     )
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // The conflict is handled gracefully: the persist is attempted exactly once (never silently skipped,
     // never retried against a possibly-behind stream) and the durable file is left authoritative.
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
   })
 
@@ -736,8 +839,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
         expect(memberships.has(ROOM_NAME)).toBe(false)
         resolvePermission(permission)
         await joining
-        expect(memberships.has(ROOM_NAME)).toBe(permission === 'write')
-        if (permission === 'write') {
+        expect(memberships.has(ROOM_NAME)).toBe(permission !== null)
+        if (permission !== null) {
           expect(joinSuccessFileId(pending.socket)).toBe('file-1')
           expect(pending.socket.emit).toHaveBeenCalledWith(
             FILE_DOC_EVENTS.MESSAGE,
@@ -787,7 +890,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
           commitRoomPermission(
             'user-1',
             { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' },
-            'read',
+            null,
             beginRoomPermissionRead()
           )
         } else if (access === 'expired') {
@@ -795,7 +898,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         }
         finishSubscription()
         await joining
-        expect(memberships.has(fileDocAdmissionRoom('file-1'))).toBe(false)
+        expect(memberships.has(fileDocAdmissionRoom({ fileId: 'file-1' }))).toBe(false)
         expect(memberships.has(ROOM_NAME)).toBe(access === 'unchanged')
         if (access === 'unchanged') {
           expect(joinSuccessFileId(pending.socket)).toBe('file-1')
@@ -838,7 +941,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const joinA = a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     const joinB = b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // The second join found the seed already in flight, so it does not start another one — and
     // neither join has been answered yet.
@@ -852,7 +955,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // The joiner that never triggered the fetch is served the seeded document all the same.
     b.socket.emit.mockClear()
-    b.handlers[FILE_DOC_EVENTS.MESSAGE](
+    await b.handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
     )
     const reply = b.socket.emit.mock.calls.find(
@@ -903,7 +1006,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
     const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     expect(socket.join).not.toHaveBeenCalled()
     expect(joinSuccessFileId(socket)).toBeUndefined()
@@ -916,7 +1019,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // A document frame sent before the join was answered reaches an unbound socket and is dropped.
     const early = new Y.Doc()
     early.getText(FILE_DOC_FIELD).insert(0, 'too early')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(early))
       )
@@ -928,7 +1031,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // The first thing the client is served is the finished document — content and seed flag together.
     socket.emit.mockClear()
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
     )
     const reply = socket.emit.mock.calls.find(
@@ -945,24 +1048,36 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
 
     // A newer durable version lands and is recorded as the synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', { version: 100 })).toBe('applied')
+    expect(
+      await applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# newer', {
+        version: 100,
+      })
+    ).toBe('applied')
     mockFetchFileDocMerge.mockClear()
 
     // An older durable version arriving out of order (e.g. a concurrent write on another process) is
     // stale: skipped before any diff is computed, so the live doc never regresses to older content and
     // no diff is published that a later persist could write back.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', { version: 50 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# older, stale',
+        { version: 50 }
+      )
+    ).toBe('stale')
     // The same version is idempotent — also skipped.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', { version: 100 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# same version',
+        { version: 100 }
+      )
+    ).toBe('stale')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
@@ -971,7 +1086,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // First merge is left in flight; the second must not start its own fetch until the first finishes.
     const noOpUpdate = Y.encodeStateAsUpdate(new Y.Doc())
@@ -980,9 +1095,9 @@ describe('setupWorkspaceFileDocHandlers', () => {
       .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
       .mockResolvedValueOnce(noOpUpdate)
 
-    const first = applyMarkdownToLiveFileDoc('file-1', '# One')
-    const second = applyMarkdownToLiveFileDoc('file-1', '# Two')
-    await flushMicrotasks()
+    const first = applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# One')
+    const second = applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# Two')
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1) // second is queued behind the first
 
     resolveFirst(noOpUpdate)
@@ -1000,7 +1115,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 100 })
     sent.length = 0
 
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](spoof)
+    await a.handlers[FILE_DOC_EVENTS.MESSAGE](spoof)
 
     const relayed = sent.find(
       (m) =>
@@ -1091,8 +1206,73 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const updateFrame = frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
       syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(doc))
     )
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](updateFrame)
+    await a.handlers[FILE_DOC_EVENTS.MESSAGE](updateFrame)
     expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE)).toBe(false)
+  })
+
+  it('delivers a roster change that arrived while the last presence read was failing', async () => {
+    vi.useFakeTimers()
+    try {
+      let reads = 0
+      const { io, sent } = createIo(undefined, async () => {
+        reads += 1
+        if (reads === 3) await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+        if (reads <= 3) throw new Error('Redis publish failed')
+        return [...testSockets.values()]
+      })
+      const a = setup('socket-a', io, { userId: 'user-a' })
+      const b = setup('socket-b', io, { userId: 'user-b' })
+
+      await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as
+        | { users: Array<{ socketId: string }> }
+        | undefined
+      expect(roster?.users.map((user) => user.socketId).sort()).toEqual(['socket-a', 'socket-b'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('re-reads the roster when membership changes during a successful presence read', async () => {
+    let reads = 0
+    const { io, sent } = createIo(undefined, async () => {
+      reads += 1
+      const snapshot = [...testSockets.values()]
+      if (reads === 1) await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+      return snapshot
+    })
+    const a = setup('socket-a', io, { userId: 'user-a' })
+    const b = setup('socket-b', io, { userId: 'user-b' })
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await vi.waitFor(() => expect(reads).toBe(2))
+
+    const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as
+      | { users: Array<{ socketId: string }> }
+      | undefined
+    expect(roster?.users.map((user) => user.socketId).sort()).toEqual(['socket-a', 'socket-b'])
+  })
+
+  it('does not retry a presence read the adapter timed out', async () => {
+    vi.useFakeTimers()
+    try {
+      let reads = 0
+      const { io, sent } = createIo(undefined, async () => {
+        reads += 1
+        throw new Error('timeout reached while waiting for fetchSockets response')
+      })
+      const a = setup('socket-a', io, { userId: 'user-a' })
+
+      await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(reads).toBe(1)
+      expect(sent.some((m) => m.event === FILE_DOC_EVENTS.PRESENCE)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('broadcasts a server-authenticated presence roster on join, one entry per session', async () => {

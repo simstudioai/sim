@@ -1,18 +1,27 @@
 import { db } from '@sim/db'
 import { organizationBYOKKeys, workspace, workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getTransientDatabaseFailure } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { and, asc, eq, notExists } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { isOrganizationBYOKEntitledCached } from '@/lib/api-key/byok-entitlement'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { getHostedModels } from '@/providers/models'
 import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
 import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKKeys')
+
+const BYOK_LOOKUP_MAX_ATTEMPTS = 3
+const BYOK_LOOKUP_TIMEOUT_MS = 5_000
+const BYOK_LOOKUP_BACKOFF = { baseMs: 25, maxMs: 100 } as const
 
 export interface BYOKKeyResult {
   apiKey: string
@@ -66,9 +75,8 @@ async function decryptBYOKPool(
   rotationPoolKey: string,
   providerId: BYOKProviderId,
   scope: BYOKKeyScope,
-  scopeName: BYOKKeyScopeName,
-  failClosed = false
-): Promise<BYOKKeyResult | null> {
+  scopeName: BYOKKeyScopeName
+): Promise<BYOKKeyResult> {
   const startIndex = nextRotationIndex(rotationPoolKey, keys.length)
   for (let offset = 0; offset < keys.length; offset++) {
     const key = keys[(startIndex + offset) % keys.length]
@@ -85,8 +93,7 @@ async function decryptBYOKPool(
     }
   }
 
-  if (failClosed) throw new Error('Configured BYOK credentials are unavailable')
-  return null
+  throw new Error('Configured BYOK credentials are unavailable')
 }
 
 /**
@@ -100,92 +107,124 @@ async function decryptBYOKPool(
  * that is cached, because this runs once per agent block and once per tool call
  * — see `isOrganizationBYOKEntitledCached` for why bounded staleness is safe on
  * a billing gate but not on key material.
+ *
+ * Only confirmed absence of an eligible key returns null. Lookup and decryption
+ * failures reject; transient database reads retry within one deadline before any provider call.
  */
 export async function getBYOKKey(
   workspaceId: string | undefined | null,
   providerId: BYOKProviderId,
-  options: { failClosed?: boolean } = {}
+  options: { signal?: AbortSignal } = {}
 ): Promise<BYOKKeyResult | null> {
-  if (!workspaceId) {
-    return null
-  }
+  if (!workspaceId) return null
 
-  try {
-    const workspaceKeys = await db
-      .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
-      .from(workspaceBYOKKeys)
-      .where(
-        and(
-          eq(workspaceBYOKKeys.workspaceId, workspaceId),
-          eq(workspaceBYOKKeys.providerId, providerId)
-        )
+  return withinDeadline(
+    async (signal) => {
+      for (let attempt = 1; ; attempt++) {
+        signal.throwIfAborted()
+        try {
+          const result = await resolveBYOKKey(workspaceId, providerId, signal)
+          signal.throwIfAborted()
+          return result
+        } catch (error) {
+          signal.throwIfAborted()
+          const failureClass = getTransientDatabaseFailure(error)
+          if (!failureClass || attempt >= BYOK_LOOKUP_MAX_ATTEMPTS) {
+            throw redactDatabaseQueryError(error, 'BYOK credential lookup')
+          }
+          const delayMs = backoffWithJitter(attempt, null, BYOK_LOOKUP_BACKOFF)
+          logger.warn('Retrying BYOK credential lookup', {
+            workspaceId,
+            providerId,
+            attempt,
+            failureClass,
+            delayMs,
+          })
+          await interruptibleSleep(delayMs, signal)
+        }
+      }
+    },
+    Date.now() + BYOK_LOOKUP_TIMEOUT_MS,
+    options.signal
+  )
+}
+
+async function resolveBYOKKey(
+  workspaceId: string,
+  providerId: BYOKProviderId,
+  signal: AbortSignal
+): Promise<BYOKKeyResult | null> {
+  const workspaceKeys = await db
+    .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
+    .from(workspaceBYOKKeys)
+    .where(
+      and(
+        eq(workspaceBYOKKeys.workspaceId, workspaceId),
+        eq(workspaceBYOKKeys.providerId, providerId)
       )
-      .orderBy(asc(workspaceBYOKKeys.createdAt), asc(workspaceBYOKKeys.id))
-
-    if (workspaceKeys.length) {
-      return decryptBYOKPool(
-        workspaceKeys,
-        `${workspaceId}:${providerId}`,
-        providerId,
-        { workspaceId },
-        'workspace',
-        options.failClosed
-      )
-    }
-
-    const organizationKeys = await db
-      .select({
-        organizationId: organizationBYOKKeys.organizationId,
-        id: organizationBYOKKeys.id,
-        encryptedApiKey: organizationBYOKKeys.encryptedApiKey,
-      })
-      .from(workspace)
-      .innerJoin(
-        organizationBYOKKeys,
-        eq(organizationBYOKKeys.organizationId, workspace.organizationId)
-      )
-      .where(
-        and(
-          eq(workspace.id, workspaceId),
-          eq(organizationBYOKKeys.providerId, providerId),
-          notExists(
-            db
-              .select({ id: workspaceBYOKKeys.id })
-              .from(workspaceBYOKKeys)
-              .where(
-                and(
-                  eq(workspaceBYOKKeys.workspaceId, workspace.id),
-                  eq(workspaceBYOKKeys.providerId, providerId)
-                )
-              )
-          )
-        )
-      )
-      .orderBy(asc(organizationBYOKKeys.createdAt), asc(organizationBYOKKeys.id))
-
-    if (!organizationKeys.length) {
-      return null
-    }
-
-    const organizationId = organizationKeys[0].organizationId
-    if (!(await isOrganizationBYOKEntitledCached(organizationId))) {
-      return null
-    }
-
-    return decryptBYOKPool(
-      organizationKeys,
-      `organization:${organizationId}:${providerId}`,
-      providerId,
-      { workspaceId, organizationId },
-      'organization',
-      options.failClosed
     )
-  } catch (error) {
-    logger.error('Failed to get BYOK key', { workspaceId, providerId, error })
-    if (options.failClosed)
-      throw new Error('BYOK credentials could not be resolved', { cause: error })
+    .orderBy(asc(workspaceBYOKKeys.createdAt), asc(workspaceBYOKKeys.id))
+
+  signal.throwIfAborted()
+  if (workspaceKeys.length) {
+    return decryptBYOKPool(
+      workspaceKeys,
+      `${workspaceId}:${providerId}`,
+      providerId,
+      { workspaceId },
+      'workspace'
+    )
+  }
+
+  const organizationKeys = await db
+    .select({
+      organizationId: organizationBYOKKeys.organizationId,
+      id: organizationBYOKKeys.id,
+      encryptedApiKey: organizationBYOKKeys.encryptedApiKey,
+    })
+    .from(workspace)
+    .innerJoin(
+      organizationBYOKKeys,
+      eq(organizationBYOKKeys.organizationId, workspace.organizationId)
+    )
+    .where(
+      and(
+        eq(workspace.id, workspaceId),
+        eq(organizationBYOKKeys.providerId, providerId),
+        notExists(
+          db
+            .select({ id: workspaceBYOKKeys.id })
+            .from(workspaceBYOKKeys)
+            .where(
+              and(
+                eq(workspaceBYOKKeys.workspaceId, workspace.id),
+                eq(workspaceBYOKKeys.providerId, providerId)
+              )
+            )
+        )
+      )
+    )
+    .orderBy(asc(organizationBYOKKeys.createdAt), asc(organizationBYOKKeys.id))
+
+  signal.throwIfAborted()
+  if (!organizationKeys.length) {
     return null
   }
+
+  const organizationId = organizationKeys[0].organizationId
+  const entitled = await isOrganizationBYOKEntitledCached(organizationId)
+  signal.throwIfAborted()
+  if (!entitled) {
+    return null
+  }
+
+  return decryptBYOKPool(
+    organizationKeys,
+    `organization:${organizationId}:${providerId}`,
+    providerId,
+    { workspaceId, organizationId },
+    'organization'
+  )
 }
 
 /**
@@ -200,7 +239,8 @@ export async function getApiKeyWithBYOK(
   provider: string,
   model: string,
   workspaceId: string | undefined | null,
-  userProvidedKey?: string
+  userProvidedKey?: string,
+  signal?: AbortSignal
 ): Promise<{ apiKey: string; isBYOK: boolean; scope?: BYOKKeyScopeName }> {
   if (provider === 'ollama') {
     return { apiKey: 'empty', isBYOK: false }
@@ -216,7 +256,7 @@ export async function getApiKeyWithBYOK(
 
   if (provider === 'fireworks') {
     if (workspaceId) {
-      const byokResult = await getBYOKKey(workspaceId, 'fireworks')
+      const byokResult = await getBYOKKey(workspaceId, 'fireworks', { signal })
       if (byokResult) {
         logger.info('Using BYOK key for Fireworks', { model, workspaceId, scope: byokResult.scope })
         return byokResult
@@ -262,7 +302,7 @@ export async function getApiKeyWithBYOK(
 
   if (provider === 'together') {
     if (workspaceId) {
-      const byokResult = await getBYOKKey(workspaceId, 'together')
+      const byokResult = await getBYOKKey(workspaceId, 'together', { signal })
       if (byokResult) {
         logger.info('Using BYOK key for Together AI', {
           model,
@@ -283,7 +323,7 @@ export async function getApiKeyWithBYOK(
 
   if (provider === 'baseten') {
     if (workspaceId) {
-      const byokResult = await getBYOKKey(workspaceId, 'baseten')
+      const byokResult = await getBYOKKey(workspaceId, 'baseten', { signal })
       if (byokResult) {
         logger.info('Using BYOK key for Baseten', { model, workspaceId, scope: byokResult.scope })
         return byokResult
@@ -298,9 +338,16 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Baseten ${model}`)
   }
 
+  if (provider === 'nebius') {
+    const byokResult = await getBYOKKey(workspaceId, 'nebius', { signal })
+    if (byokResult) return byokResult
+    if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: false }
+    throw new Error(`API key is required for Nebius ${model}`)
+  }
+
   if (provider === 'ollama-cloud') {
     if (workspaceId) {
-      const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud')
+      const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud', { signal })
       if (byokResult) {
         logger.info('Using BYOK key for Ollama Cloud', {
           model,
@@ -314,6 +361,20 @@ export async function getApiKeyWithBYOK(
       return { apiKey: userProvidedKey, isBYOK: false }
     }
     throw new Error(`API key is required for Ollama Cloud ${model}`)
+  }
+
+  if (provider === 'kie') {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'kie', { signal })
+      if (byokResult) {
+        logger.info('Using BYOK key for Kie', { model, workspaceId, scope: byokResult.scope })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    throw new Error(`API key is required for Kie ${model}`)
   }
 
   if (provider === 'bedrock') {
@@ -357,7 +418,7 @@ export async function getApiKeyWithBYOK(
     logger.debug('BYOK check', { provider, model, workspaceId, isHosted, isModelHosted })
 
     if (isModelHosted || isMistralModel) {
-      const byokResult = await getBYOKKey(workspaceId, byokProviderId)
+      const byokResult = await getBYOKKey(workspaceId, byokProviderId, { signal })
       if (byokResult) {
         logger.info('Using BYOK key', { provider, model, workspaceId, scope: byokResult.scope })
         return byokResult

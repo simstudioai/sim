@@ -1,11 +1,7 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { initializeShellPage } from '@/renderer/shell'
 import type { ShellTheme, ShellThemeApi } from '@/shared/shell'
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe('shell appearance bootstrap', () => {
   it('keeps a newer theme received while the initial snapshot is pending', async () => {

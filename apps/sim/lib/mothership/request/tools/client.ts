@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncTerminalCompletionSnapshot,
+  getTerminalConfirmationStatus,
   isAsyncTerminalConfirmationStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { replaceTerminalAsyncToolCallResult } from '@/lib/mothership/async-runs/repository'
@@ -24,12 +25,14 @@ import {
   inspectToolResultForCopilot,
   TOOL_RESULT_UNAVAILABLE_ERROR,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
+import {
+  boundRunResultForModel,
+  presentWorkflowLogsForModel,
+} from '@/lib/mothership/tools/workflow-output'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
-  getWorkflowToolConfirmationStatus,
   getWorkflowToolLaunchError,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
@@ -49,7 +52,8 @@ const logger = createLogger('CopilotClientToolWaiter')
 export async function waitForToolCompletion(
   toolCallId: string,
   timeoutMs: number | null,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  settleOverdue?: () => Promise<unknown>
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
   const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
     acceptStatus: (status) =>
@@ -57,6 +61,7 @@ export async function waitForToolCompletion(
       status === MothershipStreamV1ToolOutcome.error ||
       status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
       status === MothershipStreamV1ToolOutcome.cancelled,
+    ...(settleOverdue ? { settleOverdue } : {}),
   })
   if (decision && isAsyncTerminalConfirmationStatus(decision.status)) {
     return { ...decision, status: decision.status }
@@ -72,6 +77,8 @@ interface WaitForClientToolCompletionOptions {
   timeoutMs: number | null
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
+  /** See `waitForToolConfirmation`: enforces the call's server-side deadlines while it waits. */
+  settleOverdue?: () => Promise<unknown>
 }
 
 function getGenericCompletionMessage(status: AsyncTerminalCompletionSnapshot['status']): string {
@@ -110,8 +117,9 @@ export async function waitForClientToolCompletion({
   timeoutMs,
   abortSignal,
   registry,
+  settleOverdue,
 }: WaitForClientToolCompletionOptions): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
+  const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal, settleOverdue)
   if (!completion) return null
 
   const binding = runId ? { toolCallId, runId, userId } : undefined
@@ -339,10 +347,7 @@ export async function waitForWorkflowToolCompletion({
 
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
-    if (!completion) {
-      toolRegistry?.markIncomplete('client-tool-completion-missing')
-      return null
-    }
+    if (!completion) return null
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
     const launchError = getWorkflowToolLaunchError(completion.data)
@@ -378,7 +383,7 @@ export async function waitForWorkflowToolCompletion({
     if (!trustedExecution.contentAvailable) {
       toolRegistry?.markIncomplete('client-tool-content-unavailable')
       return structuralWorkflowCompletion(
-        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        getTerminalConfirmationStatus(trustedExecution.status),
         workflowId,
         executionId
       )
@@ -394,7 +399,7 @@ export async function waitForWorkflowToolCompletion({
           origin: 'copilotToolClient.workflowExecution',
         })
       return structuralWorkflowCompletion(
-        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        getTerminalConfirmationStatus(trustedExecution.status),
         workflowId,
         executionId
       )
@@ -434,37 +439,46 @@ export async function waitForWorkflowToolCompletion({
   if (!completion || !trustedExecution || !workflowId) return completion
 
   const executionId = trustedExecution.executionId
-  const status = getWorkflowToolConfirmationStatus(trustedExecution.status)
+  const status = getTerminalConfirmationStatus(trustedExecution.status)
   const genericMessage = getWorkflowToolCompletionMessage(status)
-  const rawData: Record<string, unknown> = {
-    success: status === MothershipStreamV1ToolOutcome.success,
-    workflowId,
+  const error =
+    status !== MothershipStreamV1ToolOutcome.success
+      ? (trustedExecution.error ?? genericMessage)
+      : undefined
+  const rawData = boundRunResultForModel(
+    {
+      success: status === MothershipStreamV1ToolOutcome.success,
+      workflowId,
+      executionId,
+      ...(Object.hasOwn(trustedExecution, 'finalOutput')
+        ? { output: trustedExecution.finalOutput }
+        : {}),
+      // Built from raw logs before projection, matching the server handler's presentation.
+      ...presentWorkflowLogsForModel(trustedExecution.blockLogs, executionId, toolRegistry, select),
+      ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
+      ...(status === MothershipStreamV1ToolOutcome.cancelled
+        ? { reason: 'user_cancelled', cancelledByUser: true }
+        : {}),
+    },
+    error,
     executionId,
-    ...(Object.hasOwn(trustedExecution, 'finalOutput')
-      ? { output: trustedExecution.finalOutput }
-      : {}),
-    logs: trustedExecution.blockLogs,
-    ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
-    ...(status === MothershipStreamV1ToolOutcome.cancelled
-      ? { reason: 'user_cancelled', cancelledByUser: true }
-      : {}),
-  }
+    toolRegistry
+  )
   const projection = inspectToolResultForCopilot(
     {
       success: status === MothershipStreamV1ToolOutcome.success,
       output: rawData,
-      ...(status !== MothershipStreamV1ToolOutcome.success
-        ? { error: trustedExecution.error ?? genericMessage }
-        : {}),
+      ...(error !== undefined ? { error } : {}),
     },
     toolRegistry
   )
   const projected = projection.result
   const projectedData = isPlainRecord(projected.output) ? projected.output : {}
-  const { logs, ...projectedFields } = projectedData
+  // Log fields go last, where they have always been, ahead of the structural fields.
+  const { logs, selected, logsOmitted, ...projectedFields } = projectedData
   const data = {
     ...projectedFields,
-    ...(Object.hasOwn(projectedData, 'logs') ? presentWorkflowLogs(logs, select) : {}),
+    ...filterUndefined({ logs, selected, logsOmitted }),
     ...createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
   }
   const message =

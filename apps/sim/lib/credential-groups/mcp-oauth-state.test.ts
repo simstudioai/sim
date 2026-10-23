@@ -1,3 +1,4 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
@@ -23,18 +24,7 @@ const { mockRedis, values } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: vi.fn(() => mockRedis),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
-  })),
-  decryptSecret: vi.fn(async (value: string) => ({
-    decrypted: Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
-  })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -54,6 +44,13 @@ const ATTEMPT = {
   codeVerifier: 'code-verifier',
   invitationToken: 'invitation-token',
 }
+
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
+}))
 
 describe('Credential Group MCP OAuth state', () => {
   beforeEach(() => {
@@ -93,6 +90,21 @@ describe('Credential Group MCP OAuth state', () => {
       invitationToken: 'invitation-token',
     })
     await expect(consumeCredentialGroupMcpOAuthAttempt(state)).resolves.toBeNull()
+  })
+
+  it('preserves the direct completion destination through one-time state consumption', async () => {
+    const completionId = '00000000-0000-4000-8000-000000000002'
+    await createCredentialGroupMcpOAuthAttempt({
+      ...ATTEMPT,
+      state: 'mcp_cg_direct',
+      completionId,
+      returnTo: 'integrations',
+    })
+    await expect(consumeCredentialGroupMcpOAuthAttempt('mcp_cg_direct')).resolves.toMatchObject({
+      completionId,
+      returnTo: 'integrations',
+    })
+    await expect(consumeCredentialGroupMcpOAuthAttempt('mcp_cg_direct')).resolves.toBeNull()
   })
 
   it('fails closed when Redis is unavailable', async () => {

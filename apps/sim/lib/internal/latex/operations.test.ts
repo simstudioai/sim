@@ -1,19 +1,21 @@
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
-  uploadExecutionFile: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { uploadFile: vi.fn() },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 import { compileLatexDocument } from '@/lib/internal/latex/operations'
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
 
 describe('compileLatexDocument', () => {
   beforeEach(() => {
@@ -23,7 +25,7 @@ describe('compileLatexDocument', () => {
         headers: { 'content-type': 'application/pdf' },
       })
     )
-    mocks.uploadExecutionFile.mockResolvedValue({ id: 'file-1', url: '/file-1' })
+    mockUploadExecutionFile.mockResolvedValue({ id: 'file-1', url: '/file-1' })
   })
 
   it('submits once and stores the bounded PDF in execution scope', async () => {
@@ -44,7 +46,7 @@ describe('compileLatexDocument', () => {
     )
 
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',

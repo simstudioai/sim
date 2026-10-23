@@ -1,5 +1,10 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES,
   CONFLUENCE_READ_RESPONSE_MAX_BYTES,
@@ -7,9 +12,10 @@ import {
 } from '@/lib/knowledge/access/confluence-site'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 
-const mocks = vi.hoisted(() => ({ token: vi.fn(), decrypt: vi.fn(), fetch: vi.fn() }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({ resolveManagedOAuthToken: mocks.token }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+
+const mocks = { token: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken, fetch: vi.fn() }
 
 const input = {
   scope: { kind: 'organization' as const, organizationId: 'org-1' },
@@ -58,10 +64,9 @@ beforeEach(() => {
   resetDbChainMock()
   vi.stubGlobal('fetch', mocks.fetch)
   mocks.token.mockResolvedValue({ accessToken: 'alice-oauth-token' })
-  mocks.decrypt.mockResolvedValue({ decrypted: JSON.stringify(binding) })
+  encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(binding) })
   mocks.fetch.mockImplementation(async () => Response.json({ accountId: 'alice', type: 'known' }))
 })
-afterEach(() => vi.restoreAllMocks())
 
 describe('current Confluence site access', () => {
   it('requires the actual reader’s Can use permission at the crawler’s immutable site', async () => {
@@ -136,7 +141,7 @@ describe('current Confluence site access', () => {
     { ...binding, type: 'google_service_account' },
   ])('rejects mismatched or malformed site bindings', async (value) => {
     queueSources()
-    mocks.decrypt.mockResolvedValueOnce({ decrypted: JSON.stringify(value) })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: JSON.stringify(value) })
     await expect(resolveConfluenceSiteReadGrants(input)).resolves.toEqual([])
     expect(mocks.token).not.toHaveBeenCalled()
     expect(mocks.fetch).not.toHaveBeenCalled()
@@ -147,7 +152,7 @@ describe('current Confluence site access', () => {
       [source, { ...source, connectorId: 'source-2', contentCredentialId: 'other-crawler' }],
       [contentCredential, { id: 'other-crawler', key: 'encrypted-other-crawler' }]
     )
-    mocks.decrypt.mockImplementation(async (key: string) => ({
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (key: string) => ({
       decrypted: JSON.stringify({
         ...binding,
         cloudId: key === 'encrypted-crawler' ? 'cloud-1' : 'cloud-2',
@@ -177,7 +182,7 @@ describe('current Confluence site access', () => {
       schemaMock.credential,
       rows.map((row, index) => ({ id: row.contentCredentialId, key: `cloud-${index}` }))
     )
-    mocks.decrypt.mockImplementation(async (key: string) => ({
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (key: string) => ({
       decrypted: JSON.stringify({ ...binding, cloudId: key }),
     }))
     mocks.fetch.mockImplementation(async () => new Response(null, { status: 403 }))

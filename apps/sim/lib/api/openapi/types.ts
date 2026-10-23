@@ -17,6 +17,19 @@ export type OpenApiSecurityScheme =
       bearerFormat?: string
       description: string
     }
+  | {
+      type: 'oauth2'
+      description: string
+      flows: {
+        authorizationCode: {
+          authorizationUrl: string
+          tokenUrl: string
+          refreshUrl?: string
+          /** Every scope an operation may require, keyed by name. */
+          scopes: Readonly<Record<string, string>>
+        }
+      }
+    }
 
 export interface OpenApiInfo {
   title: string
@@ -90,6 +103,8 @@ export interface OpenApiOperationMetadata {
   operationId: string
   summary: string
   description: string
+  /** Additional behavior rendered below inputs in docs and retained in the OpenAPI description. */
+  descriptionDetails?: string
   tags: readonly [string, ...string[]]
   errors: readonly string[]
   success: OpenApiOperationSuccess

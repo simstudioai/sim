@@ -1,4 +1,6 @@
-import { createMockLogger, resetEnvMock, setEnv } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
@@ -14,15 +16,6 @@ import {
   MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
 } from '@/lib/embeddings/client'
 
-const { mockGetBYOKKey } = vi.hoisted(() => ({
-  mockGetBYOKKey: vi.fn(),
-}))
-
-const { mockDiagnosticWarn } = vi.hoisted(() => ({ mockDiagnosticWarn: vi.fn() }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ ...createMockLogger(), warn: mockDiagnosticWarn }),
-}))
-
 const { quotaGates, mockAdmit, mockCooldown, mockQuotaCheck } = vi.hoisted(() => ({
   quotaGates: new Set<string>(),
   mockAdmit: vi.fn(),
@@ -37,9 +30,9 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   recordProviderCooldown: mockCooldown,
 }))
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: mockGetBYOKKey,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
+
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
 
 /**
  * Exercises the orchestrator end-to-end against a mocked transport: batching,
@@ -49,14 +42,6 @@ vi.mock('@/lib/api-key/byok', () => ({
  */
 
 const originalFetch = global.fetch
-
-function jsonResponse(body: unknown, status = 200, responseHeaders?: HeadersInit): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    statusText: String(status),
-    headers: new Headers(responseHeaders),
-  })
-}
 
 function sizedVector(values: number[], dimensions: number): number[] {
   return [...values, ...Array(Math.max(0, dimensions - values.length)).fill(0)].slice(0, dimensions)
@@ -111,7 +96,6 @@ function oversizedChunkedSuccessResponse(): Response {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  mockDiagnosticWarn.mockClear()
   mockQuotaCheck
     .mockReset()
     .mockImplementation(async (identity: { credentialFingerprint: string }) =>
@@ -146,7 +130,6 @@ afterEach(() => {
   quotaGates.clear()
   global.fetch = originalFetch
   vi.useRealTimers()
-  vi.restoreAllMocks()
   resetEnvMock()
 })
 
@@ -621,6 +604,46 @@ describe('knowledge embedding transport fallback', () => {
       true
     ).catch((error) => error)
     expect(isBYOKEmbeddingCredentialRejection(workspaceError)).toBe(true)
+  })
+
+  it('attributes quota exhaustion to the workspace key, including while its pause is open', async () => {
+    /**
+     * Only a credential's first request is refused; the provider would answer every later
+     * one. A second search can therefore fail only if the open pause refused it.
+     */
+    const refusedCredentials = new Set<string>()
+    fetchMock.mockImplementation(async (_url, init) => {
+      const credential = String((init as RequestInit).headers?.Authorization)
+      if (refusedCredentials.has(credential)) return jsonResponse(openAIBody([[1, 2]]))
+      refusedCredentials.add(credential)
+      return jsonResponse(
+        { error: { type: 'insufficient_quota', code: 'insufficient_quota' } },
+        429
+      )
+    })
+    const search = () =>
+      embedKnowledgeForDeployment(
+        ['hello'],
+        { ...options, taskType: 'query' as const, workspaceId: 'workspace-1' },
+        true
+      ).catch((error) => error)
+
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-openai-test', isBYOK: true })
+    const refused = await search()
+    const paused = await search()
+    expect(refused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(paused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(refused.isBYOK).toBe(true)
+    expect(paused.isBYOK).toBe(true)
+
+    mockGetBYOKKey.mockResolvedValue(null)
+    setEnv({ OPENAI_API_KEY: 'platform-openai-test' })
+    const platformRefused = await search()
+    const platformPaused = await search()
+    expect(platformRefused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(platformPaused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(platformRefused.isBYOK).toBe(false)
+    expect(platformPaused.isBYOK).toBe(false)
   })
 
   it('ignores OpenRouter on hosted deployments', async () => {

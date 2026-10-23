@@ -27,11 +27,6 @@ export const BULK_DELETE_KNOWLEDGE_BASES_COST_POLICY = {
   execution: 'sequential_best_effort',
 } as const
 
-export const BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY = {
-  maxItems: MAX_KNOWLEDGE_BATCH_ITEMS,
-  execution: 'sequential_best_effort',
-} as const
-
 /** Domain names for the shared batch shapes, so call sites read in knowledge terms. */
 export type KnowledgeBatchTerminalFailure = BatchTerminalFailure
 export type KnowledgeBatchExecutionResult = BatchExecutionResult

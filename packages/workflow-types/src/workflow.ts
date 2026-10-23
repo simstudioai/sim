@@ -8,10 +8,6 @@ export const SUBFLOW_TYPES = {
 
 export type SubflowType = (typeof SUBFLOW_TYPES)[keyof typeof SUBFLOW_TYPES]
 
-export function isValidSubflowType(type: string): type is SubflowType {
-  return Object.values(SUBFLOW_TYPES).includes(type as SubflowType)
-}
-
 export interface LoopConfig {
   nodes: string[]
   iterations: number
@@ -207,7 +203,7 @@ export interface WorkflowLockBlock {
 /**
  * Reads a workflow block's parent ID from runtime block data.
  */
-export function getWorkflowBlockParentId(block?: WorkflowLockBlock): string | undefined {
+function getWorkflowBlockParentId(block?: WorkflowLockBlock): string | undefined {
   const data = block?.data
   if (typeof data !== 'object' || data === null || !('parentId' in data)) return undefined
 
@@ -331,11 +327,11 @@ export interface WorkflowEdgeHandles extends WorkflowEdgeEndpoints {
   targetHandle?: string | null
 }
 
-export const WORKFLOW_CARD_SIDES = ['top', 'right', 'bottom', 'left'] as const
+const WORKFLOW_CARD_SIDES = ['top', 'right', 'bottom', 'left'] as const
 export type WorkflowCardSide = (typeof WORKFLOW_CARD_SIDES)[number]
 
 /** The two card sides a connection line can attach to. Purely visual. */
-export const WORKFLOW_CONNECTION_SIDES = ['left', 'right'] as const
+const WORKFLOW_CONNECTION_SIDES = ['left', 'right'] as const
 export type WorkflowConnectionSide = (typeof WORKFLOW_CONNECTION_SIDES)[number]
 
 /** The one output handle every non-branching block exposes. */
@@ -344,6 +340,14 @@ export const WORKFLOW_SOURCE_HANDLE_ID = 'source'
 export const WORKFLOW_TARGET_HANDLE_ID = 'target'
 /** The output handle a block's error branch leaves through. */
 export const WORKFLOW_ERROR_HANDLE_ID = 'error'
+
+/** Persisted output handles shared by container renderers and snapshot topology. */
+export function getWorkflowSubflowHandleIds(kind: 'loop' | 'parallel'): {
+  start: string
+  end: string
+} {
+  return { start: `${kind}-start-source`, end: `${kind}-end-source` }
+}
 
 /**
  * Side-anchored handle ids (`source-right`, `target-left`, …) briefly existed

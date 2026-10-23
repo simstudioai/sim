@@ -1,6 +1,7 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
+import { omit } from '@sim/utils/object'
 import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
@@ -43,33 +44,58 @@ export interface GuardedMcpFetch {
  */
 /**
  * Byte ceiling for a single request/response exchange on the transport (JSON-RPC
- * results, `initialize`). A hostile server could otherwise stream an unbounded
- * `tools/call` body and OOM the process. Applied ONLY to non-GET responses — the
- * standalone GET SSE notification stream is deliberately long-lived and would be
- * broken by a cumulative cap. Mirrors LibreChat's transport response-size cap.
+ * results, `initialize`). Standalone GET SSE streams use the same ceiling per
+ * event so long-lived sessions remain available without allowing one unbounded
+ * event to accumulate in the SDK's parser.
  */
 const MAX_TRANSPORT_RESPONSE_BYTES = 16 * 1024 * 1024
 
-/** True for the standalone server→client SSE stream (GET), which must stay uncapped. */
-function isStandaloneStream(method: string): boolean {
-  return method.toUpperCase() === 'GET'
-}
-
 /**
- * Wraps a response so its body errors once it exceeds `maxBytes`, without buffering —
- * bytes are counted as they stream, so an oversized body aborts the SDK's read instead
- * of accumulating in memory. Passthrough for normal-sized responses.
+ * Counts decoded bytes before the SDK buffers them, retaining only framing state.
+ * SSE blank lines delimit events; CRLF is one line ending even across chunks.
  */
-function capResponseBody(response: Response, maxBytes: number): Response {
+function capResponseBody(response: Response, method: string): Response {
   if (!response.body) return response
+  const perEvent =
+    method.toUpperCase() === 'GET' &&
+    /^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type')?.trim() ?? '')
   let seen = 0
+  let emptyLine = true
+  let previousCarriageReturn = false
+  let eventEnded = false
   const limited = response.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        seen += chunk.byteLength
-        if (seen > maxBytes) {
-          controller.error(new McpError(`MCP response body exceeded ${maxBytes} bytes`))
-          return
+        if (perEvent) {
+          for (const byte of chunk) {
+            const pairedLineFeed = previousCarriageReturn && byte === 10
+            if (eventEnded && !pairedLineFeed) {
+              seen = 0
+              eventEnded = false
+            }
+            if (++seen > MAX_TRANSPORT_RESPONSE_BYTES)
+              throw new McpError(`MCP SSE event exceeded ${MAX_TRANSPORT_RESPONSE_BYTES} bytes`)
+            if (pairedLineFeed) {
+              if (eventEnded) {
+                seen = 0
+                eventEnded = false
+              }
+              previousCarriageReturn = false
+              continue
+            }
+            previousCarriageReturn = byte === 13
+            if (previousCarriageReturn || byte === 10) {
+              if (emptyLine) {
+                if (previousCarriageReturn) eventEnded = true
+                else seen = 0
+              }
+              emptyLine = true
+            } else emptyLine = false
+          }
+        } else {
+          seen += chunk.byteLength
+          if (seen > MAX_TRANSPORT_RESPONSE_BYTES)
+            throw new McpError(`MCP response body exceeded ${MAX_TRANSPORT_RESPONSE_BYTES} bytes`)
         }
         controller.enqueue(chunk)
       },
@@ -100,6 +126,11 @@ function requestHref(input: string | URL | Request): string {
   return String(input)
 }
 
+/** Drops the caller's `redirect` mode, so the guard follows under per-hop validation. */
+function withoutRedirectMode(init: RequestInit | undefined): RequestInit | undefined {
+  return init?.redirect === undefined ? init : omit(init, ['redirect'])
+}
+
 /**
  * Wraps the transport's same-origin fetch so a request to any other origin is
  * judged as content and validated per request, never inheriting the configured
@@ -112,15 +143,21 @@ function requestHref(input: string | URL | Request): string {
  * {@link MCP_EGRESS_PROFILE} (honors the allowlist, permits loopback off-hosted)
  * or, worse, be pinned onto the server's private address. Same-origin requests —
  * the JSON-RPC transport itself — keep the persistent guarded path.
+ *
+ * Both paths follow redirects themselves whatever `redirect` mode arrives: the SDK
+ * also hands this fetch to its direct `auth()` calls (coordinated refresh), which
+ * send `redirect: 'manual'` and follow only same-origin hops on their own.
  */
 function splitByConfiguredOrigin(
   sameOrigin: typeof fetch,
   serverUrl: string | undefined
 ): typeof fetch {
-  if (!serverUrl || !URL.canParse(serverUrl)) return sameOrigin
-  const configuredOrigin = new URL(serverUrl).origin
-  const crossOrigin = createSsrfGuardedMcpFetch({ serverUrl })
-  return async (input, init) => {
+  const configuredOrigin =
+    serverUrl && URL.canParse(serverUrl) ? new URL(serverUrl).origin : undefined
+  const crossOrigin = configuredOrigin ? createSsrfGuardedMcpFetch({ serverUrl }) : undefined
+  return async (input, callerInit) => {
+    const init = withoutRedirectMode(callerInit)
+    if (!crossOrigin) return sameOrigin(input, init)
     const target = requestHref(input)
     const sameAsConfigured = URL.canParse(target) && new URL(target).origin === configuredOrigin
     return sameAsConfigured ? sameOrigin(input, init) : crossOrigin(target, init)
@@ -145,9 +182,7 @@ export function createPinnedPrivateMcpFetch(
   const capped: typeof fetch = async (input, init) => {
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
     const response = await pinnedFetch(input, init)
-    return isStandaloneStream(method)
-      ? response
-      : capResponseBody(response, MAX_TRANSPORT_RESPONSE_BYTES)
+    return capResponseBody(response, method)
   }
   return {
     fetch: splitByConfiguredOrigin(capped, serverUrl),
@@ -177,9 +212,7 @@ export function createGuardedMcpFetch(serverUrl?: string): GuardedMcpFetch {
         status: response.status,
         ttfbMs: Date.now() - startedAt,
       })
-      return isStandaloneStream(method)
-        ? response
-        : capResponseBody(response, MAX_TRANSPORT_RESPONSE_BYTES)
+      return capResponseBody(response, method)
     } catch (error) {
       const e = error as { name?: string; code?: string; cause?: { name?: string; code?: string } }
       transportLogger.warn('MCP transport request failed', {
@@ -321,19 +354,24 @@ function releaseStreamOnSettle(
  * `Response` is a detached in-memory copy. Only our own deadline is relabeled to `McpError`.
  *
  * @param timeoutMs Per-request deadline in ms (defaults to 30s; override for tests).
+ * @param followRedirects Who decides how a redirect is handled. `'guard'` (default) ignores
+ *   the request's `redirect` mode and always follows under per-hop validation, because the
+ *   SDK's `auth()`/discovery sends `redirect: 'manual'` and would otherwise drop a
+ *   cross-origin hop. `'caller'` honors it, for the auth-type probe that needs a 3xx as is.
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
  * @throws McpError if a request exceeds `timeoutMs`
  */
 export function createSsrfGuardedMcpFetch(
-  options: { serverUrl?: string; timeoutMs?: number } = {}
+  options: { serverUrl?: string; timeoutMs?: number; followRedirects?: 'caller' | 'guard' } = {}
 ): FetchLike {
-  const { serverUrl, timeoutMs = OAUTH_FETCH_TIMEOUT_MS } = options
+  const { serverUrl, timeoutMs = OAUTH_FETCH_TIMEOUT_MS, followRedirects = 'guard' } = options
   // The origin the operator configured. A leg that stays on it is the server
   // they chose; everything else was named by that server's metadata.
   let configuredOrigin: string | undefined
   if (serverUrl && URL.canParse(serverUrl)) configuredOrigin = new URL(serverUrl).origin
 
-  return (async (url, init) => {
+  return (async (url, callerInit) => {
+    const init = followRedirects === 'guard' ? withoutRedirectMode(callerInit) : callerInit
     const target = typeof url === 'string' ? url : url.href
     const host = URL.canParse(target) ? new URL(target).host : target
     const sameAsConfigured =

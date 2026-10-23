@@ -23,7 +23,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { GET } from '@/app/api/v2/files/[fileId]/text/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -110,6 +110,16 @@ describe('GET /api/v2/files/[fileId]/text', () => {
       `maxBytes cannot exceed ${MAX_TEXT_EXTRACTION_BYTES}`
     )
     expect(mocks.readText).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Callers used to zero-based paging send `offset=0` for the first window. It
+   * names no other line, so it reads from the first one instead of failing.
+   */
+  it('reads offset 0 as the first line', async () => {
+    const response = await GET(textRequest(`workspaceId=${WORKSPACE_ID}&offset=0&limit=2`), context)
+
+    expect(response.status).toBe(200)
   })
 
   it('conceals a cross-tenant file as a missing file', async () => {

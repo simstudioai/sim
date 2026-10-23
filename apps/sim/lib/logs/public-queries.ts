@@ -8,11 +8,14 @@ import {
   workflowExecutionLogs,
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, type Column, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import {
   type CursorKey,
+  classifyTimestampCursor,
   decimalKey,
+  encodeKeyset,
   type KeysetKey,
   type KeysetPage,
   keysetColumns,
@@ -20,10 +23,15 @@ import {
   type ListSortOrder,
   listOrderBy,
   numberKey,
+  preciseTimestampKey,
+  preciseTimestampText,
   resumeKeyset,
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
+import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
+import { executionDataArchiveBytes } from '@/lib/logs/execution/trace-store'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { folderScopeCondition, type LogFolderScope } from '@/lib/logs/folder-scope'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
@@ -73,8 +81,7 @@ export function decodePublicLogCursor(
     ) {
       return null
     }
-    const startedAt = new Date(parsed.startedAt)
-    if (Number.isNaN(startedAt.getTime())) return null
+    if (classifyTimestampCursor(parsed.startedAt) === 'invalid') return null
     return { startedAt: parsed.startedAt, id: parsed.id, order }
   } catch {
     return null
@@ -112,6 +119,7 @@ function workflowLogQuery(includeExecutionData: boolean) {
       level: workflowExecutionLogs.level,
       trigger: workflowExecutionLogs.trigger,
       startedAt: workflowExecutionLogs.startedAt,
+      startedAtCursor: preciseTimestampText(workflowExecutionLogs.startedAt),
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
@@ -148,6 +156,7 @@ function jobLogQuery() {
       level: jobExecutionLogs.level,
       trigger: jobExecutionLogs.trigger,
       startedAt: jobExecutionLogs.startedAt,
+      startedAtCursor: preciseTimestampText(jobExecutionLogs.startedAt),
       endedAt: jobExecutionLogs.endedAt,
       totalDurationMs: jobExecutionLogs.totalDurationMs,
       cost: jobExecutionLogs.cost,
@@ -175,17 +184,27 @@ export type PublicLogListRow =
  * read under, so the page boundary and its cursor mean the same thing whether or
  * not job runs were included.
  *
- * The comparison is at millisecond precision because that is the precision the
- * keyset orders and compares at — see {@link timestampKey}. Anything finer would
- * put the merged order out of step with the boundary the cursor names.
+ * Rows compare by the cursor values `keys` mints for them, so the merge runs at
+ * exactly the precision the branches ordered and compared at. Every
+ * `startedAt` keyset value is a fixed-width UTC ISO string, which orders
+ * chronologically as text.
  */
-function mergeByKeyset(rows: PublicLogListRow[], order: ListSortOrder): PublicLogListRow[] {
+function mergeByKeyset(
+  rows: PublicLogListRow[],
+  keys: readonly KeysetKey<PublicLogListRow>[],
+  order: ListSortOrder
+): PublicLogListRow[] {
   const direction = order === 'asc' ? 1 : -1
-  return rows.sort((a, b) => {
-    const byTime = a.startedAt.getTime() - b.startedAt.getTime()
-    if (byTime !== 0) return direction * byTime
-    return direction * (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  })
+  return rows
+    .map((row) => ({ row, position: encodeKeyset(keys, row).map(String) }))
+    .sort((a, b) => {
+      for (const [i, value] of a.position.entries()) {
+        const byKey = compareStrings(value, b.position[i])
+        if (byKey !== 0) return direction * byKey
+      }
+      return 0
+    })
+    .map(({ row }) => row)
 }
 
 /** The columns `GET /api/v2/logs` can order by. */
@@ -222,7 +241,7 @@ const UNSETTLED_COST_VALUE = String(UNSETTLED_SORT_VALUE)
  */
 type PublicLogKeysetRow = Pick<
   PublicWorkflowLogListRow,
-  'id' | 'status' | 'startedAt' | 'totalDurationMs' | 'costTotal'
+  'id' | 'status' | 'startedAt' | 'startedAtCursor' | 'totalDurationMs' | 'costTotal'
 >
 
 /**
@@ -230,13 +249,28 @@ type PublicLogKeysetRow = Pick<
  *
  * Both log tables are ordered by it, and both spell it identically, so the
  * merged sequence a unioned page returns resumes from one set of cursor keys.
+ *
+ * It orders on the raw column so the `(workspace_id, started_at)` and
+ * `(workflow_id, started_at)` indexes serve the sort and a page reads only its
+ * own rows. A cursor minted before that carries a date rather than the precise
+ * form (see {@link classifyTimestampCursor}) and was read under
+ * millisecond-truncated ordering, where rows sharing a millisecond
+ * fall in `id` order rather than stored order. Resuming one under the raw
+ * ordering would skip or repeat rows inside that millisecond, so it keeps the
+ * truncated keyset it was minted under, and so does every cursor that page
+ * mints, until the walk ends.
  */
-function startedAtKeyset<Row extends { id: string; startedAt: Date }>(
+function startedAtKeyset<Row extends { id: string; startedAt: Date; startedAtCursor: string }>(
   startedAtColumn: Column,
-  idColumn: Column
+  idColumn: Column,
+  cursorKeys: CursorKey[] | undefined
 ): KeysetKey<Row>[] {
+  const resumesDateCursor =
+    cursorKeys !== undefined && classifyTimestampCursor(cursorKeys[0]) === 'date'
   return [
-    timestampKey<Row>(startedAtColumn, (row) => row.startedAt),
+    resumesDateCursor
+      ? timestampKey<Row>(startedAtColumn, (row) => row.startedAt)
+      : preciseTimestampKey<Row>(startedAtColumn, (row) => row.startedAtCursor),
     textKey<Row>(idColumn, (row) => row.id),
   ]
 }
@@ -249,7 +283,8 @@ function startedAtKeyset<Row extends { id: string; startedAt: Date }>(
  * it the page boundary repeats or drops the tied rows.
  */
 function publicLogKeyset<Row extends PublicLogKeysetRow>(
-  sortBy: PublicLogSortField
+  sortBy: PublicLogSortField,
+  cursorKeys: CursorKey[] | undefined
 ): KeysetKey<Row>[] {
   const idKey = textKey<Row>(workflowExecutionLogs.id, (row) => row.id)
   switch (sortBy) {
@@ -272,7 +307,11 @@ function publicLogKeyset<Row extends PublicLogKeysetRow>(
     case 'status':
       return [textKey<Row>(workflowExecutionLogs.status, (row) => row.status), idKey]
     default:
-      return startedAtKeyset<Row>(workflowExecutionLogs.startedAt, workflowExecutionLogs.id)
+      return startedAtKeyset<Row>(
+        workflowExecutionLogs.startedAt,
+        workflowExecutionLogs.id,
+        cursorKeys
+      )
   }
 }
 
@@ -319,6 +358,44 @@ function readJobLogRows(
 }
 
 /**
+ * Rows a page that carries execution data may hold: one
+ * {@link MATERIALIZE_CONCURRENCY} wave. Each row is materialized from its
+ * archive and secret-projected before the page is validated and serialized in
+ * one synchronous pass, so the caller's `limit` alone would let one request hold
+ * a process's heap and event loop for as many traces as it asks for.
+ */
+const MATERIALIZED_LOG_PAGE_MAX = MATERIALIZE_CONCURRENCY
+
+/**
+ * Stored archive bytes a page that carries execution data may load. The row
+ * count alone does not bound a page: archives vary by orders of magnitude, and a
+ * page of the largest serializes past what one string can hold. The first row is
+ * always admitted, so a page of one oversized run still advances the walk.
+ */
+const MATERIALIZED_LOG_PAGE_BYTES = MAX_DURABLE_LARGE_VALUE_BYTES
+
+/**
+ * The page size a read may return: the caller's `limit`, narrowed when the page
+ * carries execution data. The narrowed page still mints its cursor from its own
+ * last row, so a walk resumes immediately after it — the caller follows
+ * `nextCursor` and sees every row once.
+ */
+function executionDataPageLimit(
+  rows: readonly (PublicWorkflowLogListRow | PublicLogListRow)[],
+  input: ReadPublicLogPageInput
+): number {
+  if (!input.includeExecutionData) return input.limit
+  let bytes = 0
+  let admitted = 0
+  for (const row of rows.slice(0, input.limit)) {
+    if ('executionData' in row) bytes += executionDataArchiveBytes(row.executionData)
+    if (admitted > 0 && bytes > MATERIALIZED_LOG_PAGE_BYTES) break
+    admitted += 1
+  }
+  return admitted
+}
+
+/**
  * Reads one page of the public log sequence, ordered by any of
  * {@link PUBLIC_LOG_SORT_FIELDS} and resumed from a shared keyset cursor.
  *
@@ -332,9 +409,12 @@ function readJobLogRows(
  * another page" without a count.
  */
 export async function readPublicLogPage(
-  input: ReadPublicLogPageInput
+  pageInput: ReadPublicLogPageInput
 ): Promise<KeysetPage<PublicLogListRow>> {
-  const keys = publicLogKeyset<PublicWorkflowLogListRow>(input.sortBy)
+  const input = pageInput.includeExecutionData
+    ? { ...pageInput, limit: Math.min(pageInput.limit, MATERIALIZED_LOG_PAGE_MAX) }
+    : pageInput
+  const keys = publicLogKeyset<PublicWorkflowLogListRow>(input.sortBy, input.cursorKeys)
 
   // `folderScope` is checked separately from `jobLogsSelectable`, which reads
   // `filters.folderIds`. The public surface never sets that field — its input
@@ -353,31 +433,37 @@ export async function readPublicLogPage(
     includeJobRuns
       ? readJobLogRows(
           input,
-          startedAtKeyset<PublicJobLogListRow>(jobExecutionLogs.startedAt, jobExecutionLogs.id)
+          startedAtKeyset<PublicJobLogListRow>(
+            jobExecutionLogs.startedAt,
+            jobExecutionLogs.id,
+            input.cursorKeys
+          )
         )
       : Promise.resolve([] as PublicJobLogListRow[]),
   ])
 
   if (!includeJobRuns) {
-    const page = keysetPage(keys, workflowRows, input.limit)
+    const page = keysetPage(keys, workflowRows, executionDataPageLimit(workflowRows, input))
     return {
       data: page.data.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
       nextCursorKeys: page.nextCursorKeys,
     }
   }
 
+  const mergedKeys = startedAtKeyset<PublicLogListRow>(
+    workflowExecutionLogs.startedAt,
+    workflowExecutionLogs.id,
+    input.cursorKeys
+  )
   const merged = mergeByKeyset(
     [
       ...workflowRows.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
       ...jobRows.map((row): PublicLogListRow => ({ kind: 'job', ...row })),
     ],
+    mergedKeys,
     input.sortOrder
   )
-  return keysetPage(
-    startedAtKeyset<PublicLogListRow>(workflowExecutionLogs.startedAt, workflowExecutionLogs.id),
-    merged,
-    input.limit
-  )
+  return keysetPage(mergedKeys, merged, executionDataPageLimit(merged, input))
 }
 
 /**
@@ -454,7 +540,11 @@ export async function getPublicWorkflowLogScope(executionId: string) {
  * is deliberately left-sided: a missing snapshot does not make an otherwise
  * valid execution disappear from the log resource.
  */
-export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, workspaceId?: string) {
+export async function getPublicWorkflowLog(
+  lookup: PublicWorkflowLogLookup,
+  workspaceId?: string,
+  options: { includeWorkflowState?: boolean } = {}
+) {
   const lookupCondition =
     lookup.column === 'id'
       ? eq(workflowExecutionLogs.id, lookup.value)
@@ -478,7 +568,10 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
       createdAt: workflowExecutionLogs.createdAt,
-      workflowState: workflowExecutionSnapshots.stateData,
+      workflowState:
+        options.includeWorkflowState === false
+          ? sql<null>`null`
+          : workflowExecutionSnapshots.stateData,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,

@@ -12,6 +12,19 @@ import {
   resetDbChainMock,
   resetEnvironmentUtilsMock,
 } from '@sim/testing'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const SECRET_ACCESS_TOKEN = 'ya29.a0SECRET_GOOGLE_BEARER_TOKEN_DO_NOT_LEAK'
@@ -19,20 +32,12 @@ const SECRET_ACCESS_TOKEN = 'ya29.a0SECRET_GOOGLE_BEARER_TOKEN_DO_NOT_LEAK'
 const {
   getAllOAuthServicesMock,
   decodeJwtMock,
-  isOAuthServiceDeploymentAvailableMock,
   createIntegrationCredentialVisibilityMock,
-  getUserPermissionConfigMock,
-  getAccessibleOAuthCredentialsMock,
-  checkWorkspaceAccessMock,
   verifyWorkflowAccessMock,
 } = vi.hoisted(() => ({
   getAllOAuthServicesMock: vi.fn(),
   decodeJwtMock: vi.fn(),
-  isOAuthServiceDeploymentAvailableMock: vi.fn(() => true),
   createIntegrationCredentialVisibilityMock: vi.fn(),
-  getUserPermissionConfigMock: vi.fn(),
-  getAccessibleOAuthCredentialsMock: vi.fn(),
-  checkWorkspaceAccessMock: vi.fn(),
   verifyWorkflowAccessMock: vi.fn(),
 }))
 
@@ -66,29 +71,17 @@ vi.mock('@/lib/oauth', () => ({
     (service.additionalProviderIds?.includes(credentialProviderId) ?? false),
 }))
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isOAuthServiceDeploymentAvailable: isOAuthServiceDeploymentAvailableMock,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
   createIntegrationCredentialVisibility: createIntegrationCredentialVisibilityMock,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedIntegrationsFromEnv: vi.fn(() => null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: getUserPermissionConfigMock,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  getAccessibleOAuthCredentials: getAccessibleOAuthCredentialsMock,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: checkWorkspaceAccessMock,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('jose', () => ({
   decodeJwt: decodeJwtMock,
@@ -100,6 +93,13 @@ vi.mock('@/lib/mothership/auth/permissions', () => ({
 }))
 
 import { getCredentialsServerTool } from './get-credentials'
+
+const getUserPermissionConfigMock = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const checkWorkspaceAccessMock = permissionsMockFns.mockCheckWorkspaceAccess
+const isOAuthServiceDeploymentAvailableMock =
+  integrationsAvailabilityMockFns.mockIsOAuthServiceDeploymentAvailable
+const getAccessibleOAuthCredentialsMock =
+  credentialsEnvironmentMockFns.mockGetAccessibleOAuthCredentials
 
 /**
  * Wires the two sequential `db.select()` reads the tool performs:

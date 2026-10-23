@@ -99,7 +99,7 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect(body.data).not.toHaveProperty('executionData')
     expect(mocks.execute).toHaveBeenCalledWith({
       principal: auth.principal,
-      input: { runId: 'run-1' },
+      input: { runId: 'run-1', includeWorkflowState: true },
       request,
     })
   })

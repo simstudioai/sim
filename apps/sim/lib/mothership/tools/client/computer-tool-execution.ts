@@ -3,17 +3,21 @@ import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { cancelComputerUseTool, executeComputerUseTool } from '@/lib/computer-use/transport'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
+import { COPILOT_CONFIRM_API_PATH } from '@/lib/mothership/constants'
 import { BrowserToolReplayLedger } from '@/lib/mothership/tools/client/browser-tool-replay-ledger'
 import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,
 } from '@/lib/mothership/tools/client/completion'
 import { computerToolResultForModel } from '@/lib/mothership/tools/client/computer-tool-result'
+import { compactCompletionForPageExit } from '@/lib/mothership/tools/client/page-exit-completion'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 const logger = createLogger('ComputerToolExecution')
 const MAX_EVENT_AGE_MS = 120_000
@@ -31,25 +35,47 @@ interface Completion {
   data?: unknown
 }
 interface Execution {
+  identitySignal: AbortSignal
   completion?: Completion
   reporting?: Promise<void>
+  retryTimer?: ReturnType<typeof setTimeout>
+  deliveryAttempts?: number
+  release?: () => void
 }
 const executions = new Map<string, Execution>()
+let identity = new AbortController()
+
+registerUserDataReset('computer-tool-execution', () => {
+  identity.abort()
+  identity = new AbortController()
+  for (const [toolCallId, execution] of executions) releaseExecution(toolCallId, execution)
+})
+
+function releaseExecution(toolCallId: string, execution: Execution): void {
+  if (executions.get(toolCallId) === execution) executions.delete(toolCallId)
+  clearTimeout(execution.retryTimer)
+  execution.retryTimer = undefined
+  execution.release?.()
+  execution.release = undefined
+}
 
 async function deliver(toolCallId: string, execution: Execution): Promise<void> {
   if (execution.reporting) return execution.reporting
   const completion = execution.completion
   if (!completion) return
+  clearTimeout(execution.retryTimer)
+  execution.retryTimer = undefined
   execution.reporting = reportClientToolCompletion(
     toolCallId,
     completion.status,
     completion.message,
-    completion.data
+    completion.data,
+    undefined,
+    execution.identitySignal
   )
-    .then(() => {
-      executions.delete(toolCallId)
-    })
+    .then(() => releaseExecution(toolCallId, execution))
     .catch((error) => {
+      if (execution.identitySignal.aborted) return
       logger.warn('Computer action result delivery failed; retained for redelivery', {
         toolCallId,
         error: getErrorMessage(error),
@@ -57,6 +83,15 @@ async function deliver(toolCallId: string, execution: Execution): Promise<void> 
     })
     .finally(() => {
       execution.reporting = undefined
+      if (executions.get(toolCallId) !== execution) return
+      execution.deliveryAttempts = (execution.deliveryAttempts ?? 0) + 1
+      execution.retryTimer = setTimeout(
+        () => {
+          execution.retryTimer = undefined
+          void deliver(toolCallId, execution)
+        },
+        backoffWithJitter(execution.deliveryAttempts, null)
+      )
     })
   return execution.reporting
 }
@@ -70,12 +105,28 @@ export async function executeComputerToolOnClient(
 ): Promise<void> {
   const existing = executions.get(toolCallId)
   if (existing) return deliver(toolCallId, existing)
-  const execution: Execution = {}
+  const execution: Execution = { identitySignal: identity.signal }
+  const claim = replayLedger.claim(toolCallId)
   const reject = async (message: string, data?: Record<string, unknown>) => {
-    await reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
-      error: message,
-      ...data,
-    }).catch((error) =>
+    const dataWithError = { error: message, ...data }
+    if (executions.size < MAX_UNDELIVERED_RESULTS) {
+      execution.completion = {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message,
+        data: dataWithError,
+      }
+      executions.set(toolCallId, execution)
+      return deliver(toolCallId, execution)
+    }
+    // The replay ledger still prevents dispatch when the bounded delivery queue is full.
+    await reportClientToolCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.error,
+      message,
+      dataWithError,
+      undefined,
+      execution.identitySignal
+    ).catch((error) =>
       logger.warn('Could not report computer action rejection', {
         toolCallId,
         error: getErrorMessage(error),
@@ -99,7 +150,6 @@ export async function executeComputerToolOnClient(
   const parsed = ComputerUseSchema.safeParse(omit(params, ['activity']))
   if (!parsed.success)
     return reject('Computer action arguments are invalid. Inspect the tool schema and try again.')
-  const claim = replayLedger.claim(toolCallId)
   if (claim !== 'claimed')
     return reject(
       claim === 'duplicate'
@@ -109,8 +159,11 @@ export async function executeComputerToolOnClient(
     )
   executions.set(toolCallId, execution)
   const actionController = new AbortController()
+  const actionSignal = signal
+    ? AbortSignal.any([signal, execution.identitySignal])
+    : execution.identitySignal
   let dispatched = false
-  let cancelled = signal?.aborted === true
+  let cancelled = actionSignal.aborted
   const cancel = () => {
     cancelled = true
     actionController.abort()
@@ -122,20 +175,46 @@ export async function executeComputerToolOnClient(
     )
   }
   const onPageHide = () => {
-    cancel()
-    void reportClientToolCompletionOnPageExit(
+    if (!execution.completion) cancel()
+    const completion = compactCompletionForPageExit(
       toolCallId,
-      ASYNC_TOOL_CONFIRMATION_STATUS.error,
-      'The desktop view closed during a computer action. Inspect the app before repeating it.',
-      { outcomeUnknown: dispatched, doNotRetry: dispatched }
-    ).catch((error) =>
-      logger.warn('Computer action page-exit result failed', {
-        toolCallId,
-        error: getErrorMessage(error),
-      })
+      execution.completion ?? {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message:
+          'The desktop view closed during a computer action. Inspect the app before repeating it.',
+        data: { outcomeUnknown: dispatched, doNotRetry: dispatched },
+      }
     )
+    const fallback = () => {
+      void reportClientToolCompletionOnPageExit(
+        toolCallId,
+        completion.status,
+        completion.message,
+        completion.data,
+        execution.identitySignal
+      )
+        .then(() => releaseExecution(toolCallId, execution))
+        .catch((error) =>
+          logger.warn('Computer action page-exit result failed', {
+            toolCallId,
+            error: getErrorMessage(error),
+          })
+        )
+    }
+    try {
+      if (
+        !navigator.sendBeacon(
+          COPILOT_CONFIRM_API_PATH,
+          new Blob([JSON.stringify({ toolCallId, ...completion })], { type: 'application/json' })
+        )
+      )
+        fallback()
+    } catch {
+      fallback()
+    }
   }
-  signal?.addEventListener('abort', cancel, { once: true })
+  execution.release = () => window.removeEventListener('pagehide', onPageHide)
+  actionSignal.addEventListener('abort', cancel, { once: true })
   window.addEventListener('pagehide', onPageHide)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -191,8 +270,7 @@ export async function executeComputerToolOnClient(
     }
   } finally {
     if (timer) clearTimeout(timer)
-    signal?.removeEventListener('abort', cancel)
-    window.removeEventListener('pagehide', onPageHide)
+    actionSignal.removeEventListener('abort', cancel)
   }
   await deliver(toolCallId, execution)
 }

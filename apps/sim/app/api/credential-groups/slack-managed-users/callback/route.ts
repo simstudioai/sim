@@ -6,26 +6,12 @@ import { slackCredentialGroupConfigurationCallbackContract } from '@/lib/api/con
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { completeSlackCredentialGroupConfiguration } from '@/lib/credential-groups/application/slack-managed-users'
 import { SlackManagedUsersError } from '@/lib/credential-groups/slack-managed-users'
 
 const logger = createLogger('SlackCredentialGroupConfigurationCallbackAPI')
-const CHANNEL_NAME = 'slack-managed-users'
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function jsonLiteral(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
-}
-
 function closePopup(params: {
   ok: boolean
   message: string
@@ -34,24 +20,16 @@ function closePopup(params: {
   slackBotCredentialId?: string
   reason: string
 }): NextResponse {
-  const title = params.ok ? 'Slack configured' : 'Slack setup failed'
-  const payload = {
-    type: CHANNEL_NAME,
-    ok: params.ok,
-    state: params.state,
-    credentialGroupId: params.credentialGroupId,
-    slackBotCredentialId: params.slackBotCredentialId,
-    reason: params.reason,
+  const url = new URL('/credential-groups/slack-complete', getBaseUrl())
+  url.searchParams.set('mode', 'managed')
+  url.searchParams.set('ok', String(params.ok))
+  for (const key of ['state', 'credentialGroupId', 'slackBotCredentialId', 'reason'] as const) {
+    const value = params[key]
+    if (value) url.searchParams.set(key, value)
   }
-  const body = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body><p>${escapeHtml(params.message)}</p><script>
-    try { var channel = new BroadcastChannel(${jsonLiteral(CHANNEL_NAME)}); channel.postMessage(${jsonLiteral(payload)}); channel.close() } catch (error) {}
-    setTimeout(function () { window.close() }, 500)
-  </script></body></html>`
-  return new NextResponse(body, {
-    headers: {
-      'Cache-Control': 'no-store, max-age=0',
-      'Content-Type': 'text/html; charset=utf-8',
-    },
+  return NextResponse.redirect(url, {
+    status: 303,
+    headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
   })
 }
 
@@ -63,7 +41,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ok: false,
       message: 'Sign in to Sim to complete this Slack setup.',
       state: rawState,
-      reason: 'unauthenticated',
+      reason: 'signin_required',
     })
   }
   const parsed = await parseRequest(slackCredentialGroupConfigurationCallbackContract, request, {})

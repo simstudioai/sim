@@ -87,7 +87,6 @@ const VIEW_ID = 'view_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07'
 const GROUP_ID = 'grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204'
 const IMPORT_ID = 'imp_4f6a8c0e2b1d43759a7c9e1f3b5d7082'
 const EXPORT_ID = 'exp_3e5f7a9c1b2d4068a0c2e4f6b8d0f193'
-const DISPATCH_ID = 'dsp_9a1c3e5f7b2d40689c4e6a8b0d2f4173'
 
 /**
  * Only for operations that genuinely reach a `lib/table/mutation-locks` assert
@@ -107,11 +106,8 @@ const TABLE_MUTATION_ERRORS = [
 ] as const satisfies readonly ErrorResponseId[]
 
 /**
- * The two table query reads declare their own `maxBodyBytes` — 1 MiB, far below
- * the 50 MB default every JSON body is held to — so their `413` is a routine
- * answer to an oversized predicate rather than an abuse ceiling, and it is named
- * here and in their descriptions. Every other table read carries its input in
- * the query string and has no body ceiling to exceed.
+ * Table query reads reject JSON predicates over 1 MiB and document that 413.
+ * Other table reads use query parameters and cannot exceed a JSON body cap.
  */
 const TABLE_QUERY_ERRORS = [
   ...RESOURCE_ERRORS,
@@ -140,7 +136,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.list,
       operationId: 'listTables',
-      summary: 'List Tables',
+      summary: 'List tables',
       description: `List active tables with folder filtering, search, sorting, and cursor pagination. Use \`scope=archived\` to find tables available for restoration. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'A page of tables in the workspace.' },
@@ -165,7 +161,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.create,
       operationId: 'createTable',
-      summary: 'Create Table',
+      summary: 'Create table',
       description: 'Create a table with a typed column schema and optional folder placement.',
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'PayloadTooLarge'],
       success: { description: 'The created table.' },
@@ -204,7 +200,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.read,
       operationId: 'getTable',
-      summary: 'Get Table',
+      summary: 'Get table',
       description: `Get a table with its metadata, column schema, locks, and current job. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested table.' },
@@ -235,9 +231,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.delete,
       operationId: 'deleteTable',
-      summary: 'Delete Table',
+      summary: 'Delete table',
       description:
-        'Archive a table while retaining its rows. Use List Tables with `scope=archived` to find it and Restore Table to recover it.',
+        'Archive a table while retaining its rows. Use List tables with `scope=archived` to find it and Restore table to recover it.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'Table deletion acknowledgement.' },
     }),
@@ -267,7 +263,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.update,
       operationId: 'updateTable',
-      summary: 'Update Table',
+      summary: 'Update table',
       description: `Rename a table, edit its description, or move it to a folder. Fields are saved independently: a failed request may leave partial changes. \`error.details.applied\` lists saved fields; retry only the remaining fields. If absent, nothing changed. Lock flags are read-only. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
@@ -300,7 +296,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.addColumn,
       operationId: 'addTableColumn',
-      summary: 'Add Column',
+      summary: 'Add column',
       description: 'Add a typed column and return the complete resulting table schema.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The updated table columns.' },
@@ -333,7 +329,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateColumn,
       operationId: 'updateTableColumn',
-      summary: 'Update Column',
+      summary: 'Update column',
       description:
         'Update a column by name and return the complete schema. Renames update rows, views, and workflow-group references keyed by column ID. Workflow Table blocks keep their authored `filter`, `order`, and `data` JSON unchanged. Bound blocks still referencing the old name appear in `unmigrated`; edit them with Apply Workflow Operations to prevent failures on their next run.',
       errors: TABLE_MUTATION_ERRORS,
@@ -394,7 +390,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.deleteColumn,
       operationId: 'deleteTableColumn',
-      summary: 'Delete Column',
+      summary: 'Delete column',
       description: 'Delete a column by name while preserving at least one table column.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The surviving table columns.' },
@@ -427,10 +423,10 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.listRows,
       operationId: 'listTableRows',
-      summary: 'List Rows',
+      summary: 'List rows',
       description:
-        'List rows in default order with cursor pagination. Pages default to a 5 MB limit and may contain fewer rows than requested; continue until `nextCursor` is null. Use Query Rows for filtering and sorting. `includeRunState=true` adds per-group run outcomes and reduces the row limit.',
-      errors: RESOURCE_ERRORS,
+        'List rows in default order with cursor pagination. Pages default to a 5 MiB limit and may contain fewer rows than requested; continue until `nextCursor` is null. Use Query rows for filtering and sorting. `includeRunState=true` adds per-group run outcomes and reduces the row limit.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of table rows.' },
     }),
     {
@@ -459,7 +455,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createRows,
       operationId: 'createTableRows',
-      summary: 'Create Rows',
+      summary: 'Create rows',
       description:
         'Insert one row with a data object or insert a bounded batch with a rows array. Cell keys are column names.',
       errors: TABLE_MUTATION_ERRORS,
@@ -493,7 +489,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateRows,
       operationId: 'updateTableRows',
-      summary: 'Update Rows by Filter',
+      summary: 'Update rows by filter',
       description: 'Apply the same partial data patch to every row matching a non-empty predicate.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The bulk update result.' },
@@ -532,7 +528,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.deleteRows,
       operationId: 'deleteTableRows',
-      summary: 'Delete Rows',
+      summary: 'Delete rows',
       description:
         'Delete rows by a non-empty predicate or an explicit bounded list of row identifiers.',
       errors: TABLE_MUTATION_ERRORS,
@@ -566,10 +562,10 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRow,
       operationId: 'getTableRow',
-      summary: 'Get Row',
+      summary: 'Get row',
       description:
         "Get one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.",
-      errors: RESOURCE_ERRORS,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested table row.' },
     }),
     {
@@ -598,7 +594,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateRow,
       operationId: 'updateTableRow',
-      summary: 'Update Row',
+      summary: 'Update row',
       description: 'Merge a partial data patch into one row by identifier.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The updated table row.' },
@@ -631,7 +627,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.deleteRow,
       operationId: 'deleteTableRow',
-      summary: 'Delete Row',
+      summary: 'Delete row',
       description: 'Delete one row by identifier.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The row deletion result.' },
@@ -662,9 +658,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.upsertRow,
       operationId: 'upsertTableRow',
-      summary: 'Upsert Row',
+      summary: 'Upsert row',
       description:
-        'Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update Row for a partial patch.',
+        'Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update row for a partial patch.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The upserted row and operation performed.' },
     }),
@@ -702,9 +698,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.queryRows,
       operationId: 'queryTableRows',
-      summary: 'Query Rows',
+      summary: 'Query rows',
       description:
-        'Query rows with typed predicates, sorting, and cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB limit; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and reduces the row limit. Counts are read separately and can differ from paged results if rows change.',
+        'Query rows with typed predicates, sorting, and cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MiB limit; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and reduces the row limit. Counts are read separately and can differ from paged results if rows change.',
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
@@ -756,7 +752,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.queryRows,
       operationId: 'countTableRows',
-      summary: 'Count Rows',
+      summary: 'Count rows',
       description:
         'Count rows matching a typed predicate, or omit the predicate to count all rows. The count is read separately from row pages and can change between requests. Oversized predicates return `413`.',
       errors: TABLE_QUERY_ERRORS,
@@ -795,7 +791,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.listViews,
       operationId: 'listTableViews',
-      summary: 'List Views',
+      summary: 'List views',
       description: `List saved table views, omitting references to removed columns. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The saved table views.' },
@@ -826,7 +822,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createView,
       operationId: 'createTableView',
-      summary: 'Create View',
+      summary: 'Create view',
       description: 'Save a filter, sort, and column layout as a named presentation of a table.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The created table view.' },
@@ -868,7 +864,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readView,
       operationId: 'getTableView',
-      summary: 'Get View',
+      summary: 'Get view',
       description: 'Get one saved table view by identifier.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The requested table view.' },
@@ -900,7 +896,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateView,
       operationId: 'updateTableView',
-      summary: 'Update View',
+      summary: 'Update view',
       description:
         'Rename a view, replace or shallow-merge its configuration, or promote it to the table default.',
       errors: RESOURCE_ERRORS,
@@ -934,7 +930,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.deleteView,
       operationId: 'deleteTableView',
-      summary: 'Delete View',
+      summary: 'Delete view',
       description: 'Delete a saved presentation without changing any table rows.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Table view deletion acknowledgement.' },
@@ -965,7 +961,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.listGroups,
       operationId: 'listTableWorkflowGroups',
-      summary: 'List Workflow Groups',
+      summary: 'List workflow groups',
       description: `List the workflow and enrichment groups that can be dispatched for a table. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The table workflow groups.' },
@@ -996,7 +992,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createGroup,
       operationId: 'addTableWorkflowGroup',
-      summary: 'Add Workflow Group',
+      summary: 'Add workflow group',
       description:
         'Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.',
       errors: TABLE_MUTATION_ERRORS,
@@ -1040,7 +1036,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateGroup,
       operationId: 'updateTableWorkflowGroup',
-      summary: 'Update Workflow Group',
+      summary: 'Update workflow group',
       description:
         'Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.',
       errors: RESOURCE_MUTATION_ERRORS,
@@ -1074,7 +1070,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.deleteGroup,
       operationId: 'deleteTableWorkflowGroup',
-      summary: 'Delete Workflow Group',
+      summary: 'Delete workflow group',
       description: 'Delete a workflow group and every table column populated by that group.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'Workflow-group deletion acknowledgement and surviving columns.' },
@@ -1107,9 +1103,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.startRun,
       operationId: 'createTableDispatch',
-      summary: 'Create Run Dispatch',
+      summary: 'Create run dispatch',
       description:
-        'Start workflow or enrichment groups across all rows or selected rows. Poll Get Run Dispatch until `complete` or `canceled`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`. Use Cancel Run Dispatch to stop further scheduling.',
+        'Start workflow or enrichment groups across all rows or selected rows. Poll Get run dispatch until `complete` or `canceled`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`. Use Cancel run dispatch to stop further scheduling.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The accepted run dispatch.' },
     }),
@@ -1141,9 +1137,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.startRun,
       operationId: 'runRowEnrichment',
-      summary: 'Run Enrichment For One Row',
+      summary: 'Run enrichment for one row',
       description:
-        'Start one workflow or enrichment group for a table row. Poll Get Run Dispatch using the returned `dispatchId`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`.',
+        'Start one workflow or enrichment group for a table row. Poll Get run dispatch using the returned `dispatchId`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The accepted row enrichment dispatch.' },
     }),
@@ -1175,8 +1171,8 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.searchRows,
       operationId: 'searchTableRows',
-      summary: 'Search Rows',
-      description: `Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; \`ordinal\` matches the view used by Query Rows. Results are unpaginated and capped at ${TABLE_LIMITS.MAX_FIND_MATCHES}. If \`truncated\` is true, narrow the search or predicate.`,
+      summary: 'Search rows',
+      description: `Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; \`ordinal\` matches the view used by Query rows. Results are unpaginated and capped at ${TABLE_LIMITS.MAX_FIND_MATCHES}. If \`truncated\` is true, narrow the search or predicate.`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The matching table cells.' },
     }),
@@ -1214,7 +1210,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createImport,
       operationId: 'createTableImport',
-      summary: 'Create Table Import',
+      summary: 'Create table import',
       description:
         'Create a CSV import. Upload sources receive signed transfer instructions; workspace-file sources start processing directly.',
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'Locked', 'PayloadTooLarge'],
@@ -1249,7 +1245,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readImport,
       operationId: 'getTableImport',
-      summary: 'Get Table Import',
+      summary: 'Get table import',
       description:
         "Get an import's progress and status. During `uploading`, the signed upload token is required; omitting it returns `404`.",
       errors: RESOURCE_ERRORS,
@@ -1288,7 +1284,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.cancelImport,
       operationId: 'cancelTableImport',
-      summary: 'Cancel Table Import',
+      summary: 'Cancel table import',
       description:
         'Cancel an upload or processing import. Committed row batches remain. Non-cancelable states, including `expired`, return `409`; unknown or purged imports return `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -1326,7 +1322,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createImportParts,
       operationId: 'createTableImportPartUrls',
-      summary: 'Create Table Import Part URLs',
+      summary: 'Create table import part URLs',
       description:
         'Create signed URLs for multipart upload parts. Requires the `uploading` state; other states return `409`. Unknown or purged imports return `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -1371,7 +1367,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.completeImport,
       operationId: 'completeTableImportUpload',
-      summary: 'Complete Table Import Upload',
+      summary: 'Complete table import upload',
       description:
         'Verify or assemble uploaded CSV bytes and start processing under the same import ID. Requires an import awaiting upload completion; other states return `409`. Unknown or purged imports return `404`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'Locked'],
@@ -1409,7 +1405,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createExport,
       operationId: 'createTableExport',
-      summary: 'Create Table Export',
+      summary: 'Create table export',
       description:
         'Create a CSV or JSON export. Exports of small tables finish during the request; larger exports run asynchronously.',
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -1443,7 +1439,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readExport,
       operationId: 'getTableExport',
-      summary: 'Get Table Export',
+      summary: 'Get table export',
       description: "Get a table export's progress and status.",
       errors: RESOURCE_ERRORS,
       success: { description: 'The requested table export.' },
@@ -1475,7 +1471,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.cancelExport,
       operationId: 'cancelTableExport',
-      summary: 'Cancel Table Export',
+      summary: 'Cancel table export',
       description: 'Cancel an export that is still in progress.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The canceled table export.' },
@@ -1506,7 +1502,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.downloadExport,
       operationId: 'downloadTableExport',
-      summary: 'Download Table Export',
+      summary: 'Download table export',
       description:
         'Get a short-lived signed download URL for a completed export. Other states return `409`; an unavailable export file returns `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -1538,7 +1534,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.cancelRuns,
       operationId: 'cancelTableRuns',
-      summary: 'Cancel Column Runs',
+      summary: 'Cancel column runs',
       description:
         'Stop in-flight and pending workflow or enrichment cell runs across the table or one selected row.',
       errors: RESOURCE_ERRORS,
@@ -1556,7 +1552,7 @@ const declaredRoutes = [
         v2CancelTableRunsContract.body,
         'CancelTableRunsRequest',
         'Cancel table runs request',
-        'Workspace scope, cancellation scope, and optional predicate or producer groups.',
+        'Workspace scope, row or all-table cancellation, and optional row predicate or exclusions.',
         [{ workspaceId: WORKSPACE_ID, scope: 'row', rowId: ROW_ID }]
       ),
       response: documentedSchema(
@@ -1572,7 +1568,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.listFolders,
       operationId: 'listTablesFolders',
-      summary: 'List Folders',
+      summary: 'List folders',
       description: `List table folders, optionally limiting results to direct children of a parent path. ${FULL_SET_LIST}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'The table folders.' },
@@ -1597,7 +1593,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.createFolder,
       operationId: 'createTablesFolder',
-      summary: 'Create Folder',
+      summary: 'Create folder',
       description: 'Create one table-folder leaf whose parent path already exists.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created table folder.' },
@@ -1624,7 +1620,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateFolder,
       operationId: 'relocateTablesFolder',
-      summary: 'Rename or Move Folder',
+      summary: 'Rename or move folder',
       description: 'Rename or move a table folder and update all descendant paths.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The relocated table folder.' },
@@ -1657,9 +1653,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.deleteFolder,
       operationId: 'deleteTablesFolder',
-      summary: 'Delete Folder',
+      summary: 'Delete folder',
       description:
-        'Archive an empty folder, or set `recursive=true` to archive its tables and subfolders. Use Restore Folder to recover the archived contents.',
+        'Archive an empty folder, or set `recursive=true` to archive its tables and subfolders. Use Restore folder to recover the archived contents.',
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Table-folder deletion acknowledgement.' },
     }),
@@ -1683,9 +1679,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.restoreFolder,
       operationId: 'restoreTablesFolder',
-      summary: 'Restore Folder',
+      summary: 'Restore folder',
       description:
-        'Restore an archived table folder, its descendants, and tables using its former path. An archived parent moves it to the root; name conflicts may change the returned `path`. Non-archived paths return `404`. Save the path from Delete Folder, because List Folders does not include archived table folders.',
+        'Restore an archived table folder, its descendants, and tables using its former path. An archived parent moves it to the root; name conflicts may change the returned `path`. Non-archived paths return `404`. Save the path from Delete folder, because List folders does not include archived table folders.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The restored table folder and what it brought back.' },
     }),
@@ -1711,9 +1707,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.restore,
       operationId: 'restoreTable',
-      summary: 'Restore Table',
+      summary: 'Restore table',
       description:
-        'Restore a table and its archived rows, views, and workflow groups. Active tables return unchanged without a new audit event. Name conflicts may change the returned `name`. Find archived tables with List Tables and `scope=archived`.',
+        'Restore a table and its archived rows, views, and workflow groups. Active tables return unchanged without a new audit event. Name conflicts may change the returned `name`. Find archived tables with List tables and `scope=archived`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The restored table.' },
     }),
@@ -1745,9 +1741,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.updateRows,
       operationId: 'bulkUpdateTableRows',
-      summary: 'Bulk Update Rows',
+      summary: 'Bulk update rows',
       description:
-        'Apply separate partial patches to up to 1,000 rows, preserving omitted columns. A row outside the table rejects the entire request with `400` and lists missing IDs. Use Update Rows by Filter to apply one patch to every matching row.',
+        'Apply separate partial patches to up to 1,000 rows, preserving omitted columns. A row outside the table rejects the entire request with `400` and lists missing IDs. Use Update rows by filter to apply one patch to every matching row.',
       errors: [...TABLE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The bulk update result.' },
     }),
@@ -1787,10 +1783,10 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRow,
       operationId: 'getRowEnrichment',
-      summary: 'Get Row Group Run',
+      summary: 'Get row group run',
       description:
-        'Read a workflow or enrichment group’s outcome for one row: `runState` (as exposed by `includeRunState`), output cells keyed by column name, and enrichment providers in cascade order with status, hosted-key cost, duration, and the matching provider. Existing rows always answer: `runState: null` means never run; `cascade: null` means no breakdown recorded. Missing tables, rows, or groups return `404`.',
-      errors: RESOURCE_ERRORS,
+        'Read one row’s workflow or enrichment-group outcome: run state, output cells keyed by column name, and providers in cascade order with status, hosted-key cost, duration, and the matching provider. `runState: null` means never run; `cascade: null` means no breakdown was recorded. Missing tables, rows, or groups return `404`. Run state above 2 MiB returns `413`.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The run state, output cells, and provider cascade for the group on the row.',
       },
@@ -1821,7 +1817,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRun,
       operationId: 'getTableDispatch',
-      summary: 'Get Run Dispatch',
+      summary: 'Get run dispatch',
       description:
         "Get a dispatch's current state. Poll until `complete` or `canceled`; use row reads with `includeRunState` for per-cell outcomes.",
       errors: RESOURCE_ERRORS,
@@ -1853,9 +1849,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.cancelRuns,
       operationId: 'cancelTableDispatch',
-      summary: 'Cancel Run Dispatch',
+      summary: 'Cancel run dispatch',
       description:
-        'Stop a dispatch from scheduling more cells. Already queued or running cells continue; use Cancel Column Runs to stop them. Completed or canceled dispatches return unchanged.',
+        'Stop a dispatch from scheduling more cells. Already queued or running cells continue; use Cancel column runs to stop them. Completed or canceled dispatches return unchanged.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The dispatch in its post-cancellation state.' },
     }),
@@ -1885,7 +1881,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRun,
       operationId: 'listTableDispatches',
-      summary: 'List Run Dispatches',
+      summary: 'List run dispatches',
       description:
         'List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.',
       errors: RESOURCE_ERRORS,
@@ -1917,7 +1913,7 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.bulkMove,
       operationId: 'moveTables',
-      summary: 'Move Tables and Folders',
+      summary: 'Move tables and folders',
       description:
         'Move up to 100 tables and folders to one destination. Items succeed or fail independently: covered tables are `skipped`, missing items are `notFound`, and lock or cycle failures include reasons in `failed`. An invalid destination rejects the request before any move.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
@@ -1952,9 +1948,9 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.bulkDelete,
       operationId: 'bulkDeleteTables',
-      summary: 'Bulk Delete Tables and Folders',
+      summary: 'Bulk delete tables and folders',
       description:
-        'Archive up to 100 selected tables and folders, including folder contents. Items succeed or fail independently, with `skipped`, `notFound`, and `failed` outcomes. `deletedItems` includes all descendants. Use Restore Table or Restore Folder to recover archived items.',
+        'Archive up to 100 selected tables and folders, including folder contents. Items succeed or fail independently, with `skipped`, `notFound`, and `failed` outcomes. `deletedItems` includes all descendants. Use Restore table or Restore folder to recover archived items.',
       errors: [...RESOURCE_ERRORS, 'Locked', 'PayloadTooLarge'],
       success: { description: 'Per-item outcome of the bulk delete.' },
     }),
@@ -2021,10 +2017,10 @@ export const tablesOpenApiDocument = defineOpenApiDocument({
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({
-    Conflict: { message: 'A table named "Orders" already exists in this workspace' },
+    Conflict: { message: 'The request conflicts with current table state' },
     Locked: {
-      message: 'This table is insert-locked: new rows cannot be added.',
-      /** Names which of the four locks refused the write, so a caller can say which. */
+      message: 'A table lock prevents this operation.',
+      /** Example lock kind; the response identifies the lock that refused the operation. */
       details: { lock: 'insert' },
     },
   }),

@@ -1,47 +1,23 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthorizeCredentialUseForAuth,
-  mockCaptureServerEvent,
-  mockExecuteManagedToken,
-  mockGetCredential,
-  mockGetToolMetadata,
-  mockRecordAudit,
-  mockRefreshTokenIfNeeded,
-  mockResolveOAuthAccountId,
-  mockResolveServiceAccountToken,
-} = vi.hoisted(() => ({
+const { mockAuthorizeCredentialUseForAuth, mockExecuteManagedToken } = vi.hoisted(() => ({
   mockAuthorizeCredentialUseForAuth: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
   mockExecuteManagedToken: vi.fn(),
-  mockGetCredential: vi.fn(),
-  mockGetToolMetadata: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockRefreshTokenIfNeeded: vi.fn(),
-  mockResolveOAuthAccountId: vi.fn(),
-  mockResolveServiceAccountToken: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDENTIAL_ACCESSED: 'credential.accessed' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mockAuthorizeCredentialUseForAuth,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getCredential: mockGetCredential,
-  refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
-  resolveOAuthAccountId: mockResolveOAuthAccountId,
-  resolveServiceAccountToken: mockResolveServiceAccountToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
   InvalidManagedOAuthDelegationError: class InvalidManagedOAuthDelegationError extends Error {
@@ -57,30 +33,24 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
   resolveManagedOAuthCredentialToken: { execute: mockExecuteManagedToken },
 }))
 
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  ManagedOAuthCredentialError: class ManagedOAuthCredentialError extends Error {
-    constructor(
-      message: string,
-      readonly code: string,
-      readonly statusCode: number
-    ) {
-      super(message)
-      this.name = 'ManagedOAuthCredentialError'
-    }
-  },
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: mockGetToolMetadata,
-}))
-
-vi.mock('@/lib/oauth/utils', () => ({
-  getCanonicalScopesForProvider: vi.fn().mockReturnValue([]),
-}))
+vi.unmock('@/lib/oauth/utils')
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { getToolMetadata } from '@/tools/metadata'
+
+const mockGetToolMetadata = vi.mocked(getToolMetadata)
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const {
+  mockGetCredential,
+  mockRefreshTokenIfNeeded,
+  mockResolveOAuthAccountId,
+  mockResolveServiceAccountToken,
+} = authOAuthUtilsMockFns
 
 const INTERNAL_AUTH = { success: true, userId: 'user-1', authType: 'internal_jwt' } as const
 
@@ -250,10 +220,13 @@ describe('resolveCredentialAccessToken', () => {
   const resolveManagedPrincipal = vi.fn()
 
   beforeEach(() => {
+    mockExecuteManagedToken.mockReset()
     mockResolveOAuthAccountId.mockResolvedValue(null)
     authenticate.mockResolvedValue(INTERNAL_AUTH)
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
     mockGetToolMetadata.mockReturnValue({
+      id: 'gmail_send',
+      params: {},
       oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
     })
   })
@@ -318,7 +291,7 @@ describe('resolveCredentialAccessToken', () => {
 
   it('rejects tools without managed OAuth support', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockGetToolMetadata.mockReturnValue({ oauth: undefined })
+    mockGetToolMetadata.mockReturnValue({ id: 'http_request', params: {}, oauth: undefined })
 
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
@@ -337,9 +310,47 @@ describe('resolveCredentialAccessToken', () => {
     expect(mockExecuteManagedToken).not.toHaveBeenCalled()
   })
 
+  it('rejects a managed OAuth credential for a service-account-only tool before token resolution', async () => {
+    mockResolveOAuthAccountId.mockResolvedValueOnce({
+      ...MANAGED_RESOLVED,
+      providerId: 'slack',
+    })
+    mockGetToolMetadata.mockReturnValueOnce({
+      id: 'slack_add_bookmark',
+      params: {},
+      oauth: {
+        required: true,
+        provider: 'slack',
+        requiredScopes: ['bookmarks:write'],
+        credentialKind: 'service-account',
+      },
+    })
+    mockExecuteManagedToken.mockResolvedValueOnce({ accessToken: 'managed-token' })
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'slack_add_bookmark',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_TYPE_MISMATCH',
+      error: 'The selected credential type is not supported by this tool',
+    })
+    expect(mockExecuteManagedToken).not.toHaveBeenCalled()
+  })
+
   it('rejects tools whose scope policy is empty', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockGetToolMetadata.mockReturnValue({ oauth: { required: true, provider: 'google' } })
+    mockGetToolMetadata.mockReturnValue({
+      id: 'fixture-tool',
+      params: {},
+      oauth: { required: true, provider: 'oracle-fusion' },
+    })
 
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
@@ -413,4 +424,136 @@ describe('resolveCredentialAccessToken', () => {
       error: 'Managed credential not found',
     })
   })
+})
+
+describe('ordinary tool credential binding', () => {
+  const authenticate = async () => INTERNAL_AUTH
+  const serviceAccount = {
+    credentialType: 'service_account',
+    credentialId: 'service-account-1',
+    providerId: 'oracle-fusion-service-account',
+    accountId: '',
+    workspaceId: 'workspace-1',
+    usedCredentialTable: true,
+  } as const
+
+  beforeEach(() => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+    })
+    mockResolveOAuthAccountId.mockResolvedValue(serviceAccount)
+    mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'service-token' })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'oauth-token' })
+    mockGetToolMetadata.mockReturnValue({
+      id: 'fixture-tool',
+      params: {},
+      oauth: { required: true, provider: 'oracle-fusion', credentialKind: 'service-account' },
+    })
+  })
+
+  it.each(['vanta', 'oracle-epm-service-account', 'unknown-provider'])(
+    'rejects an authorized %s credential before minting a Fusion token',
+    async (providerId) => {
+      mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId })
+      const result = await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'oracle_fusion_financials_list_payables_invoices',
+        authenticate,
+      })
+      expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_PROVIDER_MISMATCH' })
+      expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+      expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not reveal provider mismatch to an unauthorized caller', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId: 'vanta' })
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })
+    expect(
+      await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'oracle_fusion_financials_list_payables_invoices',
+        authenticate,
+      })
+    ).toEqual({ ok: false, status: 403, error: 'Unauthorized' })
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a plain OAuth credential for a service-account-only tool before refreshing', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(null)
+    mockGetCredential.mockResolvedValue({ providerId: 'oracle-fusion' })
+    expect(
+      await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'oracle_fusion_financials_list_payables_invoices',
+        authenticate,
+      })
+    ).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_TYPE_MISMATCH' })
+    expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['oracle-fusion', 'oracle-fusion-service-account'],
+    ['vanta', 'vanta-service-account'],
+    ['ramp', 'ramp-service-account'],
+    ['greenhouse', 'greenhouse-service-account'],
+    ['google-email', 'google-service-account'],
+    ['jira', 'atlassian-service-account'],
+    ['confluence', 'atlassian-service-account'],
+  ] as const)(
+    'accepts the canonical %s service-account provider %s',
+    async (provider, providerId) => {
+      mockGetToolMetadata.mockReturnValue({
+        id: 'fixture-tool',
+        params: {},
+        oauth: { required: true, provider },
+      })
+      mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId })
+      expect(
+        await resolveCredentialAccessToken({
+          requestId: 'binding-test',
+          credentialId: 'credential-1',
+          toolId: 'fixture-tool',
+          authenticate,
+        })
+      ).toMatchObject({
+        ok: true,
+        token: { accessToken: 'service-token', credentialType: 'service_account' },
+      })
+    }
+  )
+
+  it.each([
+    ['google-email', 'google-email', true],
+    ['salesforce', 'salesforce-sandbox', true],
+    ['salesforce', 'google', false],
+  ] as const)(
+    'binds ordinary OAuth %s tokens to the provider (%s)',
+    async (provider, providerId, allowed) => {
+      mockGetToolMetadata.mockReturnValue({
+        id: 'fixture-tool',
+        params: {},
+        oauth: { required: true, provider },
+      })
+      mockResolveOAuthAccountId.mockResolvedValue(null)
+      mockGetCredential.mockResolvedValue({ providerId })
+      const result = await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'fixture-tool',
+        authenticate,
+      })
+      expect(result.ok).toBe(allowed)
+      if (!allowed) {
+        expect(result).toMatchObject({ status: 400, code: 'CREDENTIAL_PROVIDER_MISMATCH' })
+        expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+      }
+    }
+  )
 })

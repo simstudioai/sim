@@ -39,7 +39,7 @@ export const findEmailTool: ToolConfig<DatagmaFindEmailParams, DatagmaFindEmailR
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'LinkedIn company URL slug to improve match accuracy by 20%+',
+      description: 'LinkedIn company URL slug to help identify the matching company',
     },
     findEmailV2Step: {
       type: 'number',

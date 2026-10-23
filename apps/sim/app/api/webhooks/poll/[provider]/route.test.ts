@@ -2,17 +2,15 @@
  * Tests for the webhook polling cron route.
  */
 import { createMockRequest, redisConfigMockFns } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerifyCronAuth, mockPollProvider } = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
+const { mockPollProvider } = vi.hoisted(() => ({
   mockPollProvider: vi.fn().mockResolvedValue({ processed: 0 }),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyCronAuth: mockVerifyCronAuth,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 vi.mock('@/lib/webhooks/polling', () => ({
   pollProvider: mockPollProvider,
@@ -21,6 +19,9 @@ vi.mock('@/lib/webhooks/polling', () => ({
 
 import { GET } from './route'
 
+const { mockVerifyCronAuth } = authInternalMockFns
+mockVerifyCronAuth.mockReturnValue(null)
+
 function createRequest() {
   return createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/webhooks/poll/gmail')
 }
@@ -28,8 +29,6 @@ function createRequest() {
 function createContext(provider: string) {
   return { params: Promise.resolve({ provider }) }
 }
-
-const flushMicrotasks = () => sleep(0)
 
 describe('webhook polling route (fire-and-forget)', () => {
   beforeEach(() => {
@@ -56,7 +55,7 @@ describe('webhook polling route (fire-and-forget)', () => {
     const response = await GET(createRequest(), createContext('gmail'))
 
     expect(response.status).toBe(202)
-    await flushMicrotasks()
+    await flushMacrotask()
     expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledWith(
       'gmail-polling-lock',
       expect.any(String)

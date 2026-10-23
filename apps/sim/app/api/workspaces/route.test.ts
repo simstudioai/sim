@@ -7,17 +7,17 @@
  * only in the rarer case.
  */
 import { createMockRequest } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetWorkspaceCreationPolicy, mockCreateWorkspace } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetWorkspaceCreationPolicy: vi.fn(),
+const { mockCreateWorkspace } = vi.hoisted(() => ({
   mockCreateWorkspace: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/auth/session-response', () => ({
@@ -32,31 +32,19 @@ vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: vi.fn(),
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { WORKSPACE_CREATED: 'workspace.created' },
-  AuditResourceType: { WORKSPACE: 'workspace' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/workspaces/policy', async () => {
-  class WorkspaceCreationCapabilityWithheldError extends Error {}
-  class WorkspaceCreationContextChangedError extends Error {}
-  class WorkspaceOwnerMissingError extends Error {}
-  return {
-    getWorkspaceCreationPolicy: mockGetWorkspaceCreationPolicy,
-    WorkspaceCreationCapabilityWithheldError,
-    WorkspaceCreationContextChangedError,
-    WorkspaceOwnerMissingError,
-  }
-})
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 import { GET, POST } from '@/app/api/workspaces/route'
+
+const mockGetWorkspaceCreationPolicy = workspacesPolicyMockFns.mockGetWorkspaceCreationPolicy
+
+const mockGetSession = authMockFns.mockGetSession
 
 function createRequest() {
   return createMockRequest('POST', { name: 'New workspace' })

@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { googleChatConnector } from '@/connectors/google-chat/google-chat'
 
 const SPACE_NAME = 'spaces/AAAA1111'
@@ -26,13 +27,6 @@ const MESSAGES = [
   },
 ]
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 const requestedUrls: string[] = []
 const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
@@ -59,14 +53,10 @@ beforeEach(() => {
     if (url.includes('/spaces?')) {
       return jsonResponse({ spaces: listedSpaces, nextPageToken: listNextPageToken })
     }
-    if (url.endsWith(`/${SPACE_NAME}`)) return jsonResponse(fetchedSpace)
+    if (new URL(url).pathname.endsWith(`/${SPACE_NAME}`)) return jsonResponse(fetchedSpace)
     return jsonResponse({ error: { message: 'not found' } }, 404)
   })
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 /** The decoded `filter` the last `spaces.list` request carried, if any. */
@@ -104,11 +94,15 @@ describe('google-chat change detection', () => {
     const runTwo: Record<string, unknown> = {}
     const secondPage = await googleChatConnector.listDocuments('token', {}, undefined, runTwo)
 
-    // Stable within a run, so the hydrated document keeps the stub's hash …
     const hydrated = await googleChatConnector.getDocument('token', {}, SPACE_NAME, runOne)
-    expect(hydrated?.contentHash).toBe(firstPage.documents[0].contentHash)
+    if (!hydrated) throw new Error('Expected a space document')
+    expect(
+      googleChatConnector.matchContentHash?.(
+        firstPage.documents[0].contentHash,
+        hydrated.contentHash
+      )
+    ).toBe('current')
 
-    // … and different on the next run, so content never silently goes stale.
     expect(secondPage.documents[0].contentHash).not.toBe(firstPage.documents[0].contentHash)
   })
 })

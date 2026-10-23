@@ -65,7 +65,7 @@ const NON_ISO_CURRENCY_MARKERS = new Set([
  * input is rejected rather than quietly rescaled.
  *
  * No ISO code collides with a magnitude abbreviation, so nothing legitimate is
- * lost \u2014 `lib/table/__tests__/currency.test.ts` pins that.
+ * lost \u2014 `lib/table/currency.test.ts` pins that.
  *
  * A runtime that cannot enumerate codes keeps the old permissive behaviour,
  * minus the magnitude words it knows by name; rejecting every letter marker

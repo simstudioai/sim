@@ -1,21 +1,20 @@
 ---
 title: ClickHouse
 description: Connect to a ClickHouse database
+integration:
+  type: "clickhouse"
+  color: "#f9ff69"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="clickhouse"
-  color="#f9ff69"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[ClickHouse](https://clickhouse.com) is an open-source, column-oriented database management system for online analytical processing (OLAP). It is built for speed at scale — running aggregations and analytical queries over billions of rows in real time.
+Use [ClickHouse](https://clickhouse.com) to query and insert analytical data, manage databases and tables, inspect schemas and system state, and execute SQL.
 
-The ClickHouse block connects to any ClickHouse deployment (ClickHouse Cloud or self-hosted) over the [HTTP interface](https://clickhouse.com/docs/interfaces/http). Use it to run analytical queries, stream rows into tables, manage schemas, inspect system state, and execute arbitrary SQL — all from within a workflow.
+The block uses ClickHouse’s [HTTP interface](https://clickhouse.com/docs/interfaces/http). The endpoint must be reachable from the Sim execution runtime and allowed by its network policy.
 
-**Connection details**
+## Connection details
 
 - **Host** — your ClickHouse hostname (e.g. `your-instance.clickhouse.cloud` or your server address).
 - **Port** — the HTTP interface port. Use `8443` for HTTPS (ClickHouse Cloud) or `8123` for plain HTTP (self-hosted).
@@ -23,25 +22,24 @@ The ClickHouse block connects to any ClickHouse deployment (ClickHouse Cloud or 
 - **Password** — optional for unauthenticated local instances.
 - **Use HTTPS** — keep enabled for any remote or Cloud instance.
 
-**Things to know**
+## Mutations and network access
 
 - `UPDATE` and `DELETE` are implemented as ClickHouse [mutations](https://clickhouse.com/docs/sql-reference/statements/alter/update) (`ALTER TABLE ... UPDATE/DELETE`). Mutations run **asynchronously** in the background, so the affected row count is not returned immediately.
 - ClickHouse is optimized for bulk inserts. Prefer batching many rows per insert over many single-row inserts.
-- The connection host is validated to block private/internal addresses, so the block cannot reach `localhost` or internal-only hosts.
+- Private and internal hosts are blocked by default. Self-hosted operators can configure an explicit database egress allowlist; a host must also be reachable from the runtime.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.
-
-
+Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.
 
 ## Actions
 
 ### ClickHouse Query
 
 Execute a SELECT query on a ClickHouse database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +61,13 @@ Execute a SELECT query on a ClickHouse database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse Execute
 
 Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -87,9 +89,13 @@ Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database
 | `rows` | array | Array of rows returned from the statement |
 | `rowCount` | number | Number of rows returned or affected |
 
+</ReferenceDetails>
+
 ### ClickHouse Insert
 
 Insert a row into a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -112,9 +118,13 @@ Insert a row into a ClickHouse table
 | `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
 | `rowCount` | number | Number of rows inserted |
 
+</ReferenceDetails>
+
 ### ClickHouse Insert Rows
 
 Insert multiple rows into a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +147,13 @@ Insert multiple rows into a ClickHouse table
 | `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
 | `rowCount` | number | Number of rows inserted |
 
+</ReferenceDetails>
+
 ### ClickHouse Update
 
 Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -163,9 +177,13 @@ Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation
 | `rows` | array | Updated rows \(empty for ClickHouse mutations\) |
 | `rowCount` | number | Number of rows written by the mutation |
 
+</ReferenceDetails>
+
 ### ClickHouse Delete
 
 Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -188,9 +206,13 @@ Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation
 | `rows` | array | Deleted rows \(empty for ClickHouse mutations\) |
 | `rowCount` | number | Number of rows affected by the mutation |
 
+</ReferenceDetails>
+
 ### ClickHouse List Databases
 
 List all databases on a ClickHouse server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +233,13 @@ List all databases on a ClickHouse server
 | `rows` | array | List of databases with engine and comment |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse List Tables
 
 List tables in the connected ClickHouse database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -234,9 +260,13 @@ List tables in the connected ClickHouse database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse Describe Table
 
 Describe the columns of a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -258,9 +288,13 @@ Describe the columns of a ClickHouse table
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse Show Create Table
 
 Get the CREATE TABLE statement (DDL) for a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,9 +315,13 @@ Get the CREATE TABLE statement (DDL) for a ClickHouse table
 | `message` | string | Operation status message |
 | `ddl` | string | The CREATE TABLE statement |
 
+</ReferenceDetails>
+
 ### ClickHouse Count Rows
 
 Count rows in a ClickHouse table, optionally filtered
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +343,13 @@ Count rows in a ClickHouse table, optionally filtered
 | `message` | string | Operation status message |
 | `count` | number | Number of rows |
 
+</ReferenceDetails>
+
 ### ClickHouse Introspect
 
 Introspect a ClickHouse database to retrieve table structures, columns, and engines
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +380,13 @@ Introspect a ClickHouse database to retrieve table structures, columns, and engi
 |     ↳ `isInPrimaryKey` | boolean | Whether the column is part of the primary key |
 |     ↳ `isInSortingKey` | boolean | Whether the column is part of the sorting key |
 
+</ReferenceDetails>
+
 ### ClickHouse Create Database
 
 Create a new database on a ClickHouse server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -360,9 +406,13 @@ Create a new database on a ClickHouse server
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse Drop Database
 
 Drop a database from a ClickHouse server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +432,13 @@ Drop a database from a ClickHouse server
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse Create Table
 
 Create a new MergeTree-family table in ClickHouse
+
+<ReferenceDetails>
 
 #### Input
 
@@ -408,9 +462,13 @@ Create a new MergeTree-family table in ClickHouse
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse Drop Table
 
 Drop a table from a ClickHouse database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -430,9 +488,13 @@ Drop a table from a ClickHouse database
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse Truncate Table
 
 Remove all rows from a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +514,13 @@ Remove all rows from a ClickHouse table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse Rename Table
 
 Rename a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -475,9 +541,13 @@ Rename a ClickHouse table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse Optimize Table
 
 Trigger a merge of table parts via OPTIMIZE TABLE
+
+<ReferenceDetails>
 
 #### Input
 
@@ -498,9 +568,13 @@ Trigger a merge of table parts via OPTIMIZE TABLE
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse List Partitions
 
 List active partitions for a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -522,9 +596,13 @@ List active partitions for a ClickHouse table
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse Drop Partition
 
 Drop a partition from a ClickHouse table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -545,9 +623,13 @@ Drop a partition from a ClickHouse table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### ClickHouse List Mutations
 
 List mutations (async ALTER UPDATE/DELETE) for the connected database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -570,9 +652,13 @@ List mutations (async ALTER UPDATE/DELETE) for the connected database
 | `rows` | array | Array of mutation rows |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse List Running Queries
 
 List currently running queries on a ClickHouse server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -593,9 +679,13 @@ List currently running queries on a ClickHouse server
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse Kill Query
 
 Kill a running query by its query ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -617,9 +707,13 @@ Kill a running query by its query ID
 | `rows` | array | Kill status rows |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse Table Stats
 
 Get row counts and on-disk size for tables in the connected database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -641,9 +735,13 @@ Get row counts and on-disk size for tables in the connected database
 | `rows` | array | Array of table stats rows |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### ClickHouse List Clusters
 
 List configured clusters, shards, and replicas
+
+<ReferenceDetails>
 
 #### Input
 
@@ -663,5 +761,7 @@ List configured clusters, shards, and replicas
 | `message` | string | Operation status message |
 | `rows` | array | Array of cluster node rows |
 | `rowCount` | number | Number of rows returned |
+
+</ReferenceDetails>
 
 

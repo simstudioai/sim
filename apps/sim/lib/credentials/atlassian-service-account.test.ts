@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateAtlassianServiceAccount } from '@/lib/credentials/atlassian-service-account'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -9,7 +9,6 @@ describe('Atlassian service-account identity verification', () => {
     vi.stubGlobal('fetch', fetchMock)
     fetchMock.mockResolvedValueOnce(Response.json({ cloudId: 'cloud-1' }))
   })
-  afterEach(() => vi.unstubAllGlobals())
 
   it('verifies a Confluence-only token without requiring Jira access', async () => {
     fetchMock.mockResolvedValueOnce(

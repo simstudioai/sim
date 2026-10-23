@@ -1,15 +1,25 @@
 /** @vitest-environment jsdom */
+
 import { act, useLayoutEffect, useSyncExternalStore } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  workflowRegistryStoreMock,
+  workflowRegistryStoreMockFns,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ registry: vi.fn(), switchWorkspace: vi.fn() }))
-vi.mock('@/stores/workflows/registry/store', () => ({ useWorkflowRegistry: mocks.registry }))
-vi.mock('next/navigation', () => ({ useParams: () => ({}) }))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/hooks/queries/workspace', () => ({ useWorkspacesWithMetadata: () => ({}) }))
 
 import { WorkflowScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
+
+const mocks = {
+  registry: workflowRegistryStoreMockFns.mockUseWorkflowRegistry,
+  switchWorkspace: workflowRegistryStoreMockFns.mockSwitchToWorkspace,
+}
 
 interface RegistryState {
   hydration: { workspaceId: string | null }
@@ -44,7 +54,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mountedScopes.length = 0
   state = { hydration: { workspaceId: null }, switchToWorkspace: mocks.switchWorkspace }
-  Object.assign(mocks.registry, { getState: () => state })
+  workflowRegistryStoreMockFns.mockGetState.mockImplementation(() => ({ ...state }))
   mocks.registry.mockImplementation((selector: (value: RegistryState) => unknown) =>
     useSyncExternalStore(subscribe, () => selector(state))
   )
@@ -60,7 +70,6 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   listeners.clear()
-  vi.unstubAllGlobals()
 })
 
 describe('WorkflowScopeSync canvas readiness', () => {

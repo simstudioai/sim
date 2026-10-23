@@ -5,6 +5,9 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,12 +15,11 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   grant: vi.fn(),
   revoke: vi.fn(),
-  capture: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/skills/application/use-cases', () => ({
   listSkillEditorsUseCase: {
     operation: { id: 'skills.editors.list' },
@@ -37,14 +39,14 @@ import { GET, POST } from '@/app/api/v2/skills/[skillId]/editors/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const SKILL_ID = 'skill-1'
-const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
 }
-const context = { params: Promise.resolve({ skillId: SKILL_ID }) }
+const context = createRouteContext({ skillId: SKILL_ID })
 const editor = {
   id: 'membership-1',
   userId: 'user-2',
@@ -124,6 +126,6 @@ describe('/api/v2/skills/[skillId]/editors', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.capture).not.toHaveBeenCalled()
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

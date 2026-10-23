@@ -615,6 +615,12 @@ describe('validateServiceNowInstanceUrl (vendor-hosted allowlist)', () => {
     expect(result.sanitized).toBe('https://acme.servicenowservices.com/api/now')
   })
 
+  it.concurrent('drops a trailing FQDN dot, which TLS hostname verification rejects', () => {
+    const result = validateServiceNowInstanceUrl('https://acme.service-now.com./api/now')
+    expect(result.isValid).toBe(true)
+    expect(result.sanitized).toBe('https://acme.service-now.com/api/now')
+  })
+
   it.concurrent.each([
     ['https://support.acme.com', 'vanity CNAME'],
     ['https://acme.service-now.com.evil.com', 'lookalike suffix'],

@@ -36,6 +36,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getContextMenuPosition } from '@/lib/core/utils/context-menu'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
@@ -51,7 +52,6 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import type {
@@ -108,6 +108,7 @@ import { Dashboard, LogDetails, LogRowContextMenu } from './components'
 import {
   formatDate,
   getDisplayStatus,
+  getLogWorkflowLabel,
   type LogStatus,
   parseDuration,
   resolveLogWorkflowId,
@@ -261,7 +262,6 @@ export default function Logs() {
     setFolderIds,
     setTriggers,
     setTimeRange,
-    setDateRange,
     clearDateRange,
   } = useLogFilters()
 
@@ -538,7 +538,7 @@ export default function Logs() {
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
       const log = logs.find((l) => l.id === rowId) ?? null
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setContextMenuPosition(getContextMenuPosition(e))
       setContextMenuLog(log)
       setContextMenuOpen(true)
     },
@@ -604,25 +604,20 @@ export default function Logs() {
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to stop run'))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuLog, userPermissions.canEdit])
 
-  const retryLog = useCallback(
-    async (log: WorkflowLogRow | null) => {
-      const workflowId = log?.workflow?.id || log?.workflowId
-      const executionId = log?.executionId
-      if (!workflowId || !executionId) return
+  const retryLog = useCallback(async (log: WorkflowLogRow | null) => {
+    const workflowId = log?.workflow?.id || log?.workflowId
+    const executionId = log?.executionId
+    if (!workflowId || !executionId) return
 
-      try {
-        await retryExecution.mutateAsync({ workflowId, executionId })
-        toast.success('Retry started')
-      } catch {
-        toast.error('Failed to retry execution')
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
+    try {
+      await retryExecution.mutateAsync({ workflowId, executionId })
+      toast.success('Retry started')
+    } catch {
+      toast.error('Failed to retry execution')
+    }
+  }, [])
 
   const handleRetryExecution = useCallback(() => {
     retryLog(contextMenuLog)
@@ -795,13 +790,7 @@ export default function Logs() {
       logs.map((log) => {
         const formattedDate = formatDate(log.createdAt)
         const displayStatus = getDisplayStatus(log.status)
-        const isMothershipJob = log.trigger === 'mothership'
-        const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
-        const workflowName = isMothershipJob
-          ? log.jobTitle || 'Untitled Job'
-          : isDeletedWorkflow
-            ? DELETED_WORKFLOW_LABEL
-            : log.workflow?.name || 'Unknown'
+        const workflowName = getLogWorkflowLabel(log)
 
         const durationMs = parseDuration({ duration: log.duration ?? undefined })
         const durationText =

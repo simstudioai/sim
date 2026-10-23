@@ -1,19 +1,24 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), encrypt: vi.fn(), decrypt: vi.fn() }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mocks.fetch,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: mocks.encrypt,
-  decryptSecret: mocks.decrypt,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   decryptPersonalToken,
   encryptPersonalToken,
   verifyGitLabPersonalToken,
 } from '@/lib/credentials/gitlab-personal-token'
+
+const mocks = {
+  fetch: inputValidationMockFns.mockSecureFetchWithValidation,
+  encrypt: encryptionMockFns.mockEncryptSecret,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+}
 
 const user = { id: 42, username: 'reader', name: 'Reader', state: 'active', bot: false }
 const token = {

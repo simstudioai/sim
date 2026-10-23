@@ -1,32 +1,29 @@
 import { mkdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { resetDbChainMock } from '@sim/testing'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { testDirectory, mockInsertMetadata, mockInsertFileMetadata, mockDeleteFileMetadata } =
-  vi.hoisted(() => ({
-    testDirectory: `/tmp/sim-knowledge-upload-compensation-${process.pid}`,
-    mockInsertMetadata: vi.fn(),
-    mockInsertFileMetadata: vi.fn(),
-    mockDeleteFileMetadata: vi.fn(),
-  }))
+const testDirectory = `/tmp/sim-knowledge-upload-compensation-${process.pid}`
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({ UPLOAD_DIR_SERVER: testDirectory }))
-vi.mock('@/lib/uploads/config', () => ({
-  USE_BLOB_STORAGE: false,
-  USE_S3_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({}),
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: mockInsertFileMetadata,
-  deleteFileMetadata: mockDeleteFileMetadata,
-  insertImmutableFileMetadata: mockInsertMetadata,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
+
+setUploadDirServer(testDirectory)
+
+const mockInsertFileMetadata = uploadsMetadataMockFns.mockInsertFileMetadata
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+const mockInsertMetadata = uploadsMetadataMockFns.mockInsertImmutableFileMetadata
 
 const KEY = 'kb/document.txt'
 const ORIGINAL_ERROR = new Error('organization no longer exists')

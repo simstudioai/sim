@@ -1,10 +1,13 @@
-import { member, user } from '@sim/db/schema'
+import { member, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
 import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
+import { stopRunsWithoutWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 
 const logger = createLogger('OrganizationMemberLifecycle')
 
@@ -38,7 +41,7 @@ export interface SuspendMemberResult {
  * restores every automation exactly as it was.
  */
 export async function suspendMemberTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { userId: string; organizationId: string; source: SuspensionSource }
 ): Promise<SuspendMemberResult> {
   await acquireOrganizationUserMutationLocks(tx, {
@@ -89,7 +92,13 @@ export async function unsuspendMemberTx(
 export type OrganizationMemberRole = 'admin' | 'member'
 
 export type ChangeMemberRoleResult =
-  | { changed: true; from: string; to: OrganizationMemberRole }
+  | {
+      changed: true
+      from: string
+      to: OrganizationMemberRole
+      /** Runs a demotion stopped where it ended the member's derived workspace access. */
+      stoppedRuns: StoppedRun[]
+    }
   | { changed: false; role: string }
 
 /**
@@ -100,8 +109,17 @@ export type ChangeMemberRoleResult =
  * moves billing and the last-owner guarantee with it, which is its own operation.
  */
 export async function changeMemberRoleTx(
-  tx: DbOrTx,
-  params: { organizationId: string; userId: string; role: OrganizationMemberRole }
+  tx: DbTransaction,
+  params: {
+    organizationId: string
+    userId: string
+    role: OrganizationMemberRole
+    /**
+     * Leaves the member's runs to a caller that changes more access in this transaction and
+     * stops runs once that access is final; `stoppedRuns` is then empty.
+     */
+    deferRunStops?: boolean
+  }
 ): Promise<ChangeMemberRoleResult> {
   await acquireOrganizationUserMutationLocks(tx, {
     userId: params.userId,
@@ -121,11 +139,25 @@ export async function changeMemberRoleTx(
   if (current.role === params.role) return { changed: false, role: current.role }
 
   await tx.update(member).set({ role: params.role }).where(eq(member.id, current.id))
+  /** An organization admin holds derived access to every organization workspace; a demotion ends it. */
+  const stoppedRuns =
+    !params.deferRunStops && isOrgAdminRole(current.role) && !isOrgAdminRole(params.role)
+      ? await stopRunsWithoutWorkspaceAccessTx(
+          tx,
+          params.userId,
+          (
+            await tx
+              .select({ id: workspace.id })
+              .from(workspace)
+              .where(eq(workspace.organizationId, params.organizationId))
+          ).map(({ id }) => id)
+        )
+      : []
   logger.info('Changed organization member role', {
     organizationId: params.organizationId,
     userId: params.userId,
     from: current.role,
     to: params.role,
   })
-  return { changed: true, from: current.role, to: params.role }
+  return { changed: true, from: current.role, to: params.role, stoppedRuns }
 }

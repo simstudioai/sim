@@ -1,6 +1,16 @@
 import { z } from 'zod'
+import { benchmarkModelConfigSchema } from '@/lib/benchmarks/models'
 
 export const benchmarkStageSchema = z.enum(['distill', 'redact', 'plan', 'reconstruct', 'grade'])
+const benchmarkModelRunsSchema = z.partialRecord(
+  benchmarkStageSchema,
+  z
+    .object({
+      config: benchmarkModelConfigSchema,
+      durationMs: z.number().int().nonnegative(),
+    })
+    .strict()
+)
 export const benchmarkNameSchema = z.string().trim().min(1, 'A benchmark name is required').max(200)
 export const benchmarkBriefSchema = z.string()
 export const benchmarkSpecSchema = z.string()
@@ -12,7 +22,7 @@ export const benchmarkBlankSchema = z
         /^[A-Za-z0-9_-]{1,64}$/,
         'Blank IDs must contain letters, numbers, underscores, or hyphens'
       ),
-    answer: z.string().min(1, 'A blank must have an answer'),
+    answer: z.string().refine((value) => value.trim().length > 0, 'A blank must have an answer'),
   })
   .strict()
 export const benchmarkSourceSchema = z
@@ -53,6 +63,7 @@ export const benchmarkArtifactsSchema = z
     reconstruction: z.array(benchmarkReconstructionSchema).nullable(),
     grade: z.array(benchmarkGradeSchema).nullable(),
     recoveryMode: z.literal('references').optional(),
+    modelRuns: benchmarkModelRunsSchema.optional(),
   })
   .strict()
 
@@ -97,6 +108,7 @@ export const benchmarkRunSummarySchema = z.object({
   benchmarkId: z.string().min(1).max(128),
   label: benchmarkRunLabelSchema,
   evaluationKey: z.string().length(64),
+  modelRuns: benchmarkModelRunsSchema.default({}),
   correct: z.number().int().min(0),
   automaticCorrect: z.number().int().min(0),
   total: z.number().int().min(1),
@@ -125,7 +137,6 @@ export type BenchmarkArtifacts = z.infer<typeof benchmarkArtifactsSchema>
 export type BenchmarkEditablePatch = z.infer<typeof benchmarkEditablePatchSchema>
 export type BenchmarkSummary = z.infer<typeof benchmarkSummarySchema>
 export type BenchmarkCase = z.infer<typeof benchmarkCaseSchema>
-export type BenchmarkRun = z.infer<typeof benchmarkRunSchema>
 
 export function emptyBenchmarkArtifacts(taskBrief = ''): BenchmarkArtifacts {
   return {

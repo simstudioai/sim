@@ -1,21 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OktaBlock } from '@/blocks/blocks/okta'
-
-const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-  getBlockByToolName: vi.fn(() => undefined),
-  getBlocksByCategory: vi.fn(() => []),
-}))
-
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
+import { OktaBlock } from '@/blocks/blocks/okta'
+import { getBlock } from '@/blocks/registry'
 import { extractBlockParams } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { isOktaFlagEnabled } from '@/tools/okta/utils'
+
+const mockGetBlock = vi.mocked(getBlock)
 
 /**
  * Build the block state the canvas persists: one entry per stored sub-block id.

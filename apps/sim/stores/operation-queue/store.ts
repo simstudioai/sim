@@ -250,7 +250,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
   confirmOperation: (operationId) => {
     const state = get()
-    const operation = state.operations.find((op) => op.id === operationId)
     const newOperations = state.operations.filter((op) => op.id !== operationId)
 
     const retryTimeout = retryTimeouts.get(operationId)

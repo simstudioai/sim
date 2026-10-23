@@ -79,25 +79,3 @@ export interface FileParserV3OutputData {
 export interface FileParserV3Output extends ToolResponse {
   output: FileParserV3OutputData
 }
-
-/** API response structure for single file parse */
-interface FileParseApiResponse {
-  success: boolean
-  output?: FileParseResult
-  content?: string
-  filePath?: string
-  viewerUrl?: string | null
-  error?: string
-}
-
-/** API response structure for multiple file parse */
-interface FileParseApiMultiResponse {
-  success: boolean
-  results: Array<{
-    success: boolean
-    output?: FileParseResult
-    filePath?: string
-    viewerUrl?: string | null
-    error?: string
-  }>
-}

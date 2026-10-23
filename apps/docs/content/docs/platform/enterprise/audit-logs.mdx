@@ -1,77 +1,77 @@
 ---
-title: Audit Logs
-description: Track every action taken across your organization's workspaces
+title: Audit logs
+description: Investigate configuration and security events across your organization
 ---
 
-import { FAQ } from '@/components/ui/faq'
-import { Image } from '@/components/ui/image'
+Audit logs record the actor, time, and affected resource for configuration and security events. Organization owners and admins can investigate changes across the organization's workspaces, export CSV, or send events to a [data drain](/platform/enterprise/data-drains).
 
-Audit logs record configuration and security events across your organization, including the actor, time, and affected resource. Use them to investigate changes and incidents.
+Billing-enabled deployments require Enterprise. Billing-disabled deployments use audit-log feature configuration and still need an organization for the organization viewer and API. Workspace admin access alone does not grant organization audit access.
 
----
+## Find events
 
-## Viewing audit logs
+Open **Settings → Organization → Audit logs**. Search actions, actors, resource names, or descriptions, then narrow by resource type and date. Links from a workspace's Insights view also scope the feed to that workspace; remove the workspace chip to return to the organization feed.
 
-### In the UI
+| Column | Content |
+| --- | --- |
+| **Timestamp** | Time of the recorded action. |
+| **Event** | Action identifier, such as `workflow.created`. |
+| **Description** | Human-readable action summary. |
+| **Actor** | Email or name when available; a system fallback for actions without one. |
 
-Go to **Settings → Organization → Audit logs** in your workspace. Logs are displayed in a table with the following columns:
+By default, queries include actors who are current organization members and anonymous actions. API and CSV queries can set `includeDeparted=true` to include departed and external workspace actors. External workspace members may act on workspace resources without joining the organization; invitation metadata records internal or external membership.
 
-<Image src="/static/enterprise/audit-logs.png" alt="Audit Logs settings showing a table of events with columns for Timestamp, Event, Description, and Actor, along with search and filter controls" width={900} height={830} className="mx-auto h-auto w-full max-w-xl" />
+Historical visibility depends on current workspace ownership and stored organization attribution. Workspace moves or physical deletion can change which events an organization query returns. Export events you need to retain under independent archive controls.
 
-| Column | Description |
-|--------|-------------|
-| **Timestamp** | When the action occurred. |
-| **Event** | The action taken, e.g. `workflow.created`. |
-| **Description** | A human-readable summary of the action. |
-| **Actor** | The email address of the user who performed the action. |
+## Export and integrate
 
-Use the search bar, event type filter, and date range selector to narrow results.
+Download CSV from the viewer, paginate the API, or use an audit-log drain for continuous delivery. CSV includes resource, workspace, and actor IDs; IP address; user agent; surface; and per-action metadata. The JSON API omits IP addresses and user agents.
 
-### Via API
+CSV is capped at **10,000 rows or 64 MiB**. An oversized record can also stop it early. `X-Export-Truncated: 1` indicates a partial download; narrow the filters and export again. CSV export is itself an audited operation.
 
-Audit logs are also accessible through the Sim API for integration with external SIEM or log management tools.
+### Organization API
+
+For new integrations, use the [v2 audit-log reference](/api-reference/audit-logs/listAuditLogs). It supports `orgId`, `actorEmail`, UTC date filters, and the v2 pagination envelope. The v1 request below remains supported; changing only its URL to v2 does not preserve its query or response contract.
 
 ```http
 GET /api/v1/audit-logs
-X-API-Key: <api-key>
+X-API-Key: <personal-api-key>
 ```
 
-**Query parameters:**
+The key's owner must be an organization owner or admin. Workspace API keys are refused. Rate limits apply, and `X-RateLimit-*` headers report the current quota.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `action` | string | Filter by event type (e.g. `workflow.created`) |
-| `resourceType` | string | Filter by resource type (e.g. `workflow`) |
-| `resourceId` | string | Filter by a specific resource ID |
-| `workspaceId` | string | Filter by workspace |
-| `actorId` | string | Filter by user ID. For organization-wide filters, the actor must be a current or former org member; workspace-scoped logs can also include external workspace members. |
-| `startDate` | string | ISO 8601 date — return logs on or after this date |
-| `endDate` | string | ISO 8601 date — return logs on or before this date |
-| `includeDeparted` | boolean | Include logs from members who have since left the organization (default `false`) |
-| `limit` | number | Results per page (1–100, default 50) |
-| `cursor` | string | Opaque cursor for fetching the next page |
+| v1 query parameter | Behavior |
+| --- | --- |
+| `action` | Event identifier, such as `workflow.created`. |
+| `resourceType` | Resource type; accepts comma-separated types. |
+| `resourceId` | Specific resource ID. |
+| `workspaceId` | Workspace in the caller's organization. |
+| `actorId` | Current organization member's user ID. Departed-actor filtering is supported by CSV with `includeDeparted=true`. |
+| `startDate`, `endDate` | ISO 8601 lower and upper date bounds. |
+| `includeDeparted` | Includes actors outside current organization membership; default `false`. |
+| `limit` | Page size, 1–100; default 50. |
+| `cursor` | Opaque next-page cursor. |
 
-**Example response:**
+A v1 page contains `data`, an optional `nextCursor`, and `limits`. Each entry has `id`, `action`, `resourceType`, nullable resource ID/name, description, actor ID/name/email, workspace ID, arbitrary per-action `metadata`, and `createdAt`.
 
 ```json
 {
   "data": [
     {
-      "id": "abc123",
+      "id": "audit-event-id",
       "action": "workflow.created",
       "resourceType": "workflow",
-      "resourceId": "wf_xyz",
-      "resourceName": "Customer Onboarding",
-      "description": "Created workflow \"Customer Onboarding\"",
-      "actorId": "usr_abc",
+      "resourceId": "workflow-id",
+      "resourceName": "Customer onboarding",
+      "description": "Created workflow \"Customer onboarding\"",
+      "actorId": "user-id",
       "actorName": "Alice Smith",
-      "actorEmail": "alice@company.com",
-      "workspaceId": "ws_def",
+      "actorEmail": "alice@example.com",
+      "workspaceId": "workspace-id",
       "metadata": {},
       "createdAt": "2026-04-20T21:16:00.000Z"
     }
   ],
-  "nextCursor": "eyJpZCI6ImFiYzEyMyJ9",
+  "nextCursor": "opaque-next-page-cursor",
   "limits": {
     "workflowExecutionRateLimit": {
       "sync": { "requestsPerMinute": 60, "maxBurst": 10, "remaining": 59, "resetAt": "2026-04-20T21:17:00.000Z" },
@@ -82,80 +82,57 @@ X-API-Key: <api-key>
 }
 ```
 
-Paginate by passing the `nextCursor` value as the `cursor` parameter in the next request. When `nextCursor` is absent, you have reached the last page. Each entry also includes `actorName`; `metadata` is an arbitrary per-action JSON object. The `limits` object reports your current rate-limit and usage status.
+The limits above are illustrative. Pass `nextCursor` as the next request's `cursor`; its absence ends pagination. Keep filters unchanged across pages.
 
-The API accepts both personal and workspace-scoped API keys. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
+## Recorded events and limits
 
----
-
-## Event types
-
-Audit log events follow a `resource.action` naming pattern. The table below lists the main categories.
+Events use identifiers such as `resource.action`. These categories are representative, not an exhaustive event catalog.
 
 | Category | Example events |
-|----------|---------------|
-| **Workflows** | `workflow.created`, `workflow.deleted`, `workflow.deployed`, `workflow.locked` |
-| **Workspaces** | `workspace.created`, `workspace.updated`, `workspace.deleted` |
-| **Members** | `member.invited`, `member.removed`, `member.role_changed` |
-| **Permission groups** | `permission_group.created`, `permission_group.updated`, `permission_group.deleted` |
-| **Environments** | `environment.updated`, `environment.deleted` |
-| **Knowledge bases** | `knowledge_base.created`, `knowledge_base.deleted`, `connector.synced` |
-| **Tables** | `table.created`, `table.updated`, `table.deleted` |
-| **API keys** | `api_key.created`, `api_key.revoked` |
-| **Credentials** | `credential.created`, `credential.deleted`, `oauth.disconnected` |
-| **Organization** | `organization.updated`, `org_member.added`, `org_member.role_changed` |
+| --- | --- |
+| Authentication | `auth.login_succeeded`, `auth.login_failed`, `auth.logout`, `auth.impersonation_started`, `auth.impersonation_ended`, `auth.sessions_revoked` |
+| Workflows | `workflow.created`, `workflow.deleted`, `workflow.deployed`, `workflow.locked` |
+| Workspaces | `workspace.created`, `workspace.updated`, `workspace.deleted` |
+| Members | `member.invited`, `member.removed`, `member.role_changed` |
+| Permission groups | `permission_group.created`, `permission_group.updated`, `permission_group.deleted` |
+| Environments | `environment.updated`, `environment.deleted` |
+| Knowledge bases | `knowledge_base.created`, `knowledge_base.deleted`, `connector.synced` |
+| Tables | `table.created`, `table.updated`, `table.deleted` |
+| API keys | `api_key.created`, `api_key.revoked` |
+| Credentials | `credential.created`, `credential.deleted`, `oauth.disconnected` |
+| Organization | `organization.updated`, `org_member.added`, `org_member.role_changed`, `organization.sso_provider.updated` |
+| Exports and drains | `audit_logs.exported`, `data_drain.created`, `data_drain.updated`, `data_drain.ran`, `data_drain.tested` |
 
-Workspace invitation events include whether the invite is for an internal organization member or an external workspace member in their metadata. External workspace members can appear as actors on workspace-scoped events, and appear in the roster with an External label without becoming organization members.
+Authentication failures and password-reset requests use an anonymous actor and record the target account separately. Impersonation and administrative session revocations identify the operator and target organization. Table-row mutations record summaries and counts without copying row contents.
 
----
+Most audit writes are best effort: an outage or process loss can prevent persistence after an action succeeds. Deployment activation uses an awaited, idempotent insert before its outbox checkpoint. The feed is not a complete tool-call stream or a guaranteed transactional ledger for every operation.
 
-<FAQ items={[
-  {
-    question: "Who can view audit logs?",
-    answer: "Organization owners and admins can view audit logs. On Sim Cloud, you must be on the Enterprise plan."
-  },
-  {
-    question: "Are audit logs tamper-proof?",
-    answer: "Audit log entries are append-only and cannot be modified or deleted through the Sim interface or API. They represent a reliable record of actions taken in your organization."
-  },
-  {
-    question: "Can I export audit logs?",
-    answer: "Yes. Use the API to export logs programmatically. Paginate through all records using the cursor parameter and store them in your own data warehouse or SIEM."
-  },
-  {
-    question: "Are logs scoped to a single workspace or the whole organization?",
-    answer: "Audit logs are scoped to your organization and include activity across all workspaces within it. You can filter by workspaceId to narrow results to a specific workspace."
-  },
-  {
-    question: "What information is included in each log entry?",
-    answer: "Each entry includes the event type, a description, the actor's name and email, the affected resource, the workspace, and a timestamp. IP addresses and user agents are not exposed through the API."
-  },
-  {
-    question: "Can I filter logs by a specific user?",
-    answer: "Yes. Pass the actorId query parameter to filter logs by a specific user. Organization-wide actor filters require the actor to be a current or former member of your organization. Workspace-scoped logs may also include external workspace members who acted inside a workspace without joining the organization."
-  }
-]} />
-
----
+The interface and API provide no audit-entry editing or deletion. Database administrators can alter stored records, and entries are not cryptographically sealed. Use a drain to retain your own archive.
 
 ## Self-hosted setup
 
-Self-hosted deployments use environment variables instead of the billing/plan check.
-
-### Environment variables
+On billing-disabled deployments, enable audit logs through enterprise configuration or explicitly set:
 
 ```bash
 AUDIT_LOGS_ENABLED=true
 NEXT_PUBLIC_AUDIT_LOGS_ENABLED=true
 ```
 
-Once enabled, audit logs are viewable in **Settings → Organization → Audit logs** and accessible via the API.
+Explicit feature values take precedence over the enterprise master setting. Billing-enabled self-hosted deployments retain the Enterprise gate. See [self-hosted enterprise setup](/platform/enterprise/self-hosted).
 
-`GET /api/v1/audit-logs` authenticates with an `x-api-key` whose owner is an admin or owner of an organization, so it is unreachable on a deployment where nobody belongs to one yet. On Sim Cloud it additionally requires an active Enterprise subscription; self-hosted, `AUDIT_LOGS_ENABLED` takes that role. The admin-key equivalent needs neither an organization nor a plan:
+### Deployment-admin API
+
+Operators can use a separate instance-wide API with `ADMIN_API_KEY`, without an organization or plan:
 
 ```http
 GET /api/v1/admin/audit-logs
 x-admin-key: <admin-api-key>
 ```
 
-It accepts the same filters plus `actorEmail`, drops `includeDeparted`, and paginates with `limit` (max 250) and `offset` instead of the organization endpoint's `limit` (max 100) and `cursor`. It returns entries across the whole deployment rather than one organization. `GET /api/v1/admin/audit-logs/<id>` returns a single entry. Set `ADMIN_API_KEY` to use it — see the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
+This endpoint returns events across the deployment, including IP addresses and user agents. It supports the organization endpoint's event/resource/workspace/date filters plus `actorEmail`, omits `includeDeparted`, and uses `limit` (default 50, maximum 250) and `offset` (default 0) pagination. `GET /api/v1/admin/audit-logs/<id>` returns one entry. Keep the deployment-admin key separate from personal organization keys.
+
+## Related docs
+
+- [Data drains](/platform/enterprise/data-drains)
+- [Permission groups](/platform/enterprise/access-control)
+- [Audit-log CLI](/cli/audit-logs)

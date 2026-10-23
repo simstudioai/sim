@@ -44,6 +44,7 @@ export const organizationUsageOperations = {
    */
   readActivitySummary: defineOrganizationOperation({
     id: 'organization_usage.activity.summary.read',
+    contentDelivery: 'none',
     capability: 'none',
     ...BASE,
   }),
@@ -52,6 +53,7 @@ export const organizationUsageOperations = {
    */
   readActivityBreakdown: defineOrganizationOperation({
     id: 'organization_usage.activity.breakdown.read',
+    contentDelivery: 'none',
     capability: 'none',
     ...BASE,
   }),
@@ -60,6 +62,14 @@ export const organizationUsageOperations = {
    */
   readOverview: defineOrganizationOperation({
     id: 'organization_usage.overview.read',
+    contentDelivery: 'none',
+    capability: 'none',
+    ...BASE,
+  }),
+  /** permission-group-exempt: daily credit history requires organization billing-admin authority. */
+  readCalendar: defineOrganizationOperation({
+    id: 'organization_usage.calendar.read',
+    contentDelivery: 'none',
     capability: 'none',
     ...BASE,
   }),
@@ -68,6 +78,7 @@ export const organizationUsageOperations = {
    */
   readSummary: defineOrganizationOperation({
     id: 'organization_usage.summary.read',
+    contentDelivery: 'none',
     capability: 'none',
     ...PUBLIC_READ,
   }),
@@ -76,6 +87,7 @@ export const organizationUsageOperations = {
    */
   readBreakdown: defineOrganizationOperation({
     id: 'organization_usage.breakdown.read',
+    contentDelivery: 'none',
     capability: 'none',
     ...PUBLIC_READ,
   }),
@@ -84,6 +96,7 @@ export const organizationUsageOperations = {
    */
   listEvents: defineOrganizationOperation({
     id: 'organization_usage.events.list',
+    contentDelivery: 'none',
     capability: 'none',
     ...PUBLIC_READ,
   }),
@@ -92,6 +105,7 @@ export const organizationUsageOperations = {
    */
   exportEvents: defineOrganizationOperation({
     id: 'organization_usage.events.export',
+    contentDelivery: 'none',
     capability: 'none',
     ...BASE,
   }),

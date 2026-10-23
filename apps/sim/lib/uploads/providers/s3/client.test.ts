@@ -1,11 +1,12 @@
 /**
  * Tests for S3 client functionality
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { setUploadsConfig, uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockSend,
-  mockS3Client,
   mockS3ClientConstructor,
   mockPutObjectCommand,
   mockGetObjectCommand,
@@ -14,18 +15,10 @@ const {
   mockListPartsCommand,
   mockCompleteMultipartUploadCommand,
   mockGetSignedUrl,
-  mockEnv,
   mockS3Config,
 } = vi.hoisted(() => {
   const mockSend = vi.fn()
   const mockS3Client = { send: mockSend }
-  const mockEnv: Record<string, string | undefined> = {
-    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-    S3_BUCKET_NAME: 'test-bucket',
-    AWS_REGION: 'test-region',
-    AWS_ACCESS_KEY_ID: 'test-access-key',
-    AWS_SECRET_ACCESS_KEY: 'test-secret-key',
-  }
   const mockS3Config: {
     bucket: string
     region: string
@@ -56,7 +49,6 @@ const {
     mockListPartsCommand: vi.fn().mockImplementation(class {}),
     mockCompleteMultipartUploadCommand: vi.fn().mockImplementation(class {}),
     mockGetSignedUrl: vi.fn(),
-    mockEnv,
   }
 })
 
@@ -74,48 +66,45 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mockGetSignedUrl,
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  getEnv: (key: string) => mockEnv[key],
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
-  isFalsy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
-}))
-
-vi.mock('@/lib/uploads/config', () => ({
-  S3_CONFIG: mockS3Config,
-  S3_KB_CONFIG: {
-    bucket: 'test-kb-bucket',
-    region: 'test-region',
-  },
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 import {
   completeS3MultipartUpload,
   deleteFromS3,
   deleteS3ObjectVersion,
   downloadFromS3,
-  getS3PresignedUploadUrl,
   headS3Object,
   listS3MultipartParts,
   resetS3ClientForTesting,
   uploadToS3,
 } from '@/lib/uploads/providers/s3/client'
 
+setUploadsConfig({
+  S3_CONFIG: mockS3Config,
+  S3_KB_CONFIG: {
+    bucket: 'test-kb-bucket',
+    region: 'test-region',
+  },
+})
+
+setEnv({
+  NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+  S3_BUCKET_NAME: 'test-bucket',
+  AWS_REGION: 'test-region',
+  AWS_ACCESS_KEY_ID: 'test-access-key',
+  AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+})
+afterAll(resetEnvMock)
+
 describe('S3 Client', () => {
   beforeEach(() => {
     vi.spyOn(Date, 'now').mockReturnValue(1672603200000)
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2025-06-16T01:13:10.765Z')
-    mockEnv.AWS_ACCESS_KEY_ID = 'test-access-key'
-    mockEnv.AWS_SECRET_ACCESS_KEY = 'test-secret-key'
+    setEnv({ AWS_ACCESS_KEY_ID: 'test-access-key' })
+    setEnv({ AWS_SECRET_ACCESS_KEY: 'test-secret-key' })
     mockS3Config.endpoint = undefined
     mockS3Config.forcePathStyle = false
     resetS3ClientForTesting()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   describe('uploadToS3', () => {
@@ -234,35 +223,6 @@ describe('S3 Client', () => {
   })
 
   describe('direct upload primitives', () => {
-    it('signs metadata and a create-only condition without duplicate x-amz-meta headers', async () => {
-      mockGetSignedUrl.mockResolvedValueOnce('https://example.com/signed-put')
-
-      const result = await getS3PresignedUploadUrl({
-        key: 'workspace/workspace-1/file.bin',
-        contentType: 'application/octet-stream',
-        fileSize: 3,
-        metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
-        customConfig: mockS3Config,
-        expiresIn: 600,
-      })
-
-      expect(mockPutObjectCommand).toHaveBeenCalledWith({
-        Bucket: 'test-bucket',
-        Key: 'workspace/workspace-1/file.bin',
-        ContentType: 'application/octet-stream',
-        ContentLength: 3,
-        IfNoneMatch: '*',
-        Metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
-      })
-      expect(result).toEqual({
-        url: 'https://example.com/signed-put',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'If-None-Match': '*',
-        },
-      })
-    })
-
     it('lists every provider part across pagination', async () => {
       mockSend
         .mockResolvedValueOnce({

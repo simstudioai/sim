@@ -1,43 +1,65 @@
 ---
 title: Microsoft Teams
 description: Manage messages, reactions, and members in Teams
+integration:
+  type: "microsoft_teams"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_teams"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Microsoft Teams](https://teams.microsoft.com) is a robust communication and collaboration platform that enables users to engage in real-time messaging, meetings, and content sharing within teams and organizations. As part of Microsoft's productivity ecosystem, Microsoft Teams offers seamless chat functionality integrated with Office 365, allowing users to post messages, coordinate work, and stay connected across devices and workflows.
+Use [Microsoft Teams](https://teams.microsoft.com) to read, send, update, or delete chat and channel messages, reply to threads, and add reactions. List teams, chats, channels, and their members to resolve destinations.
 
-With Microsoft Teams, you can:
+Switch to trigger mode to start a workflow from message notifications in a selected chat, or when the outgoing webhook is @mentioned in a channel. To mention a user, wrap the name in `<at>` tags, such as `<at>userName</at>`, and supply the mention details required by the action.
 
-- **Send and receive messages**: Communicate instantly with individuals or groups in chat threads  
-- **Collaborate in real-time**: Share updates and information across teams within channels and chats  
-- **Organize conversations**: Maintain context with threaded discussions and persistent chat history  
-- **Share files and content**: Attach and view documents, images, and links directly in chat  
-- **Integrate with Microsoft 365**: Seamlessly connect with Outlook, SharePoint, OneDrive, and more  
-- **Access across devices**: Use Teams on desktop, web, and mobile with cloud-synced conversations  
-- **Secure communication**: Leverage enterprise-grade security and compliance features
-
-In Sim, the Microsoft Teams integration enables your agents to interact directly with chat messages programmatically. This allows for powerful automation scenarios such as sending updates, posting alerts, coordinating tasks, and responding to conversations in real time. Your agents can write new messages to chats or channels, update content based on workflow data, and engage with users where collaboration happens. By integrating Sim with Microsoft Teams, you bridge the gap between intelligent workflows and team communication — empowering your agents to streamline collaboration, automate communication tasks, and keep your teams aligned.
+Chat subscriptions request creation and update notifications, but Sim deduplicates them by subscription and message ID within a seven-day window. Later edits may not start a separate workflow run.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Teams account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-teams` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `User.Read` | Sign in and read your profile |
+| `Chat.Read` | Read your Teams chat messages |
+| `Chat.ReadWrite` | Read and write your Teams chat messages |
+| `Chat.ReadBasic` | Read names and members of your Teams chats |
+| `ChatMessage.Send` | Send chat messages |
+| `Channel.ReadBasic.All` | Read channel names and descriptions |
+| `ChannelMessage.Send` | Send channel messages |
+| `ChannelMessage.Read.All` | Read channel messages |
+| `ChannelMessage.ReadWrite` | Read and write channel messages |
+| `ChannelMember.Read.All` | Read team channel members |
+| `Group.Read.All` | Read all groups, memberships, and group content |
+| `Group.ReadWrite.All` | Read and write all groups |
+| `Team.ReadBasic.All` | Read team names and descriptions |
+| `TeamMember.Read.All` | Read team members |
+| `offline_access` | Access account when not using the application |
+| `Files.Read` | Read OneDrive files |
+| `Sites.Read.All` | Read documents and list items in all SharePoint sites |
 
+## Use the block [#usage-instructions]
+
+Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Use trigger mode for message notifications in a selected chat, or an @mention of the outgoing webhook in a channel. Chat subscriptions request creation and update notifications, but Sim deduplicates them by subscription and message ID within a seven-day window. Later edits may not start a separate run. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
 
 ## Actions
 
 ### Read Microsoft Teams Chat
 
 Read content from a Microsoft Teams chat
+
+<ReferenceDetails>
 
 #### Input
 
@@ -59,9 +81,13 @@ Read content from a Microsoft Teams chat
 | `content` | string | Formatted content of chat messages |
 | `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
+</ReferenceDetails>
+
 ### Write to Microsoft Teams Chat
 
 Write or update content in a Microsoft Teams chat
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +109,13 @@ Write or update content in a Microsoft Teams chat
 | `updatedContent` | boolean | Whether content was successfully updated |
 | `files` | file[] | Files attached to the message |
 
+</ReferenceDetails>
+
 ### Read Microsoft Teams Channel
 
 Read content from a Microsoft Teams channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +139,13 @@ Read content from a Microsoft Teams channel
 | `content` | string | Formatted content of channel messages |
 | `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
+</ReferenceDetails>
+
 ### Write to Microsoft Teams Channel
 
 Write or send a message to a Microsoft Teams channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +169,13 @@ Write or send a message to a Microsoft Teams channel
 | `updatedContent` | boolean | Whether content was successfully updated |
 | `files` | file[] | Files attached to the message |
 
+</ReferenceDetails>
+
 ### Update Microsoft Teams Chat Message
 
 Update an existing message in a Microsoft Teams chat
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,11 +192,15 @@ Update an existing message in a Microsoft Teams chat
 | `success` | boolean | Whether the update was successful |
 | `messageId` | string | ID of the updated message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+
+</ReferenceDetails>
 
 ### Update Microsoft Teams Channel Message
 
 Update an existing message in a Microsoft Teams channel
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -176,9 +218,13 @@ Update an existing message in a Microsoft Teams channel
 | `messageId` | string | ID of the updated message |
 | `updatedContent` | boolean | Whether content was successfully updated |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Teams Chat Message
 
 Soft delete a message in a Microsoft Teams chat
+
+<ReferenceDetails>
 
 #### Input
 
@@ -195,9 +241,13 @@ Soft delete a message in a Microsoft Teams chat
 | `deleted` | boolean | Confirmation of deletion |
 | `messageId` | string | ID of the deleted message |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Teams Channel Message
 
 Soft delete a message in a Microsoft Teams channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +265,13 @@ Soft delete a message in a Microsoft Teams channel
 | `deleted` | boolean | Confirmation of deletion |
 | `messageId` | string | ID of the deleted message |
 
+</ReferenceDetails>
+
 ### Reply to Microsoft Teams Channel Message
 
 Reply to an existing message in a Microsoft Teams channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +290,13 @@ Reply to an existing message in a Microsoft Teams channel
 | `messageId` | string | ID of the reply message |
 | `updatedContent` | boolean | Whether content was successfully sent |
 
+</ReferenceDetails>
+
 ### Get Microsoft Teams Message
 
 Get a specific message from a Microsoft Teams chat or channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +324,13 @@ Get a specific message from a Microsoft Teams chat or channel
 |   ↳ `messages` | array | Array of message details |
 |   ↳ `messageCount` | number | Number of messages |
 
+</ReferenceDetails>
+
 ### Add Reaction to Microsoft Teams Message
 
 Add an emoji reaction to a message in Microsoft Teams
+
+<ReferenceDetails>
 
 #### Input
 
@@ -288,9 +350,13 @@ Add an emoji reaction to a message in Microsoft Teams
 | `reactionType` | string | The emoji that was added |
 | `messageId` | string | ID of the message |
 
+</ReferenceDetails>
+
 ### Remove Reaction from Microsoft Teams Message
 
 Remove an emoji reaction from a message in Microsoft Teams
+
+<ReferenceDetails>
 
 #### Input
 
@@ -310,9 +376,13 @@ Remove an emoji reaction from a message in Microsoft Teams
 | `reactionType` | string | The emoji that was removed |
 | `messageId` | string | ID of the message |
 
+</ReferenceDetails>
+
 ### List Microsoft Teams Team Members
 
 List all members of a Microsoft Teams team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -328,9 +398,13 @@ List all members of a Microsoft Teams team
 | `members` | array | Array of team members |
 | `memberCount` | number | Total number of members |
 
+</ReferenceDetails>
+
 ### List Microsoft Teams Channel Members
 
 List all members of a Microsoft Teams channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -347,9 +421,13 @@ List all members of a Microsoft Teams channel
 | `members` | array | Array of channel members |
 | `memberCount` | number | Total number of members |
 
+</ReferenceDetails>
+
 ### List Microsoft Teams Chat Members
 
 List all members of a Microsoft Teams chat
+
+<ReferenceDetails>
 
 #### Input
 
@@ -366,9 +444,13 @@ List all members of a Microsoft Teams chat
 | `memberCount` | number | Total number of members |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
+</ReferenceDetails>
+
 ### List Microsoft Teams
 
 List the Microsoft Teams the current user is a direct member of
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +466,13 @@ List the Microsoft Teams the current user is a direct member of
 | `teamCount` | number | Total number of teams |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
+</ReferenceDetails>
+
 ### List Microsoft Teams Chats
 
 List the Microsoft Teams chats the current user is part of
+
+<ReferenceDetails>
 
 #### Input
 
@@ -402,9 +488,13 @@ List the Microsoft Teams chats the current user is part of
 | `chatCount` | number | Total number of chats |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
+</ReferenceDetails>
+
 ### List Microsoft Teams Channels
 
 List all channels in a Microsoft Teams team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -421,15 +511,19 @@ List all channels in a Microsoft Teams team
 | `channelCount` | number | Total number of channels |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Microsoft Teams Channel
 
-Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
+Trigger workflows when the outgoing webhook is @mentioned in a Microsoft Teams channel.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -441,23 +535,23 @@ Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `from` | object | from output from the tool |
+| `from` | object |  |
 |   ↳ `id` | string | Sender ID |
 |   ↳ `name` | string | Sender name |
 |   ↳ `aadObjectId` | string | AAD Object ID |
-| `message` | object | message output from the tool |
-|   ↳ `raw` | object | raw output from the tool |
+| `message` | object |  |
+|   ↳ `raw` | object |  |
 |     ↳ `attachments` | json | Array of attachments |
-|     ↳ `channelData` | object | channelData output from the tool |
-|       ↳ `team` | object | team output from the tool |
+|     ↳ `channelData` | object |  |
+|       ↳ `team` | object |  |
 |         ↳ `id` | string | Team ID |
-|       ↳ `tenant` | object | tenant output from the tool |
+|       ↳ `tenant` | object |  |
 |         ↳ `id` | string | Tenant ID |
-|       ↳ `channel` | object | channel output from the tool |
+|       ↳ `channel` | object |  |
 |         ↳ `id` | string | Channel ID |
 |       ↳ `teamsTeamId` | string | Teams team ID |
 |       ↳ `teamsChannelId` | string | Teams channel ID |
-|     ↳ `conversation` | object | conversation output from the tool |
+|     ↳ `conversation` | object |  |
 |       ↳ `id` | string | Composite conversation ID |
 |       ↳ `name` | string | Conversation name \(nullable\) |
 |       ↳ `isGroup` | boolean | Is group conversation |
@@ -469,7 +563,7 @@ Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
 |     ↳ `channelId` | string | Channel ID \(msteams\) |
 |     ↳ `timestamp` | string | Timestamp |
 | `activity` | object | Activity payload |
-| `conversation` | object | conversation output from the tool |
+| `conversation` | object |  |
 |   ↳ `id` | string | Composite conversation ID |
 |   ↳ `name` | string | Conversation name \(nullable\) |
 |   ↳ `isGroup` | boolean | Is group conversation |
@@ -477,12 +571,11 @@ Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
 |   ↳ `aadObjectId` | string | AAD Object ID \(nullable\) |
 |   ↳ `conversationType` | string | Conversation type \(channel\) |
 
-
----
+</ReferenceDetails>
 
 ### Microsoft Teams Chat
 
-Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions
+Trigger workflows from Microsoft Teams chat message notifications via Microsoft Graph subscriptions. Notifications share a seven-day deduplication window keyed by subscription and message ID, so later edits may not start a separate run.
 
 #### Configuration
 

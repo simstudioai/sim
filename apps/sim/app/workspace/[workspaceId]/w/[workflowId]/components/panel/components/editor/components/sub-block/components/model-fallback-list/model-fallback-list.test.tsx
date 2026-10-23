@@ -1,6 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
+
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -21,10 +23,6 @@ const { subBlockValues, mockSetValue } = vi.hoisted(() => ({
     }>,
   },
   mockSetValue: vi.fn(),
-}))
-
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -69,12 +67,7 @@ vi.mock('@sim/emcn', () => ({
   },
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  ChevronDown: () => null,
-  ChevronUp: () => null,
-  Plus: () => null,
-  Trash: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value',
@@ -134,6 +127,7 @@ vi.mock('@/lib/workflows/blocks/fallback-models', async (importOriginal) => {
   }
 })
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { ModelFallbackList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/model-fallback-list/model-fallback-list'
 
 beforeEach(() => {
@@ -143,12 +137,18 @@ beforeEach(() => {
 
 afterEach(() => {
   resetDeploymentShape()
-  vi.unstubAllGlobals()
 })
 
 function render(extra: Partial<React.ComponentProps<typeof ModelFallbackList>> = {}) {
   return renderToStaticMarkup(
-    <ModelFallbackList blockId='block-1' subBlockId='fallbackModels' disabled={false} {...extra} />
+    <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+      <ModelFallbackList
+        blockId='block-1'
+        subBlockId='fallbackModels'
+        disabled={false}
+        {...extra}
+      />
+    </WorkflowScopeProvider>
   )
 }
 

@@ -64,7 +64,7 @@ export const hubspotCreateContactTool: ToolConfig<
       if (typeof properties === 'string') {
         try {
           properties = JSON.parse(properties)
-        } catch (e) {
+        } catch {
           throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
         }
       }
@@ -77,7 +77,7 @@ export const hubspotCreateContactTool: ToolConfig<
       if (typeof associations === 'string') {
         try {
           associations = JSON.parse(associations)
-        } catch (e) {
+        } catch {
           throw new Error(
             'Invalid JSON format for associations. Please provide a valid JSON array.'
           )

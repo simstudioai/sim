@@ -2,7 +2,11 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
-import { buildConnectLoopbackUrl, sanitizeOAuthErrorSlug } from '@/app/desktop/connect/validation'
+import {
+  buildConnectLoopbackUrl,
+  isValidOpaqueId,
+  sanitizeOAuthErrorSlug,
+} from '@/app/desktop/connect/validation'
 
 export const metadata: Metadata = {
   title: 'Returning to Sim',
@@ -44,5 +48,12 @@ export default async function ConnectCompletePage({ searchParams }: ConnectCompl
   // failure must never read as success — take the first code.
   const rawError = Array.isArray(params.error) ? params.error[0] : params.error
   const error = sanitizeOAuthErrorSlug(rawError)
-  redirect(buildConnectLoopbackUrl(state, port, error ?? undefined))
+  redirect(
+    buildConnectLoopbackUrl(
+      state,
+      port,
+      error ?? undefined,
+      isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
+    )
+  )
 }

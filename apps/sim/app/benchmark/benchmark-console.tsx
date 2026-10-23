@@ -15,12 +15,14 @@ import {
   useBenchmarkWorkspaces,
 } from '@/hooks/queries/benchmarks'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 export function BenchmarkConsole() {
   const [{ organizationId, runAsUserId }, setParams] = useQueryStates(
     benchmarkConsoleParams,
     benchmarkConsoleUrlOptions
   )
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   const [organizationSearch, setOrganizationSearch] = useState('')
   const [userSearch, setUserSearch] = useState('')
   const organizations = useBenchmarkOrganizations(
@@ -70,7 +72,14 @@ export function BenchmarkConsole() {
               isLoading={organizations.isLoading}
               onSearchChange={setOrganizationSearch}
               onChange={(value) =>
-                setParams({ organizationId: value, runAsUserId: null, ...emptyBenchmarkSelection })
+                requestLeave(
+                  () =>
+                    void setParams({
+                      organizationId: value,
+                      runAsUserId: null,
+                      ...emptyBenchmarkSelection,
+                    })
+                )
               }
             />
             {organizations.hasNextPage && (
@@ -100,7 +109,11 @@ export function BenchmarkConsole() {
               isLoading={users.isLoading}
               disabled={!organizationId}
               onSearchChange={setUserSearch}
-              onChange={(value) => setParams({ runAsUserId: value, ...emptyBenchmarkSelection })}
+              onChange={(value) =>
+                requestLeave(
+                  () => void setParams({ runAsUserId: value, ...emptyBenchmarkSelection })
+                )
+              }
             />
             {users.hasNextPage && (
               <Chip disabled={users.isFetchingNextPage} onClick={() => users.fetchNextPage()}>

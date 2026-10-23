@@ -57,6 +57,11 @@ export function isEnterprise(plan: string | null | undefined): boolean {
   return plan === 'enterprise'
 }
 
+/** Whether a plan is a legacy single-price `pro`/`team` plan from before the credit tiers. */
+export function isLegacyPlan(plan: string | null | undefined): boolean {
+  return plan === 'pro' || plan === 'team'
+}
+
 export function isPaid(plan: string | null | undefined): boolean {
   return isPro(plan) || isTeam(plan) || isEnterprise(plan)
 }
@@ -138,7 +143,7 @@ export function getPlanType(plan: string | null | undefined): PlanCategory {
  * categories.
  */
 export function getPlanTypeForLimits(plan: string | null | undefined): PlanCategory {
-  if (plan === 'pro' || plan === 'team') return getPlanType(plan)
+  if (isLegacyPlan(plan)) return getPlanType(plan)
   if (isPro(plan) || isTeam(plan)) {
     return getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? 'team' : 'pro'
   }
@@ -184,9 +189,8 @@ export function getDisplayPlanName(plan: string | null | undefined): string {
   if (isEnterprise(plan)) return 'Enterprise'
   const credits = getPlanTierCredits(plan)
   const tier = CREDIT_TIERS.find((t) => t.credits === credits)
-  const isLegacy = plan === 'pro' || plan === 'team'
   const tierName = tier?.name ?? (plan === 'team' ? 'Max' : 'Pro')
-  const prefix = isLegacy ? 'Legacy ' : ''
+  const prefix = isLegacyPlan(plan) ? 'Legacy ' : ''
   const suffix = isTeam(plan) ? ' for Teams' : ''
   return `${prefix}${tierName}${suffix}`
 }

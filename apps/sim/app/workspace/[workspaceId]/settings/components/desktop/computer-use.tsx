@@ -1,28 +1,48 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getDesktopBridge } from '@/lib/desktop'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useComputerUseAvailability } from '@/hooks/queries/computer-use'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
 export function ComputerUseSettings() {
+  return (
+    <>
+      <ComputerUseActivity />
+      <ComputerUseSettingsControls />
+    </>
+  )
+}
+
+function ComputerUseSettingsControls() {
+  const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
-  const availability = useComputerUseAvailability(Boolean(bridge))
+  const enabled = useFeatureFlag('mothership-computer-use')
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
+  const refreshApps = useCallback(async () => {
+    if (!bridge) return
+    const version = ++requestVersion.current
+    try {
+      const approved = await bridge.listAppPermissions()
+      if (version === requestVersion.current) setApps(approved)
+    } catch {
+      if (version === requestVersion.current) toast.error('Could not load approved apps')
+    }
+  }, [bridge])
   useEffect(() => {
-    if (!bridge || !availability.data?.enabled) return
-    void bridge
-      .listAppPermissions()
-      .then(setApps)
-      .catch(() => toast.error('Could not load approved apps'))
-  }, [bridge, availability.data?.enabled, status?.activeAction])
-  if (!bridge || !availability.data?.enabled || status?.supported === false) return null
+    if (!enabled) return
+    void refreshApps()
+    return () => {
+      requestVersion.current += 1
+    }
+  }, [enabled, refreshApps, status?.activeAction])
+  if (!bridge || !enabled || status?.supported === false) return null
   const update = async (action: () => Promise<void>) => {
     setPending(true)
     try {
@@ -36,7 +56,6 @@ export function ComputerUseSettings() {
   return (
     <SettingsSection label='Computer Use'>
       <div className='flex flex-col gap-3'>
-        <ComputerUseActivity />
         <div className='flex items-center justify-between'>
           <Label asChild>
             <span>Allow Mothership to use Mac apps</span>
@@ -71,7 +90,8 @@ export function ComputerUseSettings() {
               <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
             ) : (
               <Chip
-                disabled={pending || !status}
+                aria-label={`Open System Settings for ${permission === 'accessibility' ? 'Accessibility' : 'Screen Recording'}`}
+                disabled={pending || !status?.enabled}
                 onClick={() =>
                   void update(async () => setStatus(await bridge.requestPermission(permission)))
                 }
@@ -97,8 +117,9 @@ export function ComputerUseSettings() {
                   disabled={pending}
                   onClick={() =>
                     void update(async () => {
+                      requestVersion.current += 1
                       await bridge.revokeApp(app.bundleId)
-                      setApps(await bridge.listAppPermissions())
+                      await refreshApps()
                     })
                   }
                 >

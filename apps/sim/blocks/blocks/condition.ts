@@ -1,20 +1,7 @@
 import { ConditionalIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 
-interface ConditionBlockOutput {
-  success: boolean
-  output: {
-    conditionResult: boolean
-    selectedPath: {
-      blockId: string
-      blockType: string
-      blockTitle: string
-    }
-    selectedOption: string
-  }
-}
-
-export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
+export const ConditionBlock: BlockConfig = {
   type: 'condition',
   name: 'Condition',
   description: 'Add a condition',

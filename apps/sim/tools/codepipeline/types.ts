@@ -29,7 +29,7 @@ export interface CodePipelineGetPipelineStateParams extends CodePipelineConnecti
   pipelineName: string
 }
 
-export interface CodePipelineActionState {
+interface CodePipelineActionState {
   actionName: string
   status: string | undefined
   summary: string | undefined
@@ -44,7 +44,7 @@ export interface CodePipelineActionState {
   entityUrl: string | undefined
 }
 
-export interface CodePipelineStageState {
+interface CodePipelineStageState {
   stageName: string
   status: string | undefined
   pipelineExecutionId: string | undefined
@@ -149,7 +149,7 @@ export interface CodePipelineStopExecutionResponse extends ToolResponse {
   }
 }
 
-export type CodePipelineRetryMode = 'FAILED_ACTIONS' | 'ALL_ACTIONS'
+type CodePipelineRetryMode = 'FAILED_ACTIONS' | 'ALL_ACTIONS'
 
 export interface CodePipelineRetryStageExecutionParams extends CodePipelineConnectionConfig {
   pipelineName: string
@@ -164,7 +164,7 @@ export interface CodePipelineRetryStageExecutionResponse extends ToolResponse {
   }
 }
 
-export type CodePipelineApprovalStatus = 'Approved' | 'Rejected'
+type CodePipelineApprovalStatus = 'Approved' | 'Rejected'
 
 export interface CodePipelinePutApprovalResultParams extends CodePipelineConnectionConfig {
   pipelineName: string
@@ -187,7 +187,7 @@ export interface CodePipelineGetPipelineParams extends CodePipelineConnectionCon
   version?: number
 }
 
-export interface CodePipelineActionDeclaration {
+interface CodePipelineActionDeclaration {
   name: string
   category: string
   owner: string
@@ -199,7 +199,7 @@ export interface CodePipelineActionDeclaration {
   outputArtifacts: string[]
 }
 
-export interface CodePipelineStageDeclaration {
+interface CodePipelineStageDeclaration {
   stageName: string
   actions: CodePipelineActionDeclaration[]
 }
@@ -232,7 +232,7 @@ export interface CodePipelineListActionExecutionsParams extends CodePipelineConn
   nextToken?: string
 }
 
-export interface CodePipelineActionExecutionDetail {
+interface CodePipelineActionExecutionDetail {
   pipelineExecutionId: string | undefined
   actionExecutionId: string | undefined
   pipelineVersion: number | undefined
@@ -256,7 +256,7 @@ export interface CodePipelineListActionExecutionsResponse extends ToolResponse {
   }
 }
 
-export type CodePipelineTransitionType = 'Inbound' | 'Outbound'
+type CodePipelineTransitionType = 'Inbound' | 'Outbound'
 
 export interface CodePipelineDisableStageTransitionParams extends CodePipelineConnectionConfig {
   pipelineName: string

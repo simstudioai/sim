@@ -1,0 +1,67 @@
+name: docs content negotiation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/docs/**'
+      - 'patches/next@*.patch'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/docs-negotiation.yml'
+  push:
+    branches: [staging]
+    paths:
+      - 'apps/docs/**'
+      - 'patches/next@*.patch'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/docs-negotiation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-negotiation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  http:
+    name: docs HTTP
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
+      DOCS_E2E_BASE_URL: http://127.0.0.1:3001
+      DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/test-results/docs-negotiation.json
+      DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/test-results/docs-headers.json
+      DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/test-results/navigation/docs.json
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+      - name: Build production docs
+        run: bun run --cwd apps/docs build
+      - name: Verify native header edge cases
+        run: bun run --cwd apps/docs test:headers:e2e
+      - name: Install browser for navigation checks
+        run: bunx --no-install playwright install --with-deps chromium
+      - name: Verify HTTP content negotiation
+        run: |
+          mkdir -p test-results
+          bun run --cwd apps/docs start --port 3001 >test-results/docs-server.log 2>&1 &
+          DOCS_SERVER_PID=$!
+          trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
+          bun run --cwd apps/docs test:negotiation:e2e
+          bun run --cwd apps/docs test:navigation:e2e
+      - name: Upload HTTP regression report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-negotiation-report
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 14

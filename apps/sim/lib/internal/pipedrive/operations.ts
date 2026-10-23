@@ -6,7 +6,7 @@ import {
   type InternalToolFile,
 } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('PipedriveOperations')
 
@@ -44,7 +44,7 @@ export async function executePipedriveGetFiles(
           mimeType: downloaded.contentType || getMimeTypeFromExtension(extension),
           buffer: downloaded.buffer,
         })
-      } catch (error) {
+      } catch {
         context.signal?.throwIfAborted()
         logger.warn('Failed to download Pipedrive file', {
           fileId: file.id,

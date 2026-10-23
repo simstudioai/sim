@@ -1,233 +1,172 @@
 ---
-title: Data Retention
-description: Control how long execution logs, deleted resources, and Chat data are kept before permanent deletion — and redact PII from workflow data
+title: Data retention
+description: Configure cleanup periods and PII redaction for your organization's workspace data
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Data Retention lets organization owners and admins on Enterprise plans control two things:
+Data retention controls age-based cleanup of logs, deleted resources, Chat data, and previous file versions. The same policy can redact PII in workflow inputs, block outputs, or persisted logs.
 
-1. **Retention periods** — how long execution logs, soft-deleted resources, and Chat data are kept before they are permanently deleted.
-2. **PII redaction** — masking personally identifiable information out of your workflow data at up to three points: workflow input, block outputs, and logs.
+Organization owners and admins set the organization policy and workspace overrides. Billing-enabled deployments require Enterprise to configure these policies. Billing-disabled deployments can configure them; applying cleanup also requires the feature and a scheduler. See [self-hosted setup](#self-hosted-setup).
 
-Both are configured once at the **organization level** and apply to every workspace, with optional **per-workspace overrides** for workspaces that need different rules.
+## Defaults
 
----
+Cloud plan defaults apply when no configurable policy takes precedence:
 
-## Setup
+| Deployment or plan | Execution/job logs | Soft-deleted resources | Chat task cleanup | Previous file versions |
+| --- | --- | --- | --- | --- |
+| Free Cloud | 30 days | 30 days | No default age expiry | 30 days |
+| Pro or Max Cloud, including Teams | No default age expiry | 90 days | No default age expiry | 180 days |
+| Enterprise | No default age expiry | No default age expiry | No default age expiry | No default age expiry |
+| Billing-disabled self-hosting | No plan-based age expiry | No plan-based age expiry | No plan-based age expiry | No plan-based age expiry |
 
-Go to **Settings → Organization → Data retention** in your workspace.
+Enterprise and billing-disabled deployments retain data without an age-based expiry until configured otherwise. This does not prevent manual deletion, storage cleanup, or the file-version count limits below. PII redaction is off until a stored policy enables a stage and selects entities or patterns.
 
-<Image src="/static/enterprise/data-retention.png" alt="Data Retention settings showing the Retention policies list with the Organization default row and its summary of retention periods and PII stages" width={900} height={537} />
+## Configure a policy
 
-The page shows your **retention policies** as a list:
+1. Open **Settings → Organization → Data retention**.
+2. Open the **Organization** default row, or choose **Add override** for selected workspaces.
+3. Choose retention periods and any PII stages, entities, languages, and custom patterns.
+4. Save the policy and verify its summary in the policy list.
 
-- The **Organization** row (tagged *Default*) holds the settings that apply to every workspace without its own override.
-- Each **workspace override** row below it applies to one or more specific workspaces.
+The three UI retention fields offer **1 day**, **3 days**, **7 days**, **14 days**, **30 days**, **60 days**, **90 days**, **180 days**, **1 year**, **5 years**, or **Forever**. One year is 365 days and five years is 1,825 days. The API accepts integer hours from 24 to 43,800, or `null` for Forever.
 
-Open a row to edit it, or click **Add override** to create a workspace override. Each policy has a **Retention** section, and — when PII redaction is enabled — a **PII redaction** section.
+<Callout type="warn">
+Shortening a retention period makes older data eligible for permanent deletion on the next successful cleanup passes. Once removed, that data cannot be recovered by restoring the old policy.
+</Callout>
 
----
+Cleanup runs in bounded scheduled passes rather than at the exact expiry time. **Forever** disables age-based deletion for that category; it does not remove count caps or undo a manual deletion.
 
-## Retention periods
+### Workspace overrides
 
-Each policy has three independent retention settings, each with the same set of options: **1 day, 3 days, 7 days, 14 days, 30 days, 60 days, 90 days, 180 days, 1 year, 5 years,** or **Forever**.
+An override can target one or more workspaces, and a workspace can belong to only one override. Each retention field can **Inherit from organization** independently or set a period, including Forever. An omitted API field inherits; `null` explicitly disables age expiry.
 
-Setting a period to **Forever** means that category of data is never automatically deleted. On a workspace override, each field can also be set to **Inherit from organization** to fall back to the organization default for just that field.
+PII settings use **Inherit** or **Override** for the whole policy. Override replaces the organization's redaction policy for that workspace; stages are not merged. Removing an override restores organization defaults.
+
+<Image src="/static/enterprise/data-retention-override.png" alt="Workspace override with Log retention set to 30 days, other retention fields inherited, and a PII Inherit or Override choice" width={2000} height={1194} />
+
+## What each retention field removes
 
 ### Log retention
 
-Controls how long **execution logs** are kept.
+Cleans workflow execution logs and background job logs for deployed APIs, schedules, and webhooks, based on `startedAt`. Related execution files are also scheduled for storage cleanup; logical record deletion does not guarantee immediate physical removal of every object.
 
-When the retention period expires, log records are permanently deleted, along with any files associated with those executions in cloud storage. This covers:
-
-- Workflow execution logs
-- Background job logs (deployed APIs, schedules, and webhooks)
+Logs and referenced files for an active paused execution are protected while that execution still has live paused state. They become eligible after that protection ends and the retention window applies.
 
 ### Soft deletion cleanup
 
-Controls how long **soft-deleted resources** remain recoverable before permanent removal.
+Permanently removes resources that have remained soft-deleted beyond the window:
 
-When you delete a workflow, folder, knowledge base, table, or file, it is initially soft-deleted and can be recovered from Recently Deleted. Once the soft deletion cleanup period expires, those resources are permanently removed and cannot be recovered.
-
-Resources covered:
-
-- Workflows
-- Workflow folders
-- Knowledge bases (and their documents)
-- Tables
-- Files
+- Workflows and workflow folders
+- Knowledge bases and their documents
+- Tables and files
 - MCP server configurations
 - Agent memory
 - Chat conversations
 
+Recover supported resources through Recently Deleted before cleanup removes them. Not every stored resource in this list has a corresponding recovery action in that interface. Permanent cleanup cannot be undone.
+
 ### Task cleanup
 
-Controls how long **Chat data** is kept, including:
-
-- Chat conversations and run history
-- Run checkpoints and async tool calls
-- Inbox tasks
+Removes old Chat conversations, run history, checkpoints, async tool calls, and inbox tasks. Chat conversations and runs use their last update time; inbox tasks use creation time. This is separate from execution-log retention and soft-deletion cleanup.
 
 ### Previous file versions
 
-Every change to a file's content keeps the previous content as a version you can read or revert to through the API, CLI, or MCP server. This setting controls how long a version is kept after a newer one replaces it. The newest ten versions of each file are always kept, whatever their age.
+`fileVersionRetentionHours` is available through the data-retention API, including workspace overrides; it is not yet a settings-page field. Read or revert versions through the [Files API](/api-reference/files/listFileVersions), [CLI](/cli/files), or MCP.
 
-Without a setting, previous versions are kept until a file reaches 500 of them. The setting isn't on the settings page yet: set `fileVersionRetentionHours` through the data retention API, either for the organization or in a workspace override.
-
-Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or any combination that fits your compliance requirements.
-
----
+File edits can coalesce into an editing session rather than create a version for every keystroke. Sessions have a ten-minute window and five-minute idle threshold. Age cleanup protects the current version and nine newest previous versions, regardless of age. Superseded versions also have a 500-version ceiling; Free cleanup keeps at most 99 previous versions. Forever prevents age expiry but does not remove that ceiling.
 
 ## PII redaction
 
-When PII redaction is enabled for your organization, each policy gains a **PII redaction** section that masks personally identifiable information — names, emails, phone numbers, credit-card numbers, national IDs, and more — from your workflow data. Sim detects and masks PII with [Microsoft Presidio](https://microsoft.github.io/presidio/); each match is replaced with a placeholder token such as `<EMAIL_ADDRESS>`.
+A stored policy must enable a redaction stage and select entity types or custom patterns. A reachable `PII_URL` alone does not enable redaction. Matches are replaced with tokens such as `<EMAIL_ADDRESS>` using the Presidio service.
 
-Redaction is configured per **stage** — the point in a run where masking is applied. Select a stage, then choose which entity types and custom patterns to redact for it:
+| Stage | Effect |
+| --- | --- |
+| **Logs** | Masks workflow data as logs are persisted. Execution uses the original data. |
+| **Workflow input** | Masks inputs before execution, so the workflow computes on masked values. |
+| **Block outputs** | Masks outputs before downstream blocks consume them. |
 
-| Stage | What it does |
-|---|---|
-| **Logs** | Redacts workflow logs when they are persisted. Observability-only — the workflow still runs on the original data. |
-| **Workflow input** | Redacts the workflow input **before execution**. The workflow runs on the masked data, which may change its output. |
-| **Block outputs** | Masks every block output **before the next block reads it**. Runs in-flight and may change output and execution performance. |
-
-<Image src="/static/enterprise/data-retention-pii.png" alt="PII redaction section with the Block outputs stage selected, showing the entity type grid grouped by Common, United States, United Kingdom, and Other regions" width={900} height={537} />
+<Image src="/static/enterprise/data-retention-pii.png" alt="PII redaction controls with Block outputs selected and entity types grouped by region" width={2000} height={1194} />
 
 <Callout type="warn">
-The **Workflow input** and **Block outputs** stages alter what the workflow computes on, not just what is stored. Redacted data is masked during the run and may affect workflow output. Enable them only where that trade-off is acceptable.
+Workflow input and Block outputs redaction alter computation. Test affected workflows with representative values before applying these stages: masking can change outputs and add execution latency.
 </Callout>
 
-### Entity types and language
+### Entity types and languages
 
-For each stage, choose the **entity types** to redact from the searchable grid. They are grouped as:
+Choose entities separately for each stage:
 
-- **Common** — person name, email, phone, credit card, IP address, location, date or time, URL, IBAN, crypto wallet, nationality/religious/political group, medical license, VIN
-- **United States** — SSN, passport, driver's license, bank account, ITIN
-- **United Kingdom** — NHS number, National Insurance number
-- **Other regions** — Spanish (NIF, NIE), Italian (fiscal code, driver's licence, VAT code, passport, identity card), Polish (PESEL), Singaporean (NRIC/FIN, UEN), Australian (ABN, ACN, TFN, Medicare), Indian (PAN, Aadhaar, vehicle registration, voter ID, passport), and Finnish (personal identity code) identifiers
+| Group | Available entity families |
+| --- | --- |
+| Common | Person name, email, phone, credit card, IP address, location, date/time, URL, IBAN, crypto wallet, nationality/religious/political group, medical license, VIN |
+| United States | SSN, passport, driver's license, bank account, ITIN |
+| United Kingdom | NHS number, National Insurance number |
+| Other regions | Spanish NIF/NIE; Italian fiscal code, driver's licence, VAT code, passport, identity card; Polish PESEL; Singaporean NRIC/FIN and UEN; Australian ABN, ACN, TFN, Medicare; Indian PAN, Aadhaar, vehicle registration, voter ID, passport; Finnish personal identity code |
 
-The **Block outputs** stage is restricted to regex- and checksum-based recognizers, to support in-flight masking without name-model detection. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
+English, Spanish, Italian, Polish, and Finnish are supported. The selected language filters which recognizers and identifiers are available.
 
-Detection is language-aware: pick the **language** whose recognizers should apply. English, Spanish, Italian, Polish, and Finnish are supported, and the grid filters to the identifiers available for the selected language.
-
-<Callout type="warn">
-Some recognizers match loosely and over-redact — US Social Security Number, US bank account number, and Date or time have no checksum and match aggressively. Enable these only where false positives are acceptable.
-</Callout>
+**Block outputs** supports regex- and checksum-based recognizers only. It does not offer person name, location, date/time, or nationality/religious/political group detection that depends on name models. SSN, US bank-account, and date/time recognizers can match loosely without a checksum; enable them where false positives are acceptable.
 
 ### Custom patterns
 
-Beyond the built-in entity types, each stage can redact anything a **regular expression** matches — employee IDs, internal URLs, ticket numbers. Give each pattern a name, a regex, and a replacement token; every match is replaced with the replacement text wrapped in angle brackets (e.g. `EMPLOYEE_ID` → `<EMPLOYEE_ID>`).
+Add up to 20 patterns per stage. Each has a name, regular expression, and replacement text. For example, replacement `EMPLOYEE_ID` produces `<EMPLOYEE_ID>` for each match. Use patterns for identifiers such as employee IDs, internal URLs, or ticket numbers.
 
----
+### Scope and failures
 
-## Per-workspace overrides
+Redaction applies to text strings at the configured workflow stages. It does not retroactively sanitize retained history, inspect every binary file, or intercept every arbitrary outbound request. Detection can miss PII or mask unrelated text; review the selected recognizers and patterns against your data.
 
-Retention and PII redaction are configured at the **organization level** and apply to every workspace by default. When a workspace needs different rules, add a **workspace override**.
-
-<Image src="/static/enterprise/data-retention-override.png" alt="Add workspace override panel showing the workspace picker, retention fields set to Inherit from organization, and the PII redaction Inherit or Override switch" width={900} height={537} />
-
-- An override targets one or more workspaces (a workspace can belong to only one override).
-- Each **retention** field either sets its own period or **inherits** the organization value.
-- **PII redaction** on an override is either **Inherit** (use the organization's redaction) or **Override** (workspace-specific). Choosing Override replaces the organization's redaction rules entirely for that workspace — it is not merged stage-by-stage.
-
-Removing an override returns its workspaces to the organization defaults.
-
----
-
-## Defaults
-
-By default, retention settings are unconfigured — no data is automatically deleted in any category, and no PII is redacted, until you configure it. Setting a retention period to **Forever** has the same effect as leaving it unconfigured, but makes the intent explicit and lets you change it later without configuring from scratch.
-
----
-
-<FAQ items={[
-  {
-    question: "Who can configure data retention settings?",
-    answer: "Only organization owners and admins can configure data retention settings. On Sim Cloud, the organization must be on an Enterprise plan."
-  },
-  {
-    question: "Is deletion immediate once the retention period expires?",
-    answer: "No. Deletion runs on a scheduled cleanup job. Data is deleted when the job next runs after the retention period has elapsed — not at the exact moment it expires."
-  },
-  {
-    question: "Can deleted data be recovered after the soft deletion cleanup period?",
-    answer: "No. Once the soft deletion cleanup period expires and the cleanup job runs, resources are permanently deleted and cannot be recovered."
-  },
-  {
-    question: "Does a policy apply to all workspaces?",
-    answer: "The organization policy applies to every workspace that does not have its own override. Add a per-workspace override to give specific workspaces different retention periods or PII redaction rules."
-  },
-  {
-    question: "What happens if I shorten the retention period?",
-    answer: "The next cleanup job will delete any data that is older than the new, shorter period — including data that would have been kept under the previous setting. Shortening the period is irreversible for data that falls outside the new window."
-  },
-  {
-    question: "Does PII redaction change how my workflows run?",
-    answer: "The Logs stage does not — it only masks data as it is persisted, so the workflow runs on the original data. The Workflow input and Block outputs stages do: they mask data in-flight, so the workflow computes on the redacted values, which can change its output."
-  },
-  {
-    question: "What is the minimum retention period?",
-    answer: "1 day (24 hours)."
-  },
-  {
-    question: "What is the maximum retention period?",
-    answer: "5 years, or Forever — the same option list applies to all three settings."
-  }
-]} />
-
----
+If log redaction fails, affected strings are replaced with `[REDACTION_FAILED]` rather than stored unmasked. Failure at Workflow input or Block outputs stops the run instead of passing unredacted values downstream.
 
 ## Self-hosted setup
 
-### Retention periods
+### Enable cleanup and schedule it
+
+On billing-disabled deployments, enable retention through enterprise configuration or explicitly set:
 
 ```bash
-NEXT_PUBLIC_DATA_RETENTION_ENABLED=true
 DATA_RETENTION_ENABLED=true
+NEXT_PUBLIC_DATA_RETENTION_ENABLED=true
 ```
 
-Once enabled, retention settings are configurable through **Settings → Organization → Data retention** the same way as Sim Cloud.
+An explicit feature value takes precedence over the enterprise master configuration. No plan-based default window is introduced: configure the windows you intend to apply.
 
-### Scheduling the deletion pass
-
-`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of four endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
+Deletion requires all three: an enabled feature, an effective retention period, and a scheduled authenticated request. Set `CRON_SECRET` on the app and use the same secret on the scheduler.
 
 | Category | Endpoint |
-|----------|----------|
+| --- | --- |
 | Execution and job logs | `GET /api/logs/cleanup` |
 | Soft-deleted resources | `GET /api/cron/cleanup-soft-deletes` |
-| Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
+| Chat data and runs | `GET /api/cron/cleanup-tasks` |
 | Previous file versions | `GET /api/cron/cleanup-file-versions` |
 
 <Callout type="warn">
-Neither shipped deployment schedules these four endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+The shipped Helm and Docker Compose schedules omit these four endpoints. Add calls through Helm's `cronjobs.jobs` or an external scheduler; enabling the feature alone performs no deletion.
 </Callout>
 
 ```bash
-# Use the value already configured as CRON_SECRET on the app — a token
-# generated here and not installed there returns 401.
-curl -H "Authorization: Bearer $CRON_SECRET" \
+curl --fail-with-body \
+  -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/logs/cleanup
 ```
 
-Each call fans the work out as background jobs. Trigger.dev is not required: when it is not configured the dispatcher runs the cleanup chunks inline instead of enqueuing them, so deletion completes on a default self-host.
+Use the secret already configured on the app. A newly generated token that was not installed there returns `401`. Schedule each category you use, then check cleanup results. Trigger.dev is optional: without it, the dispatcher runs bounded cleanup chunks inline. A successful request is not a guarantee that all eligible stored bytes disappeared in one pass.
 
-### PII redaction
+### Deploy the PII service
 
-PII redaction runs against a standalone [Presidio](https://microsoft.github.io/presidio/) service. Deploy it (see `apps/pii`) and point Sim at it:
+Deploy `apps/pii`, which exposes `/analyze` and `/anonymize`, and set its reachable URL:
 
 ```bash
-# The Presidio service exposing /analyze and /anonymize
-# Helm — setting pii.enabled wires this for you, and a manual value is then
-# ignored. Set it by hand only for an external Presidio with pii.enabled:
-# false. The bundled Service is <release>-sim-pii, or <release>-pii when the
-# release name already contains "sim".
-PII_URL=http://<service>.<namespace>.svc.cluster.local:5001
-# Docker Compose — no shipped file defines a PII service. Add one to the
-# same project, then use its service name.
-# PII_URL=http://pii:5001
+PII_URL=http://pii:5001
 ```
 
-All PII stages are configurable under **Settings → Organization → Data retention**.
+On Helm, `pii.enabled` deploys and wires the bundled service automatically; a manual `PII_URL` is ignored while it is enabled. For an external service, set `pii.enabled: false` and supply `PII_URL`. The bundled service is `<release>-sim-pii`, or `<release>-pii` when the release name already contains `sim`.
+
+Docker Compose does not ship a PII service. Add one to the project or point to a reachable external service. After verifying service access, save a policy with enabled stages and selected entities or patterns under **Data retention**.
+
+## Related docs
+
+- [Data drains](/platform/enterprise/data-drains)
+- [Files](/files)
+- [Execution logs](/logs-debugging/logging)
+- [Self-hosted enterprise setup](/platform/enterprise/self-hosted)

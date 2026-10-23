@@ -1,6 +1,6 @@
 {
   "name": "simstudio-ts-sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Sim SDK - Execute workflows programmatically",
   "type": "module",
   "exports": {
@@ -37,9 +37,9 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@types/node": "24.2.1",
+    "@types/node": "24.19.2",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   },
   "engines": {
     "node": ">=18"

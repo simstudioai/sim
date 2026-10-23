@@ -3,17 +3,21 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotChats,
   knowledgeBase,
   organization,
   user,
   workspace,
+  workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -23,22 +27,38 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import {
+  executeChatFileBlobCopies,
+  persistChatFileCopies,
+  planChatFileCopies,
+} from '@/lib/mothership/chat/fork-chat-files'
+import {
   generateWorkspaceFileKey,
   trackChatUpload,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
+  areModelSafeWorkspaceFileKeys,
+  filterModelSafeWorkspaceFileAttachments,
   getBoundWorkspaceFileSecretProvenance,
+  getBoundWorkspaceFileSecretProvenanceByMetadata,
   importWorkspaceFileSecretProvenanceForModelView,
+  importWorkspaceFileSecretProvenanceForRuntime,
+  isModelSafeWorkspaceFileKey,
+  isOpaqueWorkspaceFileEgressSafe,
   replaceWorkspaceFileSecretProvenanceInTx,
+  snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { uploadFile } from '@/lib/uploads/core/storage-service'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import { executeForkFileBlobCopies } from '@/ee/workspace-forking/lib/copy/copy-files'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const CONTENT = 'The same uploaded bytes remain readable after saving.\n'
@@ -72,7 +92,7 @@ async function seedUpload(provenance?: WorkspaceFileSecretProvenance) {
     key,
     name,
     'text/plain',
-    CONTENT.length
+    Buffer.byteLength(CONTENT)
   )
   const [file] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.key, key))
   if (provenance) {
@@ -90,7 +110,6 @@ async function readUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
       workspaceId: ids.workspaceId,
       chatId: ids.chatId,
       reference: `uploads/${ids.name}`,
-      includeSecretProvenance: true,
     },
   })
   return {
@@ -118,8 +137,9 @@ beforeAll(() => {
 
 afterAll(async () => {
   for (const ids of fixtures) {
+    await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }
@@ -128,10 +148,114 @@ afterAll(async () => {
 })
 
 describe('chat upload reads racing with save_upload', () => {
-  it.each(['legacy', 'exact'] as const)(
+  it.each(['creator', 'workspace'] as const)(
+    'keeps byte-identical forked files usable with anonymized encrypted origins across a different %s',
+    async (kind) => {
+      const ids = await seedUpload()
+      const encryptedValue = (await encryptSecret(CONTENT)).encrypted
+      await db.transaction((tx) =>
+        replaceWorkspaceFileSecretProvenanceInTx(tx, ids.file.id, ids.file.contentUpdatedAt, {
+          status: 'exact',
+          entries: [
+            {
+              encryptedValue,
+              sourceUserId: ids.aliceId,
+              sourceWorkspaceId: ids.workspaceId,
+              name: 'ORIGINAL_TOKEN',
+            },
+          ],
+        })
+      )
+      const [source] = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, ids.file.id))
+      let copyId: string | undefined
+      let targetWorkspaceId = ids.workspaceId
+      let recipientId = ids.bobId
+      if (kind === 'workspace') {
+        const target = await seedUpload()
+        targetWorkspaceId = target.workspaceId
+        recipientId = target.aliceId
+        copyId = `wf_${generateId()}`
+        const copied = await executeForkFileBlobCopies(
+          [
+            {
+              sourceFileId: source.id,
+              sourceContentUpdatedAtMs: source.contentUpdatedAt.getTime(),
+              sourceKey: source.key,
+              targetKey: generateWorkspaceFileKey(targetWorkspaceId, 'copied.txt'),
+              targetFileId: copyId,
+              workspaceId: targetWorkspaceId,
+              userId: recipientId,
+              context: 'mothership',
+              fileName: 'copied.txt',
+              displayName: null,
+              contentType: 'text/plain',
+              size: Buffer.byteLength(CONTENT),
+            },
+          ],
+          'copy-provenance-regression'
+        )
+        expect(copied).toMatchObject({ copied: 1, failed: 0 })
+      } else {
+        const newChatId = generateId()
+        await db.insert(copilotChats).values({
+          id: newChatId,
+          userId: recipientId,
+          workspaceId: targetWorkspaceId,
+          type: 'mothership',
+        })
+        const plan = planChatFileCopies({
+          rows: [source],
+          newChatId,
+          userId: recipientId,
+          now: new Date(),
+        })
+        const copied = await executeChatFileBlobCopies(plan.blobTasks)
+        expect(copied.failed).toBe(0)
+        await db.transaction((tx) => persistChatFileCopies(tx, plan, new Set(copied.failedCopyIds)))
+        copyId = plan.idMap.get(source.id)
+      }
+      if (!copyId) throw new Error('Fork did not map its file')
+      const [copy] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, copyId))
+      const bytes = await downloadFile({ key: copy.key, context: 'mothership' })
+      expect(bytes.toString()).toBe(CONTENT)
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: recipientId,
+        workspaceId: targetWorkspaceId,
+      })
+      expect(
+        await importWorkspaceFileSecretProvenanceForModelView({
+          workspaceId: targetWorkspaceId,
+          identity: {
+            fileId: copy.id,
+            key: copy.key,
+            context: 'mothership',
+            contentUpdatedAt: copy.contentUpdatedAt,
+          },
+          registry,
+          view: 'complete',
+          value: bytes.toString(),
+        })
+      ).toBe(true)
+      expect(projectResolvedSecretModelContent(bytes.toString(), registry)).toMatchObject({
+        safe: true,
+        value: '[REDACTED_SECRET]',
+      })
+    }
+  )
+
+  it.each(['legacy', 'exact', 'unrecorded'] as const)(
     'keeps a %s authorized upload read valid across promotion',
     async (kind) => {
-      const ids = await seedUpload(kind === 'exact' ? { status: 'exact', entries: [] } : undefined)
+      const ids = await seedUpload(
+        kind === 'legacy'
+          ? undefined
+          : kind === 'exact'
+            ? { status: 'exact', entries: [] }
+            : { status: 'unrecorded' }
+      )
       const read = await readUpload(ids)
       expect(read?.value.content).toBe(CONTENT)
       expect(read?.file).toBeDefined()
@@ -216,4 +340,119 @@ describe('chat upload reads racing with save_upload', () => {
       ).toBe(false)
     }
   )
+})
+
+describe('recorded file absence policy', () => {
+  it.each(['keys', 'attachments'] as const)(
+    'records unscoped admitted %s once per canonical workspace',
+    async (boundary) => {
+      const first = await seedUpload({ status: 'unrecorded' })
+      const second = await seedUpload({ status: 'unrecorded' })
+      const sibling = {
+        ...first.file,
+        id: generateId(),
+        key: `${first.file.key}-sibling`,
+        originalName: 'sibling.txt',
+        displayName: 'sibling.txt',
+      }
+      await db.insert(workspaceFiles).values(sibling)
+      await db.transaction((tx) =>
+        replaceWorkspaceFileSecretProvenanceInTx(tx, sibling.id, sibling.contentUpdatedAt, {
+          status: 'unrecorded',
+        })
+      )
+      const files = [first.file, sibling, second.file]
+      if (boundary === 'keys') {
+        expect(await areModelSafeWorkspaceFileKeys(files.map((file) => file.key))).toBe(true)
+      } else {
+        const attachments = files.map((file) => ({ id: file.id, key: file.key }))
+        expect(await filterModelSafeWorkspaceFileAttachments(attachments)).toEqual(attachments)
+      }
+      const query = () =>
+        db
+          .select({ workspaceId: auditLog.workspaceId, metadata: auditLog.metadata })
+          .from(auditLog)
+          .where(
+            and(
+              inArray(auditLog.workspaceId, [first.workspaceId, second.workspaceId]),
+              eq(auditLog.action, AuditAction.SECRET_PROVENANCE_UNRECORDED)
+            )
+          )
+      await expect.poll(query).toHaveLength(2)
+      const rows = await query()
+      expect(rows.find((row) => row.workspaceId === first.workspaceId)?.metadata).toMatchObject({
+        recordCount: 2,
+      })
+      expect(rows.find((row) => row.workspaceId === second.workspaceId)?.metadata).toMatchObject({
+        recordCount: 1,
+      })
+      if (boundary === 'keys') {
+        await db
+          .delete(auditLog)
+          .where(inArray(auditLog.workspaceId, [first.workspaceId, second.workspaceId]))
+        await db.transaction((tx) =>
+          replaceWorkspaceFileSecretProvenanceInTx(tx, sibling.id, sibling.contentUpdatedAt, {
+            status: 'unknown',
+          })
+        )
+        expect(await areModelSafeWorkspaceFileKeys(files.map((file) => file.key))).toBe(false)
+        expect(await query()).toEqual([])
+      }
+    }
+  )
+
+  it('keeps valid unrecorded bytes usable across runtime, opaque and attachment boundaries', async () => {
+    const ids = await seedUpload({ status: 'unrecorded' })
+    const read = await readUpload(ids)
+    expect(
+      await importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: ids.workspaceId,
+        identity: read.file,
+      })
+    ).toBe(true)
+    expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, read.file)).toBe(true)
+    expect(await isModelSafeWorkspaceFileKey(ids.file.key, { workspaceId: ids.workspaceId })).toBe(
+      true
+    )
+    const attachment = { id: ids.file.id, key: ids.file.key }
+    expect(
+      await filterModelSafeWorkspaceFileAttachments([attachment], { workspaceId: ids.workspaceId })
+    ).toEqual([attachment])
+    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, read.file)).toEqual({
+      status: 'unrecorded',
+    })
+  })
+
+  it('does not discard recorded entries from an inconsistent unrecorded sidecar', async () => {
+    const ids = await seedUpload({ status: 'unrecorded' })
+    await db
+      .update(workspaceFileSecretProvenance)
+      .set({
+        entries: [
+          { name: 'TOKEN', encryptedValue: 'fixture-ciphertext', sourceUserId: ids.aliceId },
+        ],
+      })
+      .where(eq(workspaceFileSecretProvenance.fileId, ids.file.id))
+    const read = await readUpload(ids)
+    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, read.file)).toEqual({
+      status: 'unknown',
+    })
+    const batch = await getBoundWorkspaceFileSecretProvenanceByMetadata(db, [
+      { ...ids.file, secretProvenanceVersion: 1 },
+    ])
+    expect(batch.get(ids.file.id)).toEqual({ status: 'unknown' })
+    expect(
+      await db.transaction((tx) =>
+        snapshotWorkspaceFileSecretProvenanceInTx(tx, ids.file.id, ids.file.contentUpdatedAt, 1)
+      )
+    ).toEqual({ status: 'unknown', entries: [] })
+    expect(await isModelSafeWorkspaceFileKey(ids.file.key, { workspaceId: ids.workspaceId })).toBe(
+      false
+    )
+    expect(
+      await filterModelSafeWorkspaceFileAttachments([{ id: ids.file.id, key: ids.file.key }], {
+        workspaceId: ids.workspaceId,
+      })
+    ).toEqual([])
+  })
 })

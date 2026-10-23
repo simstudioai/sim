@@ -7,20 +7,20 @@ export interface SqsConnectionConfig {
 }
 
 /** A message attribute in the JSON-safe form Sim tools accept. */
-export interface SqsMessageAttributeInput {
+interface SqsMessageAttributeInput {
   dataType: string
   stringValue: string
 }
 
 /** A message attribute as projected from a received message. */
-export interface SqsMessageAttributeOutput {
+interface SqsMessageAttributeOutput {
   dataType: string | null
   stringValue: string | null
   stringListValues: string[]
 }
 
 /** One entry of the `Failed` list every SQS batch action returns. */
-export interface SqsBatchErrorEntry {
+interface SqsBatchErrorEntry {
   id: string | null
   senderFault: boolean | null
   code: string | null
@@ -36,7 +36,7 @@ export interface SqsSendMessageParams extends SqsConnectionConfig {
   messageDeduplicationId?: string | null
 }
 
-export interface SqsSendMessageBatchEntry {
+interface SqsSendMessageBatchEntry {
   id: string
   data: Record<string, unknown>
   delaySeconds?: number | null
@@ -149,11 +149,6 @@ export interface SqsListMessageMoveTasksParams extends SqsConnectionConfig {
 
 export interface SqsCancelMessageMoveTaskParams extends SqsConnectionConfig {
   taskHandle: string
-}
-
-interface SqsBaseResponse extends ToolResponse {
-  output: { message: string; id?: string }
-  error?: string
 }
 
 export interface SqsSendMessageResponse extends ToolResponse {
@@ -272,5 +267,3 @@ export interface SqsCancelMessageMoveTaskResponse extends ToolResponse {
   output: { message: string; approximateNumberOfMessagesMoved: number | null }
   error?: string
 }
-
-export interface SqsResponse extends SqsBaseResponse {}

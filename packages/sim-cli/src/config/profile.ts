@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname } from 'node:path'
+import { stripTrailingSlashes } from '@sim/utils/string'
 import { lock } from 'proper-lockfile'
 import { embeddedProfile } from '../embed-context'
 import {
@@ -48,6 +49,13 @@ export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
  */
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
+
+/**
+ * JSON unless the flag, `SIM_OUTPUT`, or the profile says otherwise: agents and
+ * scripts are the main callers and parse it directly, and a person who prefers
+ * tables saves that once with `sim configure --set-output table`.
+ */
+export const DEFAULT_OUTPUT_FORMAT: OutputFormat = 'json'
 
 export { FORBIDDEN_IN_VALUE, ProfileConfigError } from './ini'
 
@@ -577,17 +585,6 @@ export function deleteProfile(profile: string): { config: boolean; credentials: 
 }
 
 /**
- * Removes every trailing `/`. A backward scan rather than `/\/+$/`: that regex
- * restarts at each `/` in a long run that does not reach the end, so it is
- * quadratic in the run length.
- */
-function stripTrailingSlashes(value: string): string {
-  let end = value.length
-  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) end--
-  return value.slice(0, end)
-}
-
-/**
  * Validates an endpoint and strips its trailing slashes.
  *
  * The check has to live here rather than at the call sites because an endpoint
@@ -788,7 +785,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
       ['env', process.env.SIM_OUTPUT],
       ['config', config.output],
     ],
-    'table',
+    DEFAULT_OUTPUT_FORMAT,
     'default'
   )
   if (!(OUTPUT_FORMATS as readonly string[]).includes(output.value as string)) {

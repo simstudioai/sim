@@ -1,4 +1,5 @@
 import type { CreateMailingListParams, CreateMailingListResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunCreateMailingListTool: ToolConfig<
@@ -16,6 +17,12 @@ export const mailgunCreateMailingListTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'Mailgun API key',
+    },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
     },
     address: {
       type: 'string',
@@ -44,7 +51,7 @@ export const mailgunCreateMailingListTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://api.mailgun.net/v3/lists',
+    url: (params) => `${getMailgunApiBaseUrl(params.region)}/lists`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
@@ -67,7 +74,7 @@ export const mailgunCreateMailingListTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response, params): Promise<CreateMailingListResult> => {
+  transformResponse: async (response): Promise<CreateMailingListResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to create mailing list')

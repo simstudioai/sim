@@ -1,26 +1,27 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment, resolveInvocationWorkspace } =
-  vi.hoisted(() => ({
-    claimPendingAsyncToolCall: vi.fn(),
-    resolveInvocationWorkspace: vi.fn(),
-    getAsyncToolCall: vi.fn(),
-    getRunSegment: vi.fn(),
-  }))
-
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
-vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
-
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  claimPendingAsyncToolCall,
-  getAsyncToolCall,
-  getRunSegment,
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
+
+const claimDesktopToolCall = mothershipAsyncRunsMockFns.mockClaimDesktopToolCall
+const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
+const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
+const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
 
 function request(toolCallId: unknown, claim = false): NextRequest {
   return new NextRequest('http://localhost:3000/api/desktop/tool/authorize', {
@@ -50,7 +51,7 @@ describe('desktop tool authorization', () => {
       userId: 'user-1',
       status: 'active',
     })
-    claimPendingAsyncToolCall.mockResolvedValue({ toolCallId: 'browser-tool', status: 'running' })
+    claimDesktopToolCall.mockResolvedValue({ outcome: 'claimed' })
   })
 
   it('never returns presentation activity as an executable browser argument', async () => {
@@ -63,13 +64,33 @@ describe('desktop tool authorization', () => {
       args: { activity: { description: 'Filling the form' }, fields },
     })
 
-    const response = await POST(request('form-tool'))
+    const response = await POST(request('form-tool'), createRouteContext({}))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       chatId: 'chat-1',
       toolName: 'browser_fill_form',
       args: { fields },
     })
+  })
+
+  it("refuses a chat view's claim on a run bound to a desktop's background executor", async () => {
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'bound-click',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'browser_click',
+      args: { ref: 'e1' },
+    })
+    getRunSegment.mockResolvedValueOnce({
+      id: 'run-1',
+      chatId: 'chat-1',
+      userId: 'user-1',
+      status: 'active',
+      desktopDeviceId: 'device-1',
+    })
+
+    const response = await POST(request('bound-click'), createRouteContext({}))
+    expect(response.status).toBe(409)
   })
 
   it('rejects retired browser tools retained only for history', async () => {
@@ -81,11 +102,24 @@ describe('desktop tool authorization', () => {
       args: { reason: 'Legacy handoff' },
     })
 
-    const response = await POST(request('retired-browser-tool'))
+    const response = await POST(request('retired-browser-tool'), createRouteContext({}))
 
     expect(response.status).toBe(403)
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'refuses native computer actions through generic desktop authorization with claim %s',
+    async (claim) => {
+      getAsyncToolCall.mockResolvedValueOnce({
+        toolCallId: 'computer-tool',
+        runId: 'run-1',
+        status: 'pending',
+        toolName: 'computer',
+        args: { action: 'list_apps' },
+      })
+      expect((await POST(request('computer-tool', claim), createRouteContext({}))).status).toBe(403)
+    }
+  )
 
   it('rejects a replayed browser action after its pending row was claimed', async () => {
     getAsyncToolCall.mockResolvedValueOnce({
@@ -96,9 +130,8 @@ describe('desktop tool authorization', () => {
       args: { ref: 'e12' },
     })
 
-    const response = await POST(request('browser-tool'))
+    const response = await POST(request('browser-tool'), createRouteContext({}))
     expect(response.status).toBe(404)
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
   })
 
   it('rejects workspace VFS calls and mutating legacy local tools', async () => {
@@ -108,7 +141,7 @@ describe('desktop tool authorization', () => {
       toolName: 'read',
       args: { path: 'WORKSPACE.md' },
     })
-    const workspaceRead = await POST(request('tool-1'))
+    const workspaceRead = await POST(request('tool-1'), createRouteContext({}))
     expect(workspaceRead.status).toBe(403)
 
     getAsyncToolCall.mockResolvedValueOnce({
@@ -117,7 +150,7 @@ describe('desktop tool authorization', () => {
       toolName: 'local_stage_file',
       args: { uri: 'localfs://mount-1/secret.txt' },
     })
-    const legacyMutation = await POST(request('tool-2'))
+    const legacyMutation = await POST(request('tool-2'), createRouteContext({}))
     expect(legacyMutation.status).toBe(403)
   })
 
@@ -128,13 +161,13 @@ describe('desktop tool authorization', () => {
       toolName: 'read',
       args: { path: 'user-local/Project--mount-1/README.md' },
     })
-    expect((await POST(request('tool-1'))).status).toBe(404)
+    expect((await POST(request('tool-1'), createRouteContext({}))).status).toBe(404)
 
     getAsyncToolCall.mockResolvedValueOnce(null)
-    expect((await POST(request('missing'))).status).toBe(404)
+    expect((await POST(request('missing'), createRouteContext({}))).status).toBe(404)
 
     getRunSegment.mockResolvedValueOnce({ id: 'run-1', userId: 'user-2', status: 'active' })
-    expect((await POST(request('tool-2'))).status).toBe(403)
+    expect((await POST(request('tool-2'), createRouteContext({}))).status).toBe(403)
   })
 
   it('rejects a pending tool after its run was aborted or returned early', async () => {
@@ -143,14 +176,14 @@ describe('desktop tool authorization', () => {
       userId: 'user-1',
       status: 'cancelled',
     })
-    expect((await POST(request('cancelled-tool'))).status).toBe(404)
+    expect((await POST(request('cancelled-tool'), createRouteContext({}))).status).toBe(404)
 
     getRunSegment.mockResolvedValueOnce({
       id: 'run-1',
       userId: 'user-1',
       status: 'complete',
     })
-    expect((await POST(request('completed-run-tool'))).status).toBe(404)
+    expect((await POST(request('completed-run-tool'), createRouteContext({}))).status).toBe(404)
   })
 
   it('claims an org-view import once and permits chunks only under that claim', async () => {
@@ -170,19 +203,17 @@ describe('desktop tool authorization', () => {
       organizationId: 'org-1',
       status: 'active',
     })
-    expect((await POST(request('import-1'))).status).toBe(404)
-    expect((await POST(request('import-1', true))).status).toBe(200)
+    expect((await POST(request('import-1'), createRouteContext({}))).status).toBe(404)
+    expect((await POST(request('import-1', true), createRouteContext({}))).status).toBe(200)
     expect(resolveInvocationWorkspace).toHaveBeenCalledWith(
       { userId: 'user-1', chatId: 'chat-1', organizationId: 'org-1', workspaceId: undefined },
       'target'
     )
-    expect(claimPendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith('import-1', 'desktop-files')
     getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'desktop-files' })
-    expect((await POST(request('import-1', true))).status).toBe(409)
-    expect((await POST(request('import-1'))).status).toBe(200)
+    expect((await POST(request('import-1', true), createRouteContext({}))).status).toBe(409)
+    expect((await POST(request('import-1'), createRouteContext({}))).status).toBe(200)
     getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'sim-stream' })
-    expect((await POST(request('import-1'))).status).toBe(404)
-    expect(claimPendingAsyncToolCall).toHaveBeenCalledOnce()
+    expect((await POST(request('import-1'), createRouteContext({}))).status).toBe(404)
   })
 
   it('rejects inaccessible destinations and lost import claims before exposing files', async () => {
@@ -196,10 +227,9 @@ describe('desktop tool authorization', () => {
     resolveInvocationWorkspace.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Workspace not found')
     )
-    expect((await POST(request('import-1', true))).status).toBe(404)
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
-    claimPendingAsyncToolCall.mockResolvedValueOnce(null)
-    expect((await POST(request('import-1', true))).status).toBe(409)
+    expect((await POST(request('import-1', true), createRouteContext({}))).status).toBe(404)
+    claimDesktopToolCall.mockResolvedValueOnce({ outcome: 'existing' })
+    expect((await POST(request('import-1', true), createRouteContext({}))).status).toBe(409)
   })
 
   it('authenticates before parsing and rejects malformed IDs', async () => {
@@ -207,10 +237,10 @@ describe('desktop tool authorization', () => {
       userId: null,
       isAuthenticated: false,
     })
-    expect((await POST(request('tool-1'))).status).toBe(401)
+    expect((await POST(request('tool-1'), createRouteContext({}))).status).toBe(401)
     expect(getAsyncToolCall).not.toHaveBeenCalled()
 
-    expect((await POST(request('bad\u0000id'))).status).toBe(400)
+    expect((await POST(request('bad\u0000id'), createRouteContext({}))).status).toBe(400)
     expect(getAsyncToolCall).not.toHaveBeenCalled()
   })
 })

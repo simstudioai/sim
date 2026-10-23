@@ -215,9 +215,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
         {isLoading ? (
           <SettingsEmptyState variant='inline'>Loading usage…</SettingsEmptyState>
         ) : hasBlockingError ? (
-          <SettingsEmptyState variant='inline' tone='error'>
-            Couldn't load credit usage.
-          </SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>Couldn't load credit usage.</SettingsEmptyState>
         ) : logs.length === 0 ? (
           <SettingsEmptyState variant='inline'>No credit usage in this period.</SettingsEmptyState>
         ) : (

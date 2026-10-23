@@ -3,8 +3,7 @@ const URL_SAFE_ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghj
 /**
  * Generates a short, URL-safe random ID for test fixtures.
  *
- * Uses `crypto.getRandomValues()` instead of `crypto.randomUUID()` for
- * consistency with the app-level `generateShortId` utility.
+ * Mirrors the app-level `generateShortId` utility, which is built on `crypto.getRandomValues()`.
  */
 export function shortId(size = 8): string {
   const bytes = new Uint8Array(size)

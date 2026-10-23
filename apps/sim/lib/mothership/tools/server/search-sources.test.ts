@@ -1,27 +1,30 @@
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  chat: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   list: vi.fn(),
   providers: vi.fn(),
   approve: vi.fn(),
   authorize: vi.fn(),
   prepare: vi.fn(),
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.chat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/knowledge/application/search-sources', () => ({
-  listSearchSources: { execute: mocks.list },
+  listSearchSources: { execute: hoisted.list },
 }))
 vi.mock('@/lib/knowledge/application/search-integrations', () => ({
-  listSearchIntegrations: { execute: mocks.providers },
-  approveSearchIntegration: { execute: mocks.approve },
+  listSearchIntegrations: { execute: hoisted.providers },
+  approveSearchIntegration: { execute: hoisted.approve },
 }))
 vi.mock('@/lib/knowledge/application/sim-search', () => ({
-  prepareSearchSource: { authorize: mocks.authorize, execute: mocks.prepare },
+  prepareSearchSource: { authorize: hoisted.authorize, execute: hoisted.prepare },
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_SOURCE_TYPES: [
     ['google_drive', { name: 'Google Drive', mirrorsSourceAcls: true }],
     ['gmail', { name: 'Gmail' }],
@@ -30,6 +33,11 @@ vi.mock('@/lib/sim-search/connectors', () => ({
 }))
 
 import { organizationSearchSourcesServerTool as tool } from '@/lib/mothership/tools/server/search-sources'
+
+const mocks = {
+  ...hoisted,
+  chat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+}
 
 const context = {
   userId: 'actual-actor',
@@ -47,9 +55,11 @@ beforeEach(() => {
 })
 describe('Search source direct tool', () => {
   it('uses authenticated actor and org and forwards viewer-safe pagination', async () => {
-    expect(await tool.execute({ action: 'list', cursor: 'previous', mine: true }, context)).toEqual(
-      { action: 'list', sources: [], nextCursor: 'next' }
-    )
+    expect(await tool.execute({ action: 'list', cursor: 'previous' }, context)).toEqual({
+      action: 'list',
+      sources: [],
+      nextCursor: 'next',
+    })
     expect(mocks.list).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'organization_delegated',
@@ -58,7 +68,15 @@ describe('Search source direct tool', () => {
         audience: 'sim:knowledge',
         resourceScope: { chatId: 'actual-chat' },
       }),
-      input: { organizationId: 'actual-org', cursor: 'previous', mine: true },
+      input: {
+        organizationId: 'actual-org',
+        cursor: 'previous',
+        cursorRoute: {
+          method: 'GET',
+          path: '/api/knowledge/sim-search/sources',
+          params: undefined,
+        },
+      },
     })
     expect(mocks.chat).toHaveBeenCalledBefore(mocks.list)
   })
@@ -67,7 +85,17 @@ describe('Search source direct tool', () => {
       tool.execute({ action: 'get', connectorId: 'foreign' }, context)
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.list).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { organizationId: 'actual-org', connectorId: 'foreign' } })
+      expect.objectContaining({
+        input: {
+          organizationId: 'actual-org',
+          connectorId: 'foreign',
+          cursorRoute: {
+            method: 'GET',
+            path: '/api/knowledge/sim-search/sources',
+            params: undefined,
+          },
+        },
+      })
     )
   })
   it('returns existing setup UI without creating an index, connecting or changing approval', async () => {

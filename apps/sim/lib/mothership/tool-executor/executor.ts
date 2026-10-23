@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import { openResourceInputSchema } from '@/lib/api/contracts/mothership-resource-tools'
+import { observeContentDelivery } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
+import { isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
@@ -57,6 +61,20 @@ export async function executeTool(
         !context.targetWorkspaceId)
   ) {
     return { success: false, error: 'This tool is unavailable in this benchmark stage.' }
+  }
+  if (toolId === 'open_resource') {
+    const parsed = openResourceInputSchema.safeParse(params)
+    if (
+      parsed.success &&
+      parsed.data.resources.every(
+        (resource) =>
+          resource.type === 'file' && resource.owner && isOwnerScopedFile(resource.owner)
+      )
+    ) {
+      if (context.targetWorkspaceId)
+        return { success: false, error: 'These file owners do not take a workspace target' }
+      return executeBoundTool(toolId, params, context)
+    }
   }
   if (context.organizationId) {
     if (
@@ -196,6 +214,26 @@ async function executeBoundTool(
     }
   }
 
+  /**
+   * Every stored item a Sim-side tool returns to Chat — through a use case it calls directly, or
+   * through the CLI it runs — is admitted against this call's registry, so its secrets are redacted
+   * from the result and an unknown item is refused on its own.
+   */
+  const gate = createRegistryContentGate({
+    registry: context.resolvedSecretTraceRegistry,
+    workspaceId: context.workspaceId,
+    organizationId: context.chatOrganizationId ?? context.organizationId,
+    actorUserId: context.userId,
+  })
+  return observeContentDelivery(gate, () => executeGatedTool(toolId, params, context))
+}
+
+async function executeGatedTool(
+  toolId: string,
+  params: Record<string, unknown>,
+  context: ToolExecutionContext
+): Promise<ToolExecutionResult> {
+  const usesHeadlessClientFallback = isClientExecuted(toolId) && hasHandler(toolId)
   return withResourceOutboundScope(context, async () => {
     const canUseRegisteredHandler =
       hasHandler(toolId) &&

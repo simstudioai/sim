@@ -73,12 +73,12 @@ function readCursor(value?: string) {
   }
 }
 
-function nextCursor(rows: { id: string; createdAt: Date }[], limit: number) {
+function nextCursor(rows: { id: string; cursorCreatedAt: string }[], limit: number) {
   const last = rows[limit - 1]
   return rows.length > limit && last
-    ? Buffer.from(
-        JSON.stringify({ id: last.id, createdAt: last.createdAt.toISOString() })
-      ).toString('base64url')
+    ? Buffer.from(JSON.stringify({ id: last.id, createdAt: last.cursorCreatedAt })).toString(
+        'base64url'
+      )
     : null
 }
 
@@ -91,7 +91,10 @@ export async function listBenchmarkRecords(input: {
 }) {
   const cursor = readCursor(input.cursor)
   const rows = await db
-    .select(summaryColumns)
+    .select({
+      ...summaryColumns,
+      cursorCreatedAt: sql<string>`to_char(${mothershipBenchmarks.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+    })
     .from(mothershipBenchmarks)
     .where(
       and(
@@ -105,9 +108,9 @@ export async function listBenchmarkRecords(input: {
           : undefined,
         cursor
           ? or(
-              lt(mothershipBenchmarks.createdAt, new Date(cursor.createdAt)),
+              lt(mothershipBenchmarks.createdAt, sql`${cursor.createdAt}::timestamp`),
               and(
-                eq(mothershipBenchmarks.createdAt, new Date(cursor.createdAt)),
+                eq(mothershipBenchmarks.createdAt, sql`${cursor.createdAt}::timestamp`),
                 lt(mothershipBenchmarks.id, cursor.id)
               )
             )
@@ -317,6 +320,8 @@ export async function completeBenchmarkStage(
               artifacts.referenceSpec,
               artifacts.redactedSpec,
               [...artifacts.blanks].sort((a, b) => compareStrings(a.id, b.id)),
+              artifacts.modelRuns?.reconstruct?.config ?? null,
+              artifacts.modelRuns?.grade?.config ?? null,
             ])
           )
           .digest('hex'),
@@ -327,11 +332,12 @@ export async function completeBenchmarkStage(
         reviewedCount: 0,
         reviewedAt: null,
         reviews: [],
+        modelRuns: artifacts.modelRuns ?? {},
         artifacts,
         createdAt: row.updatedAt.toISOString(),
       })
       await tx.insert(mothershipBenchmarkRuns).values({
-        ...omit(snapshot, ['reviewedCount', 'execution']),
+        ...omit(snapshot, ['reviewedCount', 'execution', 'modelRuns']),
         createdAt: row.updatedAt,
         reviewedAt: null,
       })
@@ -345,6 +351,7 @@ const runSummaryColumns = {
   benchmarkId: mothershipBenchmarkRuns.benchmarkId,
   label: mothershipBenchmarkRuns.label,
   evaluationKey: mothershipBenchmarkRuns.evaluationKey,
+  modelRuns: sql`coalesce(${mothershipBenchmarkRuns.artifacts}->'modelRuns', '{}'::jsonb)`,
   correct: mothershipBenchmarkRuns.correct,
   automaticCorrect: mothershipBenchmarkRuns.automaticCorrect,
   total: mothershipBenchmarkRuns.total,
@@ -367,7 +374,10 @@ export async function listBenchmarkRunRecords(
   const cursor = readCursor(input.cursor)
   const limit = Math.max(1, Math.min(input.limit, 50))
   const rows = await db
-    .select(runSummaryColumns)
+    .select({
+      ...runSummaryColumns,
+      cursorCreatedAt: sql<string>`to_char(${mothershipBenchmarkRuns.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+    })
     .from(mothershipBenchmarkRuns)
     .innerJoin(
       mothershipBenchmarks,
@@ -378,9 +388,9 @@ export async function listBenchmarkRunRecords(
         scopeWhere(input),
         cursor
           ? or(
-              lt(mothershipBenchmarkRuns.createdAt, new Date(cursor.createdAt)),
+              lt(mothershipBenchmarkRuns.createdAt, sql`${cursor.createdAt}::timestamp`),
               and(
-                eq(mothershipBenchmarkRuns.createdAt, new Date(cursor.createdAt)),
+                eq(mothershipBenchmarkRuns.createdAt, sql`${cursor.createdAt}::timestamp`),
                 lt(mothershipBenchmarkRuns.id, cursor.id)
               )
             )
@@ -463,6 +473,7 @@ export async function reviewBenchmarkRunRecord(
     if (input.correct !== null)
       reviews.push({ id: input.blankId, correct: input.correct, note: input.note })
     const overrides = new Map(reviews.map((review) => [review.id, review.correct]))
+    const reviewedAt = new Date()
     const next = benchmarkRunSchema.parse({
       ...current,
       reviews,
@@ -470,7 +481,7 @@ export async function reviewBenchmarkRunRecord(
       correct: current.artifacts.grade.filter((grade) => overrides.get(grade.id) ?? grade.correct)
         .length,
       version: current.version + 1,
-      reviewedAt: new Date().toISOString(),
+      reviewedAt: reviewedAt.toISOString(),
     })
     await tx
       .update(mothershipBenchmarkRuns)
@@ -478,7 +489,7 @@ export async function reviewBenchmarkRunRecord(
         reviews: next.reviews,
         correct: next.correct,
         version: next.version,
-        reviewedAt: new Date(next.reviewedAt!),
+        reviewedAt,
       })
       .where(eq(mothershipBenchmarkRuns.id, input.runId))
     return next

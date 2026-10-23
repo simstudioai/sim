@@ -9,11 +9,11 @@ import {
   knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import {
   hasWorkspaceLiveSyncAccess,
   isOrganizationOnEnterprisePlan,
@@ -60,6 +60,7 @@ import {
 import type { PreparedConnectorPermissions } from '@/lib/knowledge/connectors/permission-config'
 import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
+import { isImageExtractionEnabled } from '@/lib/knowledge/documents/image-extraction-policy'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -67,11 +68,12 @@ import {
   type KnowledgeOperationContext,
   type KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import { dropSourceVectorIndex } from '@/lib/knowledge/search/source-vector-indexes'
+import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { getConnectorMeta } from '@/connectors/registry'
 import { findSourceSelectionError } from '@/connectors/selection'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
@@ -138,10 +140,13 @@ export type KnowledgeConnectorRow = typeof knowledgeConnector.$inferSelect
 type ConnectorRow = KnowledgeConnectorRow
 /**
  * The connector row as it reaches every caller: never carrying the stored API
- * key, nor the members-mode reconcile cursor, which names a document the
- * caller may not be able to read.
+ * key, nor the members-mode reconcile cursors, which name documents the caller
+ * may not be able to read.
  */
-export type ConnectorWithoutSecret = Omit<ConnectorRow, 'encryptedApiKey' | 'memberTombstoneCursor'>
+export type ConnectorWithoutSecret = Omit<
+  ConnectorRow,
+  'encryptedApiKey' | 'memberTombstoneCursor' | 'memberResurrectionCursor'
+>
 
 /** A refused `sourceConfig`, with the failure class the caller wants surfaced. */
 export interface SourceConfigRejection {
@@ -159,7 +164,12 @@ export interface ConnectorKnowledgeBase {
 }
 
 export function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
-  const { encryptedApiKey: _encryptedApiKey, memberTombstoneCursor: _cursor, ...rest } = row
+  const {
+    encryptedApiKey: _encryptedApiKey,
+    memberTombstoneCursor: _tombstoneCursor,
+    memberResurrectionCursor: _resurrectionCursor,
+    ...rest
+  } = row
   return rest
 }
 
@@ -462,7 +472,8 @@ export async function performCreateKnowledgeConnector(
   let reused = false
   try {
     created = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR UPDATE`)
+      if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
+      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR NO KEY UPDATE`)
 
       const activeKb = await tx
         .select({ id: knowledgeBase.id })
@@ -949,6 +960,17 @@ export async function performUpdateKnowledgeConnector(
     values.lastSyncAt = null
     values.listingCheckpoint = null
     values.directoryCheckpoint = null
+    const imageExtraction = getConnectorMeta(existing.connectorType)?.imageExtraction
+    if (imageExtraction) {
+      /** Turning images off queues removal of the indexed ones; turning them back on cancels it. */
+      if (isImageExtractionEnabled(imageExtraction, sourceConfigToStore)) {
+        values.imageRemovalPending = false
+      } else if (
+        isImageExtractionEnabled(imageExtraction, existing.sourceConfig as Record<string, unknown>)
+      ) {
+        values.imageRemovalPending = true
+      }
+    }
   }
   if (updates.syncIntervalMinutes !== undefined) {
     values.syncIntervalMinutes = updates.syncIntervalMinutes
@@ -1213,6 +1235,7 @@ export async function performDeleteKnowledgeConnector(
     docCount = await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
       await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+      if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
       /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
       const [lockedOwner] = await tx
         .select({
@@ -1405,14 +1428,6 @@ export async function performDeleteKnowledgeConnector(
       ...(request ? { request } : {}),
     })
   }
-
-  /** The source is gone, so its vector index is too; ranking falls back to the exact path. */
-  await dropSourceVectorIndex(connectorId).catch((error: unknown) => {
-    logger.warn('Could not drop the source vector index', {
-      connectorId,
-      error: getErrorMessage(error),
-    })
-  })
 
   return {
     success: true,

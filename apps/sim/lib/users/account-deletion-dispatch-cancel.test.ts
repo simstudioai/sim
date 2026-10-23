@@ -1,27 +1,22 @@
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import { workspacesUtilsMock } from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsSoleOwnerOfPaidOrganization, mockGetPersonalSubscription, mockIsUsingCloudStorage } =
-  vi.hoisted(() => ({
-    mockIsSoleOwnerOfPaidOrganization: vi.fn(),
-    mockGetPersonalSubscription: vi.fn(),
-    mockIsUsingCloudStorage: vi.fn(),
-  }))
+const mockGetPersonalSubscription = billingPlanMockFns.mockGetHighestPriorityPersonalSubscription
+const { mockIsUsingCloudStorage } = uploadsMockFns
+const { mockIsSoleOwnerOfPaidOrganization } = organizationMembershipMockFns
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  isSoleOwnerOfPaidOrganization: mockIsSoleOwnerOfPaidOrganization,
-}))
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetPersonalSubscription,
-}))
-vi.mock('@/lib/uploads', () => ({
-  isUsingCloudStorage: mockIsUsingCloudStorage,
-  StorageService: { deleteFiles: vi.fn(async () => ({ failed: [] })) },
-}))
-vi.mock('@/lib/workspaces/utils', () => ({
-  reassignBilledAccountForUser: vi.fn(async () => ({ unresolved: [] })),
-  reassignOwnedWorkspacesForUser: vi.fn(async () => ({ unresolved: [] })),
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
@@ -31,6 +26,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
     mockIsSoleOwnerOfPaidOrganization.mockResolvedValue({ isSoleOwner: false, name: null })
     mockGetPersonalSubscription.mockResolvedValue(null)
     mockIsUsingCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockDeleteFiles.mockResolvedValue({ failed: [] })
   })
 
   /**
@@ -42,7 +38,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
    * row unreachable.
    */
   it('cancels the account’s still-queued dispatches before deleting the user row', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.tableRunDispatches)
     const cancelled = dbChainMockFns.set.mock.calls.find(
@@ -60,7 +56,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
    * account's own actorless-looking rows alive.
    */
   it('cancels on the governed subject and only the still-active statuses', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     const filter = dbChainMockFns.where.mock.calls
       .map(([condition]) => condition)
@@ -88,7 +84,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
 
   /** The cancel must precede the delete, or the FK has already nulled the subject. */
   it('orders the cancel ahead of the user delete', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     const cancelOrder = dbChainMockFns.update.mock.invocationCallOrder.at(-1)
     const deleteOrder = dbChainMockFns.delete.mock.invocationCallOrder.at(-1)

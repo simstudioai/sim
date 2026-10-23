@@ -1,36 +1,38 @@
 ---
 title: Wealthbox
 description: Interact with Wealthbox
+integration:
+  type: "wealthbox"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="wealthbox"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Wealthbox](https://www.wealthbox.com/) is a comprehensive CRM platform designed specifically for financial advisors and wealth management professionals. It provides a centralized system for managing client relationships, tracking interactions, and organizing business workflows in the financial services industry.
+Use [Wealthbox](https://www.wealthbox.com/) to read and write client notes, contacts, and tasks. A workflow can turn meeting output into a note, retrieve client context, or create follow-up work.
 
-With Wealthbox, you can:
-
-- **Manage client relationships**: Store detailed contact information, background data, and relationship histories for all your clients
-- **Track interactions**: Create and maintain notes about meetings, calls, and other client touchpoints
-- **Organize tasks**: Schedule and manage follow-up activities, deadlines, and important action items
-- **Document workflows**: Keep comprehensive records of client communications and business processes
-- **Access client data**: Retrieve information quickly with organized contact management and search capabilities
-- **Automate follow-ups**: Set reminders and schedule tasks to ensure consistent client engagement
-
-In Sim, the Wealthbox integration enables your agents to seamlessly interact with your CRM data through OAuth authentication. This allows for powerful automation scenarios such as automatically creating client notes from meeting transcripts, updating contact information, scheduling follow-up tasks, and retrieving client details for personalized communications. Your agents can read existing notes, contacts, and tasks to understand client history, while also creating new entries to maintain up-to-date records. This integration bridges the gap between your AI workflows and your client relationship management, enabling automated data entry, intelligent client insights, and streamlined administrative processes that free up time for more valuable client-facing activities.
+Connect with OAuth or a supported [API access token](/integrations/wealthbox-service-account). Each credential uses the connected Wealthbox user's permissions. Contact writes create new contacts; note and task writes also support updates.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+Connection guides: [API access tokens](/integrations/wealthbox-service-account).
 
-Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.
+## OAuth scopes [#oauth-scopes]
 
+Sim requests these scopes when someone connects a Wealthbox account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/wealthbox` |
+| Environment variables | `WEALTHBOX_CLIENT_ID`, `WEALTHBOX_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `login` | Access Wealthbox account |
+| `data` | Access Wealthbox data |
+
+## Use the block [#usage-instructions]
+
+Read or write Wealthbox notes, contacts, and tasks with OAuth or a supported API access token.
 
 ## Actions
 

@@ -1,33 +1,31 @@
 ---
 title: Exa
 description: Search with Exa AI
+integration:
+  type: "exa"
+  color: "#1F40ED"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="exa"
-  color="#1F40ED"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Exa](https://exa.ai/) searches the web, retrieves page content, and answers questions with citations. Use Agent for multi-step research and supply a JSON schema when you need structured results with field-level citations.
 
-**Migration notes.** Exa has retired its standalone Research endpoint — use the **Agent** operation for deep research. Workflows still configured with the old Research operation are routed to Agent automatically. Exa has also deprecated **Find Similar Links** in favor of Search, and `livecrawl` in favor of `maxAgeHours`.
+**Migration notes.** Use **Agent** for multi-step research. Sim routes workflows configured with the old Research operation to Agent and maps their former research-model setting to an effort level. **Find Similar Links** remains a legacy operation; prefer the current [Search API](https://exa.ai/docs/reference/search) for new workflows. Use `maxAgeHours` for content freshness instead of the legacy `livecrawl` setting.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Exa into the workflow. Can search the web, get page contents, find similar links, answer a question with citations, and run deep research with Exa Agent.
-
-
+Search the web, retrieve page content, answer questions with citations, or run multi-step research with Exa Agent. Find Similar Links remains a legacy operation; prefer Search for new workflows.
 
 ## Actions
 
 ### Exa Search
 
 Search the web using Exa AI. Returns relevant search results with titles, URLs, and text snippets.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +81,13 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `structuredOutput` | json | Synthesized answer matching outputSchema, when one was supplied |
 | `grounding` | json | Field-level citations backing the synthesized output |
 
+</ReferenceDetails>
+
 ### Exa Get Contents
 
 Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -124,9 +126,13 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | `statuses` | json | Per-URL crawl outcome, showing which pages succeeded and whether they came from cache |
 | `requestId` | string | Exa request identifier, useful for support |
 
+</ReferenceDetails>
+
 ### Exa Find Similar Links
 
 Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,6 +165,8 @@ Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of
 |   ↳ `highlights` | array | Relevant snippets extracted from the page |
 |   ↳ `score` | number | Similarity score indicating how similar the page is |
 | `requestId` | string | Exa request identifier, useful for support |
+
+</ReferenceDetails>
 
 ### Exa Answer
 

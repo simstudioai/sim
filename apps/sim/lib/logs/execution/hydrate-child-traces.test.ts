@@ -1,53 +1,22 @@
+import { dbChainMockFns } from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TraceSpan } from '@/lib/logs/types'
 
-const { mockSelect, mockSelectPolicies, mockCheckWorkspaceAccess, mockMaterialize } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockSelectPolicies: vi.fn(),
-    mockCheckWorkspaceAccess: vi.fn(),
-    mockMaterialize: vi.fn(),
-  })
-)
-
-// Two queries per depth now — the child log rows, then the publisher policy for the
-// blocks they belong to. Routed by table so neither test has to know the call order.
-vi.mock('@sim/db', () => ({
-  db: {
-    select: (columns: Record<string, unknown>) => ({
-      from: () => ({
-        where: (...args: unknown[]) =>
-          'traceChildRuns' in columns ? mockSelectPolicies(...args) : mockSelect(...args),
-      }),
-    }),
-  },
+const { mockSelect, mockSelectPolicies } = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockSelectPolicies: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterialize,
-  stripJoinedChildTraceSpend: (spans: unknown) => {
-    if (!Array.isArray(spans)) return
-    for (const span of spans) {
-      if (span && typeof span === 'object') {
-        const record = span as { cost?: unknown; children?: unknown }
-        if ('cost' in record) record.cost = undefined
-        if (Array.isArray(record.children)) {
-          for (const child of record.children) {
-            if (child && typeof child === 'object' && 'cost' in child) {
-              ;(child as { cost?: unknown }).cost = undefined
-            }
-          }
-        }
-      }
-    }
-  },
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
+
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockMaterialize = traceStoreMockFns.mockMaterializeExecutionDataForDisplay
 
 const boundarySpan = (childExecutionId: string): TraceSpan => ({
   id: 'span-1',
@@ -74,6 +43,16 @@ const childSpan = (overrides: Partial<TraceSpan> = {}): TraceSpan => ({
 
 describe('hydrateChildTraces', () => {
   beforeEach(() => {
+    /**
+     * Two queries per depth — the child log rows, then the publisher policy for the
+     * blocks they belong to. Routed by table so neither test has to know the call order.
+     */
+    dbChainMockFns.select.mockImplementation((columns: Record<string, unknown>) => ({
+      from: () => ({
+        where: (...args: unknown[]) =>
+          'traceChildRuns' in columns ? mockSelectPolicies(...args) : mockSelect(...args),
+      }),
+    }))
     mockSelect.mockResolvedValue([])
     // Publishers of every source workflow the tests reference have opted in; the
     // closed-policy cases override this.

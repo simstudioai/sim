@@ -6,6 +6,18 @@ import { ContentAuthorPage } from '@/app/(landing)/components'
 
 export const revalidate = 3600
 
+/**
+ * Unknown params 404 before rendering when this route is prerendered. The production image renders
+ * every route dynamically, so there the page's own `notFound()` is what 404s - which is why no
+ * `loading.tsx` may wrap this segment: its Suspense boundary commits a 200 before `notFound()` runs.
+ */
+export const dynamicParams = false
+
+export async function generateStaticParams() {
+  const ids = new Set((await getAllPostMeta()).flatMap((p) => p.authors.map((a) => a.id)))
+  return [...ids].map((id) => ({ id }))
+}
+
 export async function generateMetadata({
   params,
 }: {

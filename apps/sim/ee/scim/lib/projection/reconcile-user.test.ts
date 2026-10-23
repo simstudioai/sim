@@ -9,10 +9,13 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireLocks: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   changeMemberRole: vi.fn(),
   addMember: vi.fn(),
   removeMember: vi.fn(),
@@ -20,32 +23,37 @@ const mocks = vi.hoisted(() => ({
   lowerWorkspace: vi.fn(),
   readPermission: vi.fn(),
   revokeWorkspace: vi.fn(),
+  stopRuns: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.acquireLocks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  changeMemberRoleTx: mocks.changeMemberRole,
+  changeMemberRoleTx: hoistedMocks.changeMemberRole,
 }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
-  addPermissionGroupMemberTx: mocks.addMember,
-  removePermissionGroupMemberTx: mocks.removeMember,
+  addPermissionGroupMemberTx: hoistedMocks.addMember,
+  removePermissionGroupMemberTx: hoistedMocks.removeMember,
   PermissionGroupNotFoundError: class PermissionGroupNotFoundError extends Error {},
   PermissionGroupScopeConflictError: class PermissionGroupScopeConflictError extends Error {
     conflicts: unknown[] = []
   },
 }))
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
-  grantWorkspaceAccessTx: mocks.grantWorkspace,
-  lowerWorkspaceAccessTx: mocks.lowerWorkspace,
-  readWorkspacePermission: mocks.readPermission,
-  revokeWorkspaceAccessTx: mocks.revokeWorkspace,
+  grantWorkspaceAccessTx: hoistedMocks.grantWorkspace,
+  lowerWorkspaceAccessTx: hoistedMocks.lowerWorkspace,
+  readWorkspacePermission: hoistedMocks.readPermission,
+  revokeWorkspaceAccessTx: hoistedMocks.revokeWorkspace,
+  stopRunsWithoutWorkspaceAccessTx: hoistedMocks.stopRuns,
   permissionRank: (permission: string) => ({ read: 1, write: 2, admin: 3 })[permission] ?? 0,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { reconcileUserProjection } from '@/ee/scim/lib/projection/reconcile-user'
+
+const mocks = {
+  ...hoistedMocks,
+  acquireLocks: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const params = {
   connectionId: 'conn-1',
@@ -111,10 +119,20 @@ describe('reconcileUserProjection', () => {
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
     mocks.readPermission.mockResolvedValue('write')
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
+    mocks.stopRuns.mockResolvedValue([])
     mocks.addMember.mockResolvedValue('added')
     mocks.removeMember.mockResolvedValue('removed')
-    mocks.changeMemberRole.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
+    mocks.changeMemberRole.mockResolvedValue({
+      changed: true,
+      from: 'member',
+      to: 'admin',
+      stoppedRuns: [],
+    })
   })
 
   it('takes the organization and user locks before reading any grant', async () => {
@@ -192,6 +210,7 @@ describe('reconcileUserProjection', () => {
       organizationId: 'org-1',
       userId: 'u-1',
       role: 'admin',
+      deferRunStops: true,
     })
   })
 
@@ -295,7 +314,11 @@ describe('reconcileUserProjection', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.readPermission.mockResolvedValue('write')
     stage({
       current: [

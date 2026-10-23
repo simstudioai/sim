@@ -396,26 +396,3 @@ export interface TrelloSearchResponse extends ToolResponse {
     error?: string
   }
 }
-
-export type TrelloResponse =
-  | TrelloListListsResponse
-  | TrelloListCardsResponse
-  | TrelloCreateCardResponse
-  | TrelloUpdateCardResponse
-  | TrelloDeleteCardResponse
-  | TrelloGetActionsResponse
-  | TrelloAddCommentResponse
-  | TrelloCreateBoardResponse
-  | TrelloGetBoardResponse
-  | TrelloCreateListResponse
-  | TrelloUpdateListResponse
-  | TrelloGetCardResponse
-  | TrelloAddChecklistResponse
-  | TrelloAddChecklistItemResponse
-  | TrelloUpdateChecklistItemResponse
-  | TrelloAddLabelResponse
-  | TrelloRemoveLabelResponse
-  | TrelloAddMemberResponse
-  | TrelloRemoveMemberResponse
-  | TrelloListMembersResponse
-  | TrelloSearchResponse

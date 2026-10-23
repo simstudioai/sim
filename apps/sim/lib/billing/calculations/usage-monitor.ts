@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
@@ -43,6 +44,11 @@ interface UsageData {
   scope: 'user' | 'organization'
   /** Present only when `scope === 'organization'`. */
   organizationId: string | null
+  /**
+   * The ledger could not be read, so `isExceeded` is a fail-closed refusal rather than a
+   * measured one. Admission refuses on it; a run already under way treats it as unknown.
+   */
+  unavailable?: true
 }
 
 /**
@@ -118,7 +124,7 @@ export async function checkUsageStatus(
         : await getHighestPrioritySubscription(userId)
 
     const limit = await getUserUsageLimit(userId, sub)
-    logger.info('Using stored usage limit', { userId, limit })
+    logger.debug('Using stored usage limit', { userId, limit })
 
     const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
     const scope: 'user' | 'organization' = subIsOrgScoped ? 'organization' : 'user'
@@ -165,14 +171,10 @@ export async function checkUsageStatus(
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
-    logger.error('Error checking usage status', {
-      error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
-      userId,
-    })
-
     logger.error('Cannot determine usage status - blocking execution', {
       userId,
-      error: toError(error).message,
+      error,
+      cause: describeError(error),
     })
 
     return {
@@ -183,6 +185,7 @@ export async function checkUsageStatus(
       limit: 0,
       scope: 'user',
       organizationId: null,
+      unavailable: true,
     }
   }
 }
@@ -198,7 +201,7 @@ function buildUsageData(params: {
   const isExceeded = currentUsage >= limit
   const isWarning = !isExceeded && percentUsed >= WARNING_THRESHOLD
 
-  logger.info('Final usage statistics', {
+  logger.debug('Final usage statistics', {
     currentUsage,
     limit,
     percentUsed,
@@ -352,7 +355,11 @@ export async function checkServerSideUsageLimits(
       isExceeded: usageData.isExceeded,
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
-      message: usageData.isExceeded ? exceededMessage : undefined,
+      message: usageData.unavailable
+        ? USAGE_UNAVAILABLE_MESSAGE
+        : usageData.isExceeded
+          ? exceededMessage
+          : undefined,
     }
   } catch (error) {
     logger.error('Error in server-side usage limit check', {

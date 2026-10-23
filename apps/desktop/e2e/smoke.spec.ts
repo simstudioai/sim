@@ -138,6 +138,7 @@ test.describe('desktop shell smoke', () => {
   test('OAuth popups share the session without inheriting the privileged preload', async () => {
     app = await launchApp(origin)
     const window = await app.firstWindow()
+    await window.waitForURL(`${origin}/home`, { waitUntil: 'load' })
     await window.evaluate(() => {
       document.cookie = 'sim-e2e-session=shared; Path=/; SameSite=Lax'
     })
@@ -319,7 +320,7 @@ test.describe('desktop shell smoke', () => {
     await window.locator('#server').click()
     const picker = await pickerPromise
 
-    expect(picker.url()).toBe('sim-shell://pages/server.html')
+    await expect(picker).toHaveURL('sim-shell://pages/server.html')
     await expect(picker.getByRole('dialog', { name: 'Sim server', exact: true })).toBeVisible()
     await expect(picker.getByLabel('Server URL')).toHaveValue('http://127.0.0.1:1')
     await expect(picker.getByLabel('Server URL')).toBeFocused()

@@ -71,6 +71,7 @@ export function PromptEditor({
   'aria-label': ariaLabel,
   onSubmit,
   onArrowUpOnEmpty,
+  onNavigateHistory,
 }: PromptEditorProps) {
   const { textareaRef, value } = editor
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -86,7 +87,7 @@ export function PromptEditor({
 
   useEffect(() => {
     if (autoFocus && !readOnly) editor.focusAtEnd()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only focus
+    // mount-only focus
   }, [])
 
   /**
@@ -198,7 +199,9 @@ export function PromptEditor({
           readOnly={readOnly}
           onChange={readOnly ? undefined : editor.handleInputChange}
           onKeyDown={
-            readOnly ? undefined : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })
+            readOnly
+              ? undefined
+              : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty, onNavigateHistory })
           }
           onFocus={readOnly ? undefined : () => setHasFocused(true)}
           onPaste={readOnly ? undefined : editor.handlePaste}
@@ -226,6 +229,7 @@ export function PromptEditor({
             organizationId={editor.organizationId}
             warm={hasFocused}
             onResourceSelect={editor.insertResource}
+            onWorkspaceSelect={editor.insertWorkspace}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}

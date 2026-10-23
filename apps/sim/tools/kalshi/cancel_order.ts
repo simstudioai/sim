@@ -55,7 +55,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'cancel_order')
+        handleKalshiError(data, 'cancel_order')
       }
 
       return {
@@ -132,7 +132,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
 > = {
   id: 'kalshi_cancel_order_v2',
   name: 'Cancel Order on Kalshi V2',
-  description: 'Cancel an existing order on Kalshi (V2 with full API response)',
+  description: 'Cancel an existing order on Kalshi',
   version: '2.0.0',
 
   params: {
@@ -169,7 +169,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'cancel_order_v2')
+      handleKalshiError(data, 'cancel_order_v2')
     }
 
     const order = data.order || {}

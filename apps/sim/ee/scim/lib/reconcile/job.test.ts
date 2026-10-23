@@ -1,44 +1,53 @@
 import { scimConnection } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   isEntitled: vi.fn(),
   reconcileBatch: vi.fn(),
   listScimUserIds: vi.fn(),
   prune: vi.fn(),
-  acquireLock: vi.fn(),
   listGroups: vi.fn(),
   autoMap: vi.fn(),
   settleGroups: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.acquireLock,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/ee/scim/lib/projection/auto-map', () => ({
-  autoMapPermissionGroupByName: mocks.autoMap,
-  settleMappedPermissionGroupsExplicit: mocks.settleGroups,
+  autoMapPermissionGroupByName: hoistedMocks.autoMap,
+  settleMappedPermissionGroupsExplicit: hoistedMocks.settleGroups,
 }))
 vi.mock('@/ee/scim/lib/repository/groups', () => ({
-  listScimGroupsForReconcile: mocks.listGroups,
+  listScimGroupsForReconcile: hoistedMocks.listGroups,
 }))
-vi.mock('@sim/utils/id', () => ({ generateId: () => 'run-1' }))
 vi.mock('@/ee/scim/lib/entitlement', () => ({
-  isScimEntitledForOrganization: mocks.isEntitled,
+  isScimEntitledForOrganization: hoistedMocks.isEntitled,
 }))
 vi.mock('@/ee/scim/lib/projection/reconcile-user', () => ({
   PROJECTION_BATCH_SIZE: 25,
-  reconcileUsersProjectionInBatches: mocks.reconcileBatch,
+  reconcileUsersProjectionInBatches: hoistedMocks.reconcileBatch,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  listScimUserIds: mocks.listScimUserIds,
+  listScimUserIds: hoistedMocks.listScimUserIds,
 }))
 vi.mock('@/ee/scim/lib/request-log', () => ({
-  pruneScimRequestLog: mocks.prune,
+  pruneScimRequestLog: hoistedMocks.prune,
 }))
 
 import { reconcileConnection, runScimReconcileSweep } from '@/ee/scim/lib/reconcile/job'
+
+idMockFns.mockGenerateId.mockReturnValue('run-1')
+
+const mocks = {
+  ...hoistedMocks,
+  acquireLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+}
 
 const NOW = new Date('2026-03-01T12:00:00.000Z')
 const LEASE_TTL_MS = 15 * 60 * 1000

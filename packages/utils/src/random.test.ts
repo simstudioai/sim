@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { randomInt } from './random.js'
 
 const UINT32_MAX = 0xffffffff
@@ -17,10 +17,6 @@ function mockRandomValues(...values: number[]) {
 }
 
 describe('randomInt', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('redraws values from the biased upper tail', () => {
     const getRandomValues = mockRandomValues(UINT32_MAX, 42)
 

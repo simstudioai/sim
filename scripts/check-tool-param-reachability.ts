@@ -47,11 +47,20 @@
  * reachable, so a parameter needing an exemption is one no caller can supply —
  * exactly what this audit exists to reject.
  *
+ * Three registry rules ride along: a hosted tool may not report its own `cost`
+ * output, a fixed-verb external tool may not declare a `method` param that
+ * the transport would send as the HTTP verb, and a tool that takes a saved
+ * credential must declare the provider it binds.
+ *
  * Usage:
  *   bun run scripts/check-tool-param-reachability.ts
  */
+import {
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '../apps/sim/lib/oauth/utils'
 import { tools } from '../apps/sim/tools/registry'
-import type { ToolConfig } from '../apps/sim/tools/types'
+import { isInternalToolConfig, type ToolConfig } from '../apps/sim/tools/types'
 
 /**
  * The one parameter credential resolution assigns unconditionally.
@@ -119,6 +128,54 @@ function findHostedToolsReportingCost(): string[] {
     .sort()
 }
 
+/**
+ * An external tool with a fixed HTTP verb must not declare a `method` param.
+ *
+ * `formatToolRequest` (`tools/request-transport.ts`) sends `params.method || request.method`
+ * whenever `request.method` is not a function, so a provider field named `method` (an S3
+ * presign operation, a payment method) silently replaces the verb. A tool whose verb really
+ * comes from that param reads it in a `request.method` function, which this rule allows.
+ */
+function findVerbOverridingParams(): string[] {
+  return Object.entries(tools)
+    .filter(
+      ([, config]) =>
+        !isInternalToolConfig(config) &&
+        typeof config.request.method !== 'function' &&
+        Object.hasOwn(config.params ?? {}, 'method')
+    )
+    .map(([toolId]) => toolId)
+    .sort()
+}
+
+/** Params the executor resolves into a token before the tool runs. */
+const CREDENTIAL_PARAM_IDS = ['credential', 'oauthCredential'] as const
+
+/**
+ * A tool that takes a saved credential must declare the provider it binds.
+ *
+ * The executor resolves a `credential`/`oauthCredential` param into a token for
+ * any tool, but `resolveCredentialToken` (`lib/oauth/token-resolution.ts`)
+ * fails closed unless the tool's `oauth` policy is `required` and its
+ * `provider` resolves to a service — so a tool without one rejects every
+ * credential at run time ("The selected credential does not belong to this
+ * tool provider"). Service-account-only integrations declare it too, with
+ * `credentialKind: 'service-account'`.
+ */
+function findUnboundCredentialTools(): string[] {
+  const offenders: string[] = []
+  for (const [toolId, config] of Object.entries(tools as Record<string, ToolConfig>)) {
+    if (!CREDENTIAL_PARAM_IDS.some((paramId) => config.params?.[paramId] != null)) continue
+    const provider = config.oauth?.required ? config.oauth.provider : undefined
+    if (!provider) {
+      offenders.push(`${toolId} — takes a credential but declares no required oauth policy`)
+    } else if (!getServiceConfigByServiceId(provider) && !getServiceConfigByProviderId(provider)) {
+      offenders.push(`${toolId} — oauth.provider '${provider}' matches no OAuth service`)
+    }
+  }
+  return offenders.sort()
+}
+
 function findUnreachableParams(): Finding[] {
   const findings: Finding[] = []
 
@@ -174,6 +231,27 @@ function main(): void {
         `  ${toolId} — declares hosting AND a 'cost' output; direct execution reads output.cost on a hosted tool as "Sim's key paid", so a self-reported cost would bill BYOK and caller-keyed calls`
       )
     }
+    process.exit(1)
+  }
+
+  const verbOverriders = findVerbOverridingParams()
+  if (verbOverriders.length > 0) {
+    console.error('Tool parameter reachability audit failed:\n')
+    for (const toolId of verbOverriders) {
+      console.error(
+        `  ${toolId} — declares a 'method' param on a fixed-verb request; the transport sends params.method as the HTTP verb. Rename the param, or read it in a request.method function`
+      )
+    }
+    process.exit(1)
+  }
+
+  const unboundCredentialTools = findUnboundCredentialTools()
+  if (unboundCredentialTools.length > 0) {
+    console.error('Tool parameter reachability audit failed:\n')
+    for (const offender of unboundCredentialTools) console.error(`  ${offender}`)
+    console.error(
+      "\nDeclare oauth: { required: true, provider: '<service id>' } on each tool, adding credentialKind: 'service-account' for service-account-only integrations."
+    )
     process.exit(1)
   }
 

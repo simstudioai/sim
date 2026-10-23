@@ -24,8 +24,9 @@ import {
   type BillingAttributionSnapshot,
   getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -50,6 +51,10 @@ import {
   validateCallChain,
 } from '@/lib/execution/call-chain'
 import {
+  INTERNAL_EXECUTION_DEADLINE_HEADER,
+  parseExecutionDeadlineHeader,
+} from '@/lib/execution/deadline-header'
+import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
@@ -57,10 +62,6 @@ import {
   setExecutionActiveBlockStarts,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
-import {
-  INTERNAL_EXECUTION_DEADLINE_HEADER,
-  parseExecutionDeadlineHeader,
-} from '@/lib/execution/execution-deadline-header'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -95,6 +96,10 @@ import {
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
+import {
+  reportQueuedClientWorkflowTool,
+  reportSettledClientWorkflowTool,
+} from '@/lib/mothership/request/tools/workflow-client-settlement'
 import {
   ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
   type CopilotWorkflowToolBindingResult,
@@ -286,7 +291,7 @@ function clientCancelledResponse(): NextResponse {
 
 function executionTimedOutResponse(timeoutMs?: number): NextResponse {
   return NextResponse.json(
-    { success: false, error: getTimeoutErrorMessage(null, timeoutMs) },
+    { success: false, error: getTimeoutErrorMessage(timeoutMs) },
     { status: 408 }
   )
 }
@@ -509,11 +514,25 @@ async function handleExecutePost(
     )
     await copilotSettlement
   }
+  /** A bound execution reports its own outcome, so a browser that detached never strands the turn. */
   const executeBoundWorkflow = async <T>(execute: () => Promise<T>): Promise<T> => {
     try {
       return await execute()
     } finally {
       await settleCopilotExecution()
+      if (copilotToolCallId && workflowToolClaimAcquired) {
+        await reportSettledClientWorkflowTool({
+          toolCallId: copilotToolCallId,
+          executionId,
+          workflowId,
+        }).catch((error) => {
+          reqLogger.warn('Could not report settled Copilot workflow execution', {
+            copilotToolCallId,
+            executionId,
+            error: getErrorMessage(error),
+          })
+        })
+      }
     }
   }
 
@@ -1297,6 +1316,19 @@ async function handleExecutePost(
         trustedInitialResolvedSecretTraceProvenance,
       })
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
+      if (copilotToolCallId && workflowToolClaimAcquired && asyncResult.retainExecutionClaim) {
+        await reportQueuedClientWorkflowTool({
+          toolCallId: copilotToolCallId,
+          executionId,
+          workflowId,
+        }).catch((error) => {
+          reqLogger.warn('Could not report queued Copilot workflow execution', {
+            copilotToolCallId,
+            executionId,
+            error: getErrorMessage(error),
+          })
+        })
+      }
       return asyncResult.response
     }
 
@@ -1467,7 +1499,7 @@ async function handleExecutePost(
         }
 
         if (result.status === 'cancelled' && didExecutionTimeOut() && timeoutController.timeoutMs) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           reqLogger.info('Non-SSE execution timed out', {
             timeoutMs: timeoutController.timeoutMs,
           })
@@ -1569,7 +1601,7 @@ async function handleExecutePost(
       } catch (error: unknown) {
         const executionTimedOut = didExecutionTimeOut(error)
         const errorMessage = executionTimedOut
-          ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+          ? getTimeoutErrorMessage(timeoutController.timeoutMs)
           : getErrorMessage(error, 'Unknown error')
 
         if (requestAbort.isRequestAborted() && !executionTimedOut) {
@@ -1584,10 +1616,11 @@ async function handleExecutePost(
           return payloadTooLargeResponse()
         }
 
-        reqLogger.error(
-          'Non-SSE execution failed',
-          loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut })
-        )
+        logFailureOnce(reqLogger, 'Non-SSE execution failed', error, {
+          metadata: () =>
+            loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut }),
+          executionId,
+        })
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
         const status = executionTimedOut ? 408 : getExecutionErrorStatus(error)
@@ -1636,6 +1669,12 @@ async function handleExecutePost(
             reqLogger.error('Failed to cleanup base64 cache', { error })
           })
         }
+        /**
+         * The sync response is the run's receipt: callers read its log and cost as soon
+         * as it lands. The core finalizes both in the background, so hold the response
+         * until they are durable.
+         */
+        await loggingSession.waitForPostExecution()
       }
     }
 
@@ -2259,7 +2298,7 @@ async function handleExecutePost(
 
           if (result.status === 'cancelled') {
             if (didExecutionTimeOut() && timeoutController.timeoutMs) {
-              const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+              const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
               reqLogger.info('Workflow execution timed out', {
                 timeoutMs: timeoutController.timeoutMs,
               })
@@ -2380,13 +2419,13 @@ async function handleExecutePost(
           await awaitBoundCopilotPostExecution()
           const isTimeout = didExecutionTimeOut(error)
           const errorMessage = isTimeout
-            ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+            ? getTimeoutErrorMessage(timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
-          reqLogger.error(
-            'SSE execution failed',
-            loggingSession.projectDiagnosticError(error, { isTimeout })
-          )
+          logFailureOnce(reqLogger, 'SSE execution failed', error, {
+            metadata: () => loggingSession.projectDiagnosticError(error, { isTimeout }),
+            executionId,
+          })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
           let compactErrorLogs: BlockLog[] | undefined

@@ -8,7 +8,11 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
 import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
-import { normalizeMessage, withBlockTiming } from '@/lib/mothership/chat/persisted-message'
+import {
+  isUnsettledToolState,
+  normalizeMessage,
+  withBlockTiming,
+} from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -18,7 +22,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import { isZeroStreamCursor } from './stream-protocol'
@@ -84,6 +88,7 @@ function toRawPersistedContentBlockBody(block: ContentBlock): PersistedContentBl
           ...(block.toolCall.activityDescription
             ? { activityDescription: block.toolCall.activityDescription }
             : {}),
+          ...(block.toolCall.activity ? { activity: block.toolCall.activity } : {}),
           ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
           ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
           ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -142,18 +147,18 @@ export function buildAssistantSnapshotMessage(params: {
 }
 
 export function markMessageStopped(message: PersistedMessage): PersistedMessage {
-  const hasExecutingTool = message.contentBlocks?.some(
-    (block) => block.toolCall?.state === 'executing'
+  const hasUnsettledTool = message.contentBlocks?.some((block) =>
+    isUnsettledToolState(block.toolCall?.state)
   )
   const hasOpenBlock = message.contentBlocks?.some((block) => block.endedAt === undefined)
-  if (!hasExecutingTool && !hasOpenBlock) {
+  if (!hasUnsettledTool && !hasOpenBlock) {
     return message
   }
 
   const stopTs = Date.now()
   const nextBlocks = (message.contentBlocks ?? []).map((block) => {
     const stamped = block.endedAt === undefined ? { ...block, endedAt: stopTs } : block
-    if (stamped.toolCall?.state !== 'executing') {
+    if (!stamped.toolCall || !isUnsettledToolState(stamped.toolCall.state)) {
       return stamped
     }
     return {
@@ -188,9 +193,17 @@ export function markMessageStopped(message: PersistedMessage): PersistedMessage 
   })
 }
 
+/**
+ * Changes whenever a server read of the chat changes what hydration acts on. Older messages
+ * loaded in behind the window are left out: they are settled turns, and re-running hydration
+ * for each page would restart reconnects and resource restores the window already handled.
+ */
 export function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
   const resourceKey = JSON.stringify(chatHistory.resources)
-  const messageKey = chatHistory.messages.map((message) => message.id).join('|')
+  const messageKey = chatHistory.messages
+    .slice(chatHistory.olderMessageCount ?? 0)
+    .map((message) => message.id)
+    .join('|')
   const streamSnapshot = chatHistory.streamSnapshot
   const snapshotKey = streamSnapshot
     ? [

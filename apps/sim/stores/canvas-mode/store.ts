@@ -15,7 +15,7 @@ export const useCanvasModeStore = create<CanvasModeState>()(
         mode: 'hand',
         setMode: (mode) => set({ mode }),
       }),
-      { name: 'canvas-mode' }
+      { name: 'canvas-mode', partialize: (state) => ({ mode: state.mode }) }
     ),
     { name: 'canvas-mode-store' }
   )

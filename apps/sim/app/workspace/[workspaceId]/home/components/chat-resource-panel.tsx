@@ -47,7 +47,6 @@ export function ChatResourcePanel({
     setTableViewContext,
     previewSession,
     isSending,
-    genericResourceData,
   } = chat
   const {
     isResourceCollapsed,
@@ -102,7 +101,6 @@ export function ChatResourcePanel({
               isCollapsed={isResourceCollapsed}
               previewSession={previewSession}
               isAgentResponding={isSending}
-              genericResourceData={genericResourceData ?? undefined}
               onSummarize={summarize}
               onUserInteraction={handleResourceInteraction}
               className={skipResourceTransition ? 'transition-none!' : undefined}

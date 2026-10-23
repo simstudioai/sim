@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import type { SchemaField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import { getBlock } from '@/blocks'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'

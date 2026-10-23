@@ -1,9 +1,15 @@
+import { db } from '@sim/db'
+import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { taskContext } from '@trigger.dev/core/v3'
 import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
+import { eq } from 'drizzle-orm'
+import { getRecordedJobFailureError } from '@/lib/core/async-jobs/recorded-failure'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { measureTriggerAcceptance } from '@/lib/core/async-jobs/trigger-acceptance'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
@@ -19,6 +25,9 @@ import {
   type JobType,
   TERMINAL_JOB_STATUSES,
   validateMaxDurationSeconds,
+  WORKSPACE_EXECUTION_JOB_TYPES,
+  type WorkspaceJobCancellationOptions,
+  type WorkspaceJobCancellationResult,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
@@ -33,6 +42,7 @@ const ACTIVE_TRIGGER_RUN_STATUSES = [
 ] as const
 const CANCELLATION_LIST_PAGE_SIZE = 25
 const CANCELLATION_OPERATION_CHUNK_SIZE = 10
+const WORKSPACE_CANCELLATION_LIST_PAGE_SIZE = 100
 function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
   if (error instanceof ApiError && error.status && error.status >= 400 && error.status < 500) {
     return new AsyncJobEnqueueError(toError(error).message, {
@@ -49,9 +59,78 @@ function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
   })
 }
 
+/** Trigger's friendly run ids — the only ids `runs.retrieve` can resolve. */
+const TRIGGER_RUN_ID_PREFIX = 'run_'
+
+type TriggerRun = Awaited<ReturnType<typeof runs.retrieve>>
+
+function isTriggerNotFoundError(error: unknown): boolean {
+  return (
+    (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
+    (isRecordLike(error) && error.status === 404)
+  )
+}
+
+/**
+ * Retrieves a run by its Trigger run id, or null when `jobId` is not one or no
+ * such run exists. A caller-chosen job id (`schedule_…`, `workflow-execution:…`)
+ * can never resolve here, and Trigger takes ~10 s to answer that 404, so it is
+ * not sent at all.
+ */
+async function retrieveRunById(jobId: string): Promise<TriggerRun | null> {
+  if (!jobId.startsWith(TRIGGER_RUN_ID_PREFIX)) return null
+  try {
+    return await runs.retrieve(jobId)
+  } catch (error) {
+    if (isTriggerNotFoundError(error)) return null
+    throw error
+  }
+}
+
+/**
+ * Retains Trigger's accepted run ID before enqueue can return success. The
+ * idempotency result table shares receipts across app processes; its ordinary
+ * retention bounds storage, with tag lookup retained for older jobs.
+ */
+async function storeRunReceipt(jobId: string, runId: string): Promise<void> {
+  const result = { runId }
+  await db
+    .insert(idempotencyKey)
+    .values({ key: `trigger-job:${jobId}`, result })
+    .onConflictDoUpdate({
+      target: idempotencyKey.key,
+      set: { result, createdAt: new Date() },
+    })
+}
+
+/** Reads accepted run IDs without depending on Trigger's asynchronous tag index. */
+async function retrieveRunByReceipt(jobId: string): Promise<TriggerRun | null> {
+  const [receipt] = await db
+    .select({ result: idempotencyKey.result })
+    .from(idempotencyKey)
+    .where(eq(idempotencyKey.key, `trigger-job:${jobId}`))
+    .limit(1)
+  const result = receipt?.result
+  return isRecordLike(result) && typeof result.runId === 'string'
+    ? retrieveRunById(result.runId)
+    : null
+}
+
+/** Resolves legacy or expired receipts through the `jobId:` tag set at enqueue. */
+async function retrieveRunByJobIdTag(jobId: string): Promise<TriggerRun | null> {
+  for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
+    return runs.retrieve(candidate.id)
+  }
+  return null
+}
+
 function buildExecutionTag(executionId: string): string {
   const tag = `executionId:${executionId}`
   return tag.length <= 128 ? tag : `executionIdHash:${sha256Hex(executionId)}`
+}
+
+function buildWorkspaceTag(workspaceId: string): string {
+  return `workspaceId:${workspaceId}`
 }
 
 function buildWorkflowTag(workflowId: string): string {
@@ -98,10 +177,13 @@ interface CancellationListRun {
 }
 
 interface CancellationScanOptions {
-  binding: ExecutionJobBinding
+  /** Required by any candidate that sets `verifyPayload`. */
+  binding?: ExecutionJobBinding
   cancelJob: (jobId: string) => Promise<void>
   listRuns: () => AsyncIterable<CancellationListRun>
   selectCandidate: (run: CancellationListRun) => CancellationCandidate | undefined
+  /** Checked before each listed run; true ends the scan there. */
+  shouldStop?: () => boolean
   state: CancellationScanState
 }
 
@@ -112,7 +194,7 @@ function recordCancellationCandidateFailure(state: CancellationScanState, error:
 
 async function processCancellationCandidateBatch(
   candidates: readonly CancellationCandidate[],
-  binding: ExecutionJobBinding,
+  binding: ExecutionJobBinding | undefined,
   state: CancellationScanState,
   cancelJob: (jobId: string) => Promise<void>
 ): Promise<void> {
@@ -126,7 +208,7 @@ async function processCancellationCandidateBatch(
     uniqueCandidates.map(async (candidate) => {
       if (candidate.verifyPayload) {
         const legacyRun = await runs.retrieve(candidate.id)
-        if (!payloadMatchesExecution(legacyRun.payload, binding)) return false
+        if (!binding || !payloadMatchesExecution(legacyRun.payload, binding)) return false
       }
       await cancelJob(candidate.id)
       return true
@@ -158,6 +240,7 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
 
   try {
     for await (const run of options.listRuns()) {
+      if (options.shouldStop?.()) break
       const candidate = options.selectCandidate(run)
       if (!candidate) continue
       candidates.push(candidate)
@@ -168,6 +251,45 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
   } finally {
     await flushCandidates()
   }
+}
+
+/**
+ * Lists a workspace's active workflow runs however old they are: a removal must reach a run that
+ * has been queued or waiting for longer than any recent window. Trigger.dev searches only the
+ * last 7 days unless a time bound is given, and passing only `to` removes the lower bound. When
+ * Trigger.dev refuses that search as too expensive (422) before returning a run, the listing
+ * falls back to the queue-wait retention window rather than sweeping nothing.
+ */
+async function* listActiveWorkspaceRuns(
+  workspaceId: string,
+  workspaceTag: string
+): AsyncIterable<CancellationListRun> {
+  const filter = {
+    tag: workspaceTag,
+    taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
+    status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+    limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
+  }
+  let listed = false
+  try {
+    for await (const run of runs.list({ ...filter, to: new Date() })) {
+      listed = true
+      yield run
+    }
+    return
+  } catch (error) {
+    if (listed || !(error instanceof ApiError) || error.status !== 422) throw error
+    logger.warn(
+      'Trigger.dev refused an unbounded workspace run search; using the retention window',
+      {
+        workspaceId,
+      }
+    )
+  }
+  yield* runs.list({
+    ...filter,
+    from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
+  })
 }
 
 /**
@@ -184,8 +306,10 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'cleanup-logs': 'cleanup-logs',
   'cleanup-soft-deletes': 'cleanup-soft-deletes',
   'cleanup-table-row-ttl': 'cleanup-table-row-ttl',
+  'cleanup-stale-executions': 'cleanup-stale-executions',
   'cleanup-tasks': 'cleanup-tasks',
   'cleanup-file-versions': 'cleanup-file-versions',
+  'cleanup-dispatch': 'cleanup-dispatch',
   'run-data-drain': 'run-data-drain',
   'knowledge-connector-directory-sync': 'knowledge-connector-directory-sync',
 }
@@ -289,9 +413,23 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
     let handle: Awaited<ReturnType<typeof tasks.trigger>>
     try {
-      handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
+      handle = await measureTriggerAcceptance(taskId, () =>
+        tasks.trigger(taskId, enrichedPayload, triggerOptions)
+      )
     } catch (error) {
       throw classifyTriggerEnqueueError(error)
+    }
+
+    if (options?.jobId) {
+      try {
+        await storeRunReceipt(options.jobId, handle.id)
+      } catch (error) {
+        throw new AsyncJobEnqueueError('Trigger run accepted but its receipt could not be stored', {
+          acceptance: 'unknown',
+          retryable: true,
+          cause: error,
+        })
+      }
     }
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
@@ -380,25 +518,13 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
   async getJob(jobId: string): Promise<Job | null> {
     try {
-      let run: Awaited<ReturnType<typeof runs.retrieve>>
-      try {
-        run = await runs.retrieve(jobId)
-      } catch (error) {
-        const isNotFound =
-          (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
-          (error && typeof error === 'object' && 'status' in error && error.status === 404)
-        if (!isNotFound) throw error
-
-        let runId: string | undefined
-        for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
-          runId = candidate.id
-          break
-        }
-        if (!runId) {
-          logger.debug('Job not found in trigger.dev', { jobId })
-          return null
-        }
-        run = await runs.retrieve(runId)
+      const run =
+        (await retrieveRunById(jobId)) ??
+        (jobId.startsWith(TRIGGER_RUN_ID_PREFIX) ? null : await retrieveRunByReceipt(jobId)) ??
+        (await retrieveRunByJobIdTag(jobId))
+      if (!run) {
+        logger.debug('Job not found in trigger.dev', { jobId })
+        return null
       }
 
       const payload = run.payload as Record<string, unknown>
@@ -411,7 +537,12 @@ export class TriggerDevJobQueue implements JobQueueBackend {
             : undefined,
       }
 
-      const status = mapTriggerDevStatus(run.status)
+      const runStatus = mapTriggerDevStatus(run.status)
+      const recordedFailure =
+        runStatus === JOB_STATUS.COMPLETED
+          ? getRecordedJobFailureError(run.taskIdentifier, run.output)
+          : undefined
+      const status = recordedFailure === undefined ? runStatus : JOB_STATUS.FAILED
 
       return {
         id: run.id,
@@ -423,16 +554,12 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         completedAt: resolveRunCompletedAt(run.finishedAt, run.updatedAt, status),
         attempts: run.attemptCount ?? 1,
         maxAttempts: 3,
-        error: run.error?.message,
-        output: run.output as unknown,
+        error: recordedFailure ?? run.error?.message,
+        output: recordedFailure === undefined ? (run.output as unknown) : undefined,
         metadata,
       }
     } catch (error) {
-      const isNotFound =
-        (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
-        (error && typeof error === 'object' && 'status' in error && error.status === 404)
-
-      if (isNotFound) {
+      if (isTriggerNotFoundError(error)) {
         logger.debug('Job not found in trigger.dev', { jobId })
         return null
       }
@@ -474,7 +601,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     const executionTag = buildExecutionTag(binding.executionId)
     const workflowTag = buildWorkflowTag(binding.workflowId)
     const allowedTaskIdentifiers = EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE[scope]
+    let cancelledRootRunId: string | undefined
     const isAllowedTask = (run: CancellationListRun) =>
+      run.id !== cancelledRootRunId &&
       (allowedTaskIdentifiers as readonly string[]).includes(run.taskIdentifier)
     const cutoff = new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000)
     const state: CancellationScanState = {
@@ -483,6 +612,24 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
 
     try {
+      if (binding.rootJobId) {
+        try {
+          const root = await this.getJob(binding.rootJobId)
+          if (
+            root &&
+            (allowedTaskIdentifiers as readonly string[]).includes(root.type) &&
+            (root.status === JOB_STATUS.PENDING || root.status === JOB_STATUS.PROCESSING) &&
+            payloadMatchesExecution(root.payload, binding)
+          ) {
+            await this.cancelJob(root.id)
+            cancelledRootRunId = root.id
+            state.cancelledJobs += 1
+          }
+        } catch (error) {
+          recordCancellationCandidateFailure(state, error)
+        }
+      }
+
       await scanAndCancelTriggerRuns({
         binding,
         cancelJob: (jobId) => this.cancelJob(jobId),
@@ -564,6 +711,55 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
   }
 
+  async cancelByWorkspace(
+    workspaceId: string,
+    options: WorkspaceJobCancellationOptions
+  ): Promise<WorkspaceJobCancellationResult> {
+    const workspaceTag = buildWorkspaceTag(workspaceId)
+    const state: CancellationScanState = { cancelledJobs: 0, failureCount: 0 }
+    let complete = true
+
+    await scanAndCancelTriggerRuns({
+      cancelJob: (jobId) => this.cancelJob(jobId),
+      listRuns: () => listActiveWorkspaceRuns(workspaceId, workspaceTag),
+      /**
+       * Only cancelled runs count toward the cap, so runs that keep refusing cancellation cannot
+       * hold every retry at the front of the listing; a separate bound on failures keeps one call
+       * finite. Both are counted per chunk, so a call may overshoot `maxRuns` by under a chunk.
+       */
+      shouldStop: () => {
+        if (
+          state.cancelledJobs < options.maxRuns &&
+          state.failureCount < options.maxRuns &&
+          !options.signal?.aborted
+        ) {
+          return false
+        }
+        complete = false
+        return true
+      },
+      selectCandidate: (run) =>
+        run.tags.includes(workspaceTag) ? { id: run.id, verifyPayload: false } : undefined,
+      state,
+    })
+
+    if (state.firstError) {
+      logger.error('Failed to cancel trigger.dev runs for workspace', {
+        workspaceId,
+        cancelledJobs: state.cancelledJobs,
+        failureCount: state.failureCount,
+        error: state.firstError.message,
+      })
+      throw state.firstError
+    }
+    logger.info('Cancelled trigger.dev runs for workspace', {
+      workspaceId,
+      cancelledJobs: state.cancelledJobs,
+      complete,
+    })
+    return { cancelledJobs: state.cancelledJobs, complete }
+  }
+
   cancelByKey(_cancelKey: string): boolean {
     // No in-process AbortControllers to abort — trigger.dev runs are cancelled
     // by jobId or via tag sweep (see `cancelCellRunsByTags`). Callers that
@@ -591,7 +787,7 @@ function buildTags(options?: EnqueueOptions): string[] {
   const workflowId =
     meta?.correlation?.workflowId ??
     (typeof meta?.workflowId === 'string' ? meta.workflowId : undefined)
-  if (meta?.workspaceId) tags.push(`workspaceId:${meta.workspaceId}`)
+  if (meta?.workspaceId) tags.push(buildWorkspaceTag(meta.workspaceId))
   if (workflowId) tags.push(buildWorkflowTag(workflowId))
   if (meta?.userId) tags.push(`userId:${meta.userId}`)
 

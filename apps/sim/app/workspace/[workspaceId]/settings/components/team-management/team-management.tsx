@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import { useSession } from '@/lib/auth/client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -28,11 +29,11 @@ import {
   useCreateOrganization,
   useMemberRemovalImpact,
   useOrganization,
-  useOrganizationBilling,
   useOrganizationRoster,
   useRemoveMember,
   useTransferOwnership,
 } from '@/hooks/queries/organization'
+import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -91,7 +92,7 @@ export function TeamManagement({
     isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
     isFetching: isOrganizationBillingFetching,
     refetch: refetchOrganizationBilling,
-  } = useOrganizationBilling(organizationId, { enabled: billingEnabled && adminOrOwner })
+  } = useOrganizationPlanSeats(organizationId, { enabled: billingEnabled && adminOrOwner })
 
   const {
     data: roster,
@@ -118,8 +119,31 @@ export function TeamManagement({
   }>({ open: false, memberId: '', memberName: '' })
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [transferPortalError, setTransferPortalError] = useState<string | null>(null)
-  const [orgName, setOrgName] = useState('')
-  const [orgSlug, setOrgSlug] = useState('')
+  const defaultOrgName =
+    (hasTeamPlan || hasEnterprisePlan) && session?.user?.name ? `${session.user.name}'s Team` : ''
+  const defaultOrganization = { name: defaultOrgName, slug: generateSlug(defaultOrgName) }
+  const [organizationDraft, setOrganizationDraft] = useState<{
+    baseline: typeof defaultOrganization
+    values: typeof defaultOrganization
+  } | null>(null)
+  const orgName = organizationDraft?.values.name ?? defaultOrganization.name
+  const orgSlug = organizationDraft?.values.slug ?? defaultOrganization.slug
+  const updateOrganizationDraft = (change: Partial<typeof defaultOrganization>) => {
+    if (createOrgMutation.isPending) return
+    setOrganizationDraft((current) => {
+      const baseline = current?.baseline ?? defaultOrganization
+      const values = { ...(current?.values ?? baseline), ...change }
+      return values.name === baseline.name && values.slug === baseline.slug
+        ? null
+        : { baseline, values }
+    })
+  }
+  const setOrgSlug = (slug: string) => updateOrganizationDraft({ slug })
+  useSettingsUnsavedGuard({
+    isDirty: !organization && (hasTeamPlan || hasEnterprisePlan) && organizationDraft !== null,
+    navigationBlocked: createOrgMutation.isPending,
+    onDiscard: () => setOrganizationDraft(null),
+  })
 
   /**
    * `isFetching` (not `isLoading`) gates the confirm button: a background
@@ -144,14 +168,11 @@ export function TeamManagement({
   const pendingSeats = Math.max(0, reservedSeats - usedSeats)
 
   /**
-   * The org's active subscription, derived from DB-backed organization billing
-   * (`getOrganizationBillingData` only returns data when an entitled org
-   * subscription exists). We intentionally do not read this from better-auth's
-   * `client.subscription.list`, which does not reliably surface org-scoped
-   * subscriptions.
+   * Organization plan metadata comes from the primary database; Better Auth's
+   * `client.subscription.list` does not reliably surface org-scoped subscriptions.
    */
   const orgBilling = billingEnabled ? (organizationBillingData?.data ?? null) : null
-  const orgSubscription = orgBilling
+  const orgSubscription = orgBilling?.subscriptionPlan
     ? {
         id: orgBilling.organizationId,
         plan: orgBilling.subscriptionPlan,
@@ -160,22 +181,13 @@ export function TeamManagement({
       }
     : null
 
-  useEffect(() => {
-    if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
-      const defaultName = `${session.user.name}'s Team`
-      setOrgName(defaultName)
-      setOrgSlug(generateSlug(defaultName))
-    }
-  }, [hasTeamPlan, hasEnterprisePlan, session?.user?.name, orgName])
-
   const handleOrgNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
-    setOrgName(newName)
-    setOrgSlug(generateSlug(newName))
+    updateOrganizationDraft({ name: newName, slug: generateSlug(newName) })
   }
 
   const handleCreateOrganization = async () => {
-    if (!session?.user || !orgName.trim()) return
+    if (!session?.user || !orgName.trim() || createOrgMutation.isPending) return
 
     try {
       await createOrgMutation.mutateAsync({
@@ -184,8 +196,7 @@ export function TeamManagement({
       })
 
       setCreateOrgDialogOpen(false)
-      setOrgName('')
-      setOrgSlug('')
+      setOrganizationDraft(null)
     } catch (error) {
       logger.error('Failed to create organization', error)
     }

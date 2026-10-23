@@ -170,8 +170,10 @@ async function seedFixture(): Promise<Fixture> {
       values (${fixture.orgId}, 'SCIM E2E', ${`scim-e2e-${suffix}`}, now())`
     await tx`insert into member (id, user_id, organization_id, role)
       values (${generateId()}, ${fixture.ownerId}, ${fixture.orgId}, 'owner')`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id, organization_id)
-      values (${fixture.workspaceId}, 'SCIM E2E Workspace', ${fixture.ownerId}, ${fixture.ownerId}, ${fixture.orgId})`
+    await tx`insert into project (id, name, owner_id, organization_id)
+      values (${fixture.workspaceId}, 'SCIM E2E Project', ${fixture.ownerId}, ${fixture.orgId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id, organization_id)
+      values (${fixture.workspaceId}, ${fixture.workspaceId}, 'SCIM E2E Workspace', ${fixture.ownerId}, ${fixture.ownerId}, ${fixture.orgId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${fixture.ownerId}, 'workspace', ${fixture.workspaceId}, 'admin')`
     await tx`insert into subscription (id, plan, reference_id, status, seats, metadata, period_start, period_end)
@@ -222,6 +224,7 @@ async function cleanup() {
       await tx`delete from rate_limit_bucket where key in (
         select 'route:scim:connection:' || id from scim_connection where organization_id = ${fixture.orgId}
       )`
+      await tx`delete from project where organization_id = ${fixture.orgId}`
       await tx`delete from organization where id = ${fixture.orgId}`
       if (userIds.length) await tx`delete from "user" where id in ${tx(userIds)}`
     })
@@ -276,6 +279,24 @@ async function run() {
         'List responses must not reveal bearer secrets'
       )
       await admin(primary, '', { fixture: other, expected: 403 })
+    }
+  )
+
+  await check(
+    'Hosted SCIM rejects administration and bearer access after Enterprise entitlement ends',
+    async () => {
+      await admin(primary)
+      await scim(token, '/Users')
+      await sql`update subscription set status = 'canceled' where reference_id = ${primary.orgId}`
+      try {
+        const denied = await admin(primary, '', { expected: 403 })
+        assert.match(string(denied.body.error), /active enterprise subscription/)
+        await scim(token, '/Users', { expected: 401 })
+      } finally {
+        await sql`update subscription set status = 'active' where reference_id = ${primary.orgId}`
+      }
+      await admin(primary)
+      await scim(token, '/Users')
     }
   )
 
@@ -537,6 +558,73 @@ async function run() {
         (await sql`select name from "user" where id = ${account.id}`)[0].name,
         'Bobby Example'
       )
+    }
+  )
+
+  await check(
+    'An address change ends sessions and OAuth grants issued under the old one',
+    async () => {
+      const carolEmail = `carol@${primary.domain}`
+      const created = await scim(token, '/Users', {
+        method: 'POST',
+        expected: 201,
+        body: {
+          schemas: [USER_SCHEMA],
+          userName: carolEmail,
+          active: true,
+          name: { givenName: 'Carol', familyName: 'Example' },
+          emails: [{ value: carolEmail, type: 'work', primary: true }],
+        },
+      })
+      const carolId = string(created.body.id)
+      const userId = string(
+        (await sql`select user_id from scim_user where id = ${carolId}`)[0]?.user_id
+      )
+      const sessionId = generateId()
+      const clientId = generateId()
+      await sql`insert into session (id, token, user_id, expires_at, created_at, updated_at)
+      values (${sessionId}, ${generateShortId()}, ${userId}, now() + interval '1 day', now(), now())`
+      await sql`insert into oauth_client (id, client_id, name, public, token_endpoint_auth_method, grant_types, redirect_uris)
+      values (${clientId}, ${clientId}, 'SCIM E2E OAuth client', true, 'none',
+        ${['authorization_code', 'refresh_token']}, ${['http://127.0.0.1/callback']})`
+      try {
+        await sql`insert into oauth_consent (id, client_id, user_id, scopes, created_at, updated_at)
+        values (${generateId()}, ${clientId}, ${userId}, ${['api:read']}, now(), now())`
+        await sql`insert into oauth_token_family (id, client_id, user_id, session_id, created_at, expires_at)
+        values (${generateId()}, ${clientId}, ${userId}, ${sessionId}, now(), now() + interval '1 day')`
+        await sql`insert into oauth_access_token (id, token, client_id, user_id, scopes, created_at, expires_at)
+        values (${generateId()}, ${generateShortId()}, ${clientId}, ${userId}, ${['api:read']},
+          now(), now() + interval '1 hour')`
+
+        await patch(token, `/Users/${carolId}`, [
+          { op: 'replace', path: 'name.givenName', value: 'Caroline' },
+        ])
+        assert.equal(
+          (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
+          1
+        )
+
+        await patch(token, `/Users/${carolId}`, [
+          {
+            op: 'replace',
+            path: 'emails[type eq "work"].value',
+            value: `carol-renamed@${primary.domain}`,
+          },
+        ])
+
+        assert.equal((await sql`select id from session where user_id = ${userId}`).length, 0)
+        assert.equal(
+          (await sql`select id from oauth_token_family where user_id = ${userId}`).length,
+          0
+        )
+        assert.equal(
+          (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
+          0
+        )
+      } finally {
+        await sql`delete from oauth_client where client_id = ${clientId}`
+        await sql`delete from "user" where id = ${userId}`
+      }
     }
   )
 

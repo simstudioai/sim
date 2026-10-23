@@ -1,13 +1,14 @@
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockBindInternalExecutorDelegation, mockReadWorkflowDefinition } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
+const { mockReadWorkflowDefinition } = vi.hoisted(() => ({
   mockReadWorkflowDefinition: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 
 vi.mock('@/lib/workflows/application/read-workflow-definition', () => ({
   readWorkflowDefinition: { execute: mockReadWorkflowDefinition },
@@ -15,6 +16,9 @@ vi.mock('@/lib/workflows/application/read-workflow-definition', () => ({
 
 import { readWorkflowDefinitionAsExecutor } from '@/lib/internal/workflows/read-definition'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
+
+const mockBindInternalExecutorDelegation =
+  authInternalDelegationMockFns.mockBindInternalExecutorDelegation
 
 describe('readWorkflowDefinitionAsExecutor', () => {
   it('binds the trusted workflow execution origin before reading the child', async () => {

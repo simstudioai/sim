@@ -5,13 +5,19 @@ import {
   dbChainMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcquireOrganizationMutationLock, mockAssertNoUnresolvedEnterpriseIssuance } =
-  vi.hoisted(() => ({
-    mockAcquireOrganizationMutationLock: vi.fn(),
-    mockAssertNoUnresolvedEnterpriseIssuance: vi.fn(),
-  }))
+const mockAssertNoUnresolvedEnterpriseIssuance = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/billing/enterprise-outbox', () => {
   class EnterpriseIssuanceInProgressError extends Error {}
@@ -21,20 +27,21 @@ vi.mock('@/lib/billing/enterprise-outbox', () => {
   }
 })
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isOrgPlan: (plan: string) => plan === 'team' || plan === 'enterprise',
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-  hasPaidSubscriptionStatus: (status: string) => status === 'active' || status === 'past_due',
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 import { POST } from '@/app/api/users/me/subscription/[id]/transfer/route'
+
+billingSubscriptionUtilsMockFns.mockHasPaidSubscriptionStatus.mockImplementation(
+  (status) => status === 'active' || status === 'past_due'
+)
+
+billingPlanHelpersMockFns.mockIsOrgPlan.mockImplementation(
+  (plan) => plan === 'team' || plan === 'enterprise'
+)
 
 function makeRequest(body: unknown, id = 'sub-1') {
   return POST(
@@ -44,7 +51,7 @@ function makeRequest(body: unknown, id = 'sub-1') {
       {},
       `http://localhost/api/users/me/subscription/${id}/transfer`
     ),
-    { params: Promise.resolve({ id }) }
+    createRouteContext({ id })
   )
 }
 

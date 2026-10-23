@@ -20,18 +20,19 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import { compareStrings } from '@sim/utils/string'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
+import type { CustomBlockInputPlaceholder } from '@/lib/workflows/custom-blocks/settings-input'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
   type CustomBlockInput,
   type CustomBlockOutput,
@@ -76,14 +77,25 @@ interface CustomBlockDetailProps {
   onBack: () => void
 }
 
+interface CustomBlockFormValues {
+  name: string
+  description: string
+  inputs: CustomBlockInput[]
+  outputs: CustomBlockOutput[]
+  traceChildRuns: boolean
+  iconUrl: string | null
+}
+
+interface CustomBlockDraft {
+  baseline: CustomBlockFormValues
+  values: CustomBlockFormValues
+}
+
 export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockDetailProps) {
   const isCreate = blockId === null
 
   const { data: blocks = [] } = useCustomBlocks(workspaceId)
-  const existing = useMemo(
-    () => (blockId ? (blocks.find((b) => b.id === blockId) ?? null) : null),
-    [blocks, blockId]
-  )
+  const existing = blockId ? (blocks.find((b) => b.id === blockId) ?? null) : null
 
   const publish = usePublishCustomBlock()
   const update = useUpdateCustomBlock()
@@ -101,26 +113,15 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   // Custom blocks are org-scoped and the settings list only shows the current org's
   // blocks, so a block published to another org's workspace would silently never
   // appear here. Restrict the picker to workspaces in the current workspace's org.
-  const currentOrgId = useMemo(
-    () => workspaces.find((w) => w.id === workspaceId)?.organizationId ?? null,
-    [workspaces, workspaceId]
-  )
+  const currentOrgId = workspaces.find((w) => w.id === workspaceId)?.organizationId ?? null
   // Only workspaces the user can publish from (admin) — the publish route requires
   // admin on the source workspace, so a member/read workspace can never be a source.
-  const orgWorkspaces = useMemo(
-    () =>
-      currentOrgId
-        ? workspaces.filter((w) => w.organizationId === currentOrgId && w.permissions === 'admin')
-        : [],
-    [workspaces, currentOrgId]
-  )
-  const eligibleDefaultWorkspaceId = useMemo(
-    () =>
-      orgWorkspaces.some((w) => w.id === workspaceId)
-        ? workspaceId
-        : (orgWorkspaces[0]?.id ?? workspaceId),
-    [orgWorkspaces, workspaceId]
-  )
+  const orgWorkspaces = currentOrgId
+    ? workspaces.filter((w) => w.organizationId === currentOrgId && w.permissions === 'admin')
+    : []
+  const eligibleDefaultWorkspaceId = orgWorkspaces.some((w) => w.id === workspaceId)
+    ? workspaceId
+    : (orgWorkspaces[0]?.id ?? workspaceId)
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId)
   // Once the eligible list loads, snap an ineligible selection (e.g. the current
   // workspace when the user isn't its admin) to the first workspace they can publish from.
@@ -136,13 +137,17 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
   const workflowId = isCreate ? selectedWorkflowId : (existing?.workflowId ?? '')
 
-  const [name, setName] = useState(existing?.name ?? '')
-  const [description, setDescription] = useState(existing?.description ?? '')
-  const [inputs, setInputs] = useState<CustomBlockInput[]>(() =>
-    toCustomBlockInputs(existing?.inputFields)
-  )
-  const [outputs, setOutputs] = useState<CustomBlockOutput[]>(() => existing?.exposedOutputs ?? [])
-  const [traceChildRuns, setTraceChildRuns] = useState(existing?.traceChildRuns ?? false)
+  const savedValues: CustomBlockFormValues = {
+    name: existing?.name ?? '',
+    description: existing?.description ?? '',
+    inputs: toCustomBlockInputs(existing?.inputFields),
+    outputs: existing?.exposedOutputs ?? [],
+    traceChildRuns: existing?.traceChildRuns ?? false,
+    iconUrl: existing?.iconUrl ?? null,
+  }
+  const [draft, setDraft] = useState<CustomBlockDraft | null>(null)
+  const values = draft?.values ?? savedValues
+  const { name, description, inputs, outputs, traceChildRuns } = values
   const [error, setError] = useState<string | null>(null)
   const [showDelete, setShowDelete] = useState(false)
 
@@ -159,22 +164,9 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   const usageCountsQuery = useCustomBlockUsageCounts(existing?.id, { enabled: canManageBlock })
   const usageCount = usageCountsQuery.data?.usageCount ?? 0
 
-  // Edit mode may mount before `useCustomBlocks` has resolved this row, leaving the
-  // buffers empty. Reseed them the first time the block's identity loads (or when it
-  // changes) — keyed on `existing.id` so a later refetch of the SAME block doesn't
-  // clobber in-progress edits. (The icon reseeds itself via `currentImage`.)
-  const [seededId, setSeededId] = useState(existing?.id ?? null)
-  if (existing && existing.id !== seededId) {
-    setSeededId(existing.id)
-    setName(existing.name)
-    setDescription(existing.description ?? '')
-    setInputs(toCustomBlockInputs(existing.inputFields))
-    setOutputs(existing.exposedOutputs ?? [])
-    setTraceChildRuns(existing.traceChildRuns)
-  }
-
   const iconUpload = useProfilePictureUpload({
-    currentImage: existing?.iconUrl ?? null,
+    currentImage: values.iconUrl,
+    onUpload: (iconUrl) => updateForm((current) => ({ ...current, iconUrl })),
     onError: (e) => setError(e),
     context: 'workspace-logos',
     workspaceId,
@@ -208,23 +200,19 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   // Every deployed Start input is exposed (no selection). Name/type/description are
   // inherited from the field itself (the Start block already defines them); only
   // the placeholder and required flag are authored here.
-  const visibleInputs = useMemo<CustomBlockInput[]>(
-    () =>
-      deployedLoaded
-        ? availableFields.map((f) => {
-            const id = f.id ?? f.name
-            return {
-              id,
-              name: f.name,
-              type: f.type,
-              description: f.description,
-              placeholder: overrideById.get(id)?.placeholder,
-              required: overrideById.get(id)?.required,
-            }
-          })
-        : inputs,
-    [deployedLoaded, availableFields, overrideById, inputs]
-  )
+  const visibleInputs: CustomBlockInput[] = deployedLoaded
+    ? availableFields.map((f) => {
+        const id = f.id ?? f.name
+        return {
+          id,
+          name: f.name,
+          type: f.type,
+          description: f.description,
+          placeholder: overrideById.get(id)?.placeholder,
+          required: overrideById.get(id)?.required,
+        }
+      })
+    : inputs
 
   const [expandedInputs, setExpandedInputs] = useState<ReadonlySet<string>>(() => new Set())
   const toggleInput = (id: string) =>
@@ -263,40 +251,32 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     }
   }, [deployed.data])
 
-  const visibleOutputs = useMemo(
-    () =>
-      deployedLoaded
-        ? outputs.filter((o) => labelByKey.has(encodeOutput(o.blockId, o.path)))
-        : outputs,
-    [outputs, deployedLoaded, labelByKey]
+  const visibleOutputs = deployedLoaded
+    ? outputs.filter((o) => labelByKey.has(encodeOutput(o.blockId, o.path)))
+    : outputs
+  const selectedOutputKeys = visibleOutputs.map((o) => encodeOutput(o.blockId, o.path))
+
+  const formChanged = Boolean(
+    draft && (!sameFormValues(draft.values, draft.baseline) || iconUrl !== draft.baseline.iconUrl)
   )
-  const selectedOutputKeys = useMemo(
-    () => visibleOutputs.map((o) => encodeOutput(o.blockId, o.path)),
-    [visibleOutputs]
+  const dirty =
+    formChanged ||
+    (isCreate && Boolean(selectedWorkflowId || selectedWorkspaceId !== eligibleDefaultWorkspaceId))
+
+  if (
+    draft &&
+    !formChanged &&
+    !iconUpload.isUploading &&
+    JSON.stringify(draft.values) === JSON.stringify(draft.baseline)
   )
+    setDraft(null)
 
-  const dirty = existing
-    ? name.trim() !== existing.name ||
-      description.trim() !== (existing.description ?? '') ||
-      (iconUrl || null) !== (existing.iconUrl ?? null) ||
-      traceChildRuns !== existing.traceChildRuns ||
-      JSON.stringify(visibleOutputs) !== JSON.stringify(existing.exposedOutputs) ||
-      JSON.stringify(normalizeInputsForCompare(visibleInputs)) !==
-        JSON.stringify(normalizeInputsForCompare(existing.inputFields))
-    : Boolean(
-        name.trim() ||
-          description.trim() ||
-          selectedWorkflowId ||
-          selectedWorkspaceId !== eligibleDefaultWorkspaceId ||
-          iconUrl ||
-          traceChildRuns ||
-          visibleOutputs.length > 0 ||
-          visibleInputs.some((i) => i.placeholder?.trim())
-      )
-
-  const guard = useSettingsUnsavedGuard({ isDirty: dirty })
-
-  const saving = publish.isPending || update.isPending || remove.isPending
+  const saving = publish.isPending || update.isPending || remove.isPending || iconUpload.isUploading
+  const guard = useSettingsUnsavedGuard({
+    isDirty: dirty,
+    navigationBlocked: saving,
+    onDiscard: handleDiscard,
+  })
   // Outputs are required — there is no "expose the whole result" option.
   const saveDisabled =
     !name.trim() ||
@@ -306,38 +286,56 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     deployed.isLoading ||
     (deployedLoaded && visibleOutputs.length === 0)
 
-  // Upsert an authored per-input override (placeholder/required). `visibleInputs`
-  // shows every deployed field; the first edit of a field adds its override row.
+  function updateForm(change: (current: CustomBlockFormValues) => CustomBlockFormValues) {
+    if (publish.isPending || update.isPending || remove.isPending) return
+    setDraft((current) => ({
+      baseline: current?.baseline ?? savedValues,
+      values: change(current?.values ?? savedValues),
+    }))
+  }
+
+  function beginIconUpload() {
+    setDraft((current) => current ?? { baseline: savedValues, values: savedValues })
+  }
+
   function setInputOverride(
     id: string,
     patch: Partial<Pick<CustomBlockInput, 'placeholder' | 'required'>>
   ) {
-    setInputs((prev) => {
+    updateForm((current) => {
+      const prev = current.inputs
       if (prev.some((i) => i.id === id)) {
-        return prev.map((i) => (i.id === id ? { ...i, ...patch } : i))
+        return { ...current, inputs: prev.map((i) => (i.id === id ? { ...i, ...patch } : i)) }
       }
       const f = fieldById.get(id)
-      return [...prev, { id, name: f?.name ?? id, type: f?.type ?? 'string', ...patch }]
+      return {
+        ...current,
+        inputs: [...prev, { id, name: f?.name ?? id, type: f?.type ?? 'string', ...patch }],
+      }
     })
   }
 
   function handleOutputsChange(nextKeys: string[]) {
     const byKey = new Map(outputs.map((o) => [encodeOutput(o.blockId, o.path), o]))
     const taken = new Set(outputs.map((o) => o.name))
-    setOutputs(
-      nextKeys.map((key) => {
+    updateForm((current) => ({
+      ...current,
+      outputs: nextKeys.map((key) => {
         const ex = byKey.get(key)
         if (ex) return ex
         const { blockId, path } = decodeOutput(key)
         return { blockId, path, name: deriveOutputName(path, taken) }
-      })
-    )
+      }),
+    }))
   }
 
   function setOutputName(key: string, value: string) {
-    setOutputs((prev) =>
-      prev.map((o) => (encodeOutput(o.blockId, o.path) === key ? { ...o, name: value } : o))
-    )
+    updateForm((current) => ({
+      ...current,
+      outputs: current.outputs.map((o) =>
+        encodeOutput(o.blockId, o.path) === key ? { ...o, name: value } : o
+      ),
+    }))
   }
 
   function handleDiscard() {
@@ -345,11 +343,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
       setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
       setSelectedWorkflowId('')
     }
-    setName(existing?.name ?? '')
-    setDescription(existing?.description ?? '')
-    setTraceChildRuns(existing?.traceChildRuns ?? false)
-    setInputs(toCustomBlockInputs(existing?.inputFields))
-    setOutputs(existing?.exposedOutputs ?? [])
+    setDraft(null)
     iconUpload.reset()
     setError(null)
   }
@@ -374,19 +368,12 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
       setError(`"${reserved.name}" is a reserved output name (success, error, cost)`)
       return
     }
-    // Only the placeholder and required flag are authored; the field set/name/type
-    // are always derived from the deployed Start. Persist only non-empty overrides.
-    const inputPlaceholders = visibleInputs
-      .filter((i) => i.placeholder?.trim() || i.required)
-      .map((i) => ({
-        id: i.id,
-        ...(i.placeholder?.trim() ? { placeholder: i.placeholder.trim() } : {}),
-        ...(i.required ? { required: true } : {}),
-      }))
+    const inputPlaceholders = normalizeInputOverrides(visibleInputs)
 
     try {
       if (existing) {
-        const iconChanged = (iconUrl || null) !== (existing.iconUrl ?? null)
+        const iconChanged =
+          (iconUrl || null) !== (draft ? draft.baseline.iconUrl : existing.iconUrl)
         await update.mutateAsync({
           id: existing.id,
           name: name.trim(),
@@ -521,12 +508,19 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
           <SettingRow label='Icon' labelTooltip='Square image (PNG, JPEG, or SVG). Optional.'>
             <div className='flex items-center gap-4'>
-              <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
+              <DropZone
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (!canManageBlock || saving) return
+                  if (event.dataTransfer.files[0]) beginIconUpload()
+                  iconUpload.handleFileDrop(event)
+                }}
+              >
                 <UploadPreviewButton
                   aria-label={iconUrl ? 'Change icon' : 'Upload icon'}
                   onClick={iconUpload.handleThumbnailClick}
                   loading={iconUpload.isUploading}
-                  disabled={!canManageBlock}
+                  disabled={saving || !canManageBlock}
                 >
                   {iconUrl ? (
                     <img src={iconUrl} alt='' className='size-full object-contain p-1.5' />
@@ -563,7 +557,11 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                 type='file'
                 accept={ICON_ACCEPT}
                 className='hidden'
-                onChange={iconUpload.handleFileChange}
+                onChange={(event) => {
+                  if (!canManageBlock || saving) return
+                  if (event.target.files?.[0]) beginIconUpload()
+                  iconUpload.handleFileChange(event)
+                }}
               />
             </div>
           </SettingRow>
@@ -571,21 +569,23 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           <SettingRow label='Name'>
             <ChipInput
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => updateForm((current) => ({ ...current, name: e.target.value }))}
               placeholder='Invoice Parser'
               maxLength={60}
-              disabled={!canManageBlock}
+              disabled={saving || !canManageBlock}
             />
           </SettingRow>
 
           <SettingRow label='Description'>
             <ChipTextarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) =>
+                updateForm((current) => ({ ...current, description: e.target.value }))
+              }
               placeholder='What this block does'
               rows={2}
               maxLength={280}
-              disabled={!canManageBlock}
+              disabled={saving || !canManageBlock}
             />
           </SettingRow>
 
@@ -654,7 +654,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                                 onCheckedChange={(checked) =>
                                   setInputOverride(i.id, { required: checked })
                                 }
-                                disabled={!canManageBlock}
+                                disabled={saving || !canManageBlock}
                               />
                             </div>
                             <div className='flex flex-col gap-1.5'>
@@ -666,7 +666,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                                 }
                                 placeholder='Shown in the empty field'
                                 maxLength={200}
-                                disabled={!canManageBlock}
+                                disabled={saving || !canManageBlock}
                               />
                             </div>
                           </div>
@@ -690,7 +690,9 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               className='w-full'
               dropdownWidth='trigger'
               maxHeight={280}
-              disabled={deployed.isLoading || outputGroups.length === 0 || !canManageBlock}
+              disabled={
+                saving || deployed.isLoading || outputGroups.length === 0 || !canManageBlock
+              }
               emptyMessage={deployed.isLoading ? 'Loading workflow…' : 'No outputs found.'}
               options={[]}
               groups={outputGroups}
@@ -722,7 +724,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                         placeholder='name'
                         className='w-[140px]'
                         maxLength={60}
-                        disabled={!canManageBlock}
+                        disabled={saving || !canManageBlock}
                       />
                     </div>
                   )
@@ -739,8 +741,10 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
             <Switch
               id='custom-block-trace-child-runs'
               checked={traceChildRuns}
-              onCheckedChange={setTraceChildRuns}
-              disabled={!canManageBlock}
+              onCheckedChange={(checked) =>
+                updateForm((current) => ({ ...current, traceChildRuns: checked }))
+              }
+              disabled={saving || !canManageBlock}
             />
           </SettingRow>
         </div>
@@ -790,12 +794,6 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           placeholder={existing?.name}
         />
       </ChipConfirmModal>
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
     </>
   )
 }
@@ -823,16 +821,28 @@ function toCustomBlockInputs(
   }))
 }
 
-/**
- * Compare inputs by only the authored data — the field id, placeholder, and
- * required flag. name/type/description are derived live from the deployed Start
- * (not stored), so comparing them would flag the form dirty when only Start
- * metadata drifted.
- */
-function normalizeInputsForCompare(items: ReadonlyArray<Partial<CustomBlockInput>>) {
-  return items.map((i) => ({
-    id: i.id ?? i.name ?? '',
-    placeholder: i.placeholder ?? '',
-    required: i.required ?? false,
-  }))
+function normalizeInputOverrides(
+  items: readonly CustomBlockInput[]
+): CustomBlockInputPlaceholder[] {
+  return items
+    .filter((input) => input.placeholder?.trim() || input.required)
+    .map((input) => ({
+      id: input.id,
+      ...(input.placeholder?.trim() ? { placeholder: input.placeholder.trim() } : {}),
+      ...(input.required ? { required: true } : {}),
+    }))
+    .sort((left, right) => compareStrings(left.id, right.id))
+}
+
+function sameFormValues(left: CustomBlockFormValues, right: CustomBlockFormValues) {
+  return (
+    left.name.trim() === right.name.trim() &&
+    left.description.trim() === right.description.trim() &&
+    left.iconUrl === right.iconUrl &&
+    left.traceChildRuns === right.traceChildRuns &&
+    JSON.stringify(left.outputs.map((output) => ({ ...output, name: output.name.trim() }))) ===
+      JSON.stringify(right.outputs.map((output) => ({ ...output, name: output.name.trim() }))) &&
+    JSON.stringify(normalizeInputOverrides(left.inputs)) ===
+      JSON.stringify(normalizeInputOverrides(right.inputs))
+  )
 }

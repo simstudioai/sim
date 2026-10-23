@@ -1,14 +1,13 @@
 ---
 title: Trigger.dev
 description: Trigger tasks and manage runs and schedules
+integration:
+  type: "trigger_dev"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="trigger_dev"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Trigger.dev](https://trigger.dev/) runs deployed background tasks. Start one task or batch up to 1,000 runs, then poll run status and pass completed output to later workflow steps. You can also inspect and control runs, schedules, queues, and environment resources.
@@ -18,18 +17,17 @@ Connect with a project-scoped secret API key beginning with `tr_`. The key deter
 Note: the environment variable operations (List Env Vars, Get Env Var) return variable values in plaintext, and those values appear in workflow outputs and run history. Scope workflows that read environment variables carefully.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.
-
-
+Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.
 
 ## Actions
 
 ### Trigger.dev Trigger Task
 
 Trigger a Trigger.dev task by its identifier with an optional JSON payload. Returns the ID of the created run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -52,9 +50,13 @@ Trigger a Trigger.dev task by its identifier with an optional JSON payload. Retu
 | --------- | ---- | ----------- |
 | `id` | string | ID of the run that was triggered \(starts with run_\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Batch Trigger Task
 
 Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the batch run the same task. Returns the batch ID and the created run IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,9 +73,13 @@ Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the bat
 | `batchId` | string | ID of the batch that was triggered |
 | `runIds` | array | IDs of the runs created by the batch |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Batch
 
 Retrieve a Trigger.dev batch by its ID, including its status, run IDs, and success and failure counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -101,9 +107,13 @@ Retrieve a Trigger.dev batch by its ID, including its status, run IDs, and succe
 |   ↳ `error` | json | Error details |
 |   ↳ `errorCode` | string | Optional error code |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Batch Results
 
 Retrieve the execution results of every run in a Trigger.dev batch, including outputs and error details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +129,13 @@ Retrieve the execution results of every run in a Trigger.dev batch, including ou
 | `id` | string | ID of the batch \(starts with batch_\) |
 | `items` | array | Execution results for each run in the batch |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Run
 
 Retrieve a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +210,13 @@ Retrieve a Trigger.dev run by its ID, including status, payload, output, attempt
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Run Result
 
 Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and error details. Lighter than Get Run when only the outcome is needed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +291,13 @@ Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and 
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Run Events
 
 Retrieve the log and span events of a Trigger.dev run, including messages, levels, durations, and error events.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -306,9 +328,13 @@ Retrieve the log and span events of a Trigger.dev run, including messages, level
 |     ↳ `name` | string | Event name |
 |     ↳ `time` | string | When the event occurred |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Run Trace
 
 Retrieve the OpenTelemetry trace of a Trigger.dev run as a tree of spans with timing, errors, and nested children.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -324,9 +350,13 @@ Retrieve the OpenTelemetry trace of a Trigger.dev run as a tree of spans with ti
 | `traceId` | string | OpenTelemetry trace ID of the run |
 | `rootSpan` | json | Root span of the trace; each span has id, parentId, runId, data \(message, taskSlug, startTime, duration, isError, level, events\), and recursively nested children spans |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Runs
 
 List Trigger.dev runs in the environment of the API key, with optional filters for status, task, version, tags, schedule, and creation time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -355,9 +385,13 @@ List Trigger.dev runs in the environment of the API key, with optional filters f
 |   ↳ `next` | string | Run ID to start the next page after |
 |   ↳ `previous` | string | Run ID to start the previous page before |
 
+</ReferenceDetails>
+
 ### Trigger.dev Cancel Run
 
 Cancel an in-progress Trigger.dev run. Has no effect if the run is already completed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +406,13 @@ Cancel an in-progress Trigger.dev run. Has no effect if the run is already compl
 | --------- | ---- | ----------- |
 | `id` | string | ID of the run that was canceled |
 
+</ReferenceDetails>
+
 ### Trigger.dev Replay Run
 
 Replay a Trigger.dev run, creating a new run with the same payload and options as the original.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -389,9 +427,13 @@ Replay a Trigger.dev run, creating a new run with the same payload and options a
 | --------- | ---- | ----------- |
 | `id` | string | ID of the new run created by the replay |
 
+</ReferenceDetails>
+
 ### Trigger.dev Reschedule Run
 
 Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run is in the DELAYED state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,9 +509,13 @@ Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run 
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Add Run Tags
 
 Add tags to an existing Trigger.dev run. Runs can have up to 10 tags.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -485,9 +531,13 @@ Add tags to an existing Trigger.dev run. Runs can have up to 10 tags.
 | --------- | ---- | ----------- |
 | `message` | string | Confirmation message for the added tags |
 
+</ReferenceDetails>
+
 ### Trigger.dev Update Run Metadata
 
 Replace the metadata of a Trigger.dev run with a new JSON object.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -503,9 +553,13 @@ Replace the metadata of a Trigger.dev run with a new JSON object.
 | --------- | ---- | ----------- |
 | `metadata` | json | The updated metadata of the run |
 
+</ReferenceDetails>
+
 ### Trigger.dev Create Schedule
 
 Create an imperative cron schedule that triggers a Trigger.dev task on a recurring basis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -584,9 +638,13 @@ Create an imperative cron schedule that triggers a Trigger.dev task on a recurri
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Schedule
 
 Retrieve a Trigger.dev schedule by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -661,9 +719,13 @@ Retrieve a Trigger.dev schedule by its ID.
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Schedules
 
 List Trigger.dev schedules in the project, with page-based pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -697,9 +759,13 @@ List Trigger.dev schedules in the project, with page-based pagination.
 |   ↳ `totalPages` | number | Total number of pages |
 |   ↳ `count` | number | Total number of schedules |
 
+</ReferenceDetails>
+
 ### Trigger.dev Update Schedule
 
 Update an imperative Trigger.dev schedule by its ID, replacing its task, cron expression, timezone, and external ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -778,9 +844,13 @@ Update an imperative Trigger.dev schedule by its ID, replacing its task, cron ex
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Delete Schedule
 
 Delete an imperative Trigger.dev schedule by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -796,9 +866,13 @@ Delete an imperative Trigger.dev schedule by its ID.
 | `deleted` | boolean | Whether the schedule was deleted |
 | `scheduleId` | string | ID of the schedule that was deleted |
 
+</ReferenceDetails>
+
 ### Trigger.dev Activate Schedule
 
 Activate an imperative Trigger.dev schedule so it resumes triggering its task.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -873,9 +947,13 @@ Activate an imperative Trigger.dev schedule so it resumes triggering its task.
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Deactivate Schedule
 
 Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -950,9 +1028,13 @@ Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Env Vars
 
 List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -970,9 +1052,13 @@ List the environment variables of a Trigger.dev project environment. Values are 
 |   ↳ `name` | string | Name of the environment variable |
 |   ↳ `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
 
+</ReferenceDetails>
+
 ### Trigger.dev Create Env Var
 
 Create an environment variable in a Trigger.dev project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -991,9 +1077,13 @@ Create an environment variable in a Trigger.dev project environment.
 | `success` | boolean | Whether the environment variable was created |
 | `name` | string | Name of the environment variable that was created |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Env Var
 
 Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1011,9 +1101,13 @@ Retrieve an environment variable from a Trigger.dev project environment. The val
 | `name` | string | Name of the environment variable |
 | `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
 
+</ReferenceDetails>
+
 ### Trigger.dev Update Env Var
 
 Update the value of an environment variable in a Trigger.dev project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1032,9 +1126,13 @@ Update the value of an environment variable in a Trigger.dev project environment
 | `success` | boolean | Whether the environment variable was updated |
 | `name` | string | Name of the environment variable that was updated |
 
+</ReferenceDetails>
+
 ### Trigger.dev Delete Env Var
 
 Delete an environment variable from a Trigger.dev project environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1052,9 +1150,13 @@ Delete an environment variable from a Trigger.dev project environment.
 | `success` | boolean | Whether the environment variable was deleted |
 | `name` | string | Name of the environment variable that was deleted |
 
+</ReferenceDetails>
+
 ### Trigger.dev Import Env Vars
 
 Upload multiple environment variables to a Trigger.dev project environment in one request.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1073,9 +1175,13 @@ Upload multiple environment variables to a Trigger.dev project environment in on
 | `success` | boolean | Whether the environment variables were uploaded |
 | `count` | number | Number of environment variables submitted |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Queue
 
 Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1151,9 +1257,13 @@ Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, inclu
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Queues
 
 List the queues in the environment of the API key, including running and queued counts, with page-based pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1185,9 +1295,13 @@ List the queues in the environment of the API key, including running and queued 
 |   ↳ `totalPages` | number | Total number of pages |
 |   ↳ `count` | number | Total number of queues |
 
+</ReferenceDetails>
+
 ### Trigger.dev Pause Queue
 
 Pause a Trigger.dev queue so no new runs start. Runs that are currently executing continue to completion.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1262,11 +1376,15 @@ Pause a Trigger.dev queue so no new runs start. Runs that are currently executin
 | `url` | string | Waitpoint callback URL \(waitpoint operations\) |
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
+
+</ReferenceDetails>
 
 ### Trigger.dev Resume Queue
 
 Resume a paused Trigger.dev queue so new runs can start again.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1341,9 +1459,13 @@ Resume a paused Trigger.dev queue so new runs can start again.
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Override Queue Concurrency
 
 Override the concurrency limit of a Trigger.dev queue with a new value.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1420,9 +1542,13 @@ Override the concurrency limit of a Trigger.dev queue with a new value.
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Reset Queue Concurrency
 
 Reset the concurrency limit of a Trigger.dev queue back to its base value, removing any override.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1498,9 +1624,13 @@ Reset the concurrency limit of a Trigger.dev queue back to its base value, remov
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Deployments
 
 List Trigger.dev deployments in the environment of the API key, with optional status and creation-time filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1522,9 +1652,13 @@ List Trigger.dev deployments in the environment of the API key, with optional st
 | `pagination` | object | Cursor pagination details |
 |   ↳ `next` | string | Cursor to pass as the page-after parameter for the next page |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Deployment
 
 Retrieve a Trigger.dev deployment by its ID, including its status, version, and registered tasks.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1599,9 +1733,13 @@ Retrieve a Trigger.dev deployment by its ID, including its status, version, and 
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Latest Deployment
 
 Retrieve the latest Trigger.dev deployment in the environment of the API key.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1675,9 +1813,13 @@ Retrieve the latest Trigger.dev deployment in the environment of the API key.
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev Promote Deployment
 
 Promote a Trigger.dev deployment version so new runs execute on it (e.g., to roll back to a previous version).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1694,9 +1836,13 @@ Promote a Trigger.dev deployment version so new runs execute on it (e.g., to rol
 | `version` | string | Version of the promoted deployment |
 | `shortCode` | string | Short code of the promoted deployment |
 
+</ReferenceDetails>
+
 ### Trigger.dev Execute Query
 
 Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and analytics.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1717,9 +1863,13 @@ Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and a
 | `format` | string | Format of the results \(json or csv\) |
 | `results` | json | Query results: an array of row objects for json format, a CSV string for csv |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Query Schema
 
 Retrieve the TRQL query schema: the tables and columns available for Execute Query, with types and allowed values.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1743,9 +1893,13 @@ Retrieve the TRQL query schema: the tables and columns available for Execute Que
 |     ↳ `allowedValues` | array | Allowed values for enum-like columns |
 |     ↳ `coreColumn` | boolean | Whether the column is included in default queries |
 
+</ReferenceDetails>
+
 ### Trigger.dev Create Waitpoint Token
 
 Create a Trigger.dev waitpoint token that a task can wait on until it is completed from outside (e.g., a human approval).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1765,9 +1919,13 @@ Create a Trigger.dev waitpoint token that a task can wait on until it is complet
 | `isCached` | boolean | Whether an existing token was returned because the same idempotency key was reused |
 | `url` | string | HTTP callback URL; a POST request to this URL completes the waitpoint without an API key |
 
+</ReferenceDetails>
+
 ### Trigger.dev Complete Waitpoint Token
 
 Complete a Trigger.dev waitpoint token, resuming any task waiting on it and passing it optional JSON data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1783,9 +1941,13 @@ Complete a Trigger.dev waitpoint token, resuming any task waiting on it and pass
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the waitpoint token was completed |
 
+</ReferenceDetails>
+
 ### Trigger.dev Get Waitpoint Token
 
 Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout, and completion data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1860,9 +2022,13 @@ Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout,
 | `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
 | `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Waitpoint Tokens
 
 List Trigger.dev waitpoint tokens in the environment of the API key, with optional status, tag, and creation-time filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1888,9 +2054,13 @@ List Trigger.dev waitpoint tokens in the environment of the API key, with option
 |   ↳ `next` | string | Waitpoint ID to start the next page after |
 |   ↳ `previous` | string | Waitpoint ID to start the previous page before |
 
+</ReferenceDetails>
+
 ### Trigger.dev List Timezones
 
 List the IANA timezones supported by Trigger.dev schedules, for use as the timezone of a cron schedule.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1904,5 +2074,7 @@ List the IANA timezones supported by Trigger.dev schedules, for use as the timez
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `timezones` | array | IANA timezones supported by schedules |
+
+</ReferenceDetails>
 
 

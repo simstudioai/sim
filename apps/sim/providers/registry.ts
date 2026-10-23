@@ -9,10 +9,12 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { kieProvider } from '@/providers/kie'
 import { kimiProvider } from '@/providers/kimi'
 import { litellmProvider } from '@/providers/litellm'
 import { metaProvider } from '@/providers/meta'
 import { mistralProvider } from '@/providers/mistral'
+import { nebiusProvider } from '@/providers/nebius'
 import { nvidiaProvider } from '@/providers/nvidia'
 import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
@@ -45,6 +47,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   meta: metaProvider,
   zai: zaiProvider,
   kimi: kimiProvider,
+  kie: kieProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,
@@ -53,6 +56,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   fireworks: fireworksProvider,
   together: togetherProvider,
   baseten: basetenProvider,
+  nebius: nebiusProvider,
   ollama: ollamaProvider,
   'ollama-cloud': ollamaCloudProvider,
   bedrock: bedrockProvider,

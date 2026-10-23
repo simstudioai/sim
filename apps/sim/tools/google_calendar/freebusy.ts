@@ -126,8 +126,7 @@ export const freebusyV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_freebusy_v2',
   name: 'Google Calendar Free/Busy',
-  description:
-    'Query free/busy information for one or more Google Calendars. Returns API-aligned fields only.',
+  description: 'Query free/busy information for one or more Google Calendars.',
   version: '2.0.0',
   oauth: freebusyTool.oauth,
   params: freebusyTool.params,

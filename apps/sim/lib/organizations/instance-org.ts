@@ -27,6 +27,7 @@ import {
 } from '@/lib/billing/organizations/create-organization'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('InstanceOrganization')
@@ -203,8 +204,10 @@ export async function ensureInstanceOrganization(
       await tx.execute(
         sql`select set_config('lock_timeout', ${`${INSTANCE_ORG_LOCK_TIMEOUT_MS}ms`}, true)`
       )
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`instance-organization:${config.slug}`}, 0))`
+      await acquireAdvisoryXactLock(
+        tx,
+        'instance_organization',
+        `instance-organization:${config.slug}`
       )
 
       const resolved = await resolveInstanceOrganizationBySlug(tx, config.slug)

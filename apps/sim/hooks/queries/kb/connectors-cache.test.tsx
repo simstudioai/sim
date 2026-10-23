@@ -3,18 +3,22 @@
  */
 
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
-const mocks = vi.hoisted(() => ({ requestJson: vi.fn() }))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { connectorKeys, useDeleteConnector } from '@/hooks/queries/kb/connectors'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const WORKSPACE_ID = 'workspace-1'
 const KNOWLEDGE_BASE_ID = 'knowledge-base-1'
@@ -87,7 +91,7 @@ function renderMutation<T>(queryClient: QueryClient, useMutationHook: () => T) {
 
 beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  mocks.requestJson.mockResolvedValue({
+  mockRequestJson.mockResolvedValue({
     data: { knowledgeBaseId: KNOWLEDGE_BASE_ID, excludedCount: 1, restoredCount: 1 },
   })
 })
@@ -104,7 +108,7 @@ describe('Search source list reconciliation', () => {
   it('runs removal navigation before refetches and retains it after the caller unmounts', async () => {
     const client = createQueryClient()
     const request = Promise.withResolvers<object>()
-    mocks.requestJson.mockReturnValueOnce(request.promise)
+    mockRequestJson.mockReturnValueOnce(request.promise)
     const invalidated = vi.spyOn(client, 'invalidateQueries')
     const onSuccess = vi.fn(() => expect(invalidated).not.toHaveBeenCalled())
     const mutation = renderMutation(client, () => useDeleteConnector({ onSuccess }))

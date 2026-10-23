@@ -1,38 +1,33 @@
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createCredentialConnection: vi.fn(),
-  getSession: vi.fn(),
   requireConfiguredOAuthClient: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mocks.getSession,
 }))
 
 vi.mock('@/lib/core/config/env-capabilities.server', () => ({
   requireConfiguredOAuthClient: mocks.requireConfiguredOAuthClient,
 }))
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
-}))
-
 vi.mock('@/lib/credentials/application/create-credential-connection', () => ({
   createCredentialConnection: { execute: mocks.createCredentialConnection },
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getCanonicalScopesForProvider: () => ['instagram_business_basic'],
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/auth/instagram/authorize/route'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+oauthUtilsMockFns.mockGetCanonicalScopesForProvider.mockReturnValue(['instagram_business_basic'])
+
 describe('Instagram authorize route', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { defineAuthorizedBenchmarkUseCase } from '@/lib/benchmarks/application/access'
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
+import { authorizeBenchmarkPlanTarget } from '@/lib/benchmarks/application/prepare-plan'
 import {
   BENCHMARK_LEASE_MS,
   withBenchmarkStageLease,
@@ -12,11 +13,17 @@ import {
 import {
   applyBenchmarkPatch,
   redactBenchmarkSpec,
+  retainBenchmarkModelRuns,
   validateBenchmarkRedaction,
 } from '@/lib/benchmarks/artifacts'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { gradeReconstruction, validateReconstruction } from '@/lib/benchmarks/evaluation'
 import { verifyRecoveryEvidence } from '@/lib/benchmarks/evidence'
+import {
+  type BenchmarkModelConfig,
+  DEFAULT_BENCHMARK_EVALUATOR,
+  DEFAULT_BENCHMARK_PLANNER,
+} from '@/lib/benchmarks/models'
 import {
   distillationMessages,
   gradingMessages,
@@ -80,6 +87,7 @@ interface RunBenchmarkStageInput {
   version: number
   stage: BenchmarkStage
   runLabel?: string
+  model?: BenchmarkModelConfig
 }
 
 function requireStageInputs(stage: BenchmarkStage, artifacts: BenchmarkArtifacts): void {
@@ -104,7 +112,8 @@ async function performStage(
   principal: Principal,
   benchmark: BenchmarkCase,
   stage: BenchmarkStage,
-  signal: AbortSignal
+  signal: AbortSignal,
+  model: BenchmarkModelConfig
 ): Promise<{ artifacts: BenchmarkArtifacts; plannerChatId?: string | null }> {
   const artifacts = benchmark.artifacts
   switch (stage) {
@@ -113,6 +122,7 @@ async function performStage(
         principal,
         benchmark,
         signal,
+        model,
         schema: distillationSchema,
         messages: distillationMessages(artifacts.taskBrief),
         profile: { stage: 'distill' },
@@ -124,6 +134,7 @@ async function performStage(
         principal,
         benchmark,
         signal,
+        model,
         schema: redactionSchema,
         messages: redactionMessages(artifacts.referenceSpec),
       })
@@ -135,7 +146,7 @@ async function performStage(
       }
     }
     case 'plan': {
-      const result = await executeBenchmarkPlan({ principal, benchmark, signal })
+      const result = await executeBenchmarkPlan({ principal, benchmark, signal, model })
       return {
         artifacts: {
           ...artifacts,
@@ -147,36 +158,40 @@ async function performStage(
       }
     }
     case 'reconstruct': {
+      const generatedSpec = artifacts.generatedSpec
+      if (!generatedSpec)
+        throw new OrchestrationError('validation', 'Generate a specification before reconstruction')
       const { data: result, toolCalls } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,
+        model,
         schema: reconstructionSchema,
         messages: reconstructionMessages(artifacts.redactedSpec),
-        profile: { stage: 'resolve', spec: artifacts.generatedSpec! },
+        profile: { stage: 'resolve', spec: generatedSpec },
       })
       validateReconstruction(artifacts.blanks, result.answers)
-      const reconstruction = verifyRecoveryEvidence(
-        artifacts.generatedSpec!,
-        result.answers,
-        toolCalls
-      )
+      const reconstruction = verifyRecoveryEvidence(generatedSpec, result.answers, toolCalls)
       return {
         artifacts: { ...artifacts, recoveryMode: 'references', reconstruction, grade: null },
       }
     }
     case 'grade': {
+      const { reconstruction, generatedSpec } = artifacts
+      if (!reconstruction || !generatedSpec)
+        throw new OrchestrationError('validation', 'Reconstruct a specification before grading')
       const { data: result } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,
+        model,
         schema: gradingSchema,
         messages: gradingMessages(artifacts),
       })
       const grade = gradeReconstruction({
         blanks: artifacts.blanks,
-        reconstruction: artifacts.reconstruction!,
-        generatedSpec: artifacts.generatedSpec!,
+        reconstruction,
+        generatedSpec,
         judgments: result.judgments,
       })
       return { artifacts: { ...artifacts, grade } }
@@ -219,17 +234,33 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       leaseExpiresAt: new Date(Date.now() + BENCHMARK_LEASE_MS),
     })
     const attempt = { ...scope, version: claimed.version, stage: input.stage, attemptId }
+    const model =
+      input.model ??
+      (input.stage === 'plan' ? DEFAULT_BENCHMARK_PLANNER : DEFAULT_BENCHMARK_EVALUATOR)
+    const startedAt = performance.now()
     logger.info('Benchmark step started', {
       ...attempt,
       operatorUserId: current.userId,
       runAsUserId: current.runAsUserId ?? current.userId,
     })
     try {
-      const output = await withBenchmarkStageLease(attempt, request?.signal, (signal) =>
-        performStage(principal, claimed, input.stage, signal)
+      if (!claimed.leaseExpiresAt) throw new Error('Benchmark claim has no lease')
+      const output = await withBenchmarkStageLease(
+        { ...attempt, leaseExpiresAt: new Date(claimed.leaseExpiresAt) },
+        request?.signal,
+        (signal) => performStage(principal, claimed, input.stage, signal, model)
       )
+      output.artifacts.modelRuns = {
+        ...retainBenchmarkModelRuns(output.artifacts),
+        [input.stage]: { config: model, durationMs: Math.round(performance.now() - startedAt) },
+      }
       request?.signal?.throwIfAborted()
       await requireBenchmarkCaseAccess(principal, input)
+      if (input.stage === 'plan')
+        await authorizeBenchmarkPlanTarget(principal, {
+          organizationId: claimed.organizationId,
+          runAsUserId: claimed.runAsUserId ?? claimed.userId,
+        })
       return {
         benchmark: await completeBenchmarkStage({
           ...attempt,

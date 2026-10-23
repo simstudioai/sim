@@ -1,15 +1,18 @@
-import { dbChainMockFns, resetDbChainMock, workflowsPersistenceUtilsMock } from '@sim/testing'
+import { workspace } from '@sim/db/schema'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  workflowsPersistenceUtilsMock,
+} from '@sim/testing'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockResolveGoverningPermissionGroupOrganization,
-  mockLockWorkspaceCreationContext,
-  mockGetWorkspaceInvitePolicy,
-  mockCreateWorkspaceAccountsGroup,
-} = vi.hoisted(() => ({
-  mockResolveGoverningPermissionGroupOrganization: vi.fn(),
-  mockLockWorkspaceCreationContext: vi.fn(),
-  mockGetWorkspaceInvitePolicy: vi.fn(),
+const { mockCreateWorkspaceAccountsGroup } = vi.hoisted(() => ({
   mockCreateWorkspaceAccountsGroup: vi.fn(),
 }))
 
@@ -24,15 +27,7 @@ vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: () => ({ workflowState: {} }),
 }))
 
-vi.mock('@/lib/workspaces/policy', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/workspaces/policy')>()
-  return {
-    ...actual,
-    resolveGoverningPermissionGroupOrganization: mockResolveGoverningPermissionGroupOrganization,
-    lockWorkspaceCreationContext: mockLockWorkspaceCreationContext,
-    getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
-  }
-})
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -40,6 +35,12 @@ import {
   createWorkspace,
 } from '@/lib/workspaces/create'
 import { WORKSPACE_MODE, WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
+
+const {
+  mockResolveGoverningPermissionGroupOrganization,
+  mockLockWorkspaceCreationContext,
+  mockGetWorkspaceInvitePolicy,
+} = workspacesPolicyMockFns
 
 const params = {
   userId: 'creator-1',
@@ -123,7 +124,8 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
    */
   it('creates an ungoverned personal workspace and resolves no regime', async () => {
     mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'user-1' })
-    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
+    queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
+    const tx = dbChainMock.db as unknown as DbOrTx
 
     await createDefaultPersonalWorkspaceInTransaction(tx, {
       userId: 'user-1',

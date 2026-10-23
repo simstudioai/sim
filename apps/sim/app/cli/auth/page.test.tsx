@@ -1,23 +1,13 @@
 import { envFlagsMock } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockRedirect } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRedirect: vi.fn((url: string) => {
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  }),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 import CliAuthPage from '@/app/cli/auth/page'
+
+const mockGetSession = authMockFns.mockGetSession
 
 /** BASE64URL, 43 chars; pairing is `XXXX-XXXX` over the no-look-alike alphabet. */
 const REQUEST = 'r'.repeat(43)

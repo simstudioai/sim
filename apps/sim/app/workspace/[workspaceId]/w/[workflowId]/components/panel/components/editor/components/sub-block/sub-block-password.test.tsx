@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -24,18 +25,7 @@ vi.mock('@sim/emcn', () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  ArrowLeftRight: () => null,
-  ArrowUp: () => null,
-  Check: () => null,
-  Clipboard: () => null,
-  SquareArrowUpRight: () => null,
-  TriangleAlert: () => null,
-}))
-
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components',
@@ -92,12 +82,17 @@ vi.mock('@/hooks/use-webhook-management', () => ({
   useWebhookManagement: () => ({ webhookUrl: null }),
 }))
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { PASSWORD_MASKED_SUBBLOCK_TYPES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import type { SubBlockConfig } from '@/blocks/types'
 
 function renderSubBlock(config: SubBlockConfig) {
-  return renderToStaticMarkup(<SubBlock blockId='block-1' config={config} />)
+  return renderToStaticMarkup(
+    <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+      <SubBlock blockId='block-1' config={config} />
+    </WorkflowScopeProvider>
+  )
 }
 
 describe('SubBlock password forwarding', () => {

@@ -84,11 +84,13 @@ export async function handleCredentialGroupOAuthCallback({
     })
   const installationSetup =
     attempt.returnTo === 'github-installation' && attempt.organizationId && attempt.completionId
+  const returnOrganizationId =
+    attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
   const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
     installationSetup
       ? setupRedirect(oauth)
       : attempt.completionRedirect
-        ? createCredentialGroupCompletionRedirect(oauth, attempt.completionId)
+        ? createCredentialGroupCompletionRedirect(oauth, attempt.completionId, returnOrganizationId)
         : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { ...focus, oauth })
   if (limited) {
     return failureRedirect('rate_limited')
@@ -117,7 +119,11 @@ export async function handleCredentialGroupOAuthCallback({
       request,
     })
     return attempt.completionRedirect
-      ? createCredentialGroupCompletionRedirect(undefined, attempt.completionId)
+      ? createCredentialGroupCompletionRedirect(
+          undefined,
+          attempt.completionId,
+          returnOrganizationId
+        )
       : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
           ...focus,
           connected: attempt.optionId,

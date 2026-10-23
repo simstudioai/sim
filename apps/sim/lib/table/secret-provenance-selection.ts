@@ -9,7 +9,7 @@ export function selectTableRowSecretProvenance(
   return rows.flatMap((row, rowIndex) =>
     Object.entries(row)
       .filter(([, value]) => value !== undefined)
-      .map(([columnKey, value]) => ({
+      .map(([columnKey]) => ({
         key: tableRowSecretProvenanceSelectionKey(rowIndex, columnKey),
         inputPaths: [
           inputRoot === 'rows' ? ['rows', String(rowIndex), columnKey] : ['data', columnKey],

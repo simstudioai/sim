@@ -22,6 +22,7 @@ import { validateName } from '@/lib/core/utils/validation'
 import {
   useFloatBoundarySync,
   useFloatDrag,
+  useFloatLayout,
   useFloatResize,
   usePreventZoom,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -33,7 +34,7 @@ import {
   MIN_VARIABLES_HEIGHT,
   MIN_VARIABLES_WIDTH,
   useVariablesModalStore,
-} from '@/stores/variables/modal'
+} from '@/stores/modals/variables/store'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -52,8 +53,6 @@ const TYPE_OPTIONS: ComboboxOption[] = [
 /**
  * UI constants for consistent styling and sizing
  */
-const BADGE_HEIGHT = 20
-const BADGE_TEXT_SIZE = 13
 const ICON_SIZE = 13
 const HEADER_ICON_SIZE = 16
 const LINE_HEIGHT = 21
@@ -133,7 +132,7 @@ function VariableHeader({
           e.stopPropagation()
           onRemove()
         }}
-        className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+        className='h-auto shrink-0 p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] max-md:pointer-coarse:size-11'
         disabled={readOnly}
         aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
       >
@@ -252,16 +251,20 @@ export function Variables({ readOnly = false }: VariablesProps) {
     [variables, activeWorkflowId]
   )
 
-  const actualPosition = useMemo(
-    () => getVariablesPosition(position, width, height),
-    [position, width, height]
-  )
+  const preventZoomRef = usePreventZoom()
+  const { isFloatingLayout, updatePosition, updateDimensions } = useFloatLayout({
+    ref: preventZoomRef,
+    onPositionChange: setPosition,
+    onDimensionsChange: setDimensions,
+  })
+
+  const actualPosition = getVariablesPosition(position, width, height)
 
   const { handleMouseDown } = useFloatDrag({
     position: actualPosition,
     width,
     height,
-    onPositionChange: setPosition,
+    onPositionChange: updatePosition,
   })
 
   useFloatBoundarySync({
@@ -269,7 +272,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
     position: actualPosition,
     width,
     height,
-    onPositionChange: setPosition,
+    onPositionChange: updatePosition,
   })
 
   const {
@@ -281,15 +284,13 @@ export function Variables({ readOnly = false }: VariablesProps) {
     position: actualPosition,
     width,
     height,
-    onPositionChange: setPosition,
-    onDimensionsChange: setDimensions,
+    onPositionChange: updatePosition,
+    onDimensionsChange: updateDimensions,
     minWidth: MIN_VARIABLES_WIDTH,
     minHeight: MIN_VARIABLES_HEIGHT,
     maxWidth: MAX_VARIABLES_WIDTH,
     maxHeight: MAX_VARIABLES_HEIGHT,
   })
-
-  const preventZoomRef = usePreventZoom()
 
   const [collapsedById, setCollapsedById] = useState<Record<string, boolean>>({})
   const [localNames, setLocalNames] = useState<Record<string, string>>({})
@@ -434,7 +435,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
       ref={preventZoomRef}
       role='dialog'
       aria-label='Variables'
-      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2 max-md:absolute max-md:inset-0! max-md:size-auto! max-md:cursor-default! max-md:rounded-none max-md:border-0 max-md:pb-[max(8px,env(safe-area-inset-bottom))]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -442,15 +443,21 @@ export function Variables({ readOnly = false }: VariablesProps) {
         height: `${height}px`,
         cursor: resizeCursor || undefined,
       }}
-      onMouseMove={handleResizeMouseMove}
+      onMouseMove={(event) => {
+        if (isFloatingLayout()) handleResizeMouseMove(event)
+      }}
       onMouseLeave={handleResizeMouseLeave}
-      onMouseDown={handleResizeMouseDown}
+      onMouseDown={(event) => {
+        if (isFloatingLayout()) handleResizeMouseDown(event)
+      }}
     >
       {/* Header (drag handle) */}
       <div
         role='presentation'
-        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
-        onMouseDown={handleMouseDown}
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing max-md:h-11 max-md:cursor-default'
+        onMouseDown={(event) => {
+          if (isFloatingLayout()) handleMouseDown(event)
+        }}
       >
         <div className='flex items-center'>
           <span className='shrink-0 text-[var(--text-primary)] text-sm'>Variables</span>
@@ -459,7 +466,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
           <Button
             variant='ghost'
             iconPadding='md'
-            className='-m-1.5'
+            className='-m-1.5 max-md:pointer-coarse:m-0 max-md:pointer-coarse:size-11'
             onClick={(e) => {
               e.stopPropagation()
               handleAddVariable()
@@ -472,7 +479,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
           <Button
             variant='ghost'
             iconPadding='md'
-            className='-m-1.5'
+            className='-m-1.5 max-md:pointer-coarse:m-0 max-md:pointer-coarse:size-11'
             onClick={handleClose}
             aria-label='Close variables panel'
           >

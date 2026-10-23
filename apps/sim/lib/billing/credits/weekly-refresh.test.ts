@@ -1,21 +1,7 @@
-import { dbChainMockFns, drizzleOrmMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
-
-vi.mock('drizzle-orm', () => {
-  const sqlTag = () => {
-    const obj: { as: () => typeof obj } = { as: () => obj }
-    return obj
-  }
-  return {
-    ...drizzleOrmMock,
-    sql: Object.assign(sqlTag, {
-      raw: (rawSql: string) => ({ rawSql, toSQL: () => ({ sql: rawSql, params: [] }) }),
-    }),
-    sum: () => ({ as: () => 'sum' }),
-  }
-})
-
 import {
   computeBillingPeriodUsageWithWeeklyRefresh,
   computeWeeklyRefreshConsumed,
@@ -28,6 +14,7 @@ import {
 const FROZEN_NOW = new Date('2026-08-15T00:00:00.000Z')
 
 beforeEach(() => {
+  drizzleOrmMock.sum.mockImplementation(() => ({ as: () => 'sum' }))
   vi.useFakeTimers()
   vi.setSystemTime(FROZEN_NOW)
 })

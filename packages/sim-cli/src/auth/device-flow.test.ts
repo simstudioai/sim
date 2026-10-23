@@ -16,7 +16,6 @@ const COMPLETE = {
 }
 
 afterEach(() => {
-  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 

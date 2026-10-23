@@ -1,25 +1,36 @@
 ---
 title: Google Tasks
 description: Manage Google Tasks
+integration:
+  type: "google_tasks"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_tasks"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Tasks](https://support.google.com/tasks) to create, list, update, and delete tasks, or list the task lists in a Google account. Task inputs include titles, notes, due dates, and completion status.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google Tasks account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-tasks` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/tasks` | Create, read, update, and delete Google Tasks |
 
+## Use the block [#usage-instructions]
+
+Create, read, update, delete, and list tasks and task lists.
 
 ## Actions
 
@@ -60,6 +71,8 @@ Create a new task in a Google Tasks list
 
 List all tasks in a Google Tasks list
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -99,6 +112,8 @@ List all tasks in a Google Tasks list
 |     ↳ `description` | string | Link description |
 |     ↳ `link` | string | The URL |
 | `nextPageToken` | string | Token for retrieving the next page of results |
+
+</ReferenceDetails>
 
 ### Google Tasks Get Task
 

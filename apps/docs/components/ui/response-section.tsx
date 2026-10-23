@@ -1,21 +1,13 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
-import {
-  ChipChevronDown,
-  chipFieldSurfaceClass,
-  chipFieldTextClass,
-  chipGeometryClass,
-  chipHoverSurfaceClass,
-  cn,
-} from '@sim/emcn'
+import { useEffect, useRef, useState } from 'react'
+import { ChipSelect } from '@sim/emcn'
 
 interface ResponseSectionProps {
   children: React.ReactNode
 }
 
 export function ResponseSection({ children }: ResponseSectionProps) {
-  const id = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const [statusCodes, setStatusCodes] = useState<string[]>([])
   const [selectedCode, setSelectedCode] = useState<string>('')
@@ -96,34 +88,19 @@ export function ResponseSection({ children }: ResponseSectionProps) {
   return (
     <div ref={containerRef} className='response-section-wrapper'>
       {statusCodes.length > 0 && (
-        <div className='response-section-header'>
-          <h2 className='response-section-title'>Response</h2>
-          <div className='response-section-meta'>
-            <div className='relative'>
-              <label htmlFor={id} className='sr-only'>
-                Response status code
-              </label>
-              <select
-                id={id}
-                value={selectedCode}
-                onChange={(event) => handleSelectCode(event.target.value)}
-                className={cn(
-                  chipGeometryClass,
-                  chipFieldSurfaceClass,
-                  chipFieldTextClass,
-                  chipHoverSurfaceClass,
-                  'appearance-none pe-8'
-                )}
-              >
-                {statusCodes.map((code) => (
-                  <option key={code} value={code}>
-                    {code}
-                  </option>
-                ))}
-              </select>
-              <ChipChevronDown className='-translate-y-1/2 pointer-events-none absolute end-2 top-1/2' />
-            </div>
-            <span className='response-section-content-type'>application/json</span>
+        <div className='response-section-header flex-wrap gap-y-3'>
+          <h2 className='response-section-title m-0!'>Response</h2>
+          <div className='response-section-meta flex-wrap gap-y-3'>
+            <ChipSelect
+              modal={false}
+              aria-label={`Response status code: ${selectedCode}`}
+              value={selectedCode}
+              onChange={handleSelectCode}
+              options={statusCodes.map((code) => ({ label: code, value: code }))}
+              align='end'
+              dropdownWidth={96}
+              contentClassName='min-w-0'
+            />
           </div>
         </div>
       )}

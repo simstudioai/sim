@@ -1,13 +1,15 @@
+import type { Principal } from '@sim/auth/principal'
 import type { AuthorizedWorkspaceUseCaseContext, WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileRecordInput {
   fileId: string
@@ -19,17 +21,27 @@ export interface ReadWorkspaceFileRecordResult {
 }
 
 /**
- * Record reads by id admit chat uploads: the sandbox mount reloads an `uploads/<name>`
- * upload through here before presigning it. Listings never surface chat uploads and
- * writes never resolve them.
+ * Record reads by id admit chat uploads. Listings never surface chat uploads and writes never
+ * resolve them.
  */
 function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(operation: O) {
   return defineAuthorizedWorkspaceFileUseCase({
     operation,
-    resolveContext: ({ input }: { input: ReadWorkspaceFileRecordInput }) =>
-      resolveActiveWorkspaceFileContext({ ...input, includeChatUploads: true }),
+    resolveContext: ({
+      principal,
+      input,
+    }: {
+      principal: Principal
+      input: ReadWorkspaceFileRecordInput
+    }) =>
+      resolveActiveWorkspaceFileContext({
+        ...input,
+        includeChatUploads: true,
+        ownedFilePrincipal: principal,
+      }),
     async execute({
       context,
+      principal,
     }: AuthorizedWorkspaceUseCaseContext<
       O,
       ReadWorkspaceFileRecordInput,
@@ -38,8 +50,11 @@ function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(opera
       const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
         throwOnError: true,
         includeChatUploads: true,
+        includeOwnedFiles: true,
       })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
+      /** Callers read and hand on the record's raw bytes, which no redaction reaches. */
+      await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
       return { file }
     },
   })

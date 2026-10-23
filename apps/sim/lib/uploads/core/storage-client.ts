@@ -4,16 +4,6 @@ import type { StorageConfig } from '@/lib/uploads/shared/types'
 export type { StorageConfig } from '@/lib/uploads/shared/types'
 
 /**
- * Get the current storage provider name
- */
-export function getStorageProvider(): 'blob' | 's3' | 'gcs' | 'local' {
-  if (USE_BLOB_STORAGE) return 'blob'
-  if (USE_S3_STORAGE) return 's3'
-  if (USE_GCS_STORAGE) return 'gcs'
-  return 'local'
-}
-
-/**
  * Get the serve path prefix (unified across all storage providers)
  */
 export function getServePathPrefix(): string {
@@ -21,28 +11,15 @@ export function getServePathPrefix(): string {
 }
 
 /**
- * Get file metadata from storage provider
+ * Read raw object metadata from the configured provider; it is not canonical file ownership.
  * @param key File key/name
  * @param customConfig Optional custom storage configuration
  * @returns File metadata object with userId, workspaceId, originalName, uploadedAt, etc.
  */
-export async function getFileMetadata(
+export async function getStorageObjectMetadata(
   key: string,
   customConfig?: StorageConfig
 ): Promise<Record<string, string>> {
-  const { getFileMetadataByKey } = await import('../server/metadata')
-  const metadataRecord = await getFileMetadataByKey(key)
-
-  if (metadataRecord) {
-    return {
-      userId: metadataRecord.userId,
-      workspaceId: metadataRecord.workspaceId || '',
-      originalName: metadataRecord.originalName,
-      uploadedAt: metadataRecord.uploadedAt.toISOString(),
-      purpose: metadataRecord.context,
-    }
-  }
-
   if (USE_BLOB_STORAGE) {
     const { headBlobObject } = await import('@/lib/uploads/providers/blob/client')
     const { BLOB_CONFIG } = await import('@/lib/uploads/config')

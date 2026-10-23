@@ -1,15 +1,20 @@
 import { db } from '@sim/db'
 import { permissionGroup, scimGroupMapping } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLeafLock } = vi.hoisted(() => ({ mockLeafLock: vi.fn() }))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mockLeafLock }))
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 
 import {
   autoMapPermissionGroupByName,
   settleMappedPermissionGroupsExplicit,
 } from '@/ee/scim/lib/projection/auto-map'
+
+const mockLeafLock = permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock
 
 const params = { organizationId: 'org-1', scimGroupId: 'g-1', displayName: 'Engineering' }
 

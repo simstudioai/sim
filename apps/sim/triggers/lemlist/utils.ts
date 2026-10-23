@@ -19,7 +19,7 @@ export const lemlistTriggerOptions = [
  * Generates setup instructions for Lemlist webhooks
  * The webhook is automatically created in Lemlist when you save
  */
-export function lemlistSetupInstructions(eventType: string): string {
+export function lemlistSetupInstructions(): string {
   const instructions = [
     'Enter your Lemlist API Key above.',
     'You can find your API key in Lemlist at <strong>Settings > Integrations</strong>. See the <a href="https://help.lemlist.com/en/articles/4452694-find-and-use-the-lemlist-api" target="_blank" rel="noopener noreferrer">Lemlist API documentation</a> for details.',
@@ -37,7 +37,7 @@ export function lemlistSetupInstructions(eventType: string): string {
 /**
  * Helper to build Lemlist-specific extra fields.
  * Includes API key (required) and optional campaign filter.
- * Use with the generic buildTriggerSubBlocks from @/triggers.
+ * Use with the generic buildTriggerSubBlocks from @/triggers/subblocks.
  */
 export function buildLemlistExtraFields(triggerId: string) {
   return [

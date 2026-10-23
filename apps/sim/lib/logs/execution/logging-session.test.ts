@@ -1,18 +1,18 @@
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { executionPayloadStoreMock } from '@sim/testing/mocks/execution-payload-store.mock'
+import {
+  getMockPlatformEvent,
+  telemetryMock,
+  telemetryMockFns,
+} from '@sim/testing/mocks/telemetry.mock'
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const dbMocks = vi.hoisted(() => ({
-  eq: vi.fn(),
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  sql: Object.assign(
-    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
-    {
-      /** `elapsedDurationMsSql` binds `ended_at` through the column's own mapper. */
-      param: vi.fn((value: unknown, encoder?: unknown) => ({ value, encoder })),
-    }
-  ),
-}))
 
 const {
   completeWorkflowExecutionMock,
@@ -20,37 +20,18 @@ const {
   prepareTraceSpansForProjectionMock,
   startWorkflowExecutionMock,
   loadWorkflowStateForExecutionMock,
-  releaseExecutionSlotMock,
-  createOTelSpansMock,
-  workflowExecutedMock,
+  findDeletedExecutionScopeMock,
 } = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
   loadTraceSpansForProjectionMock: vi.fn(),
   prepareTraceSpansForProjectionMock: vi.fn(),
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
-  releaseExecutionSlotMock: vi.fn(),
-  createOTelSpansMock: vi.fn(),
-  workflowExecutedMock: vi.fn(),
-}))
-
-const { materializeLargeValueRefMock, storeLargeValueMock } = vi.hoisted(() => ({
-  materializeLargeValueRefMock: vi.fn(),
-  storeLargeValueMock: vi.fn(),
-}))
-
-const { decryptSecretMock } = vi.hoisted(() => ({
-  decryptSecretMock: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
+  findDeletedExecutionScopeMock: vi.fn(),
 }))
 
 const { recordSecretUsageMock } = vi.hoisted(() => ({ recordSecretUsageMock: vi.fn() }))
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: recordSecretUsageMock }))
-
-vi.mock('drizzle-orm', () => ({
-  eq: dbMocks.eq,
-  and: dbMocks.and,
-  sql: dbMocks.sql,
-}))
 
 vi.mock('@/lib/logs/execution/logger', () => ({
   executionLogger: {
@@ -58,26 +39,17 @@ vi.mock('@/lib/logs/execution/logger', () => ({
     completeWorkflowExecution: completeWorkflowExecutionMock,
     loadTraceSpansForProjection: loadTraceSpansForProjectionMock,
     prepareTraceSpansForProjection: prepareTraceSpansForProjectionMock,
+    findDeletedExecutionScope: findDeletedExecutionScopeMock,
   },
 }))
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: releaseExecutionSlotMock,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  createOTelSpansForWorkflowExecution: createOTelSpansMock,
-  PlatformEvents: { workflowExecuted: workflowExecutedMock },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-  storeLargeValue: storeLargeValueMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: decryptSecretMock,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 const {
   setLastStartedBlockMock,
@@ -120,12 +92,24 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
   loadWorkflowStateForExecution: loadWorkflowStateForExecutionMock,
 }))
 
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import {
   type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { LoggingSession } from './logging-session'
+
+const releaseExecutionSlotMock = billingUsageReservationMockFns.mockReleaseExecutionSlot
+
+/** `elapsedDurationMsSql` binds `ended_at` through the column's own mapper, so `sql.param` is observed too. */
+const dbMocks = { sql: vi.mocked(sql) }
+const createOTelSpansMock = telemetryMockFns.mockCreateOTelSpansForWorkflowExecution
+const workflowExecutedMock = getMockPlatformEvent('workflowExecuted')
+
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
+}))
 
 afterAll(resetDbChainMock)
 
@@ -1184,6 +1168,147 @@ describe('completeWithError cancelled-status guard', () => {
       expect.objectContaining({ finalizationPath: 'force_failed', executionState })
     )
     expect(session.hasCompleted()).toBe(true)
+  })
+})
+
+describe('LoggingSession deleted run scope', () => {
+  const sessionLogger =
+    loggerMock.createLogger.mock.results[
+      loggerMock.createLogger.mock.calls.findIndex(([name]) => name === 'LoggingSession')
+    ]?.value
+  const foreignKeyViolation = () =>
+    Object.assign(new Error('violates foreign key constraint'), { code: '23503' })
+  const startParams = {
+    workspaceId: 'workspace-1',
+    workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    releaseExecutionSlotMock.mockResolvedValue(undefined)
+    findDeletedExecutionScopeMock.mockResolvedValue(null)
+  })
+
+  it.each([
+    'safeComplete',
+    'safeCompleteWithError',
+    'safeCompleteWithCancellation',
+    'safeCompleteWithPause',
+  ] as const)(
+    '%s ends a run whose workspace was deleted without a cost-only retry or an error log',
+    async (completion) => {
+      const session = new LoggingSession('workflow-1', 'execution-d1', 'api', 'req-1')
+      completeWorkflowExecutionMock.mockRejectedValueOnce(
+        new ExecutionScopeDeletedError('execution-d1', 'workspace')
+      )
+
+      await expect(session[completion]()).resolves.toBeUndefined()
+
+      expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(1)
+      expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d1')
+      expect(session.getDeletedScope()).toBe('workspace')
+      expect(session.hasCompleted()).toBe(false)
+      expect(sessionLogger?.error).not.toHaveBeenCalled()
+
+      await session.safeCompleteWithError({ error: { message: 'late' } })
+      await session.markAsFailed('late force-fail')
+      expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
+
+  it('still takes the cost-only fallback for any other completion failure', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d2', 'api', 'req-1')
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('Workflow log not found for execution execution-d2'))
+      .mockResolvedValueOnce({})
+
+    await session.safeComplete({ finalOutput: { ok: true } })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(session.getDeletedScope()).toBeNull()
+    expect(session.hasCompleted()).toBe(true)
+  })
+
+  it('stops starting a run whose workspace was deleted, and releases its slot', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d3', 'api', 'req-1')
+    startWorkflowExecutionMock.mockRejectedValue(foreignKeyViolation())
+    findDeletedExecutionScopeMock.mockResolvedValue('workspace')
+
+    await expect(session.safeStart(startParams)).resolves.toBe(false)
+    await expect(session.safeStart(startParams)).resolves.toBe(false)
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledTimes(1)
+    expect(findDeletedExecutionScopeMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+    })
+    expect(session.getDeletedScope()).toBe('workspace')
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d3')
+    expect(sessionLogger?.error).not.toHaveBeenCalled()
+  })
+
+  it('stops a run whose minimal fallback start finds the workspace deleted', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d6', 'api', 'req-1')
+    startWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockRejectedValueOnce(foreignKeyViolation())
+    findDeletedExecutionScopeMock.mockResolvedValue('workspace')
+
+    await expect(session.safeStart(startParams)).resolves.toBe(false)
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(session.getDeletedScope()).toBe('workspace')
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d6')
+    const errorMessages = vi
+      .mocked(sessionLogger?.error)
+      .mock.calls.map(([message]: unknown[]) => message)
+    expect(
+      errorMessages.some((message: unknown) => String(message).includes('Minimal logging'))
+    ).toBe(false)
+  })
+
+  it('ends quietly when the cost-only fallback is what finds the workspace deleted', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d7', 'api', 'req-1')
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('trace store unavailable'))
+      .mockRejectedValueOnce(new ExecutionScopeDeletedError('execution-d7', 'workspace'))
+
+    await expect(session.safeComplete({ finalOutput: { ok: true } })).resolves.toBeUndefined()
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(session.getDeletedScope()).toBe('workspace')
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d7')
+    const errorMessages = vi
+      .mocked(sessionLogger?.error)
+      .mock.calls.map(([message]: unknown[]) => message)
+    expect(errorMessages.some((message: unknown) => String(message).includes('Cost-only'))).toBe(
+      false
+    )
+  })
+
+  it('falls back to a minimal start when a foreign key fails but the scope still exists', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d4', 'api', 'req-1')
+    startWorkflowExecutionMock
+      .mockRejectedValueOnce(foreignKeyViolation())
+      .mockResolvedValueOnce({})
+
+    await expect(session.safeStart(startParams)).resolves.toBe(true)
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(session.getDeletedScope()).toBeNull()
+    expect(releaseExecutionSlotMock).not.toHaveBeenCalled()
+  })
+
+  it('never checks scope existence for a start failure other than a foreign key', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d5', 'api', 'req-1')
+    startWorkflowExecutionMock.mockRejectedValue(new Error('connection reset'))
+
+    await expect(session.safeStart(startParams)).resolves.toBe(false)
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(findDeletedExecutionScopeMock).not.toHaveBeenCalled()
+    expect(session.getDeletedScope()).toBeNull()
   })
 })
 

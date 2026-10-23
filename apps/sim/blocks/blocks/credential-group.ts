@@ -3,49 +3,10 @@ import { CREDENTIAL_GROUP_EVENT_TRIGGER_ID } from '@/lib/credential-groups/trigg
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
-interface CredentialGroupBlockOutput {
-  success: boolean
-  output: {
-    credentials: Array<{
-      credentialId: string
-      email: string
-      displayName: string
-      providerId: string
-      providerSubjectId: string
-      providerTenantId: string | null
-    }>
-    mcpConnections: Array<{
-      credentialId: string
-      email: string
-      displayName: string
-      mcpServerId: string
-      mcpServerName: string
-      toolNames: string[]
-    }>
-    people: Array<{
-      id: string
-      email: string
-      status: string
-      expired: boolean
-      invitedAt: string
-      connections: Array<{ provider: string; status: string; count: number }>
-    }>
-    enrollmentId: string
-    email: string
-    status: string
-    invitedAt: string
-    expiresAt: string
-    invitationLink: string
-    count: number
-    hasMore: boolean
-    nextCursor: string | null
-  }
-}
-
 const INVITE_OPERATIONS = ['send_invite', 'get_invite_link'] as const
 const LIST_OPERATIONS = ['list_credentials', 'list_mcp_connections', 'list_people'] as const
 
-export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
+export const CredentialGroupBlock: BlockConfig = {
   type: 'credential_group',
   name: 'Connected Accounts (Legacy)',
   hideFromToolbar: true,

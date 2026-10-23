@@ -1,114 +1,89 @@
 ---
 title: Sim CLI
-description: Drive workflows, tables, files, knowledge bases, and logs from your shell
+description: Run workflows and manage Sim resources from your terminal.
 ---
 
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-
-`sim` is the command line for Sim. Sign in once, then run workflows, query tables,
-move files, search knowledge bases, and read run logs from the terminal. Use
-`--output json` for structured results that pipe into `jq`, cron jobs, and CI
-pipelines. See [Output formats](/cli/output) for commands that emit raw content
-or local configuration.
+Use `sim` to run workflows, query tables, move files, search knowledge bases, and read logs. Structured results default to JSON for scripts, CI jobs, and coding agents. Select `--output table` for a readable table.
 
 ## Install
 
-<Tabs items={['npm', 'pnpm', 'bun']}>
-  <Tab value="npm">
-    ```bash
-    npm install -g sim
-    ```
-  </Tab>
-  <Tab value="pnpm">
-    ```bash
-    pnpm add -g sim
-    ```
-  </Tab>
-  <Tab value="bun">
-    ```bash
-    bun add -g sim
-    ```
-  </Tab>
-</Tabs>
+The installed CLI requires Node.js 20 or newer. Install it globally with Bun, then check the version:
 
-Requires Node.js 20 or newer. Verify with `sim --version`.
+```bash
+bun add -g sim
+sim --version
+```
 
-The CLI shows optional update notices on eligible interactive invocations. Run
-`sim update` when you want to install the update. See
-[Updates](/cli/configuration#updates) for installation requirements and how to
-disable notices.
+To run a command without a global installation:
 
-To run it without installing, use `npx sim <command>`.
+```bash
+bunx sim --help
+```
 
-Using Sim as a library instead? See the [TypeScript](/api-reference/typescript)
-and [Python](/api-reference/python) SDKs, or the
-[HTTP API](/api-reference/getting-started).
+The package also supports npm and pnpm installations. Keep using the package manager that owns your installation when upgrading; another manager may install a second copy on your `PATH`.
+
+Eligible interactive invocations can show an update notice. Run `sim update` to update the active global installation. See [Updates](/cli/configuration#updates) for supported managers, release channels, and notice controls.
 
 ## Your first command
 
-<Steps>
-
-<Step>
-### Sign in
+### 1. Sign in
 
 ```bash
 sim login
 ```
 
-The CLI opens your browser for approval. Local sign-in prefers OAuth; remote
-terminals use API-key pairing. After OAuth sign-in, choose a default workspace
-with `sim configure --set-workspace <id>`. For SSH and containers, use
-`sim login --method api-key --no-browser` and approve the pairing code.
+Local sign-in prefers OAuth and opens a browser for approval. SSH sessions and headless Linux terminals select API-key pairing. To choose pairing explicitly without opening a browser:
 
-See [Authentication](/cli/authentication) for CI keys, multiple accounts, and
-self-hosted deployments.
-</Step>
+```bash
+sim login --method api-key --no-browser
+```
 
-<Step>
-### Check what you are pointed at
+Approve the code shown in your terminal. See [Authentication](/cli/authentication) for CI credentials, remote terminals, multiple accounts, and self-hosted deployments.
+
+### 2. Choose a workspace
+
+After OAuth login, list your workspaces and set a default:
+
+```bash
+sim workspaces list
+sim configure --set-workspace <workspaceId>
+```
+
+Pairing sets the default workspace you choose on its approval page. Override that target for one command with `--workspace <workspaceId>`.
+
+### 3. Check the resolved settings
 
 ```bash
 sim whoami
 ```
 
-This prints the resolved endpoint, workspace, and output format — and **where
-each one came from**. It is the fastest way to explain a surprising result.
-</Step>
+This shows the endpoint, credential type, workspace, and output format, including the source of each setting. It also checks authentication and access to the selected workspace. Use `--no-verify` to inspect settings offline.
 
-<Step>
-### List your workflows
+### 4. List and run a workflow
 
 ```bash
-sim workflows list
+sim workflows list --output table
 ```
 
-```
-ID                                    NAME           FOLDER     DEPLOYED  RUNS  LAST RUN
-3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8  Refund triage  /Support   yes       412   2026-08-15 14:02:11
-b8c0d247-9e13-4a86-97f5-2ad4e1638c09  Weekly digest  /Reporting no        18    2026-08-11 09:00:04
-```
-</Step>
+Example table output; timestamps are UTC:
 
-<Step>
-### Run one
+```text
+ID                                    NAME           FOLDER      DEPLOYED  RUNS  LAST RUN
+3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8  Refund triage  /Support    yes       412   2026-08-15 14:02:11
+b8c0d247-9e13-4a86-97f5-2ad4e1638c09  Weekly digest  /Reporting  no        18    2026-08-11 09:00:04
+```
 
 ```bash
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"ticketId":"T-4821"}'
 ```
 
-This command runs the active deployment. Deploy from the editor or with
-`sim workflows deploy <id>`. To run the current saved workflow state instead,
-use `sim workflows run <id> --manual`.
-</Step>
-
-</Steps>
+Ordinary execution runs the active deployment. Deploy from the workflow builder or with `sim workflows deploy <workflowId>`. To execute the current saved workflow state, use `sim workflows run <workflowId> --manual`.
 
 ## How commands are shaped
 
-Every command reads the same way:
+Resource commands use this shape:
 
-```bash
+```text
 sim <resource> [sub-resource] <verb> [arguments] [options]
 ```
 
@@ -118,11 +93,18 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 50
 sim knowledge documents upload 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 ./handbook.pdf
 ```
 
-Some resource groups also accept a singular alias: `sim workflow get` and
-`sim workflows get` are the same command. `knowledge` also answers to `kb`.
-Each group’s reference lists its supported aliases.
+In the installed CLI, commands such as `login`, `whoami`, `configure`, `update`, and `chat` run directly under `sim`. Local setup and maintenance commands are unavailable when Sim runs commands inside Chat; see [Configuration](/cli/configuration). Some resource groups have singular aliases: `sim workflow get` and `sim workflows get` are equivalent. `knowledge` also accepts `kb`; each group reference lists its aliases.
 
-Every command accepts `--help`, at any depth:
+## Find a command
+
+Search by the task you want to complete, then inspect the result's arguments and options:
+
+```bash
+sim cli search "cancel a workflow run"
+sim workflows runs cancel --help
+```
+
+Help is available at every depth:
 
 ```bash
 sim --help
@@ -132,38 +114,40 @@ sim tables rows query --help
 
 ## What you can do
 
-| Group | What it covers |
+| Group | Capabilities |
 | --- | --- |
-| [`workflows`](/cli/workflows) | Run, deploy, roll back, import, export, and organize workflows |
-| [`logs`](/cli/logs) | Read run diagnostics, including the full trace tree |
-| [`tables`](/cli/tables) | Query, insert, update, and import rows; manage columns and views |
-| [`files`](/cli/files) | Upload, download, share, and organize workspace files |
-| [`knowledge`](/cli/knowledge) | Search knowledge bases and manage their documents and tags |
-| [`skills`](/cli/skills) | Manage agent skills |
-| [`sandboxes`](/cli/sandboxes) | Manage sandbox dependencies, managed CLIs, and system packages |
-| [`mcp-servers`](/cli/mcp-servers) | Manage MCP server connections and their tools |
+| [`workflows`](/cli/workflows) | Build, deploy, run, roll back, import, export, and organize workflows |
+| [`logs`](/cli/logs) | Inspect runs and recursive traces |
+| [`tables`](/cli/tables) | Query and change rows; manage columns, views, imports, and exports |
+| [`files`](/cli/files) | Upload, download, share, version, and organize workspace files |
+| [`knowledge`](/cli/knowledge) | Search knowledge bases and manage documents, connectors, and tags |
+| [`skills`](/cli/skills) | Manage skills and their editors |
+| [`sandboxes`](/cli/sandboxes) | Configure dependencies, managed CLIs, and system packages |
+| [`mcp-servers`](/cli/mcp-servers) | Connect external Model Context Protocol (MCP) servers and discover tools |
 | [`custom-tools`](/cli/custom-tools) | Manage custom tool definitions |
 | [`credentials`](/cli/credentials) | Connect, reconnect, and disconnect integration credentials |
-| [`secrets`](/cli/secrets) | Set and remove workspace secrets |
-| [`billing`](/cli/billing) | Check plan status and credit usage |
-| [`audit-logs`](/cli/audit-logs) | Read organization audit logs |
-| [`workspaces`](/cli/workspaces) | Inspect the active workspace and its members |
-| [`blocks`](/cli/blocks) | Browse the block catalog and read one block's configuration fields |
-| [`tools`](/cli/tools) | Browse and execute built-in tools |
-| [`connector-types`](/cli/connector-types) | Browse knowledge-base connector types and their config fields |
-| [`chat-deployments`](/cli/chat-deployments) | List the hosted chats a workspace serves |
-| [`workflow-mcp-servers`](/cli/workflow-mcp-servers) | Publish workflows as MCP tools for outside agents |
-| [`meta`](/cli/meta) | Check what this API supports and which limits apply |
+| [`secrets`](/cli/secrets) | Manage personal and workspace secrets |
+| [`workspaces`](/cli/workspaces) | Manage members, invitations, forks, and workspace sync |
+| [`organizations`](/cli/organizations) | Manage organization access, members, usage, domains, and SSO |
+| [`permission-groups`](/cli/permission-groups) | Manage restrictions and group membership |
+| [`billing`](/cli/billing) | Inspect plan status and credit usage |
+| [`audit-logs`](/cli/audit-logs) | Read organization audit actions |
+| [`blocks`](/cli/blocks) | Inspect the block catalog and configuration fields |
+| [`tools`](/cli/tools) | Inspect and execute built-in tools |
+| [`connector-types`](/cli/connector-types) | Inspect knowledge-base connector types and fields |
+| [`selectors`](/cli/selectors) | Discover and verify configuration choices |
+| [`chat-deployments`](/cli/chat-deployments) | List deployed workflow chats |
+| [`workflow-mcp-servers`](/cli/workflow-mcp-servers) | Expose deployed workflows as MCP tools |
+| [`meta`](/cli/meta) | Inspect API availability and credential status |
 
-The [command overview](/cli/commands) has the global options and the commands
-that take no resource; the [complete reference](/cli/reference) documents every
-subcommand, argument, and flag on one page. Both are generated from the CLI
-itself.
+The [command overview](/cli/commands) lists global options and root commands. The [complete reference](/cli/reference) contains every subcommand, argument, and option on one page. Both are generated from the CLI.
 
-## Where to go next
+## Related docs
 
-- [Authentication](/cli/authentication) — signing in, API keys for CI, and multiple accounts
-- [Configuration](/cli/configuration) — profiles, config files, environment variables, and precedence
-- [Output formats](/cli/output) — `table`, `json`, `yaml`, and `text`, and when to use each
-- [Scripting](/cli/scripting) — piping, file inputs, exit codes, and automation recipes
-- [Troubleshooting](/cli/troubleshooting) — what each error means, and how to resolve it
+- [Authentication](/cli/authentication)
+- [Configuration](/cli/configuration)
+- [Output formats](/cli/output)
+- [Scripting](/cli/scripting)
+- [Workflow imports and workspace sync](/cli/workflow-sync)
+- [Troubleshooting](/cli/troubleshooting)
+- [TypeScript SDK](/api-reference/typescript), [Python SDK](/api-reference/python), and [HTTP API](/api-reference/getting-started)

@@ -1,17 +1,12 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockLocalUploadBodyError,
-  mockExpectedUploadPartSize,
-  mockVerifyUploadSessionToken,
-  mockWriteLocalMultipartPart,
-} = vi.hoisted(() => {
+const { MockLocalUploadBodyError, mockWriteLocalMultipartPart } = vi.hoisted(() => {
   class MockLocalUploadBodyError extends Error {}
   return {
     MockLocalUploadBodyError,
-    mockExpectedUploadPartSize: vi.fn(),
-    mockVerifyUploadSessionToken: vi.fn(),
     mockWriteLocalMultipartPart: vi.fn(),
   }
 })
@@ -21,13 +16,14 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   writeLocalMultipartPart: mockWriteLocalMultipartPart,
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  expectedUploadPartSize: mockExpectedUploadPartSize,
-  verifyUploadSessionToken: mockVerifyUploadSessionToken,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 import { PUT } from '@/app/api/v2/uploads/[uploadId]/parts/[partNumber]/route'
+
+const mockExpectedUploadPartSize = uploadSessionMockFns.mockExpectedUploadPartSize
+const mockVerifyUploadSessionToken = uploadSessionMockFns.mockVerifyUploadSessionToken
 
 const SESSION = {
   id: 'upload-1',
@@ -58,6 +54,24 @@ describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
       body: expect.any(ReadableStream),
       expectedSize: 3,
     })
+  })
+
+  it('answers 204 when the retired-Project check fails after the part is written', async () => {
+    mockVerifyUploadSessionToken.mockReturnValue({
+      ...SESSION,
+      purpose: 'project_file',
+      storageProvider: 'local',
+      providerUploadId: null,
+      finalKey: 'project/project-1/file.bin',
+      metadata: { [PROJECT_FILE_UPLOAD_BINDING_KEY]: { entityId: 'project-1' } },
+    })
+    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await request()
+
+    expect(response.status).toBe(204)
+    expect(mockWriteLocalMultipartPart).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })
 
   it('maps a streamed-size failure to 400', async () => {

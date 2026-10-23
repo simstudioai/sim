@@ -21,8 +21,7 @@ interface AuthTextLinkProps {
 /**
  * The canonical inline text affordance for the auth pages — forgot-password,
  * resend, and the legal links. Renders a {@link Link} when `href` is set and a
- * `<button>` otherwise, both in one light-token style. Replaces the legacy dark
- * `AUTH_TEXT_LINK` class string with a single props-driven source of truth.
+ * `<button>` otherwise, both using the shared neutral text tokens.
  */
 export function AuthTextLink({
   children,

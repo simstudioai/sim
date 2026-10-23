@@ -49,7 +49,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
@@ -65,7 +65,7 @@ import {
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
 import type { ExternalDocument } from '@/connectors/types'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'

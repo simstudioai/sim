@@ -1,6 +1,7 @@
+import { getAllMockLoggers } from '@sim/testing/mocks/logger.mock'
 import JSZip from 'jszip'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { listConfluenceAttachments } from '@/connectors/confluence/attachments'
@@ -15,8 +16,9 @@ vi.mock('@/lib/knowledge/documents/secure-fetch.server', async (importOriginal) 
 }))
 
 const CONFIG = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
+const IMAGES_ON = { ...CONFIG, imageAttachments: 'semantic' }
 const CONTEXT = { cloudId: 'cloud', spaceId: '1' }
-const INPUT = { accessToken: 'token', cloudId: 'cloud', domain: CONFIG.domain }
+const INPUT = { accessToken: 'token', cloudId: 'cloud', domain: CONFIG.domain, includeImages: true }
 const fetchMock = vi.fn<typeof fetch>()
 
 function file(overrides: Record<string, unknown> = {}) {
@@ -83,7 +85,10 @@ function fixture(attachment = file()) {
   })
 }
 
-async function get(externalId = 'attachment:page:p1:att123', config = CONFIG) {
+async function get(
+  externalId = 'attachment:page:p1:att123',
+  config: Record<string, unknown> = CONFIG
+) {
   return confluenceConnector.getDocument('token', config, externalId, { ...CONTEXT })
 }
 
@@ -161,7 +166,6 @@ beforeEach(() => {
   secureDownload.mockReset().mockResolvedValue(new Response('binary bytes'))
   vi.stubGlobal('fetch', fetchMock)
 })
-afterEach(() => vi.unstubAllGlobals())
 
 describe('Confluence attachment listing', () => {
   it('resumes a bounded parent queue with a fresh runtime context', async () => {
@@ -211,44 +215,203 @@ describe('Confluence attachment listing', () => {
     expect(last.hasMore).toBe(false)
   })
 
-  it.each([403, 401])(
-    'preserves parent pages and cumulative partial progress for attachment access failure %s',
+  it('preserves parent pages and cumulative partial progress when the attachment scope is missing', async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json({ code: 401, message: 'Unauthorized; scope does not match' }, { status: 401 })
+    )
+    const listParents = vi.fn(
+      async (cursor: string | undefined): Promise<ExternalDocumentList> => ({
+        documents: [parent(cursor ? 'p2' : 'p1')],
+        hasMore: !cursor,
+        nextCursor: cursor ? undefined : 'next',
+      })
+    )
+    const first = await listConfluenceAttachments({ ...INPUT, listParents })
+    const context: Record<string, unknown> = {}
+    const last = await listConfluenceAttachments({
+      ...INPUT,
+      listParents,
+      cursor: first.nextCursor,
+      syncContext: context,
+    })
+    expect(first.documents.map((doc) => doc.externalId)).toEqual(['p1'])
+    expect(last.documents.map((doc) => doc.externalId)).toEqual(['p2'])
+    expect(last.listingFailures).toEqual({
+      count: 2,
+      samples: ['p1', 'p2'].map((scope) => ({
+        scope,
+        operation: 'confluence.attachments.list',
+        status: 401,
+        reasons: ['attachment_scope_mismatch'],
+      })),
+    })
+    expect(last.reconciliationSafe).toBe(false)
+    expect(context.reconciliationUnsafe).toBe(true)
+  })
+
+  /**
+   * One page whose attachments the credential cannot open must not leave every pass incomplete,
+   * which would keep the connector from ever finishing a sync. Its attachments were not listed,
+   * so the page still withholds deletion of anything it did not list.
+   */
+  it.each([403, 404])(
+    'skips a parent whose attachments answer %s without failing the listing or deleting what it did not list',
     async (status) => {
-      fetchMock.mockImplementation(async () =>
-        status === 401
-          ? Response.json({ code: 401, message: 'Unauthorized; scope does not match' }, { status })
-          : new Response(null, { status })
-      )
+      fetchMock.mockImplementation(async (input) => {
+        const parentId = new URL(String(input)).pathname.split('/').at(-2) ?? ''
+        if (parentId === 'p1') return new Response(null, { status })
+        return Response.json({ results: [file({ id: `${parentId}-file`, pageId: parentId })] })
+      })
       const listParents = vi.fn(
-        async (cursor: string | undefined): Promise<ExternalDocumentList> => ({
-          documents: [parent(cursor ? 'p2' : 'p1')],
-          hasMore: !cursor,
-          nextCursor: cursor ? undefined : 'next',
+        async (): Promise<ExternalDocumentList> => ({
+          documents: [parent('p1'), parent('p2')],
+          hasMore: false,
         })
       )
-      const first = await listConfluenceAttachments({ ...INPUT, listParents })
       const context: Record<string, unknown> = {}
-      const last = await listConfluenceAttachments({
+      const result = await listConfluenceAttachments({
         ...INPUT,
         listParents,
-        cursor: first.nextCursor,
         syncContext: context,
       })
-      expect(first.documents.map((doc) => doc.externalId)).toEqual(['p1'])
-      expect(last.documents.map((doc) => doc.externalId)).toEqual(['p2'])
-      expect(last.listingFailures).toEqual({
-        count: 2,
-        samples: ['p1', 'p2'].map((scope) => ({
-          scope,
-          operation: 'confluence.attachments.list',
-          status,
-          reasons: [status === 401 ? 'attachment_scope_mismatch' : 'attachment_access_denied'],
-        })),
-      })
-      expect(last.reconciliationSafe).toBe(false)
+      expect(result.documents.map((doc) => doc.externalId)).toEqual([
+        'p1',
+        'p2',
+        'attachment:page:p2:p2-file',
+      ])
+      expect(result.hasMore).toBe(false)
+      expect(result.listingFailures).toBeUndefined()
+      expect(result.reconciliationSafe).toBe(false)
       expect(context.reconciliationUnsafe).toBe(true)
     }
   )
+
+  describe('server errors', () => {
+    const parents = (ids: string[]) =>
+      vi.fn(
+        async (): Promise<ExternalDocumentList> => ({
+          documents: ids.map((id) => parent(id)),
+          hasMore: false,
+        })
+      )
+
+    /** Answers a parent's attachment listing with `status` while `failing` says so. */
+    function listingFails(failing: (parentId: string) => boolean, status = 500) {
+      fetchMock.mockImplementation(async (input) => {
+        const parentId = new URL(String(input)).pathname.split('/').at(-2) ?? ''
+        if (failing(parentId)) return new Response('upstream error', { status })
+        return Response.json({ results: [file({ id: `${parentId}-file`, pageId: parentId })] })
+      })
+    }
+
+    /** Runs a listing past the shared backoff (~31 s for five retries) without real waits. */
+    async function listPastBackoff(input: Parameters<typeof listConfluenceAttachments>[0]) {
+      vi.useFakeTimers()
+      try {
+        const listing = listConfluenceAttachments(input)
+        const settled = listing.then(
+          () => undefined,
+          () => undefined
+        )
+        for (let i = 0; i < 20; i++) await vi.advanceTimersByTimeAsync(10_000)
+        await settled
+        return await listing
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it.each([
+      ['a complete body', () => 'upstream error'],
+      ['a body that never finishes', () => new ReadableStream<Uint8Array>()],
+      [
+        'a body stream that already errored',
+        () =>
+          new ReadableStream<Uint8Array>({
+            start: (controller) => controller.error(new Error('connection reset')),
+          }),
+      ],
+    ])('retries a transient 500 with %s instead of failing the listing', async (_, body) => {
+      let failed = false
+      fetchMock.mockImplementation(async () => {
+        if (failed) return Response.json({ results: [file({ id: 'p1-file' })] })
+        failed = true
+        return new Response(body(), { status: 500 })
+      })
+      const result = await listPastBackoff({ ...INPUT, listParents: parents(['p1']) })
+      expect(result.documents.map((doc) => doc.externalId)).toEqual([
+        'p1',
+        'attachment:page:p1:p1-file',
+      ])
+      expect(result.listingFailures).toBeUndefined()
+    })
+
+    it('skips isolated parents whose listing keeps failing and keeps listing the rest', async () => {
+      listingFails((id) => id === 'p1' || id === 'p3' || id === 'p5')
+      const context: Record<string, unknown> = {}
+      const result = await listPastBackoff({
+        ...INPUT,
+        listParents: parents(['p1', 'p2', 'p3', 'p4', 'p5']),
+        syncContext: context,
+      })
+      expect(result.documents.map((doc) => doc.externalId)).toEqual([
+        'p1',
+        'p2',
+        'p3',
+        'p4',
+        'p5',
+        'attachment:page:p2:p2-file',
+        'attachment:page:p4:p4-file',
+      ])
+      expect(result.listingFailures).toEqual({
+        count: 3,
+        samples: ['p1', 'p3', 'p5'].map((scope) => ({
+          scope,
+          operation: 'confluence.attachments.list',
+          status: 500,
+          reasons: ['attachment_listing_unavailable'],
+        })),
+      })
+      expect(result.reconciliationSafe).toBe(false)
+      expect(context.reconciliationUnsafe).toBe(true)
+    })
+
+    it('logs Atlassian trace identifiers for a 500 but never its body', async () => {
+      let failed = false
+      fetchMock.mockImplementation(async () => {
+        if (failed) return Response.json({ results: [] })
+        failed = true
+        return Response.json(
+          {
+            errors: [{ code: 'INTERNAL_SERVER_ERROR', title: 'x', detail: 'leaked-secret-value' }],
+          },
+          {
+            status: 500,
+            headers: { 'atl-traceid': '5c1f0e2a9b7d4e1f', 'x-arequestid': 'not an id; <script>' },
+          }
+        )
+      })
+      await listPastBackoff({ ...INPUT, listParents: parents(['p1']) })
+      const logged = JSON.stringify(
+        getAllMockLoggers().flatMap((logger) =>
+          [logger.info, logger.warn, logger.error, logger.debug].flatMap((fn) => fn.mock.calls)
+        )
+      )
+      expect(logged).toContain('5c1f0e2a9b7d4e1f')
+      expect(logged).not.toContain('<script>')
+      expect(logged).not.toContain('leaked-secret-value')
+    })
+
+    it.each([500, 503])(
+      'fails the sync when consecutive parents answer %s, as during an outage',
+      async (status) => {
+        listingFails(() => true, status)
+        await expect(
+          listPastBackoff({ ...INPUT, listParents: parents(['p1', 'p2', 'p3', 'p4']) })
+        ).rejects.toMatchObject({ status })
+      }
+    )
+  })
 
   it('surfaces known oversized files as skipped without downloading', async () => {
     fetchMock.mockResolvedValue(
@@ -274,6 +437,102 @@ describe('Confluence attachment listing', () => {
         listParents: async () => ({ documents: [parent()], hasMore: false }),
       })
     ).rejects.toThrow()
+  })
+})
+
+describe('Confluence image attachments', () => {
+  async function listOne(attachment: Record<string, unknown>) {
+    fetchMock.mockResolvedValue(Response.json({ results: [attachment] }))
+    const result = await listConfluenceAttachments({
+      ...INPUT,
+      listParents: async () => ({ documents: [parent()], hasMore: false }),
+    })
+    return result.documents.slice(1)
+  }
+
+  it.each([
+    { title: 'Quarterly schedule.png', mediaType: 'image/png', mimeType: 'image/png' },
+    { title: 'image-20240101-000000', mediaType: 'image/jpeg', mimeType: 'image/jpeg' },
+    { title: 'Floor plan', mediaType: 'IMAGE/JPG', mimeType: 'image/jpeg' },
+    { title: 'Diagram.webp', mediaType: 'image/webp', mimeType: 'image/webp' },
+    { title: 'Spinner.gif', mediaType: 'image/gif', mimeType: 'image/gif' },
+  ])('lists $title by its media type', async ({ title, mediaType, mimeType }) => {
+    const [image] = await listOne(file({ title, mediaType, fileSize: 40_000 }))
+    expect(image).toMatchObject({ mimeType, contentDeferred: true })
+    expect(image.contentHash).toBe('confluence:attachment-v1:att123:page:p1:2:image-extract-v1')
+  })
+
+  it.each([
+    { title: 'Logo.svg', mediaType: 'image/svg+xml' },
+    { title: 'Photo.heic', mediaType: 'image/heic' },
+    { title: 'Photo.avif', mediaType: 'image/avif' },
+    { title: 'Archive', mediaType: 'application/zip' },
+    { title: 'Unknown', mediaType: undefined },
+  ])('drops $title', async ({ title, mediaType }) => {
+    expect(await listOne(file({ title, mediaType, fileSize: 40_000 }))).toEqual([])
+  })
+
+  it('drops images under the byte floor and keeps one whose size is unreported', async () => {
+    expect(
+      await listOne(file({ title: 'Icon.png', mediaType: 'image/png', fileSize: 900 }))
+    ).toEqual([])
+    const [unsized] = await listOne(
+      file({ title: 'Chart.png', mediaType: 'image/png', fileSize: undefined })
+    )
+    expect(unsized.mimeType).toBe('image/png')
+  })
+
+  it('keeps document hashes unchanged and still lists small documents', async () => {
+    const [pdf] = await listOne(file({ mediaType: 'application/pdf', fileSize: 12 }))
+    expect(pdf.contentHash).toBe('confluence:attachment-v1:att123:page:p1:2')
+  })
+
+  it('hydrates a listed image with its bytes and the same media type', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    secureDownload.mockResolvedValue(new Response('png bytes'))
+    const hydrated = await get('attachment:page:p1:att123', IMAGES_ON)
+    expect(hydrated?.skippedReason).toBeUndefined()
+    expect(hydrated?.sourceFile).toMatchObject({
+      fileName: 'Quarterly schedule',
+      mimeType: 'image/png',
+    })
+  })
+
+  it('lists no images when the connector turns image attachments off, and keeps documents', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        results: [
+          file({ title: 'Quarterly schedule.png', mediaType: 'image/png', fileSize: 40_000 }),
+          file({ id: 'att124', title: 'Guide.pdf', mediaType: 'application/pdf' }),
+        ],
+      })
+    )
+    const result = await listConfluenceAttachments({
+      ...INPUT,
+      includeImages: false,
+      listParents: async () => ({ documents: [parent()], hasMore: false }),
+    })
+    expect(result.documents.slice(1).map((doc) => doc.title)).toEqual(['Guide.pdf'])
+  })
+
+  it('replaces an indexed image once image attachments are turned off', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    const hydrated = await get('attachment:page:p1:att123', { ...CONFIG, imageAttachments: 'off' })
+    expect(hydrated?.skippedReason).toBe('Image attachments are turned off for this connector')
+    expect(hydrated?.skippedExistingDisposition).toBe('replace')
+  })
+
+  it('keeps images off for a connector created before the setting existed', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    const hydrated = await get('attachment:page:p1:att123', CONFIG)
+    expect(hydrated?.skippedReason).toBe('Image attachments are turned off for this connector')
+  })
+
+  it('replaces an attachment that stopped being a supported image', async () => {
+    fixture(file({ title: 'Logo', mediaType: 'image/svg+xml', fileSize: 40_000 }))
+    const hydrated = await get()
+    expect(hydrated?.skippedReason).toContain('supported image')
+    expect(hydrated?.skippedExistingDisposition).toBe('replace')
   })
 })
 

@@ -422,7 +422,7 @@ describe('durable Slack Search turns in PostgreSQL', () => {
   it('does not save a title when access is revoked during generation', async () => {
     const input = job()
     await persistSlackSearchTurn(input)
-    const chat = await resolveSlackSearchChat(principal(input), input)
+    await resolveSlackSearchChat(principal(input), input)
     title.request.mockReset().mockResolvedValue('Generated title')
     await expect(
       generateSlackSearchChatTitle(principal(input), {

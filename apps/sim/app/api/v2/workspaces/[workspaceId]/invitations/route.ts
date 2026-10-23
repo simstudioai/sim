@@ -6,12 +6,12 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { v2OrganizationErrorPolicy } from '@/lib/api/server/routes/organizations'
-import { invitationOperations } from '@/lib/invitations/application/operations'
-import { sendInvitationBatch } from '@/lib/invitations/application/send-invitation-batch'
+import { workspaceInvitationOperations } from '@/lib/invitations/application/operations'
+import { sendWorkspaceInvitationBatch } from '@/lib/invitations/application/send-invitation-batch'
 
 export const POST = defineV2JsonRoute({
   contract: v2CreateWorkspaceInvitationsContract,
-  operation: invitationOperations.sendBatch,
+  operation: workspaceInvitationOperations.sendBatch,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: createV2ResourceConcealmentPolicy({
@@ -19,6 +19,6 @@ export const POST = defineV2JsonRoute({
     render: v2OrganizationErrorPolicy.render,
   }),
   mapInput: ({ params, body }) => ({ ...body, workspaceIds: [params.workspaceId] }),
-  useCase: sendInvitationBatch,
+  useCase: sendWorkspaceInvitationBatch,
   present: (result) => ({ data: result }),
 })

@@ -3,6 +3,7 @@ import type { SnowflakeInsertRowsParams, SnowflakeStatementResponse } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -26,6 +27,7 @@ function parseRows(value: unknown): Array<Record<string, unknown>> {
 export const insertRowsTool: ToolConfig<SnowflakeInsertRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_insert_rows',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Insert Rows',
   description: 'Insert structured JSON rows using bound values.',
   params: {

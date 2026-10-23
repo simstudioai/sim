@@ -862,36 +862,6 @@ export const INTERCOM_PAGES_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-interface IntercomBaseParams {
-  accessToken: string
-}
-
-interface IntercomPaginationParams {
-  per_page?: number
-  starting_after?: string
-}
-
-interface IntercomPagingInfo {
-  next?: {
-    page: number
-    starting_after: string
-  } | null
-  total_count?: number
-}
-
-interface IntercomResponse<T> {
-  success: boolean
-  output: {
-    data?: T
-    pages?: IntercomPagingInfo
-    metadata: {
-      operation: string
-      [key: string]: any
-    }
-    success: boolean
-  }
-}
-
 export function buildIntercomUrl(path: string): string {
   return `https://api.intercom.io${path}`
 }

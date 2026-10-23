@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { validatePathSegment } from '@/lib/core/security/input-validation'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftExcelUtils')
 
@@ -127,9 +130,14 @@ export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
 /**
  * Returns the Graph API base path for an Excel item.
  * When driveId is provided, uses /drives/{driveId}/items/{itemId} (SharePoint/shared drives).
- * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
+ * When driveId is omitted or null, uses /me/drive/items/{itemId} (the user’s default drive).
  */
-export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
+export function getItemBasePath(spreadsheetId: string, driveId?: string | null): string {
+  spreadsheetId = spreadsheetId.trim()
+  if (typeof driveId === 'string' && !driveId.trim()) {
+    throw new Error('driveId must not be blank when provided')
+  }
+  driveId = driveId?.trim()
   const spreadsheetValidation = validatePathSegment(spreadsheetId, {
     paramName: 'spreadsheetId',
     customPattern: GRAPH_ID_PATTERN,
@@ -146,9 +154,9 @@ export function getItemBasePath(spreadsheetId: string, driveId?: string): string
     if (!driveValidation.isValid) {
       throw new Error(driveValidation.error)
     }
-    return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
+    return `https://graph.microsoft.com/v1.0/drives/${safeUrlPathSegment(driveId, 'driveId')}/items/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}`
   }
-  return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+  return `https://graph.microsoft.com/v1.0/me/drive/items/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}`
 }
 
 /**
@@ -174,14 +182,14 @@ export function resolveSheetAndAddress(
     return { sheetName: trimmedSheet, address: trimmedAddress }
   }
 
-  const match = trimmedAddress.match(/^([^!]+)!(.+)$/)
+  const match = trimmedAddress.match(/^(?:'((?:[^']|'')+)'|([^!]+))!(.+)$/)
   if (!match) {
     throw new Error(
       `Invalid range format: "${address}". Provide a sheet name, or use the combined format "Sheet1!A1:B2"`
     )
   }
 
-  return { sheetName: match[1], address: match[2] }
+  return { sheetName: match[1]?.replace(/''/g, "'") ?? match[2], address: match[3] }
 }
 
 /**
@@ -197,7 +205,7 @@ export function buildWorksheetRangeUrl(
 ): string {
   const resolved = resolveSheetAndAddress(address, sheetName)
   const encodedSheet = encodeURIComponent(escapeODataString(resolved.sheetName))
-  const encodedAddress = encodeURIComponent(resolved.address)
+  const encodedAddress = encodeURIComponent(escapeODataString(resolved.address))
   return `${basePath}/workbook/worksheets('${encodedSheet}')/range(address='${encodedAddress}')`
 }
 
@@ -206,7 +214,6 @@ export function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): Exc
 
   const isEmptyValue = (v: ExcelCellValue) => v === null || v === ''
 
-  // Determine last non-empty row
   let lastNonEmptyRowIndex = -1
   for (let r = 0; r < matrix.length; r++) {
     const row = matrix[r] || []
@@ -218,7 +225,6 @@ export function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): Exc
 
   const trimmedRows = matrix.slice(0, lastNonEmptyRowIndex + 1)
 
-  // Determine last non-empty column across trimmed rows
   let lastNonEmptyColIndex = -1
   for (let r = 0; r < trimmedRows.length; r++) {
     const row = trimmedRows[r] || []
@@ -242,11 +248,13 @@ export function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): Exc
 export async function getSpreadsheetWebUrl(
   spreadsheetId: string,
   accessToken: string,
-  driveId?: string
+  driveId?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const basePath = getItemBasePath(spreadsheetId, driveId)
   try {
     const response = await fetch(`${basePath}?$select=id,webUrl`, {
+      signal,
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -257,12 +265,22 @@ export async function getSpreadsheetWebUrl(
         spreadsheetId,
         status: response.status,
       })
+      await response.body?.cancel()
       return basePath
     }
 
-    const data = await response.json()
-    return data.webUrl || basePath
+    const data = toRecord(
+      JSON.parse(
+        await readResponseTextWithLimit(response, {
+          maxBytes: 65536,
+          label: 'Excel workbook metadata',
+          signal,
+        })
+      )
+    )
+    return typeof data.webUrl === 'string' && data.webUrl.trim() ? data.webUrl : basePath
   } catch (error) {
+    signal?.throwIfAborted()
     logger.warn('Error fetching spreadsheet webUrl, using Graph API URL as fallback', {
       spreadsheetId,
       error,

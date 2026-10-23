@@ -1,4 +1,9 @@
 import { resetEnvMock } from '@sim/testing'
+import { admissionGateMock } from '@sim/testing/mocks/admission-gate.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -6,9 +11,6 @@ const {
   mockResolveInstallation,
   mockSearch,
   mockCustomDispatch,
-  mockParseWebhookBody,
-  mockFindWebhooksByRoutingKey,
-  mockDispatchResolvedWebhookTarget,
   mockHandleSlackChallenge,
   mockVerifySlackRequestSignature,
 } = vi.hoisted(() => ({
@@ -16,23 +18,13 @@ const {
   mockResolveInstallation: vi.fn(),
   mockSearch: vi.fn(),
   mockCustomDispatch: vi.fn(),
-  mockParseWebhookBody: vi.fn(),
-  mockFindWebhooksByRoutingKey: vi.fn(),
-  mockDispatchResolvedWebhookTarget: vi.fn(),
   mockHandleSlackChallenge: vi.fn(),
   mockVerifySlackRequestSignature: vi.fn(),
 }))
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: () => ({ release: vi.fn() }),
-  admissionRejectedResponse: () => new Response(null, { status: 503 }),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  parseWebhookBody: mockParseWebhookBody,
-  findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   handleSlackChallenge: mockHandleSlackChallenge,
@@ -57,6 +49,9 @@ vi.mock('@/lib/webhooks/slack-custom-ingress', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/slack/route'
+
+const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolvedWebhookTarget } =
+  webhooksProcessorMockFns
 
 function makeRequest() {
   return new Request('https://sim.test/api/webhooks/slack', {

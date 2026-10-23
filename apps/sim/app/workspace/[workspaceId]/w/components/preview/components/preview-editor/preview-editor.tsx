@@ -28,7 +28,7 @@ import {
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { ReactFlowProvider } from '@xyflow/react'
-import { useParams } from 'next/navigation'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
@@ -38,10 +38,11 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
+import { PreviewScope } from '@/app/workspace/[workspaceId]/w/components/preview/preview-scope'
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
@@ -384,7 +385,7 @@ function ConnectionsSection({
                 {hasFields && (
                   <ChevronDown
                     className={cn(
-                      'h-3.5 w-3.5 shrink-0 transition-transform duration-100',
+                      'size-3.5 shrink-0 transition-transform duration-100',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                       isExpanded && 'rotate-180'
                     )}
@@ -732,8 +733,7 @@ function PreviewEditorContent({
   const blockConfig = getBlock(block.type) as BlockConfig | undefined
   const subBlockValues = block.subBlocks || {}
 
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const isWorkflowBlock = block.type === 'workflow' || block.type === 'workflow_input'
 
@@ -1060,7 +1060,7 @@ function PreviewEditorContent({
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
-      <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
@@ -1093,7 +1093,7 @@ function PreviewEditorContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='text-[var(--text-primary)] text-sm'>
@@ -1150,7 +1150,7 @@ function PreviewEditorContent({
         : 'gray'
 
   return (
-    <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
@@ -1374,7 +1374,7 @@ function PreviewEditorContent({
                       </div>
                     ) : resolvedChildWorkflowState ? (
                       <>
-                        <div className='[&_.react-flow__handle]:hidden! h-full w-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
+                        <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                           <PreviewWorkflow
                             workflowState={resolvedChildWorkflowState}
                             height={160}
@@ -1559,8 +1559,10 @@ function PreviewEditorContent({
  */
 export function PreviewEditor(props: PreviewEditorProps) {
   return (
-    <ReactFlowProvider>
-      <PreviewEditorContent {...props} />
-    </ReactFlowProvider>
+    <PreviewScope>
+      <ReactFlowProvider>
+        <PreviewEditorContent {...props} />
+      </ReactFlowProvider>
+    </PreviewScope>
   )
 }

@@ -1,57 +1,15 @@
 ---
 title: Tools
-description: Manage tools — every subcommand, argument, and flag
+description: Find built-in tools, inspect their parameters, and run them.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+Find built-in tools, inspect their parameters, and run them.
 
-## Run one built-in tool and print what it produced
+Inspect a tool with `sim tools get <toolId>` before passing its parameters to `sim tools execute`.
 
-```bash
-sim tools execute <toolId> [options]
-```
-
-Run one built-in tool and print what it produced (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--input <json\|@file>` | No | Tool arguments as JSON, keyed by the parameter ids `sim tools get &lt;toolId&gt;` lists (JSON, or @path / @- to read a file or stdin). |
-| `--credential-id <value>` | No | Credential to authenticate with, required for OAuth tools. |
-| `--timeout <value>` | No | Seconds to wait before abandoning the call. |
-
-</CommandTable>
-
-## Get tool
-
-```bash
-sim tools get <toolId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
-
-</CommandTable>
+These commands accept the [global options](/cli/commands#global-options).
 
 ## List tools
 
@@ -68,8 +26,60 @@ sim tools list [options]
 | `--search <value>` | No | Case-insensitive substring match against the tool id, name, and description. |
 | `--hosted-api-key <value>` | No | Restrict to tools by how their API key is supplied. Accepted values: `always`, `conditional`, `none`. |
 | `--oauth-provider <value>` | No | Restrict to tools that authenticate against this OAuth service. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "id". Accepted values: `id`, `name`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
+
+API request and response schemas: [listTools](/api-reference/catalog/listTools).
+
+## Get tool
+
+```bash
+sim tools get <toolId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An exact visible ID is retained; an unversioned name resolves to the newest visible family version. The response echoes the resolved ID. |
+
+</CommandTable>
+
+API request and response schemas: [getTool](/api-reference/catalog/getTool).
+
+## Run one built-in tool and print what it produced
+
+OAuth login or personal API key required.
+
+```bash
+sim tools execute <toolId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An exact visible ID is retained; an unversioned name resolves to the newest visible family version. The response echoes the resolved ID. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | No | Tool arguments as JSON, keyed by the parameter ids `sim tools get <toolId>` lists. Defaults to &#123;&#125;. (JSON, or @path / @- to read a file or stdin). |
+| `--credential-id <value>` | No | Credential to authenticate with, required for OAuth tools. |
+| `--timeout <value>` | No | Seconds to wait before abandoning the call. |
+
+</CommandTable>
+
+API request and response schemas: [executeTool](/api-reference/catalog/executeTool).

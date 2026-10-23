@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   admit: vi.fn(),
   editContent: vi.fn(),
   updateContent: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
@@ -37,13 +37,12 @@ vi.mock('@/lib/workspace-files/application/edit-workspace-file-content', () => (
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { PATCH, PUT } from '@/app/api/v2/files/[fileId]/content/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -105,7 +104,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
     mocks.admit.mockResolvedValue(undefined)
     mocks.editContent.mockResolvedValue({ file: record, lineCount: 1 })
     mocks.updateContent.mockResolvedValue({ file: record })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('performs authenticated admission before parsing a large or malformed body', async () => {

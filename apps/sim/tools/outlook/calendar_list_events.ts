@@ -10,7 +10,7 @@ import type {
   OutlookCalendarListEventsResponse,
 } from '@/tools/outlook/types'
 import { OUTLOOK_EVENT_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
-import { assertGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Graph caps `$top` on calendarView at 1000; we cap lower to bound the response payload. */
@@ -85,11 +85,10 @@ export const outlookCalendarListEventsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      // A nextLink is a fully-formed Graph URL. Validate the origin before reusing it
-      // as the request URL — otherwise a workflow-supplied token would receive the
-      // Outlook bearer. Mirrors the onedrive / microsoft_ad Graph paging guard.
+      // A nextLink is a fully-formed Graph URL that receives the Outlook bearer, so it
+      // must be a Graph origin and continue a calendarView, not any Graph endpoint.
       if (params.pageToken) {
-        return assertGraphNextPageUrl(params.pageToken.trim())
+        return assertGraphNextPageUrlForCollection(params.pageToken, ['calendarView'])
       }
 
       if (!params.startDateTime?.trim() || !params.endDateTime?.trim()) {

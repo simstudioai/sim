@@ -1,15 +1,17 @@
+import { ACCESS_GROUP_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessGroupsParams,
   CloudflareListAccessGroupsResponse,
-  CloudflareRawAccessGroup,
 } from '@/tools/cloudflare/types'
 import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessGroupsTool: ToolConfig<
   CloudflareListAccessGroupsParams,
@@ -63,7 +65,7 @@ export const listAccessGroupsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/groups`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/groups`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'search', params.search)
@@ -76,63 +78,36 @@ export const listAccessGroupsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawAccessGroup[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { groups: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list Access groups'),
-      }
-    }
-
-    const groups = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        groups: groups.map((group) => ({
-          id: group.id ?? '',
-          name: group.name ?? null,
-          is_default: group.is_default ?? null,
-          include: group.include ?? null,
-          exclude: group.exclude ?? null,
-          require: group.require ?? null,
-          created_at: group.created_at ?? null,
-          updated_at: group.updated_at ?? null,
-        })),
-        total_count: data.result_info?.total_count ?? groups.length,
+        groups: rows.map((row) => mapCloudflareFields(row, ACCESS_GROUP_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to list access groups') } : {}),
     }
   },
-
   outputs: {
     groups: {
       type: 'array',
-      description: 'Access groups in the account',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Access group identifier' },
-          name: { type: 'string', description: 'Group name', optional: true },
-          is_default: {
-            type: 'json',
-            description:
-              'Rules that place this group in every Access application by default. Cloudflare returns an array of rule objects here, not a boolean',
-            optional: true,
-          },
-          include: {
-            type: 'json',
-            description: 'Rules evaluated with OR logic',
-            optional: true,
-          },
-          exclude: { type: 'json', description: 'Rules evaluated with NOT logic', optional: true },
-          require: { type: 'json', description: 'Rules evaluated with AND logic', optional: true },
-          created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-          updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
-        },
-      },
+      description: 'Groups',
+      items: { type: 'object', properties: ACCESS_GROUP_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Total number of Access groups' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }

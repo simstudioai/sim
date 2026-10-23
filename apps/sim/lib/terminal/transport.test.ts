@@ -1,4 +1,5 @@
 import type { ScopedTerminalCommandEvent, ScopedTerminalTabsState } from '@sim/terminal-protocol'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -95,10 +96,7 @@ Object.assign(bridgeTerminal, {
   write,
 })
 
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () => ({ terminal: bridgeTerminal }),
-  isTerminalEnabled: () => true,
-}))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 vi.mock('@/stores/copilot-terminal/store', () => ({
   useCopilotTerminalStore: {
@@ -124,6 +122,8 @@ import {
   openTerminal,
   suspendTerminalScope,
 } from '@/lib/terminal/transport'
+
+libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({ terminal: bridgeTerminal })
 
 describe('terminal transport chat scopes', () => {
   /** Vitest clears mock call history before every test, so keep the registrations. */

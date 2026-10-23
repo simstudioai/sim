@@ -2,8 +2,10 @@
  * Uses a disposable schema in the isolated local memory test database.
  * Set TEST_DATABASE_URL before running this suite from apps/sim.
  */
+
 import { readFile } from 'node:fs/promises'
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -41,7 +43,7 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({
 vi.mock('@/lib/tokenization/accurate', () => ({
   getAccurateTokenCount: (text: string) => text.length,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+vi.mock('@/lib/workspaces/application/context', () => ({
   resolveActiveWorkspaceApplicationContext: async () => ({
     workspaceId: 'workspace-1',
     workspaceOrganizationId: null,
@@ -50,26 +52,26 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   }),
 }))
 
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
-import { appendMemoryUseCase } from '@/lib/memory/application/use-cases'
+import {
+  appendMemoryUseCase,
+  listMemoriesUseCase,
+  readMemoryUseCase,
+} from '@/lib/memory/application/use-cases'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { AgentInputs } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Memory PostgreSQL tests require an explicitly configured local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 
 const schemaName = `memory_provenance_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 8,
-      connection: { search_path: `${schemaName},public` },
-      onnotice: () => {},
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 8,
+  connection: { search_path: `${schemaName},public` },
+  onnotice: () => {},
+})
 const SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 
 function principal(): WorkflowExecutionDelegatedPrincipal {
@@ -151,9 +153,8 @@ async function nativeAppend(key: string, suffix: string) {
   })
 }
 
-describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
+describe('memory provenance in PostgreSQL', () => {
   beforeAll(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     database.current = drizzle(connection)
     await connection.unsafe(`
@@ -189,7 +190,6 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    if (!connection) return
     try {
       await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
     } finally {
@@ -200,7 +200,6 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
 
   describe('enforced memory provenance', () => {
     it('keeps a large one-secret conversation exact across tool and native writes and model reads', async () => {
-      if (!connection) throw new Error('PostgreSQL test database is not initialized')
       const key = `large-conversation-strict`
       const messages = Array.from({ length: 17_000 }, (_, index) => ({
         role: 'user',
@@ -250,10 +249,82 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
       expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
     })
 
+    it.each(['list', 'read', 'append'] as const)(
+      'binds a %s to the revision it read while another writer appends',
+      async (mode) => {
+        const key = `concurrent-${mode}-read`
+        await toolAppend(key, 'A')
+        // An append's readback includes its own message; every other read sees only the first.
+        const expected = mode === 'append' ? ['TOKEN_A', 'TOKEN_C'] : ['TOKEN_A']
+        let appended = false
+        const now = Date.now()
+        const input = {
+          workspaceId: SCOPE.workspaceId,
+          includePersistedSecretProvenance: true,
+          // Lands after the read is taken, where a separate sidecar read once paired the old
+          // record with this append's provenance.
+          resolveBillingAttribution: async (): Promise<BillingAttributionSnapshot> => {
+            await toolAppend(key, 'B')
+            appended = true
+            return {
+              actorUserId: SCOPE.userId,
+              workspaceId: SCOPE.workspaceId,
+              billedAccountUserId: SCOPE.userId,
+              organizationId: null,
+              billingEntity: { type: 'user', id: SCOPE.userId },
+              payerSubscription: null,
+              billingPeriod: {
+                start: new Date(now - 86_400_000).toISOString(),
+                end: new Date(now + 86_400_000).toISOString(),
+              },
+            }
+          },
+        }
+        const result =
+          mode === 'list'
+            ? await listMemoriesUseCase.execute({
+                principal: principal(),
+                input: { ...input, query: key, limit: 10 },
+              })
+            : mode === 'read'
+              ? await readMemoryUseCase.execute({
+                  principal: principal(),
+                  input: { ...input, key },
+                })
+              : await appendMemoryUseCase.execute({
+                  principal: principal(),
+                  input: {
+                    ...input,
+                    key,
+                    data: { role: 'user', content: 'secret-C' },
+                    writeProvenance: {
+                      status: 'exact',
+                      entries: [
+                        {
+                          encryptedValue: 'cipher-C',
+                          name: 'TOKEN_C',
+                          sourceUserId: SCOPE.userId,
+                          sourceWorkspaceId: SCOPE.workspaceId,
+                        },
+                      ],
+                    },
+                  },
+                })
+        expect(appended).toBe(true)
+        expect(result.readProvenance).toHaveLength(1)
+        const [read] = result.readProvenance ?? []
+        expect(read.data).toHaveLength(expected.length)
+        expect(read.provenance.status).toBe('exact')
+        expect(
+          read.provenance.status === 'exact' &&
+            read.provenance.entries.map(({ name }) => name).sort()
+        ).toEqual(expected)
+      }
+    )
+
     it.each(['tool-tool', 'tool-native', 'native-native'] as const)(
       'preserves both first appends and secret bindings for %s',
       async (mode) => {
-        if (!connection) throw new Error('PostgreSQL test database is not initialized')
         for (let index = 0; index < 8; index++) {
           const key = `strict-${mode}-${index}`
           await Promise.all([

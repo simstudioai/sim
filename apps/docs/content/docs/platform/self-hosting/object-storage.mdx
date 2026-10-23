@@ -1,13 +1,13 @@
 ---
-title: Object Storage
+title: Object storage
 description: Configure where Sim stores uploaded files — local disk, AWS S3, Azure Blob, or Google Cloud Storage
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 
-Sim stores every uploaded file — knowledge base documents, chat attachments, execution outputs, profile pictures, and more — in object storage. Four backends are supported:
+Configure file storage before uploading durable files or adding app replicas. Sim supports local disk, AWS S3, Azure Blob Storage, and Google Cloud Storage (GCS).
 
 | Backend | When to use |
 |---------|-------------|
@@ -24,14 +24,14 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 
 Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend explicitly. When it is unset, Sim infers the backend from the configured environment variables in this order:
 
-1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
+1. **Azure Blob Storage** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
 3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
-4. **Local disk** — used only when no cloud backend has been activated. Setting any of a backend's keys activates it, including a dedicated bucket, `S3_ENDPOINT`, or an Azure credential — so a half-configured backend fails at startup rather than quietly falling back here.
+4. **Local disk** — the fallback when no cloud backend is activated. Azure activates from its main container or credentials; S3 activates from any of its bucket names or `S3_ENDPOINT`; GCS activates from `GCS_BUCKET_NAME`. Dedicated Azure container names or GCS bucket names alone do not activate those providers.
 
 If `STORAGE_PROVIDER` is unset, Sim uses the first backend whose configuration is complete, in that order. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
 
-A partially configured backend is skipped, so a fully configured one later in the order still wins. A backend whose values are present but malformed is different: it stops startup immediately, and a later fully configured one does not take over. What it never does is fall back to local disk: if no other backend is complete, startup fails with `File storage is partially or incorrectly configured`. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are checked as a pair — set both or neither.
+A partially configured backend is skipped, so a fully configured one later in the order still wins. A backend whose values are present but malformed is different: it stops startup immediately, and a later fully configured one does not take over. An activated but incomplete backend does not fall back to local disk: if no other backend is complete, startup fails with `File storage is partially or incorrectly configured`. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are checked as a pair — set both or neither.
 
 ## Set up AWS S3
 
@@ -53,18 +53,20 @@ export SIM_BUCKETS="workspace-files knowledge-base execution-files chat-files
 
 # Create buckets (names must be globally unique — prefix with your org)
 for name in ${SIM_BUCKETS:?run the export above first}; do
-  aws s3api create-bucket \
-    --bucket "myorg-sim-$name" \
-    --region "$AWS_REGION" \
-    --create-bucket-configuration LocationConstraint="$AWS_REGION"
+  if [ "$AWS_REGION" = "us-east-1" ]; then
+    aws s3api create-bucket --bucket "myorg-sim-$name" --region "$AWS_REGION"
+  else
+    aws s3api create-bucket \
+      --bucket "myorg-sim-$name" \
+      --region "$AWS_REGION" \
+      --create-bucket-configuration LocationConstraint="$AWS_REGION"
+  fi
 done
 ```
 
-<Callout type="info">
-  In `us-east-1`, omit the `--create-bucket-configuration` flag — that region rejects an explicit `LocationConstraint`.
-</Callout>
+The command omits `LocationConstraint` in `us-east-1`, which requires that exception. See [AWS CreateBucket](https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html).
 
-Keep all buckets **private** (block public access). Sim serves files through short-lived presigned URLs, so the buckets never need public read access.
+Keep all buckets **private** (block public access). Uploads use short-lived signed URLs and downloads are proxied through the app. Buckets do not need public read access.
 
 </Step>
 
@@ -72,7 +74,7 @@ Keep all buckets **private** (block public access). Sim serves files through sho
 
 ### Configure CORS on every bucket
 
-Uploads are sent **directly from the browser** to S3 via presigned `PUT` requests, so each bucket needs a CORS policy that allows your Sim origin. Without this, every upload fails with a CORS error in the browser console even though the server-side configuration is correct.
+Uploads are sent **directly from the browser** to S3 via presigned `PUT` requests, so each bucket needs a CORS policy that allows your Sim origin. A missing or mismatched policy can block browser uploads even when server credentials work.
 
 ```bash
 cat > /tmp/cors.json <<'EOF'
@@ -171,7 +173,7 @@ S3_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
 | `AWS_SECRET_ACCESS_KEY` | Secret key | No (uses credential chain if unset) |
 | `S3_BUCKET_NAME` | General workspace files | **Yes** (enables S3) |
 | `S3_KB_BUCKET_NAME` | Knowledge base documents | **Yes**, to use knowledge bases (no fallback) |
-| `S3_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files. Falls back to the literal name `sim-execution-files`, which you almost certainly do not own — always set this explicitly | Effectively yes — the fallback is a bucket you do not own |
+| `S3_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files. Falls back to the literal name `sim-execution-files`, which may not exist or belong to you — set this explicitly | Set explicitly to your own bucket |
 | `S3_CHAT_BUCKET_NAME` | Deployed chat assets | **Yes**, to use deployed chats (no fallback) |
 | `S3_COPILOT_BUCKET_NAME` | Chat attachments | **Yes**, to attach files in Chat (no fallback) |
 | `S3_PROFILE_PICTURES_BUCKET_NAME` | User avatars | **Yes**, for avatar uploads (no fallback) |
@@ -180,49 +182,16 @@ S3_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
 | `S3_ENDPOINT` | Custom endpoint for S3-compatible storage (R2, MinIO, B2) | Optional (AWS S3 if unset) |
 | `S3_FORCE_PATH_STYLE` | `true` for path-style addressing (MinIO/Ceph) | Optional (defaults `false`) |
 
-## Apply the configuration
+## Set up Azure Blob Storage
 
-<Tabs items={['Docker Compose', 'Kubernetes (Helm)']}>
-  <Tab value="Docker Compose">
-
-Add the storage variables to the `.env` file used by `docker-compose.prod.yml`, then restart:
-
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
-
-New uploads now use S3. Preserve any existing local files until you have migrated them; changing the storage configuration does not copy their bytes.
-
-  </Tab>
-  <Tab value="Kubernetes (Helm)">
-
-Set the variables under `app.env` (non-secret, e.g. region and bucket names) and supply credentials through a secret. The chart ships a complete example at `helm/sim/examples/values-aws.yaml`:
-
-```yaml
-app:
-  env:
-    AWS_REGION: "us-east-1"
-    S3_BUCKET_NAME: "myorg-sim-workspace-files"
-    S3_KB_BUCKET_NAME: "myorg-sim-knowledge-base"
-    S3_EXECUTION_FILES_BUCKET_NAME: "myorg-sim-execution-files"
-    # ...remaining buckets
-```
-
-On EKS, prefer **IRSA**: attach the IAM policy to the service account's role and leave the access-key variables unset.
-
-  </Tab>
-</Tabs>
-
-## Set up Azure Blob
-
-Azure Blob uses one container per purpose, mirroring the S3 layout. Authenticate with either a connection string or an account name + key.
+Create one private container per purpose; Sim does not create them. Authenticate with either a connection string or an account name and key.
 
 ```bash
 # Credentials — provide ONE of these forms
 AZURE_ACCOUNT_NAME=mystorageaccount
 AZURE_ACCOUNT_KEY=...
 # or
-AZURE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net
+AZURE_CONNECTION_STRING='DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net'
 
 # Containers (per purpose)
 AZURE_STORAGE_CONTAINER_NAME=workspace-files
@@ -235,9 +204,25 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
-<Callout type="warn">
-  Set every container name. Like the S3 variables, the knowledge-base, chat, Chat-attachment, and profile-picture containers do not fall back to `AZURE_STORAGE_CONTAINER_NAME` — an unset one resolves to an empty container name and that file type fails to store. The OpenGraph and workspace-logo containers do fall back to it, and `AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME` falls back to the literal name `sim-execution-files`.
-</Callout>
+Create all eight containers before applying the variables. For example, with account-name/key credentials:
+
+```bash
+for name in workspace-files knowledge-base execution-files chat-files copilot-files profile-pictures og-images workspace-logos; do
+  az storage container create \
+    --name "$name" \
+    --account-name "$AZURE_ACCOUNT_NAME" \
+    --account-key "$AZURE_ACCOUNT_KEY" \
+    --public-access off
+done
+```
+
+For connection-string credentials, replace the account options with `--connection-string "$AZURE_CONNECTION_STRING"`.
+
+| Container variable | Fallback when unset |
+|---|---|
+| `AZURE_STORAGE_KB_CONTAINER_NAME`, `AZURE_STORAGE_CHAT_CONTAINER_NAME`, `AZURE_STORAGE_COPILOT_CONTAINER_NAME`, `AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME` | None; that file type fails to store |
+| `AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME` | Literal `sim-execution-files`; set your intended name explicitly |
+| `AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME`, `AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME` | `AZURE_STORAGE_CONTAINER_NAME` |
 
 Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
 Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
@@ -289,7 +274,7 @@ for name in ${SIM_BUCKETS:?run the export above first}; do
 done
 ```
 
-Keep all buckets **private** (no `allUsers` bindings). Sim serves files through short-lived V4 signed URLs, so the buckets never need public read access.
+Keep all buckets **private** (no `allUsers` bindings). Uploads use short-lived V4 signed URLs and downloads are proxied through the app. Buckets do not need public read access.
 
 Because uploads are sent **directly from the browser** via signed `PUT` requests, each bucket needs a CORS policy that allows your Sim origin:
 
@@ -299,11 +284,11 @@ cat > /tmp/cors.json <<'EOF'
   {
     "origin": ["https://your-sim-domain.com"],
     "method": ["GET", "PUT"],
-      "responseHeader": [
-        "Content-Type",
-        "ETag",
-        "x-goog-if-generation-match",
-        "x-goog-meta-uploadid",
+    "responseHeader": [
+      "Content-Type",
+      "ETag",
+      "x-goog-if-generation-match",
+      "x-goog-meta-uploadid",
       "x-goog-meta-originalname",
       "x-goog-meta-uploadedat",
       "x-goog-meta-purpose",
@@ -324,9 +309,7 @@ for name in ${SIM_BUCKETS:?run the export above first}; do
 done
 ```
 
-<Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. The example exposes `ETag`, although the current upload-session client does not need it: multipart completion reads provider-authoritative part state on the server. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
-</Callout>
+Keep the explicit metadata and `x-goog-if-generation-match` headers in this policy: Sim signs create-only uploads, which prevent a reused URL from replacing existing bytes. Multipart completion reads provider-authoritative part state on the server; the browser does not need `ETag` for completion. See [GCS CORS configuration](https://docs.cloud.google.com/storage/docs/cross-origin).
 
 </Step>
 
@@ -404,19 +387,18 @@ GCS_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
 
 A full Helm example (Workload Identity, GKE) lives at `helm/sim/examples/values-gcp.yaml`.
 
-## Set up an S3-compatible provider (R2, MinIO, B2)
+## Set up S3-compatible storage
 
-Sim works with any S3-compatible store by pointing the S3 client at a custom endpoint. Configure it exactly like AWS S3 (buckets, access key, secret), then add `S3_ENDPOINT` — and `S3_FORCE_PATH_STYLE` where the provider requires path-style addressing. Verified with [Cloudflare R2](https://developers.cloudflare.com/r2/), [MinIO](https://min.io/), [Backblaze B2](https://www.backblaze.com/cloud-storage), and [RustFS](https://rustfs.com/).
+Sim works with any S3-compatible store by pointing the S3 client at a custom endpoint. Configure it exactly like AWS S3 (buckets, access key, secret), then add `S3_ENDPOINT` — and `S3_FORCE_PATH_STYLE` where the provider requires path-style addressing. The examples below cover [Cloudflare R2](https://developers.cloudflare.com/r2/), [MinIO](https://min.io/), and [RustFS](https://rustfs.com/). For other providers, including [Backblaze B2](https://www.backblaze.com/cloud-storage), verify signed uploads, multipart completion, and lifecycle behavior against that provider's current S3 support.
 
-<Callout type="info">
-  `S3_ENDPOINT` is trusted operator configuration, so it is used as-is — `http://` and private hosts are accepted (no SSRF/HTTPS gate). Don't wire it to untrusted input.
-</Callout>
+`S3_ENDPOINT` is trusted operator configuration. Sim accepts HTTP and private hosts without its outbound-request guard; do not derive it from untrusted input.
 
 <Callout type="warn">
   **The endpoint must be reachable from your users' browsers, and the bucket needs CORS.** Uploads use presigned `PUT` requests sent **directly from the browser** to `S3_ENDPOINT` (downloads are proxied back through the app, so they only need server-side reachability). This means:
 
   - A purely internal endpoint (e.g. `https://minio.internal:9000` that only the app pods can resolve) will let the server start cleanly but **uploads will fail in the browser**. Use an endpoint your users can reach.
-  - Configure a **CORS policy** on the bucket that allows your Sim origin (`PUT`, `GET`, and the `Authorization` / `Content-Type` / `x-amz-*` headers). This applies to AWS S3 too — R2 and MinIO are no different.
+  - Configure a **CORS policy** on the bucket that allows your Sim origin with `PUT` and `GET`, and `AllowedHeaders: ["*"]`. With a custom endpoint, the browser sends the upload's metadata as signed `x-amz-meta-*` headers alongside `Content-Type` and `If-None-Match`, because many S3-compatible stores ignore metadata passed in the URL. If you list headers individually, include all of them. On MinIO, check the server-wide origin settings and any reverse proxy as well as the bucket policy; do not assume CORS is already configured.
+  - Sim adds the `S3_ENDPOINT` origin (and its bucket subdomains, unless `S3_FORCE_PATH_STYLE` is set) to its Content Security Policy, so the browser may upload there.
 </Callout>
 
 <Tabs items={['Cloudflare R2', 'MinIO', 'RustFS']}>
@@ -427,8 +409,8 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
 ```bash
 AWS_REGION=auto
 S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
-AWS_ACCESS_KEY_ID=<r2-access-key-id>
-AWS_SECRET_ACCESS_KEY=<r2-secret-access-key>
+AWS_ACCESS_KEY_ID='<r2-access-key-id>'
+AWS_SECRET_ACCESS_KEY='<r2-secret-access-key>'
 S3_BUCKET_NAME=myorg-sim-workspace-files
 # ...remaining S3_*_BUCKET_NAME vars, one R2 bucket each
 ```
@@ -438,14 +420,14 @@ Leave `S3_FORCE_PATH_STYLE` unset — R2 supports the default virtual-hosted add
   </Tab>
   <Tab value="MinIO">
 
-[MinIO](https://min.io/docs/minio/linux/index.html) (and [Ceph RGW](https://docs.ceph.com/en/latest/radosgw/)) need path-style addressing and accept any region string:
+For a [MinIO](https://min.io/docs/minio/linux/index.html) endpoint without bucket subdomain routing, use path-style addressing and the region configured by its operator. [Ceph RGW](https://docs.ceph.com/en/latest/radosgw/s3/commons/) supports both addressing styles when DNS is configured:
 
 ```bash
 AWS_REGION=us-east-1
 S3_ENDPOINT=https://minio.example.com   # must be reachable from users' browsers, not app-pods-only
 S3_FORCE_PATH_STYLE=true
-AWS_ACCESS_KEY_ID=<minio-access-key>
-AWS_SECRET_ACCESS_KEY=<minio-secret-key>
+AWS_ACCESS_KEY_ID='<minio-access-key>'
+AWS_SECRET_ACCESS_KEY='<minio-secret-key>'
 S3_BUCKET_NAME=myorg-sim-workspace-files
 # ...remaining S3_*_BUCKET_NAME vars, one bucket each
 ```
@@ -455,14 +437,14 @@ S3_BUCKET_NAME=myorg-sim-workspace-files
   </Tab>
   <Tab value="RustFS">
 
-[RustFS](https://rustfs.com/) is a Rust-based, S3-compatible store (a MinIO drop-in). Configure it exactly like MinIO — path-style, any region string, SigV4 access key/secret:
+For [RustFS](https://rustfs.com/), configure the endpoint, access key/secret, and region for your installation. This example uses path-style addressing:
 
 ```bash
 AWS_REGION=us-east-1
 S3_ENDPOINT=https://rustfs.example.com   # must be reachable from users' browsers
 S3_FORCE_PATH_STYLE=true
-AWS_ACCESS_KEY_ID=<rustfs-access-key>
-AWS_SECRET_ACCESS_KEY=<rustfs-secret-key>
+AWS_ACCESS_KEY_ID='<rustfs-access-key>'
+AWS_SECRET_ACCESS_KEY='<rustfs-secret-key>'
 S3_BUCKET_NAME=myorg-sim-workspace-files
 # ...remaining S3_*_BUCKET_NAME vars, one bucket each
 ```
@@ -472,12 +454,43 @@ The same browser-reachability and CORS requirements apply.
   </Tab>
 </Tabs>
 
+## Apply the configuration
+
+<Tabs items={['Docker Compose', 'Kubernetes (Helm)']}>
+  <Tab value="Docker Compose">
+
+Add the storage variables to the `.env` file used by `docker-compose.prod.yml`, then restart:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+New uploads now use the selected backend. Preserve any existing local files until you have migrated them; changing the storage configuration does not copy their bytes.
+
+  </Tab>
+  <Tab value="Kubernetes (Helm)">
+
+Set the variables under `app.env` (non-secret, e.g. region and bucket names) and supply credentials through a secret. The chart ships a complete example at `helm/sim/examples/values-aws.yaml`:
+
+```yaml
+app:
+  env:
+    AWS_REGION: "us-east-1"
+    S3_BUCKET_NAME: "myorg-sim-workspace-files"
+    S3_KB_BUCKET_NAME: "myorg-sim-knowledge-base"
+    S3_EXECUTION_FILES_BUCKET_NAME: "myorg-sim-execution-files"
+    # ...remaining buckets
+```
+
+On EKS, prefer **IRSA**: attach the IAM policy to the service account's role and leave the access-key variables unset.
+
+  </Tab>
+</Tabs>
+
 ## Configure incomplete multipart cleanup
 
 Sim uploads directly to a create-only final object key and keeps upload-session state in PostgreSQL.
-The cleanup cron claims expired sessions before deleting an uploaded object or aborting its provider
-multipart state. Configure provider lifecycle cleanup as a second line of defense for multipart
-state that outlives its database row:
+The `/api/cron/cleanup-tasks` endpoint claims expired sessions before deleting uploaded objects or aborting provider multipart state. **Neither shipped scheduler calls this endpoint.** Configure an authenticated operator-owned schedule as shown in [Background jobs](/platform/self-hosting/background-jobs#schedule-upload-session-cleanup). Provider lifecycle cleanup is a second layer for multipart state that outlives its database row:
 
 - On AWS S3 and Google Cloud Storage, abort incomplete multipart uploads after two days on every
   purpose-specific bucket.
@@ -493,7 +506,7 @@ can still recover. Do not add an object-expiration rule for final upload keys.
   the incomplete-multipart operation; expiring objects does not remove abandoned multipart parts.
 </Callout>
 
-## Verify it works
+## Verify storage
 
 After restarting with the new configuration:
 
@@ -502,3 +515,8 @@ After restarting with the new configuration:
 3. Reload the page — the file should still render (downloads stream back through the app at `/api/files/serve`).
 
 If uploads fail, check the app logs for credential or permission errors (see [Troubleshooting](/platform/self-hosting/troubleshooting)).
+
+## Related docs
+
+- [Background jobs](/platform/self-hosting/background-jobs)
+- [Troubleshooting](/platform/self-hosting/troubleshooting)

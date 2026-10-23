@@ -2,14 +2,9 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
-import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import {
-  hasUsableSubscriptionAccess,
-  isOrgScopedSubscription,
-} from '@/lib/billing/subscriptions/utils'
-import { toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('CreditBalance')
@@ -90,76 +85,4 @@ export async function addCredits(
 
     logger.info('Added credits to user', { userId: entityId, amount })
   }
-}
-
-interface DeductResult {
-  creditsUsed: number
-  overflow: number
-}
-
-async function atomicDeductUserCredits(userId: string, cost: number): Promise<number> {
-  const costDecimal = toDecimal(cost)
-  const costStr = toFixedString(costDecimal)
-
-  // Use raw SQL with CTE to capture old balance before update
-  const result = await db.execute<{ old_balance: string; new_balance: string }>(sql`
-    WITH old_balance AS (
-      SELECT credit_balance FROM user_stats WHERE user_id = ${userId}
-    )
-    UPDATE user_stats
-    SET credit_balance = CASE
-      WHEN credit_balance >= ${costStr}::decimal THEN credit_balance - ${costStr}::decimal
-      ELSE 0
-    END
-    WHERE user_id = ${userId} AND credit_balance >= 0
-    RETURNING
-      (SELECT credit_balance FROM old_balance) as old_balance,
-      credit_balance as new_balance
-  `)
-
-  const rows = Array.from(result)
-  if (rows.length === 0) return 0
-
-  const oldBalance = toDecimal(rows[0].old_balance)
-  return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
-}
-
-async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<number> {
-  const costDecimal = toDecimal(cost)
-  const costStr = toFixedString(costDecimal)
-
-  // Use raw SQL with CTE to capture old balance before update
-  const result = await db.execute<{ old_balance: string; new_balance: string }>(sql`
-    WITH old_balance AS (
-      SELECT credit_balance FROM organization WHERE id = ${orgId}
-    )
-    UPDATE organization
-    SET credit_balance = CASE
-      WHEN credit_balance >= ${costStr}::decimal THEN credit_balance - ${costStr}::decimal
-      ELSE 0
-    END
-    WHERE id = ${orgId} AND credit_balance >= 0
-    RETURNING
-      (SELECT credit_balance FROM old_balance) as old_balance,
-      credit_balance as new_balance
-  `)
-
-  const rows = Array.from(result)
-  if (rows.length === 0) return 0
-
-  const oldBalance = toDecimal(rows[0].old_balance)
-  return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
-}
-
-export async function canPurchaseCredits(userId: string): Promise<boolean> {
-  const subscription = await getHighestPrioritySubscription(userId)
-  if (!subscription) {
-    return false
-  }
-  const billingStatus = await getEffectiveBillingStatus(userId)
-  if (!hasUsableSubscriptionAccess(subscription.status, billingStatus.billingBlocked)) {
-    return false
-  }
-  // Enterprise users must contact support to purchase credits
-  return isPro(subscription.plan) || isTeam(subscription.plan)
 }

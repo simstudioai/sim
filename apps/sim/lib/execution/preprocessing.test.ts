@@ -1,64 +1,43 @@
 import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import { billingUsageMonitorMock } from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
+import { loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
+import { DatabaseReadDeadlineError } from '@/lib/db/read-retry'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 
-const {
-  mockSleep,
-  mockCheckAttributedUsageLimits,
-  mockCheckRateLimit,
-  mockGetActivelyBannedUserIds,
-  mockReserveExecutionSlot,
-  mockResolveBillingAttribution,
-  mockResolveSystemBillingAttribution,
-} = vi.hoisted(() => ({
-  mockSleep: vi.fn().mockResolvedValue(undefined),
-  mockCheckAttributedUsageLimits: vi.fn(),
+const { mockCheckRateLimit } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
-  mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
-  mockReserveExecutionSlot: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: mockSleep,
-}))
-vi.mock('@/lib/auth/ban', () => ({
-  getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
-}))
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkServerSideUsageLimits: vi.fn(),
-}))
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  reserveExecutionSlot: mockReserveExecutionSlot,
-  UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {
-    readonly code = 'SERVICE_OVERLOADED'
-    readonly statusCode = 503
-    readonly retryable = true
-    /** Mirrors ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE. */
-    readonly retryAfterSeconds = 5
-  },
-}))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: mockCheckAttributedUsageLimits,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: vi.fn(),
-}))
-vi.mock('@/lib/core/execution-limits', () => ({
-  getExecutionTimeout: vi.fn(() => 0),
-  resolveAsyncExecutionTimeout: vi.fn((policyTimeoutMs, requestedTimeoutSeconds) => {
-    if (requestedTimeoutSeconds === undefined) return policyTimeoutMs
-    const requestedTimeoutMs = requestedTimeoutSeconds * 1000
-    return policyTimeoutMs > 0 ? Math.min(policyTimeoutMs, requestedTimeoutMs) : requestedTimeoutMs
-  }),
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: vi.fn(function (this: unknown) {
     return { checkRateLimitWithSubscription: mockCheckRateLimit }
@@ -68,6 +47,12 @@ vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { preprocessExecution, WORKFLOW_NOT_DEPLOYED_CODE } from './preprocessing'
+
+const { mockResolveBillingAttribution, mockResolveSystemBillingAttribution } =
+  billingAttributionMockFns
+const mockGetActivelyBannedUserIds = authBanMockFns.mockGetActivelyBannedUserIds
+const mockCheckAttributedUsageLimits = billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits
+const mockReserveExecutionSlot = billingUsageReservationMockFns.mockReserveExecutionSlot
 
 const ORGANIZATION_ATTRIBUTION = {
   actorUserId: 'actor-1',
@@ -122,6 +107,69 @@ beforeEach(() => {
 })
 
 describe('preprocessExecution deployment checks', () => {
+  type PrefetchedWorkflow = NonNullable<Parameters<typeof preprocessExecution>[0]['workflowRecord']>
+  const prefetched = {
+    id: 'workflow-1',
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    isDeployed: true,
+    archivedAt: null,
+  } as PrefetchedWorkflow
+
+  it.each([
+    { name: 'a missing workflow', active: null, workflowState: 'not_found' },
+    {
+      name: 'a prefetched archived workflow',
+      workflowRecord: { ...prefetched, archivedAt: new Date() },
+      workflowState: 'not_found',
+    },
+    {
+      name: 'a workflow archived before the run started',
+      active: null,
+      workflowRecord: prefetched,
+      workflowState: 'not_found',
+    },
+    {
+      name: 'a workflow attached to no workspace',
+      active: { ...prefetched, workspaceId: null },
+      workflowState: 'not_attached',
+    },
+  ])(
+    'marks $name as a workflow-state rejection',
+    async ({ active, workflowRecord, workflowState }) => {
+      if (active !== undefined)
+        workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce(active)
+
+      const result = await preprocessExecution({
+        workflowId: 'workflow-1',
+        userId: 'user-1',
+        triggerType: 'api',
+        executionId: 'execution-1',
+        requestId: 'request-1',
+        checkDeployment: true,
+        ...(workflowRecord ? { workflowRecord } : {}),
+      })
+
+      expect(result).toMatchObject({ success: false, error: { workflowState } })
+    }
+  )
+
+  it('never marks a failed workflow read as a workflow-state rejection', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(new Error('read failed'))
+
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'api',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkDeployment: true,
+    })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 500 } })
+    expect(result.success === false && result.error.workflowState).toBeUndefined()
+  })
+
   it('returns a structured code when a required deployment is missing', async () => {
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce({
       id: 'workflow-1',
@@ -144,6 +192,7 @@ describe('preprocessExecution deployment checks', () => {
         message: 'Workflow is not deployed',
         statusCode: 403,
         code: WORKFLOW_NOT_DEPLOYED_CODE,
+        workflowState: 'not_deployed',
       },
     })
   })
@@ -391,6 +440,40 @@ describe('preprocessExecution ban gate', () => {
       error: { statusCode: 403, message: 'Account suspended' },
     })
     expect(loggingSession.safeStart).toHaveBeenCalled()
+  })
+
+  it('keeps the 404 for a missing workflow when the gates it overlaps would reject', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce(null)
+    mockGetActivelyBannedUserIds.mockResolvedValue(['actor-1'])
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      payerUsage: { currentUsage: 11, limit: 10 },
+    })
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      workflowRecord: undefined,
+      billingAttribution: ORGANIZATION_ATTRIBUTION,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 404, message: 'Workflow not found' },
+    })
+  })
+
+  it('reports a serialized attribution for another workspace before any gate result', async () => {
+    mockGetActivelyBannedUserIds.mockResolvedValue(['actor-1'])
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      billingAttribution: { ...ORGANIZATION_ATTRIBUTION, workspaceId: 'workspace-2' },
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 500, message: 'Error resolving billing account' },
+    })
   })
 
   it('returns 403 (ban precedence) when ban, usage, and rate limit all fail simultaneously', async () => {
@@ -896,5 +979,268 @@ describe('preprocessExecution billing attribution', () => {
         cause: { code: 'SERVICE_OVERLOADED' },
       },
     })
+  })
+})
+
+describe('preprocessExecution webhook correlation logging', () => {
+  beforeEach(() => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue({
+      id: 'workflow-1',
+      workspaceId: 'workspace-1',
+      isDeployed: true,
+    })
+  })
+
+  afterAll(() => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockReset()
+  })
+
+  it('preserves webhook correlation when logging preprocessing failures', async () => {
+    mockResolveSystemBillingAttribution.mockRejectedValueOnce(
+      new Error('Unable to resolve billing payer')
+    )
+
+    const loggingSession = {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const correlation = {
+      executionId: 'execution-webhook-1',
+      requestId: 'request-webhook-1',
+      source: 'webhook' as const,
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      path: 'incoming/slack',
+      provider: 'slack',
+      triggerType: 'webhook',
+    }
+
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'unknown',
+      triggerType: 'webhook',
+      executionId: 'execution-webhook-1',
+      requestId: 'request-webhook-1',
+      loggingSession: loggingSession as any,
+      triggerData: { correlation },
+      workflowRecord: {
+        id: 'workflow-1',
+        workspaceId: 'workspace-1',
+        isDeployed: true,
+      } as any,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        statusCode: 500,
+      },
+    })
+
+    expect(loggingSession.safeStart).toHaveBeenCalledWith({
+      userId: 'unknown',
+      workspaceId: 'workspace-1',
+      variables: {},
+      triggerData: { correlation },
+    })
+  })
+})
+
+describe('preprocessExecution admission rejection codes and blocked-run log throttling', () => {
+  const refuse = (workflowId: string, options: Record<string, unknown> = {}) =>
+    preprocessExecution({
+      workflowId,
+      userId: 'owner-1',
+      userIdIsStoredReference: true,
+      triggerType: 'webhook',
+      executionId: `execution-${workflowId}`,
+      requestId: 'request-1',
+      checkRateLimit: false,
+      ...options,
+    })
+
+  beforeEach(() => {
+    const claimedKeys = new Set<string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string) => {
+      if (claimedKeys.has(key)) return null
+      claimedKeys.add(key)
+      return 'OK'
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      message: 'Usage limit exceeded',
+      payerUsage: { currentUsage: 12, limit: 10 },
+    })
+  })
+
+  afterEach(resetRedisConfigMock)
+
+  it.each([
+    {
+      gate: 'usage',
+      arrange: () => {},
+      expected: { statusCode: 402, code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED },
+    },
+    {
+      gate: 'ban',
+      arrange: () => mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1']),
+      expected: { statusCode: 403, code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED },
+    },
+  ])('tags a $gate refusal with its stable code', async ({ arrange, expected }) => {
+    arrange()
+    const result = await refuse('workflow-1')
+    expect(result).toMatchObject({ success: false, error: expected })
+  })
+
+  it('leaves an unreadable usage ledger untagged so unattended senders retry', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+      message: 'Usage is temporarily unavailable',
+      payerUsage: { currentUsage: 0, limit: 0 },
+    })
+
+    const result = await refuse('workflow-1')
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 402 } })
+    expect(result.success === false && result.error.code).toBeUndefined()
+  })
+
+  it('writes one error row for repeated refusals of a workflow by the same gate', async () => {
+    const workflowId = 'workflow-1'
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect(await refuse(workflowId, { throttleErrorLogs: true })).toMatchObject({
+        success: false,
+        error: { statusCode: 402 },
+      })
+    }
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes a row for a different gate refusing the same workflow inside the window', async () => {
+    const workflowId = 'workflow-1'
+    await refuse(workflowId, { throttleErrorLogs: true })
+    mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
+    await refuse(workflowId, { throttleErrorLogs: true })
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes a row for each gate whose check fails without a code', async () => {
+    const workflowId = 'workflow-1'
+    mockGetActivelyBannedUserIds.mockRejectedValueOnce(new Error('ban lookup failed'))
+    await refuse(workflowId, { throttleErrorLogs: true })
+    mockCheckAttributedUsageLimits.mockRejectedValueOnce(new Error('usage lookup failed'))
+    await refuse(workflowId, { throttleErrorLogs: true })
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes every row when the caller does not ask for throttling', async () => {
+    const workflowId = 'workflow-1'
+    await refuse(workflowId)
+    await refuse(workflowId)
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('always completes a logging session the caller supplied', async () => {
+    const workflowId = 'workflow-1'
+    const loggingSession = {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+    await refuse(workflowId, { throttleErrorLogs: true })
+    await refuse(workflowId, {
+      throttleErrorLogs: true,
+      loggingSession: loggingSession as unknown as LoggingSession,
+    })
+
+    expect(loggingSession.safeCompleteWithError).toHaveBeenCalledOnce()
+  })
+})
+
+describe('preprocessExecution usage gate retry classification for resumes', () => {
+  const resumeAdmission = () =>
+    preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      triggerType: 'manual',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkRateLimit: false,
+      checkDeployment: false,
+      logPreprocessingErrors: false,
+      workspaceId: 'workspace-1',
+      billingAttribution: { ...ORGANIZATION_ATTRIBUTION, actorUserId: 'actor-1' },
+      executionType: 'async',
+    })
+
+  beforeEach(() => {
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
+  })
+
+  it('marks a usage read that outlived its coalesced settle deadline retryable', async () => {
+    mockCheckAttributedUsageLimits.mockImplementationOnce(() =>
+      coalesceLocally('usage-gate:org-1', () => new Promise<never>(() => {}), 1)
+    )
+
+    const result = await resumeAdmission()
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        message: 'Unable to determine usage limits. Execution blocked for security.',
+        statusCode: 500,
+        retryable: true,
+      },
+    })
+  })
+
+  it('marks a usage read that exhausted its database read budget retryable', async () => {
+    mockCheckAttributedUsageLimits.mockRejectedValueOnce(new DatabaseReadDeadlineError())
+
+    const result = await resumeAdmission()
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 500, retryable: true },
+    })
+  })
+
+  it('marks an unreadable usage ledger retryable without tagging it as over the limit', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+      message: 'Usage is temporarily unavailable',
+      payerUsage: { currentUsage: 0, limit: 0 },
+    })
+
+    const result = await resumeAdmission()
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 402, retryable: true } })
+    expect(result.success === false && result.error.code).toBeUndefined()
+  })
+
+  it('keeps a payer genuinely over its limit non-retryable', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      message: 'Usage limit exceeded',
+      payerUsage: { currentUsage: 12, limit: 10 },
+    })
+
+    const result = await resumeAdmission()
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 402, code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED },
+    })
+    expect(result.success === false && result.error.retryable).not.toBe(true)
   })
 })

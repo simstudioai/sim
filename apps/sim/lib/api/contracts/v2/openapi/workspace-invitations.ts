@@ -6,16 +6,16 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { v2CreateWorkspaceInvitationsContract } from '@/lib/api/contracts/v2/workspace-invitations'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
-import { invitationOperations } from '@/lib/invitations/application/operations'
+import { workspaceInvitationOperations } from '@/lib/invitations/application/operations'
 
 export const workspaceInvitationOpenApiRoutes = [
   defineOpenApiRoute(
     v2CreateWorkspaceInvitationsContract,
     {
-      applicationOperation: invitationOperations.sendBatch,
+      applicationOperation: workspaceInvitationOperations.sendBatch,
       operationId: 'createWorkspaceInvitations',
-      summary: 'Create Workspace Invitations',
-      description: `Invite people to a workspace or grant access immediately to existing organization members. Requires workspace administrator access and current invitation eligibility; organization administrator invitations also require organization administrator access. Recipients are processed independently: inspect failed even after HTTP 200, and inspect invitation status before retrying a delivery failure. Existing access is preserved. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Create workspace invitations',
+      description: `Invite people to a workspace or grant access immediately to existing organization members. Requires workspace Admin access and current invitation eligibility; invitations offering organization Admin membership also require organization Admin access. Recipients are processed independently: inspect \`failed\` even after HTTP \`200\`, and inspect invitation status before retrying a delivery failure. Existing access is preserved. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workspaces'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
@@ -27,21 +27,21 @@ export const workspaceInvitationOpenApiRoutes = [
       params: documentedSchema(
         v2CreateWorkspaceInvitationsContract.params,
         'CreateWorkspaceInvitationsParams',
-        'Create Workspace Invitations parameters',
+        'Create workspace invitations parameters',
         'Target workspace.'
       ),
       query: v2CreateWorkspaceInvitationsContract.query,
       body: documentedSchema(
         v2CreateWorkspaceInvitationsContract.body,
         'CreateWorkspaceInvitationsBody',
-        'Create Workspace Invitations body',
+        'Create workspace invitations body',
         'Recipients and the access to grant.',
         [{ emails: ['member@example.com'], permission: 'write', membership: 'member' }]
       ),
       response: documentedSchema(
         v2CreateWorkspaceInvitationsContract.response.schema,
         'CreateWorkspaceInvitationsResponse',
-        'Create Workspace Invitations response',
+        'Create workspace invitations response',
         'Successful recipients remain committed when later recipients fail.',
         [
           {

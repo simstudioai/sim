@@ -13,13 +13,13 @@ import {
 import type { Nodes } from 'hast'
 import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-// prismjs core must load before its language components — they register on the
-// global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
-import 'prismjs'
+import 'prismjs/components/prism-core'
+import 'prismjs/components/prism-markup'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-clike'
+import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
-import 'prismjs/components/prism-css'
-import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
 import {
   Checkbox,
@@ -182,7 +182,11 @@ interface SourceReferenceProps {
 function SourceReference({ index, children }: SourceReferenceProps) {
   const source = useContext(SourceRefsContext)[index]
   if (!source) return <>{children}</>
-  return <SourceChip source={source} />
+  return (
+    <span data-chat-find-boundary>
+      <SourceChip source={source} />
+    </span>
+  )
 }
 
 const WORKSPACE_LINK_PREFIX = '#sim-workspace-ref-'
@@ -196,7 +200,9 @@ function WorkspaceReference({ index, children }: SourceReferenceProps) {
   const { resources, onSelect } = useContext(WorkspaceRefsContext)
   const resource = resources[index]
   return resource ? (
-    <WorkspaceResourceDisplay data={resource} onSelect={onSelect} />
+    <span data-chat-find-boundary>
+      <WorkspaceResourceDisplay data={resource} onSelect={onSelect} />
+    </span>
   ) : (
     <>{children}</>
   )
@@ -342,7 +348,10 @@ const MARKDOWN_COMPONENTS = {
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--border)]'>
-        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+        <div
+          data-chat-find-ignore
+          className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'
+        >
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
@@ -357,7 +366,15 @@ const MARKDOWN_COMPONENTS = {
       </div>
     )
   },
-  a({ children, href }: { children?: React.ReactNode; href?: string }) {
+  a({
+    children,
+    href,
+    'data-footnote-ref': footnoteRef,
+  }: {
+    children?: React.ReactNode
+    href?: string
+    'data-footnote-ref'?: boolean
+  }) {
     if (href?.startsWith(SOURCE_LINK_PREFIX)) {
       return (
         <SourceReference index={Number(href.slice(SOURCE_LINK_PREFIX.length))}>
@@ -384,7 +401,13 @@ const MARKDOWN_COMPONENTS = {
       )
     }
     return (
-      <a href={href} className={PROSE_LINK_CLASS} target='_blank' rel='noopener noreferrer'>
+      <a
+        href={href}
+        data-footnote-ref={footnoteRef}
+        className={PROSE_LINK_CLASS}
+        target='_blank'
+        rel='noopener noreferrer'
+      >
         {children}
       </a>
     )
@@ -762,6 +785,7 @@ function ChatContentInner({
                 return (
                   <div
                     key={`inline-${i}`}
+                    data-chat-find-content
                     className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
                   >
                     <Streamdown

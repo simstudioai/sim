@@ -1,14 +1,12 @@
 'use client'
 
 import { type ReactElement, useEffect, useRef, useState } from 'react'
-import { cn, OverflowText, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
+import { ChipLink, cn, OverflowText, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
 import { ArrowUpRight } from '@sim/emcn/icons'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import {
-  handleExternalLinkClick,
-  linkSiteName,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
+import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useLinkPreview } from '@/hooks/queries/link-preview'
 
@@ -75,9 +73,8 @@ export function SourcePreview({ source, children }: SourcePreviewProps) {
       {open && (
         <PopoverContent
           ref={content}
-          appearance='tooltip'
-          maxWidth='min(320px, calc(100vw - 2rem))'
-          className={cn('w-[320px]', inter.className)}
+          maxWidth='min(288px, calc(100vw - 2rem))'
+          className={cn('w-[288px]', inter.className)}
           sideOffset={8}
           aria-label='Source preview'
           onFocusOutside={(event) => {
@@ -107,6 +104,7 @@ export function SourcePreview({ source, children }: SourcePreviewProps) {
 
 /** Mounting with the popover gates metadata and image work behind deliberate intent. */
 function SourcePreviewContent({ source }: Pick<SourcePreviewProps, 'source'>) {
+  const navigate = useSourceNavigation(source)
   const { data } = useLinkPreview(
     (!source.connectorType || source.connectorType === 'github') &&
       source.url.startsWith('https://')
@@ -119,35 +117,36 @@ function SourcePreviewContent({ source }: Pick<SourcePreviewProps, 'source'>) {
   const description =
     source.snippet?.trim() || (!source.connectorType && preview?.description?.trim())
   return (
-    <div className='flex flex-col gap-3 p-1.5'>
-      <div className='flex min-w-0 items-center justify-between gap-3 text-[var(--text-tertiary)] text-caption'>
-        <span className='flex min-w-0 items-center gap-2'>
+    <div className='flex flex-col gap-2 p-2'>
+      <div className='flex min-w-0 items-center justify-between gap-2 text-[var(--text-muted)] text-caption'>
+        <span className='flex min-w-0 items-center gap-1.5'>
           <SourceIcon source={source} />
           <OverflowText label={siteName} tooltipEnabled={false} />
         </span>
-        <a
+        <ChipLink
           href={source.url}
+          prefetch={false}
           target='_blank'
           rel='noopener noreferrer'
-          className='flex shrink-0 items-center gap-1 text-[var(--text-body)]'
-          onClick={(event) => handleExternalLinkClick(event, source.url)}
+          rightIcon={ArrowUpRight}
+          className='shrink-0'
+          onClick={navigate}
+          onAuxClick={navigate}
         >
-          Open <ArrowUpRight aria-hidden className='size-[14px]' />
-        </a>
+          Open
+        </ChipLink>
       </div>
       {preview?.image && (
         <img
           src={preview.image}
           alt=''
-          className='max-h-[168px] w-full rounded-lg object-contain'
+          className='max-h-[120px] w-full rounded-lg border border-[var(--border)] object-contain'
         />
       )}
-      <div className='flex flex-col gap-1.5'>
-        <p className='break-words text-[var(--text-primary)] text-small leading-5'>{title}</p>
+      <div className='flex flex-col gap-1'>
+        <p className='line-clamp-2 break-words text-[var(--text-body)] text-small'>{title}</p>
         {description && (
-          <p className='line-clamp-3 text-[var(--text-secondary)] text-small leading-5'>
-            {description}
-          </p>
+          <p className='line-clamp-3 text-[var(--text-secondary)] text-caption'>{description}</p>
         )}
       </div>
     </div>

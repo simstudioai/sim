@@ -50,7 +50,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root?.unmount())
   root = null
-  vi.clearAllMocks()
 })
 
 describe('ConsentBanner', () => {

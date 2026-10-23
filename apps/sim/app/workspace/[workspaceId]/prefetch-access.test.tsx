@@ -1,15 +1,22 @@
 /** @vitest-environment jsdom */
-import { act, type ReactNode } from 'react'
+
+import type { ReactNode } from 'react'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { integrationsAvailabilityMock } from '@sim/testing/mocks/integrations-availability.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
 import { dehydrate, hydrate, QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   policy: vi.fn(),
   discovery: vi.fn(),
-  requestJson: vi.fn(),
-  workspaceId: 'workspace',
 }))
 vi.mock('@/lib/permission-groups/application/read-user-config', () => ({
   readUserPermissionConfig: { execute: mocks.policy },
@@ -17,11 +24,10 @@ vi.mock('@/lib/permission-groups/application/read-user-config', () => ({
 vi.mock('@/ee/access-requests/lib/application/requests', () => ({
   discoverAccessRequests: { execute: mocks.discovery },
 }))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: mocks.workspaceId }),
-  useRouter: () => ({ refresh: vi.fn() }),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@sim/emcn', () => ({
   cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
@@ -33,12 +39,7 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => ({
-  Lock: () => null,
-  Plus: () => null,
-  Upload: () => null,
-  BookOpen: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 vi.mock('@/ee/access-requests/components/request-access-action', () => ({
   RequestAccessAction: ({ pendingRequestId }: { pendingRequestId: string | null }) => (
     <button type='button'>{pendingRequestId ? 'Pending' : 'Request access'}</button>
@@ -48,8 +49,17 @@ vi.mock('@/ee/access-requests/components/request-access-action', () => ({
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { prefetchWorkspaceAccess } from '@/app/workspace/[workspaceId]/prefetch-access'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import {
+  accessRequestKeys,
+  workspaceFeatureDiscoveryQuery,
+} from '@/hooks/queries/utils/access-request-keys'
+import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 
-const principal = { kind: 'session', userId: 'viewer', sessionId: 'session' } as const
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+
+const principal = createSessionPrincipal({ userId: 'viewer', sessionId: 'session' })
 const policy = {
   permissionGroupId: 'group',
   groupName: 'Group',
@@ -77,26 +87,19 @@ const discovery = {
 describe('workspace access hydration', () => {
   let server: QueryClient
   let client: QueryClient
-  let root: Root | undefined
-  let container: HTMLDivElement
 
   beforeEach(() => {
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    mocks.workspaceId = 'workspace'
+    nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
     mocks.policy.mockResolvedValue(policy)
     mocks.discovery.mockResolvedValue(discovery)
-    mocks.requestJson.mockImplementation(() => new Promise(() => {}))
+    oauthUtilsMockFns.mockGetAllOAuthServices.mockReturnValue([])
+    mockRequestJson.mockImplementation(() => new Promise(() => {}))
     server = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    container = document.createElement('div')
-    document.body.appendChild(container)
   })
   afterEach(() => {
-    if (root) act(() => root?.unmount())
-    root = undefined
     server.clear()
     client.clear()
-    container.remove()
   })
   async function prefetch() {
     await prefetchWorkspaceAccess(server, 'workspace', principal)
@@ -111,10 +114,6 @@ describe('workspace access hydration', () => {
       </QueryClientProvider>
     )
   }
-  function render() {
-    root = createRoot(container)
-    act(() => root?.render(tree()))
-  }
   function restrict() {
     mocks.policy.mockResolvedValue({ ...policy, config: { ...policy.config, hideCopilot: true } })
   }
@@ -124,7 +123,7 @@ describe('workspace access hydration', () => {
       if (failure === 'rejected') mocks.policy.mockRejectedValue(new Error('unavailable'))
       else mocks.policy.mockResolvedValue({ config: null })
       await prefetch()
-      expect(dehydrate(server).queries).toHaveLength(0)
+      expect(client.getQueryData(permissionGroupKeys.userConfig('workspace'))).toBeUndefined()
       expect(mocks.discovery).not.toHaveBeenCalled()
       expect(renderToString(tree())).toContain('Checking access')
       expect(renderToString(tree())).not.toContain('Workspace chat')
@@ -134,13 +133,15 @@ describe('workspace access hydration', () => {
     restrict()
     mocks.discovery.mockRejectedValue(new Error('unavailable'))
     await prefetch()
-    expect(dehydrate(server).queries).toHaveLength(1)
+    expect(
+      client.getQueryData(accessRequestKeys.discovery(workspaceFeatureDiscoveryQuery('workspace')))
+    ).toBeUndefined()
     expect(renderToString(tree())).toContain('Checking access')
     expect(renderToString(tree())).not.toContain('Workspace chat')
   })
   it('isolates workspace keys during navigation', async () => {
     await prefetch()
-    mocks.workspaceId = 'different-workspace'
+    nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'different-workspace' })
     expect(renderToString(tree())).toContain('Checking access')
     expect(renderToString(tree())).not.toContain('Workspace chat')
   })

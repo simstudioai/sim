@@ -1,22 +1,27 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  enqueue: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   sender: vi.fn(),
   findChat: vi.fn(),
   resolveChat: vi.fn(),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mocks.enqueue }))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/knowledge/application/slack-search/chat', () => ({
-  requireSlackSearchConversationSender: mocks.sender,
-  findSlackSearchChatRecord: mocks.findChat,
-  resolveSlackSearchChatRecord: mocks.resolveChat,
+  requireSlackSearchConversationSender: hoisted.sender,
+  findSlackSearchChatRecord: hoisted.findChat,
+  resolveSlackSearchChatRecord: hoisted.resolveChat,
 }))
 
 import { persistSlackSearchTurn } from '@/lib/knowledge/application/slack-search/turns'
 import { slackSearchConversationKey } from '@/lib/slack-search/conversation'
 import type { SlackSearchJob } from '@/lib/slack-search/types'
+
+const mocks = {
+  ...hoisted,
+  enqueue: outboxServiceMockFns.mockEnqueueOutboxEvent,
+}
 
 const installation = {
   id: 'old-installation',

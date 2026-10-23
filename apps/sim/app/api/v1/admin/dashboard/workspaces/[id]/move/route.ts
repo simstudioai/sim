@@ -12,9 +12,9 @@ import {
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
 
 const logger = createLogger('AdminDashboardWorkspaceMoveAPI')
@@ -45,17 +45,17 @@ export const POST = withRouteHandler(
     } catch (error) {
       if (error instanceof WorkspaceMoveError) {
         if (error.code === 'workspace-not-found' || error.code === 'organization-not-found') {
-          return notFoundResponse(
+          return adminNotFoundResponse(
             error.code === 'workspace-not-found' ? 'Workspace' : 'Organization'
           )
         }
-        return badRequestResponse(error.message)
+        return adminBadRequestResponse(error.message)
       }
       logger.error('Failed to move workspace into organization', {
         error: getErrorMessage(error),
         workspaceId: parsed.data.params.id,
       })
-      return internalErrorResponse('Failed to move workspace')
+      return adminInternalErrorResponse('Failed to move workspace')
     }
   })
 )

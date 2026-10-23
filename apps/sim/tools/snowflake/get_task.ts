@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeTaskParams } from '@/tools/sn
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -12,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_task',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Task',
   description: 'Describe a Snowflake task.',
   params: {

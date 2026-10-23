@@ -1,90 +1,73 @@
 ---
 title: Router
-description: The Router block uses a model to pick one of several paths based on the content it reads.
+description: Use a model to select one route from descriptions you define.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import {
-  BlockPreview,
-  WorkflowPreview,
-  ROUTER_CLASSIFY_WORKFLOW,
-  ROUTER_LEAD_WORKFLOW,
-  ROUTER_TRIAGE_WORKFLOW,
-} from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
+import { BlockPreview, WorkflowPreview, ROUTER_TRIAGE_WORKFLOW, ROUTER_CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 
-The **Router block** uses a model to choose one of several paths based on the content it reads. Each route you define adds its own output port, and the model picks the route whose description best fits. Use it when the decision needs to understand intent or unstructured text. When the decision is a plain rule, use a [Condition](/workflows/blocks/condition) instead.
+The **Router block** selects a path by matching context to route descriptions. Use it for intent or unstructured text. Use [Condition](/workflows/blocks/condition) for an exact boolean rule that needs no model tokens.
 
 <BlockPreview type="router" />
 
-<Callout type="info">
-**Router vs Condition.** A Router reads context with a model and picks a route by meaning, so it suits intent-based routing ("send this ticket to the right team") and varying text. A Condition evaluates boolean expressions with no model, so it suits structured data and exact rules. The Router costs tokens per run; the Condition is free and faster.
-</Callout>
-
-## Configuration
-
-### Context
-
-The text the Router analyzes to decide. Usually an earlier output, like `<start.input>` or `<agent.content>`.
-
-### Routes
-
-Each route is a **title** and a **description** of when to choose it ("Route here for pricing and purchasing questions"). Every route adds a separate output port on the block; connect each to the path for that route. The model reads the context and selects the route whose description fits best.
-
-### Model
-
-The model that makes the decision, defaulting to `claude-sonnet-5`. Stronger reasoning models route more accurately; a faster, cheaper model is fine when the routes are clearly distinct. Type or pick any supported model, or a local one through Ollama or VLLM. On hosted Sim the API key is supplied for you.
-
-### Fallback models
-
-Under **Additional fields**, add up to five models to try in order when a model request fails. With **Retry on fail** enabled, the selected model exhausts its tries first; each fallback is then tried once. Every attempt uses the same context and route definitions. `<router.model>` reports the model that answered. This also works for existing legacy Router blocks.
-
-Hosted models on hosted Sim use workspace BYOK or platform credentials. On local or self-hosted installations, a fallback on another provider may need a secret selected on its row; same-provider fallbacks reuse the selected model's key. Auto cannot be a fallback. A completed `NO_MATCH` decision still takes the error path; it does not trigger another model request.
-
-## Outputs
-
-| Output | What it is |
-| --- | --- |
-| `<router.selectedRoute>` | The id of the route the model chose |
-| `<router.reasoning>` | A short explanation of why it chose that route |
-| `<router.context>` | The context that was analyzed |
-| `<router.model>` | The model that decided |
-| `<router.tokens>` | Token usage |
-| `<router.cost>` | Estimated cost of the call |
-| `<router.selectedPath>` | The destination block the workflow routed to |
-
-<Callout type="warn">
-When no route fits the context, the Router returns `NO_MATCH` and takes the [error path](/workflows/connections) rather than guessing. Connect the error path for a fallback.
-</Callout>
-
-## Examples
-
-### Triage a support ticket
+## Triage a request
 
 <WorkflowPreview workflow={ROUTER_TRIAGE_WORKFLOW} />
 
-The Router reads `<start.input>`, picks the route whose description matches, and runs only that path.
+Pass `<start.input>` as Context, describe Sales, Support, and Billing routes, and connect each port to its handler. Also connect the error port for requests that fit no route.
 
-### Classify feedback
+## Configuration
+
+| Field | Behavior |
+| --- | --- |
+| **Context** | Text to analyze, often `<start.input>` or `<agent.content>`. |
+| **Routes** | Each route has a title and a description of when to choose it. It adds a separate output port. |
+| **Model** | Defaults to `claude-sonnet-5-5`. Select a supported model, including a compatible local Ollama or vLLM model. |
+
+Make descriptions specific and distinguishable. For example, “Payments, invoices, and refunds” separates Billing from general product support. Test the routes on representative requests rather than assuming a larger model always routes more accurately.
+
+Sim Cloud supplies credentials for supported hosted models. Other models and self-hosted deployments can require your own credentials.
+
+### Fallback models
+
+Under **Additional fields**, add up to five fallbacks. **Retry on fail** exhausts the selected model's attempts first; each fallback is then tried once using the same context and routes. This behavior also applies to legacy Router blocks.
+
+Hosted models use workspace BYOK or platform credentials where available. Same-provider fallbacks reuse the selected model's key; a different provider can need a secret selected on its row. Auto cannot be a fallback. A completed `NO_MATCH` decision does not trigger another model request.
+
+## Outputs
+
+| Reference | Value |
+| --- | --- |
+| `<router.selectedRoute>` | Selected route ID |
+| `<router.reasoning>` | Explanation of the decision |
+| `<router.context>` | Analyzed context |
+| `<router.model>` | Model that answered |
+| `<router.tokens>` | Token usage |
+| `<router.cost>` | Estimated cost in USD, as an object with `input`, `output`, and `total`; read `<router.cost.total>` for the total |
+| `<router.selectedPath>` | Destination object with `blockId`, `blockType`, and `blockTitle` |
+
+An unconnected route returns `selectedPath` with `blockId: ""`, `blockType: "unknown"`, and `blockTitle` set to the chosen route's title.
+
+The Logs UI and run-resource API use credits. See [Costs](/platform/costs) for units and billing behavior.
+
+Only the selected path runs. There is no fixed route-count limit, but overlapping descriptions become harder to distinguish as routes grow.
+
+## Handle unmatched requests
+
+<Callout type="warn">
+If no route fits, the model's `NO_MATCH` decision raises a routing error. Connect the error port to a fallback handler; it is not a normal successful route output.
+</Callout>
+
+The model is instructed to prefer a fitting route and use NO_MATCH when all routes are unrelated. This remains a model judgment, so validate routes before using them for consequential actions.
+
+## Route to child workflows
 
 <WorkflowPreview workflow={ROUTER_CLASSIFY_WORKFLOW} />
 
-The Router sorts incoming feedback into product feedback or a bug report, each handled by its own child [Workflow](/workflows/blocks/workflow) block.
+A Product route can call a product-intake workflow while Bug report calls bug triage. The same structure can separate enterprise leads from self-service onboarding.
 
-### Qualify a lead
+## Related docs
 
-<WorkflowPreview workflow={ROUTER_LEAD_WORKFLOW} />
-
-The Router sends enterprise leads to a sales agent and everyone else into a self-serve onboarding workflow.
-
-## Best Practices
-
-- **Write clear, specific route descriptions.** The description is what the model matches on, so make the criteria explicit.
-- **Keep routes mutually exclusive.** Overlapping descriptions make the choice ambiguous and the routing less reliable.
-- **Connect the error path.** Handle `NO_MATCH` instead of letting the run fail silently.
-- **Reach for Condition when you can.** If the decision is a boolean check on structured data, the [Condition](/workflows/blocks/condition) block is free, faster, and deterministic.
-
-<FAQ items={[
-  { question: "How does the Router decide which route to take?", answer: "It sends your context and every route description to a model, which selects the route whose description best matches. The model is prompted to prefer choosing a route over returning nothing, and only returns NO_MATCH when the context is unrelated to every route." },
-  { question: "How many routes can I define?", answer: "There is no hard limit, and each route adds its own output port. Keep in mind that more routes with overlapping descriptions are harder for the model to distinguish, so aim for clear, mutually exclusive routes." },
-]} />
+- [Condition](/workflows/blocks/condition)
+- [Workflow](/workflows/blocks/workflow)
+- [Connections](/workflows/connections)

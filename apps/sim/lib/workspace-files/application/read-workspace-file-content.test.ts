@@ -1,32 +1,40 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  fetchBuffer: vi.fn(),
-  getFile: vi.fn(),
-  getSecretProvenance: vi.fn(),
-  loadContext: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  getWorkspaceFile: mocks.getFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.getSecretProvenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+
+const mocks = {
+  getSecretProvenance:
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  fetchBuffer: workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer,
+  getFile: workspaceUploadsMockFns.mockGetWorkspaceFile,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const context = {
   fileId: 'file-1',
@@ -56,7 +64,7 @@ describe('readWorkspaceFileContent', () => {
   it('authorizes the canonical file before performing a bounded content read', async () => {
     await expect(
       readWorkspaceFileContent.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           fileId: 'file-1',
           assertedWorkspaceId: 'workspace-1',
@@ -69,11 +77,13 @@ describe('readWorkspaceFileContent', () => {
     expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
       includeDeleted: true,
       includeChatUploads: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
       includeDeleted: true,
       throwOnError: true,
       includeChatUploads: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
     expect(mocks.getSecretProvenance).not.toHaveBeenCalled()
@@ -82,7 +92,7 @@ describe('readWorkspaceFileContent', () => {
   it('conceals an asserted-workspace mismatch before authorization or storage reads', async () => {
     await expect(
       readWorkspaceFileContent.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-2' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'File not found' })

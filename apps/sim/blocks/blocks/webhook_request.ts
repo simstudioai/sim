@@ -1,8 +1,7 @@
 import { WebhookIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { RequestResponse } from '@/tools/http/types'
 
-export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
+export const WebhookRequestBlock: BlockConfig = {
   type: 'webhook_request',
   name: 'Webhook',
   description: 'Send a webhook request',

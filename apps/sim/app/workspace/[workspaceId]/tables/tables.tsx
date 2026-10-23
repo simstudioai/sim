@@ -939,7 +939,7 @@ function TablesContent() {
       moveTable.mutate({ tableId: activeTable.id, folderId })
       closeRowContextMenu()
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
     [activeTable, closeRowContextMenu]
   )
 
@@ -954,7 +954,7 @@ function TablesContent() {
         }
       )
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
     [workspaceId]
   )
 
@@ -992,7 +992,7 @@ function TablesContent() {
         }
       )
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
     [clearSelection]
   )
 
@@ -1035,7 +1035,7 @@ function TablesContent() {
       // The mutation toasts the request failure itself; the modal stays open to allow a retry.
       logger.error('Failed to delete selected items:', err)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    // mutation objects are unstable; mutateAsync is stable in v5
   }, [selectedTableIds, selectedFolderIds, clearSelection])
 
   /**
@@ -1126,7 +1126,7 @@ function TablesContent() {
     const mutation = pinned ? unpinItem : pinItem
     mutation.mutate({ workspaceId, resourceType: target.resourceType, resourceId: target.id })
     closeRowContextMenu()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
   }, [
     workspaceId,
     contextMenuKind,

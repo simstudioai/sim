@@ -1,5 +1,5 @@
 import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { readPublicFileSocialMetadata } from '@/lib/public-shares/api'
 import { buildProvenance } from '@/app/f/[token]/utils'
 
 export const dynamic = 'force-dynamic'
@@ -14,16 +14,16 @@ export const size = COVER_OG_SIZE
  */
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const resolved = await resolveActiveShareByToken(token)
+  const resolved = await readPublicFileSocialMetadata(token)
 
-  if (!resolved || resolved.share.authType !== 'public') {
+  if (!resolved || resolved.protected) {
     return createCoverOgImage({
       title: 'Protected file',
       subtitle: 'Authentication is required to view this file',
     })
   }
 
-  const { file, workspaceName, ownerName } = resolved
+  const { file, workspaceName, ownerName } = resolved.metadata
 
   return createCoverOgImage({
     title: file.originalName,

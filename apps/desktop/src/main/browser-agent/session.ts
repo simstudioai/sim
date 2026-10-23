@@ -9,6 +9,7 @@ import type {
   BrowserMediaDevice,
   BrowserMediaPermissionRequest,
   BrowserOmniboxFocusMode,
+  BrowserPageDialog,
   BrowserPageIssue,
   BrowserTabState,
   BrowserTabsState,
@@ -72,6 +73,10 @@ import {
   registerAgentWebContents,
 } from '@/main/browser-agent/registry'
 import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
+import {
+  keepSessionCookiesAcrossRestarts,
+  withSessionCookieLifetime,
+} from '@/main/browser-agent/session-cookies'
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
@@ -115,6 +120,16 @@ export interface AgentTab {
   lastRealUserGestureAt?: number
   /** The tab whose page opened this one; agent work returns there when this tab closes. */
   openerTabId?: string
+  /** A user action asked for this page to take focus once it is on screen. */
+  pendingUserFocus?: boolean
+  /** Electron owns the native alert or confirm until CDP reports it closed. */
+  nativePageDialogOpen?: boolean
+  /** A leave-site decision that waits on the user, and how to answer it. */
+  pageDialog?: { request: BrowserPageDialog; respond: (accept: boolean) => void }
+  /** Replays the user's browser-chrome navigation if the page asks before unloading. */
+  pendingLeave?: () => unknown
+  /** The user chose Leave; the replayed navigation must not ask again. */
+  allowNextUnload?: boolean
 }
 
 interface PendingMediaPermission {
@@ -207,7 +222,13 @@ const FOREGROUND_TAB_RESTORE_TIMEOUT_MS = 20_000
 const MEDIA_PERMISSION_GESTURE_WINDOW_MS = 10_000
 const MEDIA_PERMISSION_PROMPT_TIMEOUT_MS = 30_000
 
-export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab' | 'find'
+export type BrowserShortcut =
+  | 'focus-omnibox'
+  | 'new-tab'
+  | 'close-tab'
+  | 'find'
+  | 'reload'
+  | 'hard-reload'
 
 type BrowserShortcutInput = Pick<
   Input,
@@ -216,25 +237,32 @@ type BrowserShortcutInput = Pick<
 
 /**
  * Resolves browser-level shortcuts using Command on macOS and Control
- * elsewhere. Modified/composing/repeated keystrokes stay with the page.
+ * elsewhere. Alt, composing, and repeated keystrokes stay with the page.
+ *
+ * Reload resolves here, from the page's own keystroke, rather than through the
+ * application menu: the menu can only guess which surface owns focus, and a
+ * wrong guess reloads all of Sim instead of the page.
  */
 export function browserShortcutForInput(
   input: BrowserShortcutInput,
   platform: NodeJS.Platform = process.platform
 ): BrowserShortcut | null {
-  if (
-    input.type !== 'keyDown' ||
-    input.isAutoRepeat ||
-    input.isComposing ||
-    input.shift ||
-    input.alt
-  ) {
+  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing || input.alt) {
     return null
   }
   const primaryModifier = platform === 'darwin' ? input.meta : input.control
-  if (!primaryModifier) return null
+  const otherModifier = platform === 'darwin' ? input.control : input.meta
 
-  switch (input.key.toLowerCase()) {
+  if (input.key === 'F5' && !otherModifier) {
+    if (input.shift || input.control) return 'hard-reload'
+    return input.meta ? null : 'reload'
+  }
+  if (!primaryModifier || otherModifier) return null
+
+  const key = input.key.toLowerCase()
+  if (key === 'r') return input.shift ? 'hard-reload' : 'reload'
+  if (input.shift) return null
+  switch (key) {
     case 'l':
       return 'focus-omnibox'
     case 't':
@@ -262,6 +290,14 @@ interface BrowserScopeState {
   lastPersistedSnapshot: string | null
   focusedBrowserTabId: string | null
   focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null
+  /**
+   * Renderer-drawn browser chrome (omnibox, toolbar, a New Tab or error page)
+   * owns the user's interaction. Those surfaces hide the native page, so this
+   * is the only evidence the Browser is the shortcut target while they show.
+   */
+  browserChromeFocused: boolean
+  /** The renderer shows page dialogs, so the user can be asked instead of the shell answering. */
+  pageDialogsEnabled: boolean
   automationActive: boolean
   automationNeedsAttention: boolean
   /**
@@ -273,6 +309,11 @@ interface BrowserScopeState {
    */
   findingTabId: string | null
   findingRequestId: number | null
+  /**
+   * When the user last clicked, scrolled or typed in the tab the agent drives, and in which tab:
+   * activity in a tab the agent no longer drives (closed, replaced) holds nothing up.
+   */
+  userIntervention: { tabId: string; at: number } | null
 }
 
 function createBrowserScopeState(): BrowserScopeState {
@@ -289,10 +330,13 @@ function createBrowserScopeState(): BrowserScopeState {
     lastPersistedSnapshot: null,
     focusedBrowserTabId: null,
     focusedBrowserClearTimer: null,
+    browserChromeFocused: false,
+    pageDialogsEnabled: false,
     automationActive: false,
     automationNeedsAttention: false,
     findingTabId: null,
     findingRequestId: null,
+    userIntervention: null,
   }
 }
 
@@ -1035,6 +1079,14 @@ export function initSession(
       if (!scopeId) return
       withBrowserScope(scopeId, restoreBrowserSession)
     },
+    onViewShown: (view) => {
+      const scopeId = browserScopeIdForView(view)
+      if (scopeId) withBrowserScope(scopeId, () => applyPendingUserFocus(view))
+    },
+    restoreTabThrottling: (view) => {
+      const scopeId = browserScopeIdForView(view)
+      if (scopeId) withBrowserScope(scopeId, applyAutomationTabPolicy)
+    },
     onViewDetached: (view) => {
       if (!view) return
       const scopeId = browserScopeIdForView(view)
@@ -1327,17 +1379,19 @@ export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
  * here and is counted rather than being quietly relaxed.
  *
  * Failures are per-cookie: one rejected cookie must not cost the user the
- * rest. Nothing about a cookie is logged.
+ * rest. Nothing about a cookie is logged. Session cookies get the bounded
+ * lifetime from {@link withSessionCookieLifetime} so they survive a restart.
  */
 export async function importAgentCookies(
   cookies: CookiesSetDetails[]
 ): Promise<{ imported: number; failed: number }> {
   const jar = electronSession.fromPartition(AGENT_PARTITION).cookies
+  const nowSeconds = Date.now() / 1000
   let imported = 0
   let failed = 0
   for (const cookie of cookies) {
     try {
-      await jar.set(cookie)
+      await jar.set(withSessionCookieLifetime(cookie, nowSeconds))
       imported += 1
     } catch {
       failed += 1
@@ -1594,6 +1648,7 @@ const browserPermissions: BrowserPermissionHandlers = {
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
+  keepSessionCookiesAcrossRestarts(ses)
   ses.setPermissionRequestHandler(browserPermissions.request)
   ses.setPermissionCheckHandler(browserPermissions.check)
   ses.webRequest.onBeforeRequest((details, callback) => {
@@ -1808,6 +1863,153 @@ function configureBrowserDownloads(ses: Session): void {
   })
 }
 
+/**
+ * Hands keyboard focus to a page the user just navigated or opened, the way
+ * Chrome focuses the content after an omnibox Enter. Tab views never focus
+ * themselves on navigation, so this is the only path that moves focus into a
+ * page. A view that is not on screen yet takes focus when it is first shown.
+ */
+export function focusPageForUser(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab) return
+  tab.pendingUserFocus = true
+  applyPendingUserFocus(tab.view)
+}
+
+function applyPendingUserFocus(view: WebContentsView): void {
+  const tab = activeTab()
+  if (!tab?.pendingUserFocus || tab.view !== view || view.webContents.isDestroyed()) return
+  // A renderer modal can hide the view while the panel keeps its bounds.
+  if (!view.getVisible() || !isPanelVisible()) return
+  if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
+  tab.pendingUserFocus = false
+  view.webContents.focus()
+}
+
+/** Lets this scope's renderer show page dialogs from now on. */
+export function enablePageDialogs(): void {
+  currentScope.pageDialogsEnabled = true
+}
+
+/**
+ * Whether a dialog on this tab is the user's to answer: the renderer can show
+ * it, the page is on screen, and it is the user's page rather than the agent's.
+ * Everything else keeps the shell answering, so the user is never asked about
+ * work they did not start and a hidden page is never left blocked.
+ */
+function userOwnsPageDialogs(tab: AgentTab): boolean {
+  const contents = tab.view.webContents
+  if (!currentScope.pageDialogsEnabled || contents.isDestroyed()) return false
+  if (tab.id !== currentScope.activeTabId || !isPanelVisible()) return false
+  if (getBrowserScopeId() !== getActiveBrowserScopeId()) return false
+  if (isDispatchingAgentInput(contents)) return false
+  if (automationTab()?.id !== tab.id) return true
+  return automationTabClaimedByUser() && !currentScope.automationActive
+}
+
+function holdPageDialogForUser(tab: AgentTab, respond: (accept: boolean) => void): void {
+  if (tab.pageDialog) answerPageDialog(tab, false)
+  tab.pageDialog = { request: { requestId: generateId(), kind: 'beforeunload' }, respond }
+  events?.onPageStateChanged(tab.view.webContents)
+}
+
+function answerPageDialog(tab: AgentTab, accept: boolean): void {
+  const dialog = tab.pageDialog
+  if (!dialog) return
+  tab.pageDialog = undefined
+  if (!tab.view.webContents.isDestroyed()) events?.onPageStateChanged(tab.view.webContents)
+  dialog.respond(accept)
+}
+
+/** Lets Electron display a single native alert or confirm for the user. */
+export function claimUserDialog(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  if (!tab || !tab.view.getVisible() || !userOwnsPageDialogs(tab)) return false
+  tab.nativePageDialogOpen = true
+  return true
+}
+
+function invalidatePageDialog(tab: AgentTab): void {
+  const hadPageDialog = Boolean(tab.pageDialog)
+  tab.pendingLeave = undefined
+  tab.allowNextUnload = false
+  tab.pageDialog = undefined
+  if (hadPageDialog && !tab.view.webContents.isDestroyed()) {
+    events?.onPageStateChanged(tab.view.webContents)
+  }
+}
+
+/** Clears native dialog ownership after the user answers or the page closes it. */
+export function notePageDialogClosed(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab?.nativePageDialogOpen) return
+  tab.nativePageDialogOpen = false
+  focusAfterPageDialog(tab)
+}
+
+/** Prevents automation from answering or replacing a decision the user owns. */
+export function hasPendingPageDialog(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  return Boolean(tab?.nativePageDialogOpen || tab?.pageDialog)
+}
+
+function focusAfterPageDialog(tab: AgentTab): void {
+  const contents = tab.view.webContents
+  if (
+    !contents.isDestroyed() &&
+    tab.id === currentScope.activeTabId &&
+    getBrowserScopeId() === getActiveBrowserScopeId() &&
+    isPanelVisible()
+  ) {
+    focusPageForUser(contents)
+  }
+}
+
+/** The user's answer to the exact dialog the renderer showed. */
+export function respondToPageDialog(requestId: string, accept: boolean): void {
+  const tab = tabs.find((entry) => entry.pageDialog?.request.requestId === requestId)
+  if (!tab) return
+  focusAfterPageDialog(tab)
+  answerPageDialog(tab, accept)
+}
+
+/** The dialog on this page awaiting the user's answer, if any. */
+export function pageDialogForContents(contents: WebContents): BrowserPageDialog | undefined {
+  return tabForContents(contents)?.pageDialog?.request
+}
+
+/**
+ * Whether the user decides this unload: true once a prompt holds the user's
+ * browser-chrome navigation, which is then cancelled until they choose Leave.
+ */
+export function claimUserLeave(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  if (!tab || tab.allowNextUnload) return false
+  if (tab.pageDialog?.request.kind === 'beforeunload') return true
+  const leave = tab.pendingLeave
+  tab.pendingLeave = undefined
+  if (!leave || !userOwnsPageDialogs(tab)) return false
+  holdPageDialogForUser(tab, (accept) => {
+    if (!accept) return
+    tab.allowNextUnload = true
+    leave()
+  })
+  return true
+}
+
+/**
+ * Runs a navigation the user started from browser chrome. If the page asks
+ * before unloading, the navigation is held and replayed once the user agrees.
+ * `navigate` returns false when there was nothing to traverse.
+ */
+export function navigateForUser(contents: WebContents, navigate: () => unknown): void {
+  const tab = tabForContents(contents)
+  if (tab && currentScope.pageDialogsEnabled) tab.pendingLeave = navigate
+  // Nothing to traverse (Back with no history): no unload will ask, so a later
+  // page-initiated navigation must not replay this one.
+  if (navigate() === false && tab) tab.pendingLeave = undefined
+}
+
 function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
   if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
   const win = panelWindow()
@@ -1823,7 +2025,18 @@ function tabForContents(contents: WebContents): AgentTab | null {
 function publishPageIssue(tab: AgentTab, focusRecovery = false): void {
   events?.onTabsChanged()
   if (tab.id !== currentScope.activeTabId) return
-  if (focusRecovery && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
+  // Recovery moves focus to the renderer's issue page only when the failed page
+  // held it; the user typing in chat keeps their caret.
+  const pageHadFocus =
+    !currentScope.browserChromeFocused &&
+    (currentScope.focusedBrowserTabId === tab.id ||
+      (!tab.view.webContents.isDestroyed() && tab.view.webContents.isFocused()))
+  if (
+    focusRecovery &&
+    pageHadFocus &&
+    getBrowserScopeId() === getActiveBrowserScopeId() &&
+    isPanelVisible()
+  ) {
     const win = panelWindow()
     if (win && !win.isDestroyed()) win.webContents.focus()
   }
@@ -1943,6 +2156,22 @@ export function reloadPage(contents: WebContents): void {
     return
   }
   contents.reload()
+}
+
+/**
+ * Reloads past the HTTP cache, the browser's Shift-reload. A failed or hung
+ * page takes the plain reload's recovery instead: a load error retries the
+ * URL that failed, which need not be the committed page, and a hung renderer
+ * must be restarted, since reloading it in place waits on the hung page.
+ */
+function hardReloadPage(contents: WebContents): void {
+  const issue = tabForContents(contents)?.pageIssue
+  if (issue?.kind === 'load-error' || issue?.kind === 'unresponsive') {
+    reloadPage(contents)
+    return
+  }
+  prepareExplicitNavigation(contents)
+  contents.reloadIgnoringCache()
 }
 
 /** Hands one page selection to the exact app window and chat hosting its tab. */
@@ -2080,10 +2309,10 @@ function adoptPopupTab(
   opener: WebContents,
   url: string,
   popup: PopupWindowOptions,
-  agentOwned: boolean
+  { agentOwned, background }: { agentOwned: boolean; background: boolean }
 ): WebContents {
   const openerTabId = tabForContents(opener)?.id
-  const tab = agentOwned ? addAutomationTab(url, popup) : addTab(url, popup)
+  const tab = openLinkTab(url, { agentOwned, background }, popup)
   tab.openerTabId = openerTabId
   const contents = tab.view.webContents
   // A background-tab disposition defers creation, so Chromium supplies no contents to adopt.
@@ -2092,15 +2321,37 @@ function adoptPopupTab(
 }
 
 /**
+ * Creates the tab a link opens. The user's Cmd/middle-click keeps their page
+ * in front, as in Chrome; a foreground tab the user opened takes focus.
+ */
+function openLinkTab(
+  url: string,
+  { agentOwned, background }: { agentOwned: boolean; background: boolean },
+  popup?: PopupWindowOptions
+): AgentTab {
+  if (agentOwned) return addAutomationTab(url, popup)
+  if (background) {
+    restoreBrowserSession()
+    return addTabInternal({ activate: false, url, popup })
+  }
+  const tab = addTab(url, popup)
+  focusPageForUser(tab.view.webContents)
+  return tab
+}
+
+/**
  * Opens a link from a page in another tab of this browser. Shared by the
  * window.open interception and the page's right-click menu — both have to stay
  * inside the browser resource rather than spawn a native window, and both are
  * reached from an untrusted page, so the scheme is checked here once.
  */
-function openTabWithUrl(url: string, { agentOwned }: { agentOwned: boolean }): void {
+function openTabWithUrl(
+  url: string,
+  { agentOwned, background = false }: { agentOwned: boolean; background?: boolean }
+): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const tab = agentOwned ? addAutomationTab(url) : addTab(url)
+    const tab = openLinkTab(url, { agentOwned, background })
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -2158,6 +2409,10 @@ function createFreshTabView(appSession: BrowserAppSession | undefined): WebConte
       // the active tab while a tool waits on it, applied explicitly by
       // applyAutomationTabPolicy — never blanket across every tab.
       backgroundThrottling: true,
+      // Electron focuses a page on every main-frame commit, even a hidden
+      // agent tab, which steals the caret from chat. Focus follows explicit
+      // user actions instead (see focusPageForUser).
+      focusOnNavigation: false,
       spellcheck: false,
       // The default every origin this tab visits starts at; a per-origin zoom
       // the user sets from the page menu still wins and still persists.
@@ -2202,7 +2457,8 @@ function initializeTabView(
   registerAgentNavigation(contents, routeNavigation)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false })),
+    openTab: (url) =>
+      withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false, background: true })),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
@@ -2214,7 +2470,38 @@ function initializeTabView(
         currentScope.focusedBrowserClearTimer = null
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
-      currentScope.focusedBrowserTabId = tab?.id ?? currentScope.activeTabId
+      // A tab the user cannot see never keeps keyboard focus. Chromium focuses
+      // a page opened without an opener (a target=_blank link) while creating
+      // it, before the tab is even listed. Hand focus back to the visible page
+      // the user was in, or else to Sim, once that focus call has returned, or
+      // Chromium finishes it over the top.
+      if (!tab || tab.id !== currentScope.activeTabId) {
+        const active = activeTab()
+        const returnTo =
+          active &&
+          !currentScope.browserChromeFocused &&
+          currentScope.focusedBrowserTabId === active.id
+            ? active
+            : null
+        setImmediate(
+          bindToBrowserScope(scopeId, () => {
+            const current = tabs.find((entry) => entry.view.webContents === contents)
+            const win = panelWindow()
+            if (current?.id === currentScope.activeTabId || !win || win.isDestroyed()) return
+            if (contents.isDestroyed() || !contents.isFocused()) return
+            if (
+              returnTo?.id === currentScope.activeTabId &&
+              !returnTo.view.webContents.isDestroyed()
+            ) {
+              returnTo.view.webContents.focus()
+            } else {
+              win.webContents.focus()
+            }
+          })
+        )
+        return
+      }
+      currentScope.focusedBrowserTabId = tab.id
     })
   )
   contents.on(
@@ -2227,6 +2514,7 @@ function initializeTabView(
         return
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
+      if (tab && tab.id === currentScope.automationTabId) noteUserIntervention(tab.id)
       if (tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (mouse.type === 'mouseDown') tab.lastRealUserGestureAt = Date.now()
@@ -2263,16 +2551,20 @@ function initializeTabView(
   contents.setWindowOpenHandler((details) =>
     withBrowserScope(scopeId, () => {
       const agentOwned = agentOwnsPopupFrom(contents)
+      const background = details.disposition === 'background-tab'
       if (!canAdoptPopup(contents, details.url)) {
-        openTabWithUrl(details.url, { agentOwned })
+        openTabWithUrl(details.url, { agentOwned, background })
         return { action: 'deny' }
       }
       return {
         action: 'allow',
         outlivesOpener: true,
+        // A popup's contents are created by Chromium from these preferences, not
+        // from createFreshTabView, so they must opt out of navigation focus here.
+        overrideBrowserWindowOptions: { webPreferences: { focusOnNavigation: false } },
         createWindow: (options) =>
           withBrowserScope(scopeId, () =>
-            adoptPopupTab(contents, details.url, options, agentOwned)
+            adoptPopupTab(contents, details.url, options, { agentOwned, background })
           ),
       }
     })
@@ -2285,16 +2577,24 @@ function initializeTabView(
     event.preventDefault()
   })
 
-  // Pages may hold navigation hostage with beforeunload dialogs nobody can
-  // see; always let the unload proceed.
-  contents.on('will-prevent-unload', (event) => {
-    event.preventDefault()
-  })
+  // A beforeunload is decided twice, by whichever answer lands first: here
+  // (preventDefault lets the unload proceed) and by the CDP dialog. Both ask
+  // claimUserLeave, so agent work and page-initiated navigations proceed, and a
+  // navigation the user started from browser chrome is cancelled and replayed
+  // only once the user chooses to leave.
+  contents.on(
+    'will-prevent-unload',
+    bindToBrowserScope(scopeId, (event) => {
+      if (!claimUserLeave(contents)) event.preventDefault()
+    })
+  )
   contents.on(
     'render-process-gone',
     bindToBrowserScope(scopeId, (_event, details) => {
       const tab = tabs.find((entry) => entry.view === view)
       if (!tab) return
+      tab.nativePageDialogOpen = false
+      invalidatePageDialog(tab)
       if (tab.recoveringUnresponsive) {
         tab.recoveringUnresponsive = false
         contents.reload()
@@ -2339,6 +2639,14 @@ function initializeTabView(
     'before-input-event',
     bindToBrowserScope(scopeId, (event, input) => {
       const tab = tabs.find((entry) => entry.view === view)
+      if (
+        !isDispatchingAgentInput(contents) &&
+        input.type === 'keyDown' &&
+        tab &&
+        tab.id === currentScope.automationTabId
+      ) {
+        noteUserIntervention(tab.id)
+      }
       if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (input.type === 'keyDown' && !input.isAutoRepeat) tab.lastRealUserGestureAt = Date.now()
@@ -2358,6 +2666,14 @@ function initializeTabView(
       if (shortcut === 'new-tab') {
         addTab()
         focusRendererOmnibox('clear')
+        return
+      }
+      if (shortcut === 'reload') {
+        navigateForUser(contents, () => reloadPage(contents))
+        return
+      }
+      if (shortcut === 'hard-reload') {
+        navigateForUser(contents, () => hardReloadPage(contents))
         return
       }
 
@@ -2407,6 +2723,15 @@ function initializeTabView(
       const tab = tabs.find((entry) => entry.view.webContents === contents)
       if (tab) tab.pendingRestoreUrl = undefined
       persistBrowserSession()
+    })
+  )
+  contents.on(
+    'did-start-navigation',
+    bindToBrowserScope(scopeId, (details) => {
+      if (!details.isMainFrame) return
+      const tab = tabForContents(contents)
+      if (!tab) return
+      invalidatePageDialog(tab)
     })
   )
   contents.on(
@@ -2485,15 +2810,6 @@ export function setAutomationNeedsAttention(needsAttention: boolean): void {
   if (currentScope.automationNeedsAttention === needsAttention) return
   currentScope.automationNeedsAttention = needsAttention
   events?.onTabsChanged()
-}
-
-/**
- * Re-applies the tab throttling policy after a caller temporarily suspended it
- * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
- * internal policy does.
- */
-export function reassertTabThrottling(): void {
-  applyAutomationTabPolicy()
 }
 
 /**
@@ -2964,8 +3280,21 @@ export function claimActiveTabForUser(): AgentTab | null {
   return tab
 }
 
+/** The user just acted in the page the agent drives; the agent yields until they stop. */
+function noteUserIntervention(tabId: string): void {
+  currentScope.userIntervention = { tabId, at: Date.now() }
+}
+
+/** How long ago the user last acted in the tab the agent drives now, or null if never. */
+export function msSinceUserIntervention(): number | null {
+  const intervention = currentScope.userIntervention
+  if (!intervention || intervention.tabId !== currentScope.automationTabId) return null
+  return Math.max(0, Date.now() - intervention.at)
+}
+
 /** Explicit hand-back after takeover lets automation resume in the same page. */
 export function returnAutomationTabToAgent(): void {
+  currentScope.userIntervention = null
   if (currentScope.activeTabId === currentScope.automationTabId) {
     currentScope.visibleTabUserSelected = false
   }
@@ -3170,9 +3499,13 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
   const previousActiveTab = activeTab()
   if (previousActiveTab && previousActiveTab.id !== tab.id) {
     revokeTabMediaPermissions(previousActiveTab, false)
+    previousActiveTab.pendingUserFocus = false
   }
-  currentScope.activeTabId = tab.id
+  // The claim describes the page on screen, so a mirrored switch to another
+  // page leaves that page unclaimed rather than inheriting the last one's.
   if (claim) currentScope.visibleTabUserSelected = true
+  else if (currentScope.activeTabId !== tab.id) currentScope.visibleTabUserSelected = false
+  currentScope.activeTabId = tab.id
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
@@ -3295,9 +3628,9 @@ export function closeAutomationTab(tabId: string): void {
 
 /** The live page whose browser surface owns a menu accelerator. */
 function focusedTabForShortcut(ownerWindow?: BrowserWindow | null): AgentTab | null {
-  if (!isPanelVisible() || !panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) {
-    return null
-  }
+  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return null
+  if (currentScope.browserChromeFocused) return activeTab()
+  if (!isPanelVisible()) return null
   return (
     tabs.find(
       (tab) =>
@@ -3369,13 +3702,26 @@ export function handleFocusedShortcut(
     case 'focus-omnibox':
       focusRendererOmnibox('select')
       return true
-    case 'reload-or-clear':
-      reloadPage(shortcutTab.view.webContents)
+    case 'reload-or-clear': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => reloadPage(contents))
       return true
-    case 'hard-reload':
-      prepareExplicitNavigation(shortcutTab.view.webContents)
-      shortcutTab.view.webContents.reloadIgnoringCache()
+    }
+    case 'hard-reload': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => hardReloadPage(contents))
       return true
+    }
+    case 'back': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => goBack(contents))
+      return true
+    }
+    case 'forward': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => goForward(contents))
+      return true
+    }
   }
 
   const zoomAction = zoomActionForShortcut(shortcut)
@@ -3397,9 +3743,22 @@ export function setPanelFocused(
   withBrowserScope(scopeId, () => {
     if (!panelUpdateAllowed(ownerWindow, getBrowserScopeId())) return
     if (!focused) {
+      currentScope.browserChromeFocused = false
+      for (const tab of tabs) tab.pendingUserFocus = false
+      // The renderer reports losing focus when the user clicks into the native
+      // page too; that page's own focus claim must survive the report.
+      const claimed = tabs.find((tab) => tab.id === currentScope.focusedBrowserTabId)
+      if (
+        claimed &&
+        !claimed.view.webContents.isDestroyed() &&
+        claimed.view.webContents.isFocused()
+      ) {
+        return
+      }
       clearFocusedBrowserTab()
       return
     }
+    currentScope.browserChromeFocused = true
     if (currentScope.focusedBrowserClearTimer !== null) {
       clearTimeout(currentScope.focusedBrowserClearTimer)
       currentScope.focusedBrowserClearTimer = null
@@ -3446,6 +3805,7 @@ function closeLiveTabs(): void {
   currentScope.automationActive = false
   currentScope.automationNeedsAttention = false
   currentScope.visibleTabUserSelected = false
+  currentScope.userIntervention = null
   clearFocusedBrowserTab()
 }
 

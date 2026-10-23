@@ -1,38 +1,28 @@
 ---
-title: Custom Tools
-description: Create your own tools with JavaScript code and use them in Agent blocks
+title: Custom tools
+description: Define reusable JavaScript tools with parameter schemas and attach them to Agent blocks.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { FAQ } from '@/components/ui/faq'
 
-Custom tools let you write your own JavaScript functions and make them available as callable tools in Agent blocks. This is useful when you need functionality that isn't covered by Sim's built-in integrations — for example, calling an internal API, performing a custom calculation, or transforming data in a specific way.
+A custom tool combines a parameter schema with a JavaScript function body. Save the definition in your workspace, then give it to an **Agent** block as an action the model can call.
 
-## How Custom Tools Work
+Use custom tools for calculations, transformations, or API requests that several agents share. Use a [Function block](/workflows/blocks/function) for a fixed code step on a workflow path.
 
-A custom tool has two parts:
+## Create a custom tool
 
-1. **Schema** — A JSON definition describing the tool's name, description, and parameters (using the OpenAI function-calling format). This tells the AI agent what the tool does and what inputs it expects.
-2. **Code** — A JavaScript function body that runs when the agent calls the tool. Parameters defined in the schema are available as variables in your code.
+You need **Write** or **Admin** access to the workspace.
 
-When an Agent block has access to a custom tool, the AI model decides when to call it based on the schema description and the conversation context — just like built-in tools.
+1. Open **Settings → Custom tools** and select **Add tool**.
+2. Enter the function-calling definition in **Schema**.
+3. Write the JavaScript function body in **Code**.
+4. Select **Save**.
 
-## Creating a Custom Tool
-
-<Steps>
-<Step>
-
-### Open Custom Tools settings
-
-Navigate to **Settings → Custom Tools** in your workspace and click **Add**.
-
-</Step>
-<Step>
+Schema and Code are sections on the same page. Each has a generation control that can draft content from a description; review the generated schema and code before saving.
 
 ### Define the schema
 
-In the **Schema** tab, define your tool using JSON in the OpenAI function-calling format:
+The schema tells the model what the tool does and which inputs it accepts. Use the function-calling format below, with `function.parameters.type` set to `object`:
 
 ```json
 {
@@ -45,12 +35,12 @@ In the **Schema** tab, define your tool using JSON in the OpenAI function-callin
       "properties": {
         "city": {
           "type": "string",
-          "description": "The city name"
+          "description": "The city name, optionally including a country code"
         },
         "units": {
           "type": "string",
           "enum": ["celsius", "fahrenheit"],
-          "description": "Temperature units"
+          "description": "Temperature units; defaults to celsius when omitted"
         }
       },
       "required": ["city"]
@@ -59,104 +49,94 @@ In the **Schema** tab, define your tool using JSON in the OpenAI function-callin
 }
 ```
 
-<Callout type="info">
-  You can use the AI wand button to generate a schema from a natural language description of what the tool should do.
-</Callout>
-
-</Step>
-<Step>
+Function names must contain 1–64 letters, digits, underscores, or hyphens. Describe when to call the tool and mark required inputs in the schema.
 
 ### Write the code
 
-Switch to the **Code** tab and write the JavaScript function body. Parameters from your schema are available directly as variables:
+The code runs as an async function body. Supplied parameters with valid JavaScript names are available by name, such as `city`. All inputs are also available through `params`. Read optional inputs through `params`, because an omitted parameter may have no named variable.
+
+This example requires an OpenWeather API key saved as `OPENWEATHER_API_KEY` under **Settings → Secrets**. It handles the optional units input and returns the weather fields the agent needs:
 
 ```javascript
+const apiKey = {{OPENWEATHER_API_KEY}};
+const requestedUnits = params.units ?? 'celsius';
+const apiUnits = requestedUnits === 'celsius' ? 'metric' : 'imperial';
 const response = await fetch(
-  `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=${units === 'celsius' ? 'metric' : 'imperial'}&appid={{OPENWEATHER_API_KEY}}`
+  `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&units=${apiUnits}&appid=${apiKey}`
 );
 
-const data = await response.json();
+if (!response.ok) {
+  throw new Error(`Weather request failed: ${response.status}`);
+}
 
+const data = await response.json();
 return {
   temperature: data.main.temp,
+  units: requestedUnits,
   description: data.weather[0].description,
   humidity: data.main.humidity
 };
 ```
 
-For a secret used as a complete JavaScript expression, prefer the unquoted form, such as `const apiKey = {{OPENWEATHER_API_KEY}};`. Quoted and embedded forms remain supported, including the placeholder embedded in the URL above, `"Bearer {{KEY}}"`, template literals, and JavaScript regex literals. The value is bound separately when the tool executes rather than pasted into its source, so its exact string contents are preserved.
+The return value becomes the tool result available to the agent. The [OpenWeather API reference](https://openweathermap.org/api/current) describes its inputs and responses.
 
-<Callout type="info">
-  You can also use the AI wand to generate code from a description. Environment variables are referenced with `&#123;&#123;KEY&#125;&#125;` syntax.
-</Callout>
+## Attach the tool to an Agent
 
-</Step>
-<Step>
+1. Open an **Agent** block with a model that supports tools.
+2. In **Tools**, select **Add tool...**.
+3. Find the saved definition under **Custom Tools** and select it.
+4. Run a task that needs the tool and inspect the Agent's tool calls.
 
-### Save
+The model chooses whether to call it based on its schema and the task, subject to the tool's **Permission Mode**. See [Agent tools](/workflows/blocks/agent) for Auto, Force, and None.
 
-Click **Save** to create the tool. It's now available to use in any Agent block across your workspace.
+## JavaScript runtime
 
-</Step>
-</Steps>
+Custom tools run in an isolated JavaScript VM, including when a workflow has a remote sandbox configured.
 
-## Using Custom Tools in Workflows
+| Capability | Behavior |
+| --- | --- |
+| Async code | Use `await` directly and `return` the result. |
+| Inputs | Read supplied inputs by valid JavaScript name or through `params`; use `params` for optional or non-identifier keys. |
+| HTTP requests | `fetch()` returns status, headers, and `.json()` or `.text()`. Requests must satisfy the deployment's network policy. |
+| Secrets | Use `{{KEY}}` placeholders to bind saved secrets at execution time. |
+| File content | Pass content as an input or use supported scoped `sim.files` helpers to read an authorized file. See the [Function file reference](/workflows/blocks/function#files). |
 
-Once created, custom tools appear alongside built-in tools when configuring an Agent block:
+Node module loading, external packages, and a sandbox filesystem are unavailable. Do not use `require`, `process`, `Buffer`, Node crypto, or package imports such as axios or lodash. The custom-tool fetch response does not support `.blob()` or `.arrayBuffer()`.
 
-1. Open an Agent block
-2. Click **Add Tools**
-3. Find your custom tool in the tool list
-4. The agent will call the tool when it determines it's relevant to the task
+The separate **Function** tool supports additional runtimes and configured file inputs/outputs. Its controls differ from a saved custom tool and from the standalone Function block; see [Function](/workflows/blocks/function).
 
-## Code Environment
+## Use secrets
 
-### Available Features
-
-- **Async/await** — Your code runs in an async context, so you can use `await` directly
-- **fetch()** — Make HTTP requests to external APIs
-- **Node.js built-ins** — Access to `crypto`, `Buffer`, and other standard modules
-- **Environment variables** — Use `{{KEY}}` syntax to bind secrets at execution time without placing plaintext in source code
-
-### Limitations
-
-- **No npm packages** — External libraries like `axios` or `lodash` are not available. Use built-in APIs instead
-- **Parameters by name** — Schema parameters are available directly as variables (e.g., `city`), not via a `params` object
-
-### Returning Results
-
-Return a value from your code to send it back to the agent:
+For a secret used as a complete JavaScript expression, use an unquoted placeholder:
 
 ```javascript
-const result = await fetch(`https://api.example.com/data?q=${query}`);
-const data = await result.json();
-return data;
+const apiKey = {{MY_API_KEY}};
 ```
 
-The returned value becomes the tool output that the agent sees and can use in its response.
-
-## Managing Custom Tools
-
-From **Settings → Custom Tools** you can:
-
-- **Search** tools by name, function name, or description
-- **Edit** any tool's schema or code
-- **Delete** tools that are no longer needed
+Quoted and embedded forms are also supported, including `"Bearer {{KEY}}"`, template literals, and JavaScript regex literals. Sim binds the value separately from the source, preserving its string contents.
 
 <Callout type="warn">
-  Deleting a custom tool removes it from all Agent blocks that reference it. Make sure no active workflows depend on the tool before deleting.
+Exact recognized secret values are masked in the trace copy and replaced before a tool result reaches the Agent model, unless the secret's visibility setting exempts it. Encoded or transformed values can escape that protection. Runtime operations still receive the real secret. Do not return or print secrets; see [Execution log protection](/platform/credentials#execution-log-protection) for the full scope and limits.
 </Callout>
 
-## Permissions
+## Manage tools and access
 
-| Action | Required Permission |
-|--------|-------------------|
-| View custom tools | **Read**, **Write**, or **Admin** |
-| Create or edit tools | **Write** or **Admin** |
-| Delete tools | **Admin** |
+Under **Settings → Custom tools**, search by tool name, function name, or description. Open a definition to edit its schema or code.
 
-<FAQ items={[
-  { question: "Can I use custom tools in standalone blocks (not agents)?", answer: "No. Custom tools are designed for use within Agent blocks, where the AI model decides when to call them. For deterministic tool execution, use the Function block instead." },
-  { question: "How do I pass API keys to my custom tool code?", answer: "Use double curly brace syntax such as {{MY_API_KEY}} for a value saved under Settings → Secrets. The value is bound outside the source at execution time. Exact occurrences are masked in the trace copy and replaced with the placeholder before a tool result is sent back to the Agent model. Encoded or otherwise transformed values cannot be recognized reliably. See Execution log protection under Secrets for details." },
-  { question: "Can I use external npm packages?", answer: "No. Custom tool code runs in a sandboxed environment with access to built-in Node.js modules and fetch(), but not external packages. For complex dependencies, consider calling an external API that wraps the functionality you need." },
-]} />
+<Callout type="warn">
+Deleting a saved tool removes its definition and can break Agents that reference it. Review dependent workflows and remove or replace their bindings before deleting the tool.
+</Callout>
+
+| Action | Required workspace role |
+| --- | --- |
+| View tools | Read, Write, or Admin |
+| Create, edit, or delete tools | Write or Admin |
+
+Organization permission groups can restrict custom-tool use. See [Permission groups](/platform/enterprise/access-control) for how restrictions apply.
+
+## Related docs
+
+- [Choosing what to use](/agents/choosing)
+- [Agent block reference](/workflows/blocks/agent)
+- [Function](/workflows/blocks/function)
+- [Secrets](/platform/credentials)

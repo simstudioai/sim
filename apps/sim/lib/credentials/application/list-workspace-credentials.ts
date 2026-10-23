@@ -10,7 +10,7 @@ import {
   listWorkspacePrincipalCredentials,
   type VisibleWorkspaceCredential,
 } from '@/lib/credentials/queries'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export interface ListWorkspaceCredentialsInput {

@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   authorizeDownload: vi.fn(),
   rename: vi.fn(),
   deleteFile: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
@@ -41,14 +41,13 @@ vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PATCH } from '@/app/api/v2/files/[fileId]/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -104,7 +103,7 @@ describe('v2 single-file routes', () => {
       workspaceId: WORKSPACE_ID,
       deleted: true,
     })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
     mocks.authorizeDownload.mockResolvedValue(undefined)
   })
 
@@ -167,6 +166,25 @@ describe('v2 single-file routes', () => {
     expect(response.headers.get('Content-Disposition')).toBe(
       `attachment; filename="it's (final)* caf_.pdf"; filename*=UTF-8''it%27s%20%28final%29%2A%20caf%C3%A9.pdf`
     )
+  })
+
+  it('downloads an attachment with its stored type and name, without sniffing', async () => {
+    mocks.download.mockResolvedValueOnce({
+      file: fileRecord({ name: 'notes' }),
+      stream: new Blob(['<p>notes</p>']).stream(),
+      contentType: 'text/html',
+      contentLength: 12,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('text/html')
+    expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="notes"')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
   })
 
   it('conceals cross-workspace download authorization', async () => {

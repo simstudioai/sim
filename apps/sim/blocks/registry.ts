@@ -220,11 +220,6 @@ export function getLatestBlock(baseType: string): BlockConfig | undefined {
   return resolveLatest(baseType)?.config
 }
 
-/** All blocks in a given category. */
-export function getBlocksByCategory(category: BlockCategory): BlockConfig[] {
-  return Object.values(BLOCK_REGISTRY).filter((block) => block.category === category)
-}
-
 /**
  * The canonical "latest-version, toolbar-visible" set of blocks for a
  * category. This is the single source of truth shared by every surface that
@@ -241,20 +236,6 @@ export function getCanonicalBlocksByCategory(category: BlockCategory): BlockConf
     (block) => block.category === category && !effectiveHidden(block, vis)
   )
   return visibilityInert(vis) ? blocks : blocks.map((block) => projectBlock(block, vis))
-}
-
-/** All registered block type identifiers. */
-export function getAllBlockTypes(): string[] {
-  return Object.keys(BLOCK_REGISTRY)
-}
-
-/** Whether the given string is a registered block type. Accepts hyphens as a dash-form alias. */
-export function isValidBlockType(type: string): type is string {
-  return (
-    type in BLOCK_REGISTRY ||
-    normalizeType(type) in BLOCK_REGISTRY ||
-    Boolean(resolveOverlayBlock(type))
-  )
 }
 
 /**

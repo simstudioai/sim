@@ -1,31 +1,29 @@
 ---
 title: incident.io
 description: Manage incidents with incident.io
+integration:
+  type: "incidentio"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="incidentio"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [incident.io](https://incident.io) in Sim to create and manage incidents, actions, follow-ups, workflows, schedules, escalations, and custom fields. The action reference below documents each operation and its inputs and outputs.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.
-
-
+Manage incidents, actions, follow-ups, workflows, schedules, escalations, and custom fields in incident.io.
 
 ## Actions
 
 ### incident.io Incidents List
 
 List incidents from incident.io. Returns a list of incidents with their details including severity, status, and timestamps.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -73,9 +71,13 @@ List incidents from incident.io. Returns a list of incidents with their details 
 |   ↳ `page_size` | number | Number of items per page |
 |   ↳ `total_record_count` | number | Total number of records |
 
+</ReferenceDetails>
+
 ### incident.io Incidents Create
 
 Create a new incident in incident.io. Requires idempotency_key, severity_id, and visibility. Optionally accepts name, summary, type, and status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +120,13 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
 
+</ReferenceDetails>
+
 ### incident.io Incidents Show
 
 Retrieve detailed information about a specific incident from incident.io by its ID. Returns full incident details including custom fields and role assignments.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +165,13 @@ Retrieve detailed information about a specific incident from incident.io by its 
 |   ↳ `custom_field_entries` | array | Custom field values for the incident |
 |   ↳ `incident_role_assignments` | array | Role assignments for the incident |
 
+</ReferenceDetails>
+
 ### incident.io Incidents Update
 
 Update an existing incident in incident.io. Can update name, summary, severity, status, or type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -204,9 +214,13 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
 
+</ReferenceDetails>
+
 ### incident.io Actions List
 
 List actions from incident.io. Optionally filter by incident ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -242,9 +256,13 @@ List actions from incident.io. Optionally filter by incident ID.
 |     ↳ `issue_name` | string | Issue identifier |
 |     ↳ `issue_permalink` | string | URL to the external issue |
 
+</ReferenceDetails>
+
 ### incident.io Actions Show
 
 Get detailed information about a specific action from incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +297,13 @@ Get detailed information about a specific action from incident.io.
 |     ↳ `issue_name` | string | Issue identifier |
 |     ↳ `issue_permalink` | string | URL to the external issue |
 
+</ReferenceDetails>
+
 ### incident.io Follow-ups List
 
 List follow-ups from incident.io. Optionally filter by incident ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +345,13 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 |     ↳ `issue_name` | string | External issue name or ID |
 |     ↳ `issue_permalink` | string | Permalink to external issue |
 
+</ReferenceDetails>
+
 ### incident.io Follow-ups Show
 
 Get detailed information about a specific follow-up from incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -366,9 +392,13 @@ Get detailed information about a specific follow-up from incident.io.
 |     ↳ `issue_name` | string | External issue name or ID |
 |     ↳ `issue_permalink` | string | Permalink to external issue |
 
+</ReferenceDetails>
+
 ### Incident.io Users List
 
 List all users in your Incident.io workspace. Returns user details including id, name, email, and role.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -394,9 +424,13 @@ List all users in your Incident.io workspace. Returns user details including id,
 |   ↳ `page_size` | number | Number of items per page |
 |   ↳ `total_record_count` | number | Total number of records |
 
+</ReferenceDetails>
+
 ### Incident.io Users Show
 
 Get detailed information about a specific user in your Incident.io workspace by their ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +449,13 @@ Get detailed information about a specific user in your Incident.io workspace by 
 |   ↳ `email` | string | Email address of the user |
 |   ↳ `role` | string | Role of the user in the workspace |
 
+</ReferenceDetails>
+
 ### incident.io Workflows List
 
 List all workflows in your incident.io workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -449,9 +487,13 @@ List all workflows in your incident.io workspace.
 |   ↳ `runs_from` | string | When the workflow runs from |
 |   ↳ `shortform` | string | Workflow shortform identifier |
 
+</ReferenceDetails>
+
 ### incident.io Workflows Create
 
 Create a new workflow in incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -497,9 +539,13 @@ Create a new workflow in incident.io.
 |   ↳ `shortform` | string | Workflow shortform identifier |
 | `management_meta` | json | Workflow management metadata |
 
+</ReferenceDetails>
+
 ### incident.io Workflows Show
 
 Get details of a specific workflow in incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -534,9 +580,13 @@ Get details of a specific workflow in incident.io.
 |   ↳ `shortform` | string | Workflow shortform identifier |
 | `management_meta` | json | Workflow management metadata |
 
+</ReferenceDetails>
+
 ### incident.io Workflows Update
 
 Update an existing workflow in incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -582,9 +632,13 @@ Update an existing workflow in incident.io.
 |   ↳ `shortform` | string | Workflow shortform identifier |
 | `management_meta` | json | Workflow management metadata |
 
+</ReferenceDetails>
+
 ### incident.io Workflows Delete
 
 Delete a workflow in incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -599,9 +653,13 @@ Delete a workflow in incident.io.
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### List Schedules
 
 List all schedules in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -641,9 +699,13 @@ List all schedules in incident.io
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Create Schedule
 
 Create a new schedule in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -665,9 +727,13 @@ Create a new schedule in incident.io
 |   ↳ `created_at` | string | When the schedule was created |
 |   ↳ `updated_at` | string | When the schedule was last updated |
 
+</ReferenceDetails>
+
 ### Show Schedule
 
 Get details of a specific schedule in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -703,9 +769,13 @@ Get details of a specific schedule in incident.io
 |   ↳ `permalink` | string | Link to the schedule in the incident.io dashboard |
 |   ↳ `team_ids` | array | IDs of teams that own this schedule |
 
+</ReferenceDetails>
+
 ### Update Schedule
 
 Update an existing schedule in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -728,9 +798,13 @@ Update an existing schedule in incident.io
 |   ↳ `created_at` | string | When the schedule was created |
 |   ↳ `updated_at` | string | When the schedule was last updated |
 
+</ReferenceDetails>
+
 ### Delete Schedule
 
 Delete a schedule in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -745,9 +819,13 @@ Delete a schedule in incident.io
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### List Escalations
 
 List all escalation policies in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -774,9 +852,13 @@ List all escalation policies in incident.io
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Create Escalation
 
 Create a new escalation policy in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -802,9 +884,13 @@ Create a new escalation policy in incident.io
 |   ↳ `created_at` | string | When the escalation was created |
 |   ↳ `updated_at` | string | When the escalation was last updated |
 
+</ReferenceDetails>
+
 ### Show Escalation
 
 Get details of a specific escalation policy in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -827,9 +913,13 @@ Get details of a specific escalation policy in incident.io
 |   ↳ `created_at` | string | When the escalation was created |
 |   ↳ `updated_at` | string | When the escalation was last updated |
 
+</ReferenceDetails>
+
 ### incident.io Custom Fields List
 
 List all custom fields from incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -849,9 +939,13 @@ List all custom fields from incident.io.
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### incident.io Custom Fields Create
 
 Create a new custom field in incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -874,9 +968,13 @@ Create a new custom field in incident.io.
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### incident.io Custom Fields Show
 
 Get detailed information about a specific custom field from incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -897,9 +995,13 @@ Get detailed information about a specific custom field from incident.io.
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### incident.io Custom Fields Update
 
 Update an existing custom field in incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -922,9 +1024,13 @@ Update an existing custom field in incident.io.
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### incident.io Custom Fields Delete
 
 Delete a custom field from incident.io.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -939,9 +1045,13 @@ Delete a custom field from incident.io.
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### Incident.io Severities List
 
 List all severity levels configured in your Incident.io workspace. Returns severity details including id, name, description, and rank.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -959,9 +1069,13 @@ List all severity levels configured in your Incident.io workspace. Returns sever
 |   ↳ `description` | string | Description of the severity level |
 |   ↳ `rank` | number | Rank/order of the severity level |
 
+</ReferenceDetails>
+
 ### Incident.io Incident Statuses List
 
 List all incident statuses configured in your Incident.io workspace. Returns status details including id, name, description, and category.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -979,9 +1093,13 @@ List all incident statuses configured in your Incident.io workspace. Returns sta
 |   ↳ `description` | string | Description of the incident status |
 |   ↳ `category` | string | Category of the incident status |
 
+</ReferenceDetails>
+
 ### Incident.io Incident Types List
 
 List all incident types configured in your Incident.io workspace. Returns type details including id, name, description, and default flag.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -999,9 +1117,13 @@ List all incident types configured in your Incident.io workspace. Returns type d
 |   ↳ `description` | string | Description of the incident type |
 |   ↳ `is_default` | boolean | Whether this is the default incident type |
 
+</ReferenceDetails>
+
 ### List Incident Roles
 
 List all incident roles in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1024,9 +1146,13 @@ List all incident roles in incident.io
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
+</ReferenceDetails>
+
 ### Create Incident Role
 
 Create a new incident role in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1053,9 +1179,13 @@ Create a new incident role in incident.io
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
+</ReferenceDetails>
+
 ### Show Incident Role
 
 Get details of a specific incident role in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1079,9 +1209,13 @@ Get details of a specific incident role in incident.io
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
+</ReferenceDetails>
+
 ### Update Incident Role
 
 Update an existing incident role in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1109,9 +1243,13 @@ Update an existing incident role in incident.io
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
+</ReferenceDetails>
+
 ### Delete Incident Role
 
 Delete an incident role in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1126,9 +1264,13 @@ Delete an incident role in incident.io
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### List Incident Timestamps
 
 List all incident timestamp definitions in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1147,9 +1289,13 @@ List all incident timestamp definitions in incident.io
 |   ↳ `created_at` | string | When the timestamp was created |
 |   ↳ `updated_at` | string | When the timestamp was last updated |
 
+</ReferenceDetails>
+
 ### Show Incident Timestamp
 
 Get details of a specific incident timestamp definition in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1169,9 +1315,13 @@ Get details of a specific incident timestamp definition in incident.io
 |   ↳ `created_at` | string | When the timestamp was created |
 |   ↳ `updated_at` | string | When the timestamp was last updated |
 
+</ReferenceDetails>
+
 ### List Incident Updates
 
 List all updates for a specific incident in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1218,9 +1368,13 @@ List all updates for a specific incident in incident.io
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### List Schedule Entries
 
 List all entries for a specific schedule in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1243,9 +1397,13 @@ List all entries for a specific schedule in incident.io
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `after_url` | string | URL for next page |
 
+</ReferenceDetails>
+
 ### Create Schedule Override
 
 Create a new schedule override in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1279,9 +1437,13 @@ Create a new schedule override in incident.io
 |   ↳ `created_at` | string | When the override was created |
 |   ↳ `updated_at` | string | When the override was last updated |
 
+</ReferenceDetails>
+
 ### List Escalation Paths
 
 List escalation paths in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1304,9 +1466,13 @@ List escalation paths in incident.io
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Create Escalation Path
 
 Create a new escalation path in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1337,9 +1503,13 @@ Create a new escalation path in incident.io
 |     ↳ `start_time` | string | Start time |
 |     ↳ `end_time` | string | End time |
 
+</ReferenceDetails>
+
 ### Show Escalation Path
 
 Get details of a specific escalation path in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1368,9 +1538,13 @@ Get details of a specific escalation path in incident.io
 |     ↳ `start_time` | string | Start time |
 |     ↳ `end_time` | string | End time |
 
+</ReferenceDetails>
+
 ### Update Escalation Path
 
 Update an existing escalation path in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1402,9 +1576,13 @@ Update an existing escalation path in incident.io
 |     ↳ `start_time` | string | Start time |
 |     ↳ `end_time` | string | End time |
 
+</ReferenceDetails>
+
 ### Delete Escalation Path
 
 Delete an escalation path in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1419,9 +1597,13 @@ Delete an escalation path in incident.io
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### Get Who Is On Call
 
 Get who is currently on call in incident.io, as one row per ongoing shift across every schedule (or a single schedule). Also returns the shifts that take over at the next changeover.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1443,9 +1625,13 @@ Get who is currently on call in incident.io, as one row per ongoing shift across
 |   ↳ `page_size` | number | Number of results per page |
 |   ↳ `total_record_count` | number | Total number of schedules |
 
+</ReferenceDetails>
+
 ### List Schedule Overrides
 
 List the one-off overrides layered on top of a schedule in incident.io, such as someone covering a colleague’s shift
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1481,9 +1667,13 @@ List the one-off overrides layered on top of a schedule in incident.io, such as 
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### List Alerts
 
 List alerts in incident.io, optionally filtered by status, source, or created date
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1523,9 +1713,13 @@ List alerts in incident.io, optionally filtered by status, source, or created da
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Show Alert
 
 Get a single alert by ID from incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1552,9 +1746,13 @@ Get a single alert by ID from incident.io
 |   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
 |   ↳ `attributes` | array | Attribute values parsed from the alert payload |
 
+</ReferenceDetails>
+
 ### Resolve Alert
 
 Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1581,9 +1779,13 @@ Resolve a currently firing alert in incident.io. Resolving an already-resolved a
 |   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
 |   ↳ `attributes` | array | Attribute values parsed from the alert payload |
 
+</ReferenceDetails>
+
 ### Create Alert Event
 
 Fire an alert into incident.io through an HTTP alert source. Send the same deduplication key with status "resolved" to close the alert you opened.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1606,9 +1808,13 @@ Fire an alert into incident.io through an HTTP alert source. Send the same dedup
 | `message` | string | Human readable message giving detail about the event |
 | `status` | string | Status of the event |
 
+</ReferenceDetails>
+
 ### List Incident Alerts
 
 List the connections between incidents and alerts in incident.io — which alerts triggered an incident, or which incident an alert was attached to
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1650,9 +1856,13 @@ List the connections between incidents and alerts in incident.io — which alert
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Cancel Escalation
 
 Cancel an escalation in incident.io. Notifications stop, and the escalation will not advance to further levels or repeat.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1667,9 +1877,13 @@ Cancel an escalation in incident.io. Notifications stop, and the escalation will
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### List Catalog Types
 
 List all catalog types in incident.io, including those synced from external resources. Use this to find the catalog type ID needed to list entries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1705,9 +1919,13 @@ List all catalog types in incident.io, including those synced from external reso
 |   ↳ `created_at` | string | When this type was created |
 |   ↳ `updated_at` | string | When this type was last updated |
 
+</ReferenceDetails>
+
 ### List Catalog Entries
 
 List the entries of a catalog type in incident.io — for example every service, team, or customer recorded in the catalog
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1762,9 +1980,13 @@ List the entries of a catalog type in incident.io — for example every service,
 |   ↳ `page_size` | number | Number of results per page |
 |   ↳ `total_record_count` | number | Total number of entries |
 
+</ReferenceDetails>
+
 ### List Teams
 
 List all teams in the incident.io organisation, along with their members
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1794,9 +2016,13 @@ List all teams in the incident.io organisation, along with their members
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Show Team
 
 Get a single team by ID from incident.io, along with its members
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1822,9 +2048,13 @@ Get a single team by ID from incident.io, along with its members
 |     ↳ `name` | string | Catalog entry name |
 |     ↳ `external_id` | string | Alternative ID for this entry, unique within the type |
 
+</ReferenceDetails>
+
 ### Create Follow-up
 
 Create a new follow-up on an incident in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1852,6 +2082,12 @@ Create a new follow-up on an incident in incident.io
 |   ↳ `status` | string | Follow-up status \(outstanding, completed, deleted, not_doing\) |
 |   ↳ `description` | string | Follow-up description |
 |   ↳ `labels` | array | Labels associated with this follow-up |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 |   ↳ `assignee_team` | object | The team the follow-up is assigned to |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -1860,14 +2096,37 @@ Create a new follow-up on an incident in incident.io
 |     ↳ `name` | string | Priority name |
 |     ↳ `rank` | number | Priority rank |
 |     ↳ `description` | string | Priority description |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the follow-up |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the follow-up was completed |
 |   ↳ `created_at` | string | When the follow-up was created |
 |   ↳ `updated_at` | string | When the follow-up was last updated |
 
+</ReferenceDetails>
+
 ### Update Follow-up
 
 Update an existing follow-up in incident.io, for example to mark it completed or reassign it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1895,6 +2154,12 @@ Update an existing follow-up in incident.io, for example to mark it completed or
 |   ↳ `status` | string | Follow-up status \(outstanding, completed, deleted, not_doing\) |
 |   ↳ `description` | string | Follow-up description |
 |   ↳ `labels` | array | Labels associated with this follow-up |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 |   ↳ `assignee_team` | object | The team the follow-up is assigned to |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -1903,14 +2168,37 @@ Update an existing follow-up in incident.io, for example to mark it completed or
 |     ↳ `name` | string | Priority name |
 |     ↳ `rank` | number | Priority rank |
 |     ↳ `description` | string | Priority description |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the follow-up |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the follow-up was completed |
 |   ↳ `created_at` | string | When the follow-up was created |
 |   ↳ `updated_at` | string | When the follow-up was last updated |
 
+</ReferenceDetails>
+
 ### Create Action
 
 Create a new action on an incident in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1930,14 +2218,43 @@ Create a new action on an incident in incident.io
 |   ↳ `incident_id` | string | ID of the incident the action belongs to |
 |   ↳ `description` | string | Action description |
 |   ↳ `status` | string | Action status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the action |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the action was completed |
 |   ↳ `created_at` | string | When the action was created |
 |   ↳ `updated_at` | string | When the action was last updated |
 
+</ReferenceDetails>
+
 ### Update Action
 
 Update an existing action in incident.io, for example to mark it completed or reassign it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1958,14 +2275,43 @@ Update an existing action in incident.io, for example to mark it completed or re
 |   ↳ `incident_id` | string | ID of the incident the action belongs to |
 |   ↳ `description` | string | Action description |
 |   ↳ `status` | string | Action status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the action |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the action was completed |
 |   ↳ `created_at` | string | When the action was created |
 |   ↳ `updated_at` | string | When the action was last updated |
 
+</ReferenceDetails>
+
 ### List Incident Participants
 
 List the participants of an incident in incident.io, split into those actively helping and those just observing
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1981,9 +2327,13 @@ List the participants of an incident in incident.io, split into those actively h
 | `active` | array | Participants who are actively helping with the incident |
 | `passive` | array | Participants who are just observing the incident |
 
+</ReferenceDetails>
+
 ### Grant Incident Membership
 
 Make a user a member of a private incident in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2009,9 +2359,13 @@ Make a user a member of a private incident in incident.io
 |     ↳ `role` | string | User role |
 |     ↳ `slack_user_id` | string | Slack user ID |
 
+</ReferenceDetails>
+
 ### Revoke Incident Membership
 
 Revoke a user's membership of a private incident in incident.io
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2027,11 +2381,13 @@ Revoke a user's membership of a private incident in incident.io
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### incident.io Alert Created
 
@@ -2101,7 +2457,7 @@ Trigger workflow when an incident is created in incident.io
 
 ### incident.io Incident Status Updated
 
-Trigger workflow when an incident
+Trigger workflow when an incident's status changes in incident.io
 
 #### Configuration
 

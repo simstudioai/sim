@@ -9,7 +9,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ApiKey } from '@/lib/api/contracts/api-keys'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -245,7 +245,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
         actions={actions}
       >
         {apiKeysError && apiKeysData === undefined ? (
-          <SettingsEmptyState tone='error'>
+          <SettingsEmptyState>
             {getErrorMessage(apiKeysError, 'Failed to load API keys')}
           </SettingsEmptyState>
         ) : isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (

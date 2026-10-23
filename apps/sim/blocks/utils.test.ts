@@ -1,4 +1,6 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvFlagsMock)
@@ -42,14 +44,7 @@ vi.mock('@/providers/models', async (importOriginal) => ({
   isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: vi.fn(() => 'openai'),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: {
@@ -61,12 +56,9 @@ vi.mock('@/stores/providers/store', () => ({
   },
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getScopesForService: vi.fn(() => []),
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
-  BUILT_IN_TOOL_TYPES,
   getApiKeyCondition,
   getSerializedModelProviderId,
   parseOptionalBooleanInput,
@@ -75,13 +67,6 @@ import {
   requiresProviderFamilyCredentials,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
-
-describe('BUILT_IN_TOOL_TYPES', () => {
-  it('classifies the current File block instead of the legacy File block', () => {
-    expect(BUILT_IN_TOOL_TYPES.has('file_v5')).toBe(true)
-    expect(BUILT_IN_TOOL_TYPES.has('file')).toBe(false)
-  })
-})
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
   'gpt-4o': 'openai',

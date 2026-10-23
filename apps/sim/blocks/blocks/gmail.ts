@@ -8,7 +8,6 @@ import {
   normalizeFileInput,
   SERVICE_ACCOUNT_SUBBLOCKS,
 } from '@/blocks/utils'
-import type { GmailToolResponse } from '@/tools/gmail/types'
 import { getTrigger } from '@/triggers'
 
 function selectGmailToolId(params: Record<string, any>): string {
@@ -55,13 +54,13 @@ const DESTINATION_LABEL_FIELD = ['destinationLabel', 'manualDestinationLabel'] a
 const SOURCE_LABEL_FIELD = ['sourceLabel', 'manualSourceLabel'] as const
 const MANAGE_LABEL_FIELD = ['labelSelector', 'manualLabelId'] as const
 
-export const GmailBlock: BlockConfig<GmailToolResponse> = {
+export const GmailBlock: BlockConfig = {
   type: 'gmail',
   name: 'Gmail (Legacy)',
   description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Send or draft messages, read and search mail, and manage labels and read status. New-mail triggers can start workflows.',
   docsLink: 'https://docs.sim.ai/integrations/gmail',
   category: 'tools',
   integrationType: IntegrationType.Email,
@@ -656,7 +655,7 @@ Return ONLY the search query - no explanations, no extra text.`,
   },
 }
 
-export const GmailV2Block: BlockConfig<GmailToolResponse> = {
+export const GmailV2Block: BlockConfig = {
   ...GmailBlock,
   sunset: undefined,
   type: 'gmail_v2',

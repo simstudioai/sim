@@ -11,10 +11,11 @@ import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import {
   type AdmissionErrorDescriptor,
   getReservationDenialDescriptor,
@@ -36,6 +37,7 @@ import {
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
+import { claimBlockedRunLog } from '@/lib/execution/blocked-run-log'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -72,6 +74,11 @@ export interface PreprocessExecutionOptions {
    * for every surface, including async-queued v1 runs.
    */
   rateLimitCounter?: 'sync' | 'async'
+  /**
+   * Also resolve the actor's highest-priority subscription for a caller that paces
+   * its own rate limiting. The rate-limit gate resolves it whenever it runs.
+   */
+  includeActorSubscription?: boolean
   checkDeployment?: boolean
   skipUsageLimits?: boolean
   /**
@@ -92,6 +99,14 @@ export interface PreprocessExecutionOptions {
    * again on its final attempt so an exhausted retry still records the row.
    */
   suppressRetryableFailureLogs?: boolean
+  /**
+   * Record at most one admission-gate error row per workflow and gate within
+   * the blocked-run log window. Set by unattended surfaces (webhooks, pollers)
+   * whose senders resend refused deliveries, so each resend does not write a
+   * new execution row and trace archive. Ignored when the caller supplies its
+   * own `loggingSession`, which it expects preprocessing to complete.
+   */
+  throttleErrorLogs?: boolean
 
   workspaceId?: string
   loggingSession?: LoggingSession
@@ -140,6 +155,11 @@ export interface PreprocessExecutionError {
    */
   retryAfterMs?: number
   cause?: Record<string, unknown>
+  /**
+   * Set when the workflow's own state refused the run; see {@link isWorkflowStateRejection}.
+   * Internal: unlike `code`, no surface copies it onto a response.
+   */
+  workflowState?: 'not_found' | 'not_attached' | 'not_deployed'
 }
 
 /**
@@ -159,11 +179,26 @@ function retryAfterMsFrom(retryAfterSeconds: number | undefined): { retryAfterMs
 
 export const WORKFLOW_NOT_DEPLOYED_CODE = 'WORKFLOW_NOT_DEPLOYED'
 
+/** A rate-limit quota denial, distinct from the retryable concurrency-slot 429. */
+export const RATE_LIMIT_EXCEEDED_CODE = 'RATE_LIMIT_EXCEEDED'
+
+/**
+ * Whether the workflow's own state refused the run: deleted or archived, not attached to a
+ * workspace, or not deployed. Produced only after a successful read (a failed read is a 5xx), and
+ * these rejections write no execution log by design, so callers need not wait for one.
+ */
+export function isWorkflowStateRejection(
+  error: Pick<PreprocessExecutionError, 'workflowState'>
+): boolean {
+  return error.workflowState !== undefined
+}
+
 export interface PreprocessExecutionSuccess {
   success: true
   actorUserId: string
   workflowRecord: WorkflowRecord
-  actorSubscription: SubscriptionInfo
+  /** Resolved when the rate-limit gate ran or the caller asked for it. */
+  actorSubscription?: SubscriptionInfo
   billingAttribution: BillingAttributionSnapshot
   executionTimeout: {
     sync: number
@@ -181,6 +216,152 @@ export type PreprocessExecutionResult = PreprocessExecutionSuccess | PreprocessE
 type WorkflowRecord = typeof workflow.$inferSelect
 type SubscriptionInfo = HighestPrioritySubscription
 
+/** The admission gates' lookups for one acting identity and payer. */
+interface GateReads {
+  actorUserId: string
+  billingAttribution: BillingAttributionSnapshot
+  bannedUserIds: Promise<string[]>
+  actorSubscription: Promise<SubscriptionInfo> | undefined
+  usage: Promise<Awaited<ReturnType<typeof checkExecutionUsageLimits>>> | undefined
+}
+
+/**
+ * Blocks when an identity this run actually acts as has an active ban or
+ * blocked email domain.
+ *
+ * `userId` is a candidate unless the caller declares it a stored reference.
+ * The default is deliberately the blocking one: callers overload the
+ * parameter, and only the caller knows which kind it passed, so a call site
+ * that forgets to say must fail closed rather than silently admit a
+ * suspended account.
+ *
+ * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
+ * an earlier revision of this gate assumed. Resume passes the live
+ * authenticated resumer as `userId` and leaves that flag false on purpose —
+ * attribution is captured before the pause and must not move — so keying on
+ * it excluded exactly the person who just acted.
+ *
+ * A stored reference being banned must not take down work their teammates
+ * still depend on — but it must not lend that person's credentials either,
+ * which is why {@link getExecutionEnvironment} drops a suspended identity's
+ * personal namespace rather than this gate blocking the whole run.
+ */
+function banCandidateIds(
+  actorUserId: string,
+  userId: string,
+  userIdIsStoredReference: boolean
+): string[] {
+  return !userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actorUserId
+    ? [actorUserId, userId]
+    : [actorUserId]
+}
+
+/**
+ * The payer and admission-gate reads of one preprocessing pass. None of them
+ * depends on the workflow read, so each starts as soon as its own inputs are
+ * known — the payer when the caller already knows the workspace, the gates once
+ * the actor and payer are known — and runs alongside the workflow read. Callers
+ * still consume the results in preprocessing's fixed order, and a read started
+ * for inputs the run does not end up using is simply resolved again.
+ */
+function startAdmissionReads(params: {
+  userId: string
+  useAuthenticatedUserAsActor: boolean
+  userIdIsStoredReference: boolean
+  providedBillingAttribution: BillingAttributionSnapshot | undefined
+  knownWorkspaceId: string | undefined
+  includeSubscription: boolean
+  includeUsage: boolean
+}) {
+  const { userId, useAuthenticatedUserAsActor, providedBillingAttribution, knownWorkspaceId } =
+    params
+
+  const resolveAttribution = (workspaceId: string) =>
+    useAuthenticatedUserAsActor && userId
+      ? withDatabaseReadRetry(
+          () => resolveBillingAttribution({ actorUserId: userId, workspaceId }),
+          {
+            label: 'resolveBillingAttribution',
+          }
+        )
+      : withDatabaseReadRetry(() => resolveSystemBillingAttribution(workspaceId), {
+          label: 'resolveSystemBillingAttribution',
+        })
+
+  const startGateReads = (
+    actorUserId: string,
+    billingAttribution: BillingAttributionSnapshot
+  ): GateReads => {
+    const ids = banCandidateIds(actorUserId, userId, params.userIdIsStoredReference)
+    const bannedUserIds = withDatabaseReadRetry(() => getActivelyBannedUserIds(ids), {
+      label: 'getActivelyBannedUserIds',
+    })
+    const actorSubscription = params.includeSubscription
+      ? getHighestPrioritySubscription(actorUserId)
+      : undefined
+    const usage = params.includeUsage
+      ? withDatabaseReadRetry(() => checkExecutionUsageLimits(billingAttribution), {
+          label: 'checkExecutionUsageLimits',
+        })
+      : undefined
+    // The gates await these inside their own error handling; a run rejected before
+    // it reaches them must not leave them unhandled.
+    for (const read of [bannedUserIds, actorSubscription, usage]) read?.catch(() => {})
+    return { actorUserId, billingAttribution, bannedUserIds, actorSubscription, usage }
+  }
+
+  /** A serialized attribution is validated once; a failure surfaces where the payer is read. */
+  let providedAttribution: { snapshot: BillingAttributionSnapshot } | { error: unknown } | undefined
+  if (providedBillingAttribution) {
+    try {
+      providedAttribution = {
+        snapshot: assertBillingAttributionSnapshot(providedBillingAttribution),
+      }
+    } catch (error) {
+      providedAttribution = { error }
+    }
+  }
+
+  const earlyAttribution =
+    !providedBillingAttribution && knownWorkspaceId
+      ? { workspaceId: knownWorkspaceId, attribution: resolveAttribution(knownWorkspaceId) }
+      : undefined
+  earlyAttribution?.attribution.catch(() => {})
+
+  const earlyGateReads: Promise<GateReads | undefined> = (
+    providedAttribution && 'snapshot' in providedAttribution
+      ? Promise.resolve(
+          startGateReads(providedAttribution.snapshot.actorUserId, providedAttribution.snapshot)
+        )
+      : earlyAttribution
+        ? earlyAttribution.attribution.then((attribution) =>
+            attribution.actorUserId
+              ? startGateReads(attribution.actorUserId, attribution)
+              : undefined
+          )
+        : Promise.resolve(undefined)
+  ).catch(() => undefined)
+
+  return {
+    providedAttribution,
+    /** The workspace payer, reusing the early read when it was for this workspace. */
+    attributionFor: (workspaceId: string) =>
+      earlyAttribution?.workspaceId === workspaceId
+        ? earlyAttribution.attribution
+        : resolveAttribution(workspaceId),
+    /** The gate reads, reusing the early ones when they were for this actor and payer. */
+    gateReadsFor: async (
+      actorUserId: string,
+      billingAttribution: BillingAttributionSnapshot
+    ): Promise<GateReads> => {
+      const early = await earlyGateReads
+      return early?.actorUserId === actorUserId && early.billingAttribution === billingAttribution
+        ? early
+        : startGateReads(actorUserId, billingAttribution)
+    },
+  }
+}
+
 export async function preprocessExecution(
   options: PreprocessExecutionOptions
 ): Promise<PreprocessExecutionResult> {
@@ -193,11 +374,13 @@ export async function preprocessExecution(
     requestId,
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
     rateLimitCounter = 'sync',
+    includeActorSubscription = false,
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
     skipConcurrencyReservation = false,
     logPreprocessingErrors = true,
     suppressRetryableFailureLogs = false,
+    throttleErrorLogs = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     triggerData,
@@ -218,6 +401,24 @@ export async function preprocessExecution(
   const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
     suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
 
+  /** Records an admission gate's error row, at most once per gate and outcome per window when throttled. */
+  const recordGateFailure = async (
+    gate: 'ban' | 'usage' | 'rate-limit' | 'reservation',
+    failure: PreprocessExecutionError,
+    record: Parameters<typeof logPreprocessingError>[0]
+  ): Promise<void> => {
+    if (isFailureLogSuppressed(failure)) return
+    if (
+      throttleErrorLogs &&
+      logPreprocessingErrors &&
+      !providedLoggingSession &&
+      !(await claimBlockedRunLog(workflowId, `${gate}:${failure.code ?? failure.statusCode}`))
+    ) {
+      return
+    }
+    await recordPreprocessingError(record)
+  }
+
   logger.info(`[${requestId}] Starting execution preprocessing`, {
     workflowId,
     userId,
@@ -234,6 +435,17 @@ export async function preprocessExecution(
       `Prefetched workflow record ID mismatch: expected ${workflowId}, got ${prefetchedWorkflowRecord.id}`
     )
   }
+
+  const admission = startAdmissionReads({
+    userId,
+    useAuthenticatedUserAsActor,
+    userIdIsStoredReference,
+    providedBillingAttribution,
+    knownWorkspaceId: prefetchedWorkflowRecord?.workspaceId || providedWorkspaceId,
+    includeSubscription: checkRateLimit || includeActorSubscription,
+    includeUsage: !skipUsageLimits,
+  })
+
   let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
   if (!workflowRecord) {
     try {
@@ -262,6 +474,7 @@ export async function preprocessExecution(
           error: {
             message: 'Workflow not found',
             statusCode: 404,
+            workflowState: 'not_found',
           },
         }
       }
@@ -297,6 +510,7 @@ export async function preprocessExecution(
       error: {
         message: 'Workflow not found',
         statusCode: 404,
+        workflowState: 'not_found',
       },
     }
   } else {
@@ -310,6 +524,7 @@ export async function preprocessExecution(
         error: {
           message: 'Workflow not found',
           statusCode: 404,
+          workflowState: 'not_found',
         },
       }
     }
@@ -326,6 +541,7 @@ export async function preprocessExecution(
         message:
           'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
         statusCode: 403,
+        workflowState: 'not_attached',
       },
     }
   }
@@ -340,6 +556,7 @@ export async function preprocessExecution(
         message: 'Workflow is not deployed',
         statusCode: 403,
         code: WORKFLOW_NOT_DEPLOYED_CODE,
+        workflowState: 'not_deployed',
       },
     }
   }
@@ -349,8 +566,10 @@ export async function preprocessExecution(
   let billingAttribution: BillingAttributionSnapshot | null = null
 
   try {
-    if (providedBillingAttribution) {
-      const validatedAttribution = assertBillingAttributionSnapshot(providedBillingAttribution)
+    const { providedAttribution } = admission
+    if (providedAttribution) {
+      if ('error' in providedAttribution) throw providedAttribution.error
+      const validatedAttribution = providedAttribution.snapshot
       if (validatedAttribution.workspaceId !== workspaceId) {
         throw new Error(
           `Billing attribution workspace mismatch: expected ${workspaceId}, received ${validatedAttribution.workspaceId}`
@@ -370,10 +589,7 @@ export async function preprocessExecution(
     }
 
     if (!actorUserId) {
-      billingAttribution = await withDatabaseReadRetry(
-        () => resolveSystemBillingAttribution(workspaceId),
-        { label: 'resolveSystemBillingAttribution' }
-      )
+      billingAttribution = await admission.attributionFor(workspaceId)
       actorUserId = billingAttribution.actorUserId
       logger.info(`[${requestId}] Using atomically resolved system actor and payer`, {
         actorUserId,
@@ -410,11 +626,7 @@ export async function preprocessExecution(
     }
 
     if (!billingAttribution) {
-      const attributionInput = { actorUserId, workspaceId }
-      billingAttribution = await withDatabaseReadRetry(
-        () => resolveBillingAttribution(attributionInput),
-        { label: 'resolveBillingAttribution' }
-      )
+      billingAttribution = await admission.attributionFor(workspaceId)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
@@ -472,37 +684,11 @@ export async function preprocessExecution(
     }
   }
 
+  const gateReads = await admission.gateReadsFor(actorUserId, billingAttribution)
+
   const banCheck = (async (): Promise<GateFailure | null> => {
-    /**
-     * Blocks when an identity this run actually acts as has an active ban or
-     * blocked email domain.
-     *
-     * `userId` is a candidate unless the caller declares it a stored reference.
-     * The default is deliberately the blocking one: callers overload the
-     * parameter, and only the caller knows which kind it passed, so a call site
-     * that forgets to say must fail closed rather than silently admit a
-     * suspended account.
-     *
-     * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
-     * an earlier revision of this gate assumed. Resume passes the live
-     * authenticated resumer as `userId` and leaves that flag false on purpose —
-     * attribution is captured before the pause and must not move — so keying on
-     * it excluded exactly the person who just acted.
-     *
-     * A stored reference being banned must not take down work their teammates
-     * still depend on — but it must not lend that person's credentials either,
-     * which is why {@link getExecutionEnvironment} drops a suspended identity's
-     * personal namespace rather than this gate blocking the whole run.
-     */
-    const banCandidateIds = [actorUserId]
-    if (!userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actorUserId) {
-      banCandidateIds.push(userId)
-    }
     try {
-      const bannedUserIds = await withDatabaseReadRetry(
-        () => getActivelyBannedUserIds(banCandidateIds),
-        { label: 'getActivelyBannedUserIds' }
-      )
+      const bannedUserIds = await gateReads.bannedUserIds
       if (bannedUserIds.length > 0) {
         logger.warn(`[${requestId}] Execution blocked: banned account`, {
           workflowId,
@@ -516,6 +702,7 @@ export async function preprocessExecution(
             error: {
               message: 'Account suspended',
               statusCode: 403,
+              code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED,
             },
           },
           recordError: {
@@ -560,8 +747,6 @@ export async function preprocessExecution(
     }
   })()
 
-  const subscriptionFetch = getHighestPrioritySubscription(actorUserId)
-
   /**
    * Returns the usage failure and reservation snapshot together so concurrent
    * read gates do not communicate through mutable outer state.
@@ -570,13 +755,10 @@ export async function preprocessExecution(
     failure: GateFailure | null
     snapshot: UsageSnapshot | null
   }> => {
-    if (skipUsageLimits) return { failure: null, snapshot: null }
+    if (!gateReads.usage) return { failure: null, snapshot: null }
     let snapshot: UsageSnapshot | null = null
     try {
-      const usageCheck = await withDatabaseReadRetry(
-        () => checkExecutionUsageLimits(billingAttribution),
-        { label: 'checkExecutionUsageLimits' }
-      )
+      const usageCheck = await gateReads.usage
       snapshot = usageCheck.payerUsage
         ? {
             ...usageCheck.payerUsage,
@@ -609,6 +791,10 @@ export async function preprocessExecution(
                   usageCheck.message ||
                   'Usage limit exceeded. Please upgrade your plan to continue.',
                 statusCode: 402,
+                // An unreadable ledger fails closed; that is no verdict on the payer, so senders retry.
+                ...(usageCheck.reason === 'usage_unavailable'
+                  ? { retryable: true }
+                  : { code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED }),
               },
             },
             recordError: {
@@ -670,7 +856,7 @@ export async function preprocessExecution(
    */
   const [banFailure, actorSubscription, usageResult] = await Promise.all([
     banCheck,
-    subscriptionFetch,
+    gateReads.actorSubscription,
     usageCheckTask,
   ])
 
@@ -684,7 +870,7 @@ export async function preprocessExecution(
       const rateLimiter = new RateLimiter()
       const info = await rateLimiter.checkRateLimitWithSubscription(
         actorUserId,
-        actorSubscription,
+        actorSubscription ?? null,
         triggerType,
         rateLimitCounter === 'async'
       )
@@ -707,7 +893,7 @@ export async function preprocessExecution(
                * (`EXECUTION_CONCURRENCY_LIMIT`, retryable in seconds) — the two
                * need different caller behavior.
                */
-              code: 'RATE_LIMIT_EXCEEDED',
+              code: RATE_LIMIT_EXCEEDED_CODE,
               retryAfterMs: info.retryAfterMs ?? Math.max(0, info.resetAt.getTime() - Date.now()),
             },
           },
@@ -757,16 +943,24 @@ export async function preprocessExecution(
 
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
-    if (readGateFailure.recordError && !isFailureLogSuppressed(readGateFailure.response.error)) {
-      await recordPreprocessingError(readGateFailure.recordError)
+    if (readGateFailure.recordError) {
+      await recordGateFailure(
+        banFailure ? 'ban' : 'usage',
+        readGateFailure.response.error,
+        readGateFailure.recordError
+      )
     }
     return readGateFailure.response
   }
 
   const rateLimitFailure = await runRateLimitGate()
   if (rateLimitFailure) {
-    if (rateLimitFailure.recordError && !isFailureLogSuppressed(rateLimitFailure.response.error)) {
-      await recordPreprocessingError(rateLimitFailure.recordError)
+    if (rateLimitFailure.recordError) {
+      await recordGateFailure(
+        'rate-limit',
+        rateLimitFailure.response.error,
+        rateLimitFailure.recordError
+      )
     }
     return rateLimitFailure.response
   }
@@ -821,7 +1015,18 @@ export async function preprocessExecution(
           constraint: reservation.reason,
         })
 
-        await recordPreprocessingError({
+        const failure: PreprocessExecutionError = {
+          message,
+          statusCode: descriptor.statusCode,
+          code: descriptor.code,
+          retryable: descriptor.retryable,
+          ...retryAfterMsFrom(descriptor.retryAfterSeconds),
+          cause: {
+            code: descriptor.code,
+            constraint: reservation.reason,
+          },
+        }
+        await recordGateFailure('reservation', failure, {
           workflowId,
           executionId,
           triggerType,
@@ -833,20 +1038,7 @@ export async function preprocessExecution(
           triggerData,
         })
 
-        return {
-          success: false,
-          error: {
-            message,
-            statusCode: descriptor.statusCode,
-            code: descriptor.code,
-            retryable: descriptor.retryable,
-            ...retryAfterMsFrom(descriptor.retryAfterSeconds),
-            cause: {
-              code: descriptor.code,
-              constraint: reservation.reason,
-            },
-          },
-        }
+        return { success: false, error: failure }
       }
     } catch (error) {
       logger.error(`[${requestId}] Admission reservation infrastructure unavailable`, {

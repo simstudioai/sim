@@ -136,6 +136,58 @@ export async function getExecutionStateForWorkflow(
   return extractExecutionStateFromRow(row)
 }
 
+/** The status of an execution's workflow log, or `undefined` when it never started one. */
+export async function getWorkflowExecutionLogStatus(
+  executionId: string,
+  workflowId: string
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ status: workflowExecutionLogs.status })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return row?.status
+}
+
+/** The log's own correlation wins; older logs carried it only on the trigger data. */
+function selectCorrelation(
+  topLevel: unknown,
+  fromTrigger: unknown
+): Record<string, unknown> | undefined {
+  if (isRecordLike(topLevel)) return topLevel
+  return isRecordLike(fromTrigger) ? fromTrigger : undefined
+}
+
+/**
+ * The Copilot tool call an execution was launched for, from the server-persisted
+ * correlation on its log, or `undefined` when no Copilot tool call bound it.
+ */
+export async function getWorkflowExecutionCopilotToolCallId(
+  executionId: string,
+  workflowId: string
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({
+      correlation: sql<unknown>`${workflowExecutionLogs.executionData} -> 'correlation'`,
+      triggerCorrelation: sql<unknown>`${workflowExecutionLogs.executionData} #> '{trigger,data,correlation}'`,
+    })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  const toolCallId = selectCorrelation(row?.correlation, row?.triggerCorrelation)?.copilotToolCallId
+  return typeof toolCallId === 'string' ? toolCallId : undefined
+}
+
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */
 export async function getTrustedWorkflowToolExecution(
   executionId: string,
@@ -153,21 +205,13 @@ export async function getTrustedWorkflowToolExecution(
   const executionData = await materializeExecutionDataFromRow(row)
   const state = extractExecutionState(executionData)
   const provenance = state?.resolvedSecretTraceProvenance
-  const topLevelCorrelation = executionData?.correlation
-  const triggerCorrelation = isRecordLike(executionData?.trigger)
-    ? executionData.trigger.data
-    : undefined
-  const correlation = isRecordLike(topLevelCorrelation)
-    ? topLevelCorrelation
-    : isRecordLike(triggerCorrelation) && isRecordLike(triggerCorrelation.correlation)
-      ? triggerCorrelation.correlation
-      : undefined
+  const triggerData = isRecordLike(executionData?.trigger) ? executionData.trigger.data : undefined
+  const correlation = selectCorrelation(
+    executionData?.correlation,
+    isRecordLike(triggerData) ? triggerData.correlation : undefined
+  )
 
-  if (
-    !executionData ||
-    !isRecordLike(correlation) ||
-    correlation.copilotToolCallId !== copilotToolCallId
-  ) {
+  if (!executionData || correlation?.copilotToolCallId !== copilotToolCallId) {
     return null
   }
 

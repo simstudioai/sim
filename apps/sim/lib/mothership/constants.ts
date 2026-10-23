@@ -10,8 +10,15 @@ export const SIM_AGENT_API_URL =
     ? rawAgentUrl
     : SIM_AGENT_API_URL_DEFAULT
 
-/** Bounded per-operation credential and permission lifetime; not a total run limit. */
-export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
+/**
+ * How long a worker SSE leg may stay silent before Sim treats the connection as
+ * lost and re-attaches. The worker writes a keepalive comment whenever a leg has
+ * been quiet for 10 s (checked every 15 s), independent of model or tool progress,
+ * so a healthy leg is never silent for more than about 25 s. It stays well under
+ * the idle timeouts of network intermediaries, which can drop a silent connection
+ * without closing it.
+ */
+export const WORKER_STREAM_IDLE_TIMEOUT_MS = 120_000
 
 /**
  * Watchdog cap for a single sim-executed copilot tool. A tool that neither
@@ -25,16 +32,26 @@ export const TOOL_WATCHDOG_DEFAULT_MS = 60_000
  * Watchdog cap for tool classes with legitimately long runtimes (workflow
  * executions, media/image generation, sandboxed code, deep research). Those
  * tools carry their own inner budgets (plan execution timeouts, sandbox
- * timeouts), so this cap only backstops a true hang and sits above all of
- * them. This limits one operation, not the entire assistant run.
+ * timeouts), so this cap only backstops a true hang and sits above all of them.
  */
-export const TOOL_WATCHDOG_LONG_RUNNING_MS = ORCHESTRATION_TIMEOUT_MS
+export const TOOL_WATCHDOG_LONG_RUNNING_MS = 60 * 60 * 1000
+
+/** How long a tool call held for the user's approval waits for an answer. */
+export const PERMISSION_WAIT_TIMEOUT_MS = 60 * 60 * 1000
+
+/** How long a client-executed tool (browser or desktop app) may take to report its result. */
+export const CLIENT_TOOL_RESULT_TIMEOUT_MS = 60 * 60 * 1000
 
 /** Extra slack the resume gate allows past the slowest pending tool's watchdog. */
 export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
 
-/** Maximum wait for one client-executed workflow tool (60 min). */
-export const STREAM_TIMEOUT_MS = 3_600_000
+/**
+ * The worker's default deadline for one Chat run (60 min).
+ *
+ * Sim does not enforce it: stream legs have no wall clock. It is the base of
+ * `USAGE_SETTLE_MS`, since it bounds how long a run tops up its model charge.
+ */
+export const CHAT_RUN_DEADLINE_MS = 3_600_000
 
 /**
  * How long a workflow tool call waits for a browser to pick it up before the
@@ -43,11 +60,23 @@ export const STREAM_TIMEOUT_MS = 3_600_000
  * Workflow tools are client-routed, but the only thing that starts one is the
  * mounted chat view — a call frame that arrives while the user is on a
  * different chat is never dispatched by anyone, and the turn used to park for
- * the full STREAM_TIMEOUT_MS. The real pickup path (stream frame -> execute
+ * the full CLIENT_TOOL_RESULT_TIMEOUT_MS. The real pickup path (stream frame -> execute
  * POST -> claim) lands in ~1-3s, so 30s is an order of magnitude of headroom
  * and cannot steal work from a live tab.
  */
 export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
+
+/**
+ * How long a desktop tool call (browser, terminal, local import) waits for the desktop app to
+ * claim it before it fails as never started.
+ *
+ * Same cause as the workflow grace: only the chat view showing this chat starts the call, so a
+ * call issued while the user is on another chat or page is claimed by nobody. A live view claims
+ * within a second or two (stream frame -> IPC -> authorize), and there is no server fallback to
+ * run instead, so the call fails with a "never started" result rather than parking
+ * until a watchdog calls it hung.
+ */
+export const DESKTOP_TOOL_PICKUP_GRACE_MS = 15_000
 
 /** SessionStorage key for persisting active stream metadata across page reloads. */
 export const STREAM_STORAGE_KEY = 'copilot_active_stream'
@@ -55,8 +84,21 @@ export const STREAM_STORAGE_KEY = 'copilot_active_stream'
 /** POST — send a chat message through the unified mothership chat surface. */
 export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 
+/**
+ * Set to `log` on a reconnect response the replay ring could not serve: the turn is
+ * re-sent from the worker's durable log with cursors restarting at 1, so the client
+ * rebuilds it from an empty response.
+ */
+export const MOTHERSHIP_STREAM_REPLAY_HEADER = 'x-mothership-stream-replay'
+
 /** Durable chat identity returned after the send transaction commits, before SSE delivery. */
 export const MOTHERSHIP_CHAT_ID_HEADER = 'x-mothership-chat-id'
+
+/**
+ * Set to `device` on a turn's stream when a desktop app's background executor runs its desktop
+ * tools. A chat view reading that stream only shows those calls; it never starts or reports them.
+ */
+export const MOTHERSHIP_DESKTOP_EXECUTOR_HEADER = 'x-mothership-desktop-executor'
 
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'

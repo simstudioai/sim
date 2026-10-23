@@ -1,7 +1,7 @@
 /**
  * Storage usage tracking for durable workspace and payer ledgers.
  *
- * Every row lock here is `FOR NO KEY UPDATE`, never `FOR UPDATE`. The
+ * Storage counter row locks are `FOR NO KEY UPDATE`, never `FOR UPDATE`. The
  * `workspace`, `organization`, and `user_stats` rows these transactions lock
  * are foreign-key parents (49 tables reference `workspace` alone), so any
  * insert or update of a child row — a `workspace_files` row in this very
@@ -17,15 +17,19 @@
  * writes any of them or deletes a locked row.
  */
 
-import { organization, userStats, workspace } from '@sim/db/schema'
+import { organization, project, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { createUserStatsIfMissing } from '@/lib/billing/core/usage'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import type { StorageBillingContext } from '@/lib/billing/storage/context'
+import type {
+  ProjectStorageBillingContext,
+  StorageBillingContext,
+  StoragePayerContext,
+} from '@/lib/billing/storage/context'
 import { getLegacyStorageBillingEntity } from '@/lib/billing/storage/entity'
 import {
   getStorageLimitForBillingContext,
@@ -35,8 +39,9 @@ import {
   isStorageEnforcementEnabled,
   StorageLimitExceededError,
 } from '@/lib/billing/storage/limits'
-import { getFreeTierLimit, isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import type { DbOrTx } from '@/lib/db/types'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { lockProject } from '@/lib/projects/membership'
 
 const logger = createLogger('StorageTracking')
 
@@ -110,7 +115,8 @@ async function mutateStorageUsage(
   executor: DbOrTx,
   billingEntity: Readonly<BillingEntity>,
   bytes: number,
-  mutation: StorageCounterMutation
+  mutation: StorageCounterMutation,
+  maximumUsage?: number
 ): Promise<number | undefined> {
   if (billingEntity.type === 'organization') {
     const storageUsedBytes =
@@ -120,7 +126,14 @@ async function mutateStorageUsage(
     const returned: unknown = await executor
       .update(organization)
       .set({ storageUsedBytes })
-      .where(eq(organization.id, billingEntity.id))
+      .where(
+        and(
+          eq(organization.id, billingEntity.id),
+          maximumUsage !== undefined && mutation === 'increment'
+            ? sql`${organization.storageUsedBytes} + ${bytes} <= ${maximumUsage}`
+            : undefined
+        )
+      )
       .returning({ storageUsedBytes: organization.storageUsedBytes })
     return readReturnedStorageUsage(returned)
   }
@@ -132,36 +145,42 @@ async function mutateStorageUsage(
   const returned: unknown = await executor
     .update(userStats)
     .set({ storageUsedBytes })
-    .where(eq(userStats.userId, billingEntity.id))
+    .where(
+      and(
+        eq(userStats.userId, billingEntity.id),
+        maximumUsage !== undefined && mutation === 'increment'
+          ? sql`${userStats.storageUsedBytes} + ${bytes} <= ${maximumUsage}`
+          : undefined
+      )
+    )
     .returning({ storageUsedBytes: userStats.storageUsedBytes })
   return readReturnedStorageUsage(returned)
 }
 
 /**
- * Locks and reads the payer ledger after the workspace row has been locked.
+ * Reads the payer ledger, locking it after the owner row has been locked unless `lock` is false.
  * `FOR NO KEY UPDATE` for the reason documented at the top of this module.
  */
-async function lockStorageUsageForMutation(
+async function readStorageUsageInTx(
   tx: DbOrTx,
-  billingEntity: Readonly<BillingEntity>
+  billingEntity: Readonly<BillingEntity>,
+  lock = true
 ): Promise<number> {
   if (billingEntity.type === 'organization') {
-    const [row] = await tx
+    const query = tx
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, billingEntity.id))
-      .for('no key update')
-      .limit(1)
+    const [row] = lock ? await query.for('no key update').limit(1) : await query.limit(1)
     if (!row) throw new Error(`Storage payer organization:${billingEntity.id} not found`)
     return row.storageUsedBytes
   }
 
-  const [row] = await tx
+  const query = tx
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, billingEntity.id))
-    .for('no key update')
-    .limit(1)
+  const [row] = lock ? await query.for('no key update').limit(1) : await query.limit(1)
   if (!row) throw new Error(`Storage payer user:${billingEntity.id} not found`)
   return row.storageUsedBytes
 }
@@ -196,6 +215,109 @@ function assertWorkspaceStorageContext(
     )
   }
   return currentBillingEntity
+}
+
+/**
+ * Locks the asserted owner before directory/file/version mutation. The caller holds lifecycle
+ * locks and owns the transaction. The one-shot signed delta admits finalization, not a
+ * reservation. The shared payer is locked last, only when a non-zero delta is applied: workspace
+ * files update both ledgers (`undefined` for zero); Projects update only the payer and report its
+ * usage, read unlocked for zero. Locking the Project row here keeps the payer it names fixed.
+ */
+export async function prepareFileStorageMutationInTx(
+  tx: DbTransaction,
+  context: ProjectStorageBillingContext | StorageBillingContext
+): Promise<{ applyDelta(deltaBytes: number): Promise<number | undefined> }> {
+  const limit = isStorageEnforcementEnabled()
+    ? getStorageLimitForBillingContext(context)
+    : undefined
+  let applied = false
+  const admitDelta = (deltaBytes: number) => {
+    if (applied) throw new Error('File storage delta was already applied')
+    if (!Number.isSafeInteger(deltaBytes)) throw new Error('Invalid file storage delta')
+    applied = true
+  }
+  if ('workspaceId' in context) {
+    assertWorkspaceStorageContext(
+      await lockWorkspaceStorageForMutationInTx(tx, context.workspaceId),
+      context
+    )
+    return {
+      async applyDelta(deltaBytes) {
+        admitDelta(deltaBytes)
+        if (deltaBytes === 0) return undefined
+        const result = await mutateWorkspaceStorageUsage(
+          tx,
+          context.workspaceId,
+          Math.abs(deltaBytes),
+          deltaBytes > 0 ? 'increment' : 'decrement',
+          limit,
+          context
+        )
+        return result.updatedUsage
+      },
+    }
+  }
+  await lockProject(tx, context.projectId)
+  const [owner] = await tx
+    .select({ ownerId: project.ownerId, organizationId: project.organizationId })
+    .from(project)
+    .where(eq(project.id, context.projectId))
+    .for('update')
+    .limit(1)
+  if (!owner) throw new Error(`Project ${context.projectId} not found for storage accounting`)
+  const billingEntity: BillingEntity = owner.organizationId
+    ? { type: 'organization', id: owner.organizationId }
+    : { type: 'user', id: owner.ownerId }
+  if (
+    owner.ownerId !== context.ownerId ||
+    owner.organizationId !== context.organizationId ||
+    billingEntity.type !== context.billingEntity.type ||
+    billingEntity.id !== context.billingEntity.id ||
+    (!owner.organizationId && context.billedAccountUserId !== owner.ownerId)
+  ) {
+    throw new Error(
+      `Storage payer changed for Project ${context.projectId}; resolve a fresh billing context`
+    )
+  }
+  return {
+    async applyDelta(deltaBytes) {
+      admitDelta(deltaBytes)
+      const latestUsage = await readStorageUsageInTx(tx, billingEntity, deltaBytes !== 0)
+      if (!Number.isSafeInteger(latestUsage) || latestUsage < 0) {
+        throw new Error(`Invalid storage usage for payer ${getPayerKey(billingEntity)}`)
+      }
+      const nextUsage = Math.max(0, latestUsage + deltaBytes)
+      if (!Number.isSafeInteger(nextUsage)) throw new Error('Invalid file storage total')
+      if (deltaBytes > 0 && limit !== undefined && nextUsage > limit) {
+        throw new StorageLimitExceededError(
+          `Storage limit exceeded. Used: ${(nextUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(limit / 1024 ** 3).toFixed(0)}GB`
+        )
+      }
+      if (deltaBytes === 0) return latestUsage
+      if (deltaBytes < 0 && latestUsage < -deltaBytes) {
+        logger.error('Clamping Project storage payer ledger underflow', {
+          projectId: context.projectId,
+          payer: getPayerKey(billingEntity),
+          currentBytes: latestUsage,
+          decrementBytes: -deltaBytes,
+        })
+      }
+      const updated = await mutateStorageUsage(
+        tx,
+        billingEntity,
+        Math.abs(deltaBytes),
+        deltaBytes > 0 ? 'increment' : 'decrement',
+        Math.min(limit ?? Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+      )
+      if (updated === undefined) {
+        throw new StorageLimitExceededError(
+          'Storage limit exceeded during Project file finalization'
+        )
+      }
+      return updated
+    },
+  }
 }
 
 /**
@@ -431,6 +553,39 @@ export async function applyStorageUsageDeltasInTx(
 }
 
 /**
+ * Locks the canonical workspace row before a file mutation that changes its storage ledger.
+ *
+ * Every workspace file writer takes its locks in one order: the Project lock (workspace writers
+ * only; Project-owner directory operations take none), this workspace row,
+ * the directory lock (only for operations that take one), the file rows and their writes (whose
+ * search-index trigger upserts the one-per-workspace dispatch queue row), then the payer row when
+ * a non-zero delta is applied. Call this before the directory lock and the first file write: a
+ * writer that holds either and only then waits on the workspace row deadlocks with one that holds
+ * the workspace row. Re-locking it later in the same transaction never waits.
+ */
+export async function lockWorkspaceStorageForMutationInTx(
+  tx: DbOrTx,
+  workspaceId: string
+): Promise<LockedWorkspaceStorage> {
+  const [workspacePayer] = await tx
+    .select({
+      billedAccountUserId: workspace.billedAccountUserId,
+      organizationId: workspace.organizationId,
+      storageUsedBytes: workspace.storageUsedBytes,
+    })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .for('no key update')
+    .limit(1)
+
+  if (!workspacePayer) {
+    throw new Error(`Workspace ${workspaceId} not found for storage accounting`)
+  }
+
+  return { id: workspaceId, ...workspacePayer }
+}
+
+/**
  * Mutates the durable workspace total and its current routed payer as one
  * transaction. The workspace row is the serialization point shared with payer
  * transfers, so an upload/delete is wholly before or wholly after a move.
@@ -447,26 +602,10 @@ async function mutateWorkspaceStorageUsage(
   maximumUsage: number | undefined,
   context: StorageBillingContext
 ): Promise<WorkspaceStorageMutationResult> {
-  const [workspacePayer] = await tx
-    .select({
-      billedAccountUserId: workspace.billedAccountUserId,
-      organizationId: workspace.organizationId,
-      storageUsedBytes: workspace.storageUsedBytes,
-    })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .for('no key update')
-    .limit(1)
+  const workspacePayer = await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
 
-  if (!workspacePayer) {
-    throw new Error(`Workspace ${workspaceId} not found for storage accounting`)
-  }
-
-  const billingEntity = assertWorkspaceStorageContext(
-    { id: workspaceId, ...workspacePayer },
-    context
-  )
-  const currentPayerUsage = await lockStorageUsageForMutation(tx, billingEntity)
+  const billingEntity = assertWorkspaceStorageContext(workspacePayer, context)
+  const currentPayerUsage = await readStorageUsageInTx(tx, billingEntity)
 
   if (mutation === 'decrement' && workspacePayer.storageUsedBytes < bytes) {
     logger.error('Clamping workspace storage ledger underflow', {
@@ -522,7 +661,7 @@ async function mutateWorkspaceStorageUsage(
  * the counter mutation.
  */
 export async function maybeNotifyStorageLimitForBillingContext(
-  context: StorageBillingContext,
+  context: StoragePayerContext & { readonly workspaceId?: string },
   updatedUsage?: number,
   rearmOnly = false
 ): Promise<void> {
@@ -548,7 +687,7 @@ export async function maybeNotifyStorageLimitForBillingContext(
       rearmOnly,
     })
   } catch (error) {
-    logger.error('Error evaluating workspace payer storage notification:', error)
+    logger.error('Error evaluating payer storage notification:', error)
   }
 }
 
@@ -625,14 +764,12 @@ export async function incrementAdmittedStorageUsageForBillingContextInTx(
  * window between the read and the increment. This helper does not send
  * notifications because it runs mid-transaction.
  *
- * For a personal (non-org-scoped) `userId`, this first upserts the
- * `userStats` row on `tx` — a documented possibility for OAuth account
- * linking (see `ensureUserStatsExists` in `lib/billing/core/usage.ts`, whose
- * insert values this mirrors) — because the conditional `UPDATE` below
- * matches 0 rows, and therefore reads as "quota exceeded", if that row
- * doesn't exist yet. `ensureUserStatsExists` itself isn't reused here since
- * it writes through the standalone `db` client, which would open a second
- * pooled connection while this transaction's is held.
+ * For a personal (non-org-scoped) `userId`, this first creates a missing
+ * `userStats` row on `tx` with `createUserStatsIfMissing` — a documented
+ * possibility for OAuth account linking — because the conditional `UPDATE`
+ * below matches 0 rows, and therefore reads as "quota exceeded", if that row
+ * doesn't exist yet. It runs on `tx` rather than the standalone `db` client,
+ * which would open a second pooled connection while this transaction's is held.
  */
 export async function checkAndIncrementStorageUsageInTx(
   tx: DbOrTx,
@@ -652,17 +789,7 @@ export async function checkAndIncrementStorageUsageInTx(
 
   const orgScoped = isOrgScopedSubscription(sub, userId) && sub
 
-  if (!orgScoped) {
-    await tx
-      .insert(userStats)
-      .values({
-        id: generateId(),
-        userId,
-        currentUsageLimit: getFreeTierLimit().toString(),
-        usageLimitUpdatedAt: new Date(),
-      })
-      .onConflictDoNothing({ target: userStats.userId })
-  }
+  if (!orgScoped) await createUserStatsIfMissing(tx, userId)
 
   const [updated] = orgScoped
     ? await tx

@@ -1,11 +1,11 @@
 import { LemlistIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildEmailClickedOutputs,
   buildLemlistExtraFields,
   lemlistSetupInstructions,
   lemlistTriggerOptions,
 } from '@/triggers/lemlist/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -23,7 +23,7 @@ export const lemlistEmailClickedTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_email_clicked',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('emailsClicked'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_email_clicked'),
   }),
 

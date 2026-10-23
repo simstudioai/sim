@@ -3,7 +3,7 @@ import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
+import type { StreamActivityReceipt, ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { RequestTraceV1Span } from '@/lib/mothership/generated/request-trace-v1'
 import type { ProviderToolCallIdentity } from '@/lib/mothership/request/go/tool-call-identity'
 import type { StreamEvent } from '@/lib/mothership/request/session'
@@ -42,6 +42,14 @@ export interface ToolCallState {
   activityDescription?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
+  /**
+   * Display grouping, from the call's own arguments or inherited (a gateway's grouping on its
+   * resolved operation), with titles completed from its activity's earlier calls. Held beside
+   * `params`, which execute and persist as given.
+   */
+  activity?: ToolActivity
+  /** A gateway call rebound to its resolved operation, whose arguments are the operation's own. */
+  resolvedOperation?: boolean
   /** Accumulated partial JSON of the arguments while the model streams them. */
   streamingArgs?: string
   params?: Record<string, unknown>
@@ -49,6 +57,12 @@ export interface ToolCallState {
   error?: string
   startTime?: number
   endTime?: number
+  /**
+   * Epoch ms by which every wait and execution for this call must end: from the frame's
+   * `deadlineMs`, or the persisted deadline of a call handed before a takeover. Undefined when
+   * the worker named none.
+   */
+  deadlineAt?: number
   /**
    * For a subagent-scoped tool call, the invoking subagent's channel id (its
    * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
@@ -164,6 +178,11 @@ export interface StreamingContext {
   requestId?: string
   executionId?: string
   runId?: string
+  /**
+   * The device whose background executor runs this run's desktop tools, null when the chat view
+   * runs them. Read from the run on the first desktop call; undefined until then.
+   */
+  desktopDeviceId?: string | null
   messageId: string
   /**
    * Shared by all live resume legs. Reconnects replay events without resuming Go; any future
@@ -218,6 +237,8 @@ export interface StreamingContext {
    * main-lane / no-scope intent (file writes there are always sequential).
    */
   activeFileIntents: Map<string, ActiveFileIntent>
+  /** File preview content this turn has streamed; one object shared by every leg. */
+  filePreviewBudget: { contentBytes: number }
   trace: TraceCollector
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
   /**
@@ -236,30 +257,6 @@ export interface StreamingContext {
      */
     autoAllowPermitted: boolean
   }
-}
-
-interface FileAttachment {
-  id: string
-  key: string
-  name: string
-  mimeType: string
-  size: number
-}
-
-interface OrchestratorRequest {
-  message: string
-  workflowId: string
-  userId: string
-  chatId?: string
-  mode?: 'agent' | 'assistant' | 'plan'
-  model?: string
-  contexts?: Array<{ type: string; content: string }>
-  fileAttachments?: FileAttachment[]
-  commands?: string[]
-  provider?: string
-  version?: string
-  prefetch?: boolean
-  userName?: string
 }
 
 export interface OrchestratorOptions {
@@ -288,6 +285,13 @@ export interface OrchestratorOptions {
    * `interactive`, which is a trust classification, not executor routing.
    */
   clientToolPickupExpected?: boolean
+  /**
+   * The turn's desktop claims local reads (`read_local_file`, user-local VFS reads) through
+   * authorize before reading, so they are persisted pending and fail fast when nothing picks them
+   * up. Absent for older desktops, and on a recovered leg, where local reads keep the established
+   * running state and the authorize route accepts them as before.
+   */
+  desktopClaimsLocalReads?: boolean
 }
 
 export interface OrchestratorResult {
@@ -299,6 +303,8 @@ export interface OrchestratorResult {
   chatId?: string
   requestId?: string
   error?: string
+  /** Machine-readable cause of `error`, forwarded as the stream error event's `code`. */
+  errorCode?: string
   errors?: string[]
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }

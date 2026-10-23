@@ -6,27 +6,23 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import {
   areStreamToolExecutionsSettled,
   getLatestRunForStream,
-  getUnsettledClientWorkflowExecutions,
-  getUnsettledStreamSandboxProcesses,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import {
+  type OwnedChatContextOptions,
+  resolveOwnedChatContext,
+} from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
-  abortActiveStream,
-  releasePendingChatStream,
-  waitForPendingChatStream,
-} from '@/lib/mothership/request/session'
-import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+  deliverRunStop,
+  readStoppedRunWork,
+} from '@/lib/mothership/request/application/stop-delivery'
 import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
-import { recoverSandboxProcesses } from '@/lib/mothership/request/tools/sandbox-recovery'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('MothershipRunControls')
 const policy = {
@@ -69,12 +65,13 @@ async function resolveRunContext({
 async function resolveAdmittedRunContext(
   principal: SessionPrincipal,
   input: RunControlInput,
-  run: { chatId: string; workspaceId: string | null; organizationId?: string | null }
+  run: { chatId: string; workspaceId: string | null; organizationId?: string | null },
+  options: OwnedChatContextOptions = {}
 ) {
   if (input.chatId && input.chatId !== run.chatId) {
     throw new OrchestrationError('forbidden', 'Stream does not belong to this chat')
   }
-  const chat = await resolveOwnedChatContext(principal, run.chatId)
+  const chat = await resolveOwnedChatContext(principal, run.chatId, options)
   if (
     (run.workspaceId ?? null) !== (chat.workspaceId ?? null) ||
     (run.organizationId ?? null) !== (chat.organizationId ?? null)
@@ -98,7 +95,12 @@ async function resolveAbortContext({
   input: RunControlInput
 }) {
   const run = await getLatestRunForStream(input.streamId, principal.userId)
-  if (run?.chatId) return resolveAdmittedRunContext(principal, input, run)
+  /**
+   * An owner may stop a run already admitted for them even after their account is blocked. A
+   * blocked account cannot admit a run, so a Stop recorded ahead of admission keeps the ban check.
+   */
+  if (run?.chatId)
+    return resolveAdmittedRunContext(principal, input, run, { allowBlockedOwner: true })
   if (input.chatId) {
     const chat = await resolveOwnedChatContext(principal, input.chatId)
     if (input.workspaceId && input.workspaceId !== chat.workspaceId) {
@@ -155,61 +157,16 @@ export const abortRun = defineAuthorizedChatUseCase({
     const { chatId } = await resolveAdmittedRunContext(
       principal,
       { ...input, workspaceId, organizationId },
-      run
+      run,
+      { allowBlockedOwner: true }
     )
-    /** Push delivers promptly; the worker also reconciles Sim's durable intent after an outage. */
-    const workerStop = requestExplicitStreamAbort({
-      streamId,
-      userId,
-      chatId,
-      timeoutMs: 6000,
-    }).catch((error) => {
-      logger.warn('Stop saved; worker delivery awaits reconciliation', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-      return { settled: false }
-    })
-    await abortActiveStream(streamId)
-    const cancelClientWorkflows = async () => {
-      const executionIds = await getUnsettledClientWorkflowExecutions(streamId, userId)
-      await Promise.all(
-        executionIds.map(async (executionId) => {
-          /** The execution route reserved these IDs before recording ownership; no client result is trusted. */
-          abortManualExecution(executionId)
-          await markExecutionCancelled(executionId)
-        })
-      )
-    }
-    const recoverCommands = async () => {
-      const signal = AbortSignal.timeout(8000)
-      const processes = await getUnsettledStreamSandboxProcesses(streamId, userId).catch(
-        (error) => {
-          logger.warn('Stopped stream sandbox ownership could not be read', {
-            streamId,
-            error: getErrorMessage(error),
-          })
-          return []
-        }
-      )
-      await recoverSandboxProcesses(processes, signal)
-    }
-    const [settled, worker] = await Promise.all([
-      waitForPendingChatStream(chatId, 8000, streamId),
-      workerStop,
-      recoverCommands(),
-      cancelClientWorkflows().catch((error) => {
-        logger.warn('Stopped stream workflow cancellation could not be delivered', {
-          streamId,
-          error: getErrorMessage(error),
-        })
-      }),
-    ])
-    if (!settled) {
-      await releasePendingChatStream(chatId, streamId)
-      logger.warn('Stopped stream did not settle; released its chat lock', { chatId, streamId })
-      return { aborted: true, settled: false, forceReleased: true }
-    }
+    /** Read alongside the signals, which need none of it. */
+    const work = readStoppedRunWork(streamId, userId)
+    const { settled, workerSettled } = await deliverRunStop(
+      { id: run.id, streamId, userId, chatId, desktopDeviceId: run.desktopDeviceId },
+      work
+    )
+    if (!settled) return { aborted: true, settled: false, forceReleased: true }
     const toolsSettled = await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {
       logger.warn('Stopped stream tool settlement could not be verified', {
         streamId,
@@ -217,7 +174,7 @@ export const abortRun = defineAuthorizedChatUseCase({
       })
       return false
     })
-    return { aborted: true, settled: worker.settled && toolsSettled }
+    return { aborted: true, settled: workerSettled && toolsSettled }
   },
 })
 

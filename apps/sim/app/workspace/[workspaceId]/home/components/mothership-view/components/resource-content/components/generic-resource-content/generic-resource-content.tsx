@@ -1,73 +1,8 @@
-'use client'
-
-import { useEffect, useRef } from 'react'
-import { PillsRing } from '@sim/emcn'
-import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
-import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
-
-interface GenericResourceContentProps {
-  data: GenericResourceData
-}
-
-// TODO: Emir — replace with rich UI (status icons, collapsible result cards, copy-to-clipboard, etc.)
-export function GenericResourceContent({ data }: GenericResourceContentProps) {
-  const bottomRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = bottomRef.current
-    const container = el?.parentElement
-    if (container) {
-      container.scrollTop = container.scrollHeight
-    }
-  }, [data.entries.length])
-
-  if (data.entries.length === 0) {
-    return (
-      <div className='flex h-full items-center justify-center'>
-        <p className='text-[var(--text-muted)] text-small'>No results yet</p>
-      </div>
-    )
-  }
-
+/** The panel for a `generic` resource, which carries no content of its own. */
+export function GenericResourceContent() {
   return (
-    <div className='flex h-full flex-col divide-y divide-[var(--border)] overflow-y-auto [scrollbar-gutter:stable]'>
-      {data.entries.map((entry) => (
-        <div key={entry.toolCallId} className='flex flex-col gap-2 px-4 py-3'>
-          <div className='flex items-center gap-2'>
-            {entry.status === 'executing' && (
-              <PillsRing className='size-[14px] shrink-0 text-[var(--text-tertiary)]' animate />
-            )}
-            <span className='text-[var(--text-primary)] text-small'>
-              {getToolStatusDisplayTitle(entry.displayTitle, entry.status, entry.toolName)}
-            </span>
-            {entry.status === 'error' && (
-              <span className='ml-auto text-[var(--text-error)] text-caption'>Error</span>
-            )}
-            {entry.status === 'skipped' && (
-              <span className='ml-auto text-[var(--text-muted)] text-caption'>Skipped</span>
-            )}
-            {entry.status === 'rejected' && (
-              <span className='ml-auto text-[var(--text-muted)] text-caption'>Rejected</span>
-            )}
-          </div>
-          {entry.streamingArgs && (
-            <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-caption'>
-              {entry.streamingArgs}
-            </pre>
-          )}
-          {!entry.streamingArgs && entry.result?.output != null && (
-            <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-caption'>
-              {typeof entry.result.output === 'string'
-                ? entry.result.output
-                : JSON.stringify(entry.result.output, null, 2)}
-            </pre>
-          )}
-          {entry.result?.error && (
-            <p className='text-[var(--text-error)] text-caption'>{entry.result.error}</p>
-          )}
-        </div>
-      ))}
-      <div ref={bottomRef} />
+    <div className='flex h-full items-center justify-center'>
+      <p className='text-[var(--text-muted)] text-small'>No results yet</p>
     </div>
   )
 }

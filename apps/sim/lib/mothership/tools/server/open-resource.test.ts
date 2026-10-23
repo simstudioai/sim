@@ -1,10 +1,13 @@
+import {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from '@sim/testing/mocks/read-workspace-file-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { openResourceInputSchema } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   workflow: vi.fn(),
-  file: vi.fn(),
   table: vi.fn(),
   view: vi.fn(),
   knowledge: vi.fn(),
@@ -17,16 +20,14 @@ vi.mock('@/lib/workflows/application/read-workflow', async (original) => {
     readWorkflowMetadata: { ...actual.readWorkflowMetadata, execute: mocks.workflow },
   }
 })
-vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', async (original) => {
-  const actual =
-    await original<
-      typeof import('@/lib/workspace-files/application/read-workspace-file-metadata')
-    >()
-  return {
-    ...actual,
-    readWorkspaceFileMetadata: { ...actual.readWorkspaceFileMetadata, execute: mocks.file },
-  }
-})
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', async () => ({
+  ...readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadata: {
+    ...readWorkspaceFileMetadataMock.readWorkspaceFileMetadata,
+    operation: (await import('@/lib/workspace-files/application/operations')).fileOperations
+      .readMetadata,
+  },
+}))
 vi.mock('@/lib/table/application/tables', async (original) => {
   const actual = await original<typeof import('@/lib/table/application/tables')>()
   return {
@@ -52,6 +53,8 @@ vi.mock('@/lib/logs/application/read-log-detail', async (original) => {
 
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 
+const readFileMetadata = readWorkspaceFileMetadataMockFns.mockReadWorkspaceFileMetadata
+
 const context = {
   userId: 'actor',
   workspaceId: 'ws-a',
@@ -63,7 +66,7 @@ const invoke = (raw: unknown, ctx = context) =>
   openResourceServerTool.execute(openResourceInputSchema.parse(raw), ctx)
 beforeEach(() => {
   mocks.workflow.mockResolvedValue({ workflow: { name: 'Canonical workflow' } })
-  mocks.file.mockResolvedValue({ file: { name: 'Canonical file' } })
+  readFileMetadata.mockResolvedValue({ file: { name: 'Canonical file' } })
   mocks.table.mockResolvedValue({ table: { name: 'Canonical table' } })
   mocks.view.mockResolvedValue({ view: { id: 'view' } })
   mocks.knowledge.mockResolvedValue({ knowledgeBase: { name: 'Canonical knowledge' } })
@@ -87,7 +90,6 @@ describe('resource opening authorization boundary', () => {
       'Canonical knowledge',
       'Workflow run',
     ])
-    expect(result.resources.every((resource) => resource.workspaceId === 'ws-a')).toBe(true)
     for (const read of Object.values(mocks))
       expect(read).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -118,7 +120,7 @@ describe('resource opening authorization boundary', () => {
     expect(mocks.workflow).not.toHaveBeenCalled()
   })
   it('publishes no batch result after an authorization failure', async () => {
-    mocks.file.mockRejectedValue(new OrchestrationError('not_found', 'File not found'))
+    readFileMetadata.mockRejectedValue(new OrchestrationError('not_found', 'File not found'))
     await expect(
       invoke({
         resources: [

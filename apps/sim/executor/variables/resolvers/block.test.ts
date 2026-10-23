@@ -1,21 +1,38 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { getAllBlocks, getBlock, getBlockByToolName } from '@/blocks/registry'
 import { ExecutionState } from '@/executor/execution/state'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertImmutableFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
-  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
-  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
-}))
+const mockGetBlock = getBlock as Mock
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlockByToolName = getBlockByToolName as Mock
+mockGetBlock.mockImplementation((type: string) => MOCK_BLOCKS[type] ?? undefined)
+mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_BLOCKS))
+mockGetBlockByToolName.mockImplementation(() => undefined)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
 }))
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockResolvedValue({
+  id: 'execution-payload-file',
+})
+uploadsMetadataMockFns.mockInsertFileMetadata.mockResolvedValue({ id: 'execution-payload-file' })
+uploadsMetadataMockFns.mockDeleteFileMetadata.mockResolvedValue(undefined)
+
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 /**
  * Minimal block configs providing only the fields needed by getBlockSchema / getEffectiveBlockOutputs.
@@ -127,26 +144,6 @@ const MOCK_BLOCKS = vi.hoisted(
       },
     }) as Record<string, any>
 )
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => MOCK_BLOCKS[type] ?? undefined,
-  registry: MOCK_BLOCKS,
-  getAllBlocks: () => Object.values(MOCK_BLOCKS),
-  getAllBlockTypes: () => Object.keys(MOCK_BLOCKS),
-  isValidBlockType: (type: string) => type in MOCK_BLOCKS,
-  getBlockByToolName: () => undefined,
-  getBlocksByCategory: () => [],
-  getLatestBlock: () => undefined,
-}))
-vi.mock('@/blocks', () => ({
-  getBlock: (type: string) => MOCK_BLOCKS[type] ?? undefined,
-  registry: MOCK_BLOCKS,
-  getAllBlocks: () => Object.values(MOCK_BLOCKS),
-  getAllBlockTypes: () => Object.keys(MOCK_BLOCKS),
-  isValidBlockType: (type: string) => type in MOCK_BLOCKS,
-  getBlockByToolName: () => undefined,
-  getBlocksByCategory: () => [],
-}))
 
 function createTestWorkflow(
   blocks: Array<{

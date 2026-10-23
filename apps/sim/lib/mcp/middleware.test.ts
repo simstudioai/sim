@@ -5,55 +5,37 @@
  * would have reproduced exactly that, so these assertions are about the wrapper
  * every one of them shares.
  */
-import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import {
+  createMockRequest,
+  createRouteContext,
+  hybridAuthMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
-  permissions: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', async () => {
-  const AuthType = { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' } as const
-  return {
-    AuthType,
-    checkSessionOrInternalAuth: mocks.auth,
-    capabilityGovernedAuthUserId: (auth: {
-      userId?: string
-      authType?: string
-      apiKeyType?: string
-    }) => {
-      if (!auth?.userId) return null
-      if (auth.authType === AuthType.SESSION) return auth.userId
-      return auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal'
-        ? auth.userId
-        : null
-    },
-  }
-})
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mocks.permissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  auth: hybridAuthMockFns.mockCheckSessionOrInternalAuth,
+  permissions: permissionsMockFns.mockGetUserEntityPermissions,
+}
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 const handler = vi.fn(async () => Response.json({ ok: true }) as never)
 
 function request() {
-  return new Request('http://localhost:3000/api/mcp/anything?workspaceId=workspace-1', {
-    method: 'POST',
-  }) as NextRequest
+  return createMockRequest({ method: 'POST', url: '/api/mcp/anything?workspaceId=workspace-1' })
 }
 
 function call(capability: 'deploy.mcp' | 'mcp_tools.use' | 'none') {
-  return withMcpAuth('write', capability)(handler)(request(), {
-    params: Promise.resolve({}),
-  })
+  return withMcpAuth('write', capability)(handler)(request(), createRouteContext({}))
 }
 
 describe('withMcpAuth permission-group gate', () => {

@@ -25,7 +25,7 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id }),
   useCase: getOrganizationWhitelabel,
-  present: (data) => ({ success: true, data }),
+  present: ({ settings, isEnterprise }) => ({ success: true, data: settings, isEnterprise }),
 })
 
 export const PUT = defineInternalJsonRoute({

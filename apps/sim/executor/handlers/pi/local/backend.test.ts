@@ -39,6 +39,7 @@ const mockAgentSession = {
 }
 const mockSdk = {
   defineTool: vi.fn((tool) => tool),
+  SettingsManager: { inMemory: () => ({}) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
 }
@@ -53,8 +54,8 @@ vi.mock('@/executor/handlers/pi/core/context', () => ({
 vi.mock('@/executor/handlers/pi/core/keys', () => ({ mapThinkingLevel: () => 'medium' }))
 // `toPiTool` stays real so these tests cover its distinct success-content and error-diagnostic
 // boundaries rather than passing through a stub.
-vi.mock('@/executor/handlers/pi/core/pi-sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/executor/handlers/pi/core/pi-sdk')>()),
+vi.mock('@/executor/handlers/pi/core/sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/executor/handlers/pi/core/sdk')>()),
   loadPiSdk: () => Promise.resolve(mockSdk),
   createPiModelRuntime: mockCreatePiModelRuntime,
   resolvePiSdkModel: () => ({ id: 'claude', provider: 'anthropic' }),

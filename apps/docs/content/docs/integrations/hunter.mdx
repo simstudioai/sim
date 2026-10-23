@@ -1,25 +1,21 @@
 ---
 title: Hunter.io
 description: Find and verify professional email addresses
+integration:
+  type: "hunter"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="hunter"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Hunter.io](https://hunter.io/) to find and verify professional emails, search company domains, discover companies, and enrich company information.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.
-
-
+Search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.
 
 ## Actions
 
@@ -52,6 +48,8 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 ### Hunter Domain Search
 
 Returns all the email addresses found using one given domain name, with sources.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +97,13 @@ Returns all the email addresses found using one given domain name, with sources.
 | `organization` | string | The organization/company name |
 | `linked_domains` | array | Other domains linked to the organization |
 
+</ReferenceDetails>
+
 ### Hunter Email Finder
 
 Finds the most likely email address for a person given their name and company domain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +140,13 @@ Finds the most likely email address for a person given their name and company do
 | `phone_number` | string | Phone number |
 | `company` | string | Company name |
 
+</ReferenceDetails>
+
 ### Hunter Email Verifier
 
 Verifies the deliverability of an email address and provides detailed verification status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,6 +178,8 @@ Verifies the deliverability of an email address and provides detailed verificati
 | `accept_all` | boolean | Whether the server accepts all email addresses \(may cause false positives\) |
 | `block` | boolean | Whether the domain is blocking verification \(validity could not be determined\) |
 | `status` | string | Verification status: valid, invalid, accept_all, webmail, disposable, unknown, or blocked |
+
+</ReferenceDetails>
 
 ### Hunter Companies Find
 
@@ -211,6 +219,8 @@ Enriches company data using domain name.
 
 Returns the total number of email addresses found for a domain or company.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -246,5 +256,7 @@ Returns the total number of email addresses found for a domain or company.
 | `total` | number | Total number of email addresses found |
 | `personal_emails` | number | Number of personal email addresses \(individual employees\) |
 | `generic_emails` | number | Number of generic/role-based email addresses \(e.g., contact@, info@\) |
+
+</ReferenceDetails>
 
 

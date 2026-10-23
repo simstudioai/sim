@@ -285,6 +285,11 @@ function reconnectStreamKey(workflowId: string, executionId: string): string {
   return `${workflowId}:reconnect:${executionId}`
 }
 
+/** Whether a reconnect stream for this execution is currently open in this tab. */
+export function isReconnectStreamOpen(workflowId: string, executionId: string): boolean {
+  return sharedAbortControllers.has(reconnectStreamKey(workflowId, executionId))
+}
+
 function abortStream(key: string): void {
   const controller = sharedAbortControllers.get(key)
   if (!controller) return

@@ -1,87 +1,63 @@
 import { db } from '@sim/db'
 import { member, user } from '@sim/db/schema'
 import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingCoreMock } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  MockInvitationsNotAllowedError,
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockInvitationsNotAllowedError,
-  mockGetInvitationById,
-  mockResolveInvitationAdmissionOrganizationId,
-  mockIsOrganizationOwnerOrAdmin,
-  mockHasWorkspaceAdminAccess,
-  mockGetWorkspaceWithOwner,
-  mockGetWorkspaceInvitePolicy,
-  mockValidateInvitationsAllowed,
-  mockSendInvitationEmail,
-  mockPrepareInvitationResend,
-  mockRevertInvitationResend,
-  mockGetOrganizationSubscription,
-} = vi.hoisted(() => ({
-  MockInvitationsNotAllowedError: class extends Error {
-    constructor() {
-      super('Invitations are not allowed based on your permission group settings')
-      this.name = 'InvitationsNotAllowedError'
-    }
-  },
-  mockGetInvitationById: vi.fn(),
-  mockResolveInvitationAdmissionOrganizationId: vi.fn(),
-  mockIsOrganizationOwnerOrAdmin: vi.fn(),
-  mockHasWorkspaceAdminAccess: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockGetWorkspaceInvitePolicy: vi.fn(),
-  mockValidateInvitationsAllowed: vi.fn(),
-  mockSendInvitationEmail: vi.fn(),
-  mockPrepareInvitationResend: vi.fn(),
-  mockRevertInvitationResend: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { INVITATION_RESENT: 'invitation.resent', ORG_INVITATION_RESENT: 'org.resent' },
-  AuditResourceType: { WORKSPACE: 'workspace', ORGANIZATION: 'organization' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  InvitationsNotAllowedError: MockInvitationsNotAllowedError,
-  validateInvitationsAllowed: mockValidateInvitationsAllowed,
-}))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
-vi.mock('@/lib/invitations/core', () => ({
-  getInvitationById: mockGetInvitationById,
-  resolveInvitationAdmissionOrganizationId: mockResolveInvitationAdmissionOrganizationId,
-  requireInvitationResendAuthority: vi.fn(),
-}))
-vi.mock('@/lib/invitations/send', () => ({
-  sendInvitationEmail: mockSendInvitationEmail,
-  prepareInvitationResend: mockPrepareInvitationResend,
-  revertInvitationResend: mockRevertInvitationResend,
-}))
-vi.mock('@/lib/billing/core/organization', () => ({
-  isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
-  WORKSPACE_MODE: { ORGANIZATION: 'organization' },
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import type { PreparedInvitationResend } from '@/lib/invitations/send'
 import { POST } from '@/app/api/invitations/[id]/resend/route'
 
+const { mockGetWorkspaceInvitePolicy } = workspacesPolicyMockFns
+const { mockSendInvitationEmail, mockPrepareInvitationResend, mockRevertInvitationResend } =
+  invitationsSendMockFns
+const { mockGetInvitationById, mockResolveInvitationAdmissionOrganizationId } =
+  invitationsCoreMockFns
+const { mockIsOrganizationOwnerOrAdmin } = billingOrganizationMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockHasWorkspaceAdminAccess = permissionsMockFns.mockHasWorkspaceAdminAccess
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
+const mockValidateInvitationsAllowed = permissionCheckMockFns.mockValidateInvitationsAllowed
 
 function callResend() {
   return POST(
@@ -91,7 +67,7 @@ function callResend() {
       {},
       'http://localhost:3000/api/invitations/11111111-1111-4111-8111-111111111111/resend'
     ),
-    { params: Promise.resolve({ id: '11111111-1111-4111-8111-111111111111' }) }
+    createRouteContext({ id: '11111111-1111-4111-8111-111111111111' })
   )
 }
 

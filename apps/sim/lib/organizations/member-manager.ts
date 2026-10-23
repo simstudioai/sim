@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { findOrganizationMemberRecord } from '@/lib/organizations/queries'
@@ -23,7 +24,7 @@ export async function updateOrganizationMemberRecord(input: {
   role: 'member' | 'admin' | 'owner'
   actorUserId: string
 }) {
-  return db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
     await acquireOrganizationUserMutationLocks(tx, {
       userId: input.userId,
       organizationIds: [input.organizationId],
@@ -48,8 +49,12 @@ export async function updateOrganizationMemberRecord(input: {
       member: { ...target, role: input.role },
       previousRole: target.role,
       changed: change.changed,
+      stoppedRuns: change.changed ? change.stoppedRuns : [],
     }
   })
+  const { stoppedRuns, ...result } = updated
+  deliverRunStops(stoppedRuns)
+  return result
 }
 
 export async function removeOrganizationMemberRecord(input: {
@@ -66,7 +71,9 @@ export async function removeOrganizationMemberRecord(input: {
       .where(eq(user.id, input.userId))
       .limit(1)
     if (!external) throw new OrchestrationError('not_found', 'Member not found')
-    const removal = await removeExternalUserFromOrganizationWorkspaces(input)
+    /** The stopped runs are delivered, never returned to the response or audit. */
+    const { stoppedRuns, ...removal } = await removeExternalUserFromOrganizationWorkspaces(input)
+    deliverRunStops(stoppedRuns)
     if (!removal.success) {
       const message = removal.error || 'External workspace member not found'
       const code =
@@ -86,11 +93,12 @@ export async function removeOrganizationMemberRecord(input: {
       seatReduction: null,
     }
   }
-  const removal = await removeUserFromOrganization({
+  const { stoppedRuns, ...removal } = await removeUserFromOrganization({
     ...input,
     memberId: target.id,
     onError: 'throw',
   })
+  deliverRunStops(stoppedRuns)
   if (!removal.success) {
     const message = removal.error || 'Failed to remove user from organization'
     const code =

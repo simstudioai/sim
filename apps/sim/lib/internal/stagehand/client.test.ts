@@ -1,13 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn(),
   init: vi.fn(),
   instances: [] as Array<{ options: Record<string, unknown> }>,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { BROWSERBASE_API_KEY: 'browserbase-key', BROWSERBASE_PROJECT_ID: 'project-id' },
 }))
 
 vi.mock('@browserbasehq/stagehand', () => ({
@@ -26,7 +23,10 @@ vi.mock('@browserbasehq/stagehand', () => ({
 import { createStagehandSession } from '@/lib/internal/stagehand/client'
 
 describe('Stagehand session', () => {
+  afterAll(resetEnvMock)
+
   beforeEach(() => {
+    setEnv({ BROWSERBASE_API_KEY: 'browserbase-key', BROWSERBASE_PROJECT_ID: 'project-id' })
     mocks.instances.length = 0
     mocks.init.mockResolvedValue(undefined)
     mocks.close.mockResolvedValue(undefined)

@@ -1,31 +1,35 @@
 ---
 title: Mailchimp
 description: Manage audiences, campaigns, and marketing automation in Mailchimp
+integration:
+  type: "mailchimp"
+  color: "#FFE01B"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mailchimp"
-  color="#FFE01B"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mailchimp](https://mailchimp.com/) in Sim to manage audiences and members, campaigns, automations, templates, segments, tags, and reports. The actions below also cover merge fields, interest categories, landing pages, signup forms, and batch operations.
+
+## Member removal
+
+**Delete Member from Mailchimp Audience** calls Mailchimp's reversible archive endpoint. **Archive Member from Mailchimp Audience** instead targets permanent deletion of identifying data, after which the member cannot be re-imported. These UI labels differ from the provider's terminology.
+
+The current permanent-deletion action sends `DELETE`, while [Mailchimp documents `POST` for delete-permanent](https://mailchimp.com/developer/marketing/api/lists/members/create-member-action-delete-permanent). Its compatibility is unverified; do not rely on it for deletion until the request method is corrected and tested.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.
-
-
+Manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.
 
 ## Actions
 
 ### Get Audiences from Mailchimp
 
 Retrieve a list of audiences (lists) from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -45,9 +49,13 @@ Retrieve a list of audiences (lists) from Mailchimp
 |   ↳ `total_items` | number | Total number of lists |
 |   ↳ `total_returned` | number | Number of lists returned in this response |
 
+</ReferenceDetails>
+
 ### Get Audience from Mailchimp
 
 Retrieve details of a specific audience (list) from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -65,9 +73,13 @@ Retrieve details of a specific audience (list) from Mailchimp
 |   ↳ `list` | json | Audience/list object |
 |   ↳ `list_id` | string | The unique ID of the audience |
 
+</ReferenceDetails>
+
 ### Create Audience in Mailchimp
 
 Create a new audience (list) in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -90,9 +102,13 @@ Create a new audience (list) in Mailchimp
 |   ↳ `list_id` | string | Created audience/list ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Audience in Mailchimp
 
 Update an existing audience (list) in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -115,9 +131,13 @@ Update an existing audience (list) in Mailchimp
 |   ↳ `list_id` | string | List ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Audience from Mailchimp
 
 Delete an audience (list) from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -132,9 +152,13 @@ Delete an audience (list) from Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the audience was successfully deleted |
 
+</ReferenceDetails>
+
 ### Get Members from Mailchimp Audience
 
 Retrieve a list of members from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -156,9 +180,13 @@ Retrieve a list of members from a Mailchimp audience
 |   ↳ `total_items` | number | Total number of members |
 |   ↳ `total_returned` | number | Number of members returned in this response |
 
+</ReferenceDetails>
+
 ### Get Member from Mailchimp Audience
 
 Retrieve details of a specific member from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -177,9 +205,13 @@ Retrieve details of a specific member from a Mailchimp audience
 |   ↳ `member` | json | Member object |
 |   ↳ `subscriber_hash` | string | The MD5 hash of the member email address |
 
+</ReferenceDetails>
+
 ### Add Member to Mailchimp Audience
 
 Add a new member to a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -202,9 +234,13 @@ Add a new member to a Mailchimp audience
 |   ↳ `subscriber_hash` | string | Subscriber hash ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Add or Update Member in Mailchimp Audience
 
 Add a new member or update an existing member in a Mailchimp audience (upsert)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -228,9 +264,13 @@ Add a new member or update an existing member in a Mailchimp audience (upsert)
 |   ↳ `subscriber_hash` | string | Subscriber hash ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Member in Mailchimp Audience
 
 Update an existing member in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -254,9 +294,13 @@ Update an existing member in a Mailchimp audience
 |   ↳ `subscriber_hash` | string | Subscriber hash |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Member from Mailchimp Audience
 
-Delete a member from a Mailchimp audience
+Archive a member from a Mailchimp audience without permanently deleting their data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -270,11 +314,15 @@ Delete a member from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the member was successfully deleted |
+| `success` | boolean | Whether the archive request succeeded |
+
+</ReferenceDetails>
 
 ### Archive Member from Mailchimp Audience
 
-Permanently archive (delete) a member from a Mailchimp audience
+Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -289,12 +337,16 @@ Permanently archive (delete) a member from a Mailchimp audience
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Archive confirmation |
+| `output` | object | Permanent-deletion request confirmation |
 |   ↳ `success` | boolean | Operation success |
+
+</ReferenceDetails>
 
 ### Unarchive Member in Mailchimp Audience
 
 Restore an archived member to a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -316,9 +368,13 @@ Restore an archived member to a Mailchimp audience
 |   ↳ `subscriber_hash` | string | Subscriber hash |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Campaigns from Mailchimp
 
 Retrieve a list of campaigns from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,9 +396,13 @@ Retrieve a list of campaigns from Mailchimp
 |   ↳ `total_items` | number | Total number of campaigns |
 |   ↳ `total_returned` | number | Number of campaigns returned in this response |
 
+</ReferenceDetails>
+
 ### Get Campaign from Mailchimp
 
 Retrieve details of a specific campaign from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -360,9 +420,13 @@ Retrieve details of a specific campaign from Mailchimp
 |   ↳ `campaign` | json | Campaign object |
 |   ↳ `campaign_id` | string | The unique ID of the campaign |
 
+</ReferenceDetails>
+
 ### Create Campaign in Mailchimp
 
 Create a new campaign in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -383,9 +447,13 @@ Create a new campaign in Mailchimp
 |   ↳ `campaign_id` | string | Created campaign ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Campaign in Mailchimp
 
 Update an existing campaign in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -406,9 +474,13 @@ Update an existing campaign in Mailchimp
 |   ↳ `campaign_id` | string | Campaign ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Campaign from Mailchimp
 
 Delete a campaign from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -423,9 +495,13 @@ Delete a campaign from Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the campaign was successfully deleted |
 
+</ReferenceDetails>
+
 ### Send Campaign in Mailchimp
 
 Send a Mailchimp campaign
+
+<ReferenceDetails>
 
 #### Input
 
@@ -442,9 +518,13 @@ Send a Mailchimp campaign
 | `output` | object | Send confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Schedule Campaign in Mailchimp
 
 Schedule a Mailchimp campaign to be sent at a specific time
+
+<ReferenceDetails>
 
 #### Input
 
@@ -460,9 +540,13 @@ Schedule a Mailchimp campaign to be sent at a specific time
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the campaign was successfully scheduled |
 
+</ReferenceDetails>
+
 ### Unschedule Campaign in Mailchimp
 
 Unschedule a previously scheduled Mailchimp campaign
+
+<ReferenceDetails>
 
 #### Input
 
@@ -479,9 +563,13 @@ Unschedule a previously scheduled Mailchimp campaign
 | `output` | object | Unschedule confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Replicate Campaign in Mailchimp
 
 Create a copy of an existing Mailchimp campaign
+
+<ReferenceDetails>
 
 #### Input
 
@@ -500,9 +588,13 @@ Create a copy of an existing Mailchimp campaign
 |   ↳ `campaign_id` | string | Campaign ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Campaign Content from Mailchimp
 
 Retrieve the HTML and plain-text content for a Mailchimp campaign
+
+<ReferenceDetails>
 
 #### Input
 
@@ -519,9 +611,13 @@ Retrieve the HTML and plain-text content for a Mailchimp campaign
 | `output` | object | Campaign content data |
 |   ↳ `content` | json | Campaign content object |
 
+</ReferenceDetails>
+
 ### Set Campaign Content in Mailchimp
 
 Set the content for a Mailchimp campaign
+
+<ReferenceDetails>
 
 #### Input
 
@@ -542,9 +638,13 @@ Set the content for a Mailchimp campaign
 |   ↳ `content` | object | Campaign content object |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Automations from Mailchimp
 
 Retrieve a list of automations from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -564,9 +664,13 @@ Retrieve a list of automations from Mailchimp
 |   ↳ `total_items` | number | Total number of automations |
 |   ↳ `total_returned` | number | Number of automations returned in this response |
 
+</ReferenceDetails>
+
 ### Get Automation from Mailchimp
 
 Retrieve details of a specific automation from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -584,9 +688,13 @@ Retrieve details of a specific automation from Mailchimp
 |   ↳ `automation` | json | Automation object |
 |   ↳ `workflow_id` | string | The unique ID of the automation workflow |
 
+</ReferenceDetails>
+
 ### Start Automation in Mailchimp
 
 Start all emails in a Mailchimp automation workflow
+
+<ReferenceDetails>
 
 #### Input
 
@@ -603,9 +711,13 @@ Start all emails in a Mailchimp automation workflow
 | `output` | object | Start confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Pause Automation in Mailchimp
 
 Pause all emails in a Mailchimp automation workflow
+
+<ReferenceDetails>
 
 #### Input
 
@@ -622,9 +734,13 @@ Pause all emails in a Mailchimp automation workflow
 | `output` | object | Pause confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Add Subscriber to Automation in Mailchimp
 
 Manually add a subscriber to a workflow email queue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -644,9 +760,13 @@ Manually add a subscriber to a workflow email queue
 |   ↳ `subscriber` | json | Subscriber object |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Templates from Mailchimp
 
 Retrieve a list of templates from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -666,9 +786,13 @@ Retrieve a list of templates from Mailchimp
 |   ↳ `total_items` | number | Total number of templates |
 |   ↳ `total_returned` | number | Number of templates returned in this response |
 
+</ReferenceDetails>
+
 ### Get Template from Mailchimp
 
 Retrieve details of a specific template from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -686,9 +810,13 @@ Retrieve details of a specific template from Mailchimp
 |   ↳ `template` | json | Template object |
 |   ↳ `template_id` | string | The unique ID of the template |
 
+</ReferenceDetails>
+
 ### Create Template in Mailchimp
 
 Create a new template in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -708,9 +836,13 @@ Create a new template in Mailchimp
 |   ↳ `template_id` | string | Created template ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Template in Mailchimp
 
 Update an existing template in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -731,9 +863,13 @@ Update an existing template in Mailchimp
 |   ↳ `template_id` | string | Template ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Template from Mailchimp
 
 Delete a template from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -748,9 +884,13 @@ Delete a template from Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the template was successfully deleted |
 
+</ReferenceDetails>
+
 ### Get Campaign Reports from Mailchimp
 
 Retrieve a list of campaign reports from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -770,9 +910,13 @@ Retrieve a list of campaign reports from Mailchimp
 |   ↳ `total_items` | number | Total number of reports |
 |   ↳ `total_returned` | number | Number of reports returned in this response |
 
+</ReferenceDetails>
+
 ### Get Campaign Report from Mailchimp
 
 Retrieve the report for a specific campaign from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -790,9 +934,13 @@ Retrieve the report for a specific campaign from Mailchimp
 |   ↳ `report` | json | Campaign report object |
 |   ↳ `campaign_id` | string | The unique ID of the campaign |
 
+</ReferenceDetails>
+
 ### Get Segments from Mailchimp Audience
 
 Retrieve a list of segments from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -813,9 +961,13 @@ Retrieve a list of segments from a Mailchimp audience
 |   ↳ `total_items` | number | Total number of segments |
 |   ↳ `total_returned` | number | Number of segments returned in this response |
 
+</ReferenceDetails>
+
 ### Get Segment from Mailchimp Audience
 
 Retrieve details of a specific segment from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -834,9 +986,13 @@ Retrieve details of a specific segment from a Mailchimp audience
 |   ↳ `segment` | json | Segment object |
 |   ↳ `segment_id` | string | The unique ID of the segment |
 
+</ReferenceDetails>
+
 ### Create Segment in Mailchimp Audience
 
 Create a new segment in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -857,9 +1013,13 @@ Create a new segment in a Mailchimp audience
 |   ↳ `segment_id` | string | Created segment ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Segment in Mailchimp Audience
 
 Update an existing segment in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -881,9 +1041,13 @@ Update an existing segment in a Mailchimp audience
 |   ↳ `segment_id` | string | Segment ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Segment from Mailchimp Audience
 
 Delete a segment from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -899,9 +1063,13 @@ Delete a segment from a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the segment was successfully deleted |
 
+</ReferenceDetails>
+
 ### Get Segment Members from Mailchimp
 
 Retrieve members of a specific segment from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -923,9 +1091,13 @@ Retrieve members of a specific segment from a Mailchimp audience
 |   ↳ `total_items` | number | Total number of members |
 |   ↳ `total_returned` | number | Number of members returned in this response |
 
+</ReferenceDetails>
+
 ### Add Member to Segment in Mailchimp
 
 Add a member to a specific segment in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -945,9 +1117,13 @@ Add a member to a specific segment in a Mailchimp audience
 |   ↳ `member` | json | Added member object |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Remove Member from Segment in Mailchimp
 
 Remove a member from a specific segment in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -966,9 +1142,13 @@ Remove a member from a specific segment in a Mailchimp audience
 | `output` | object | Removal confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Member Tags from Mailchimp
 
 Retrieve tags associated with a member in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -988,9 +1168,13 @@ Retrieve tags associated with a member in a Mailchimp audience
 |   ↳ `total_items` | number | Total number of tags |
 |   ↳ `total_returned` | number | Number of tags returned in this response |
 
+</ReferenceDetails>
+
 ### Add Tags to Member in Mailchimp
 
 Add tags to a member in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1009,9 +1193,13 @@ Add tags to a member in a Mailchimp audience
 | `output` | object | Tag addition confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Remove Tags from Member in Mailchimp
 
 Remove tags from a member in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1030,9 +1218,13 @@ Remove tags from a member in a Mailchimp audience
 | `output` | object | Tag removal confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Merge Fields from Mailchimp Audience
 
 Retrieve a list of merge fields from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1053,9 +1245,13 @@ Retrieve a list of merge fields from a Mailchimp audience
 |   ↳ `total_items` | number | Total number of merge fields |
 |   ↳ `total_returned` | number | Number of merge fields returned in this response |
 
+</ReferenceDetails>
+
 ### Get Merge Field from Mailchimp Audience
 
 Retrieve details of a specific merge field from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1074,9 +1270,13 @@ Retrieve details of a specific merge field from a Mailchimp audience
 |   ↳ `mergeField` | json | Merge field object |
 |   ↳ `merge_id` | string | The unique ID of the merge field |
 
+</ReferenceDetails>
+
 ### Create Merge Field in Mailchimp Audience
 
 Create a new merge field in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1097,9 +1297,13 @@ Create a new merge field in a Mailchimp audience
 |   ↳ `merge_id` | string | Created merge field ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Merge Field in Mailchimp Audience
 
 Update an existing merge field in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1120,9 +1324,13 @@ Update an existing merge field in a Mailchimp audience
 |   ↳ `merge_id` | string | Merge field ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Merge Field from Mailchimp Audience
 
 Delete a merge field from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1138,9 +1346,13 @@ Delete a merge field from a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the merge field was successfully deleted |
 
+</ReferenceDetails>
+
 ### Get Interest Categories from Mailchimp Audience
 
 Retrieve a list of interest categories from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1161,9 +1373,13 @@ Retrieve a list of interest categories from a Mailchimp audience
 |   ↳ `total_items` | number | Total number of categories |
 |   ↳ `total_returned` | number | Number of categories returned in this response |
 
+</ReferenceDetails>
+
 ### Get Interest Category from Mailchimp Audience
 
 Retrieve details of a specific interest category from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1182,9 +1398,13 @@ Retrieve details of a specific interest category from a Mailchimp audience
 |   ↳ `category` | json | Interest category object |
 |   ↳ `interest_category_id` | string | The unique ID of the interest category |
 
+</ReferenceDetails>
+
 ### Create Interest Category in Mailchimp Audience
 
 Create a new interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1205,9 +1425,13 @@ Create a new interest category in a Mailchimp audience
 |   ↳ `interest_category_id` | string | Created interest category ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Interest Category in Mailchimp Audience
 
 Update an existing interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1228,9 +1452,13 @@ Update an existing interest category in a Mailchimp audience
 |   ↳ `interest_category_id` | string | Interest category ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Interest Category from Mailchimp Audience
 
 Delete an interest category from a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1246,9 +1474,13 @@ Delete an interest category from a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the interest category was successfully deleted |
 
+</ReferenceDetails>
+
 ### Get Interests from Mailchimp Interest Category
 
 Retrieve a list of interests from an interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1270,9 +1502,13 @@ Retrieve a list of interests from an interest category in a Mailchimp audience
 |   ↳ `total_items` | number | Total number of interests |
 |   ↳ `total_returned` | number | Number of interests returned in this response |
 
+</ReferenceDetails>
+
 ### Get Interest from Mailchimp Interest Category
 
 Retrieve details of a specific interest from an interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1292,9 +1528,13 @@ Retrieve details of a specific interest from an interest category in a Mailchimp
 |   ↳ `interest` | json | Interest object |
 |   ↳ `interest_id` | string | The unique ID of the interest |
 
+</ReferenceDetails>
+
 ### Create Interest in Mailchimp Interest Category
 
 Create a new interest in an interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1315,9 +1555,13 @@ Create a new interest in an interest category in a Mailchimp audience
 |   ↳ `interest_id` | string | Created interest ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Interest in Mailchimp Interest Category
 
 Update an existing interest in an interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1339,9 +1583,13 @@ Update an existing interest in an interest category in a Mailchimp audience
 |   ↳ `interest_id` | string | Interest ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Interest from Mailchimp Interest Category
 
 Delete an interest from an interest category in a Mailchimp audience
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1358,9 +1606,13 @@ Delete an interest from an interest category in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the interest was successfully deleted |
 
+</ReferenceDetails>
+
 ### Get Landing Pages from Mailchimp
 
 Retrieve a list of landing pages from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1380,9 +1632,13 @@ Retrieve a list of landing pages from Mailchimp
 |   ↳ `total_items` | number | Total number of landing pages |
 |   ↳ `total_returned` | number | Number of landing pages returned in this response |
 
+</ReferenceDetails>
+
 ### Get Landing Page from Mailchimp
 
 Retrieve details of a specific landing page from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1400,9 +1656,13 @@ Retrieve details of a specific landing page from Mailchimp
 |   ↳ `landingPage` | json | Landing page object |
 |   ↳ `page_id` | string | The unique ID of the landing page |
 
+</ReferenceDetails>
+
 ### Create Landing Page in Mailchimp
 
 Create a new landing page in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1422,9 +1682,13 @@ Create a new landing page in Mailchimp
 |   ↳ `page_id` | string | Created landing page ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Update Landing Page in Mailchimp
 
 Update an existing landing page in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1444,9 +1708,13 @@ Update an existing landing page in Mailchimp
 |   ↳ `page_id` | string | Landing page ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Landing Page from Mailchimp
 
 Delete a landing page from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1461,9 +1729,13 @@ Delete a landing page from Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the landing page was successfully deleted |
 
+</ReferenceDetails>
+
 ### Publish Landing Page in Mailchimp
 
 Publish a landing page in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1480,9 +1752,13 @@ Publish a landing page in Mailchimp
 | `output` | object | Publish confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Unpublish Landing Page in Mailchimp
 
 Unpublish a landing page in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1499,9 +1775,13 @@ Unpublish a landing page in Mailchimp
 | `output` | object | Unpublish confirmation |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Get Batch Operations from Mailchimp
 
 Retrieve a list of batch operations from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1521,9 +1801,13 @@ Retrieve a list of batch operations from Mailchimp
 |   ↳ `total_items` | number | Total number of batch operations |
 |   ↳ `total_returned` | number | Number of batch operations returned in this response |
 
+</ReferenceDetails>
+
 ### Get Batch Operation from Mailchimp
 
 Retrieve details of a specific batch operation from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1541,9 +1825,13 @@ Retrieve details of a specific batch operation from Mailchimp
 |   ↳ `batch` | json | Batch operation object |
 |   ↳ `batch_id` | string | The unique ID of the batch operation |
 
+</ReferenceDetails>
+
 ### Create Batch Operation in Mailchimp
 
 Create a new batch operation in Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1562,9 +1850,13 @@ Create a new batch operation in Mailchimp
 |   ↳ `batch_id` | string | Created batch operation ID |
 |   ↳ `success` | boolean | Operation success |
 
+</ReferenceDetails>
+
 ### Delete Batch Operation from Mailchimp
 
 Delete a batch operation from Mailchimp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1578,5 +1870,7 @@ Delete a batch operation from Mailchimp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the batch operation was successfully deleted |
+
+</ReferenceDetails>
 
 

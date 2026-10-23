@@ -1,18 +1,19 @@
 import { db } from '@sim/db'
 import { dataDrainRuns, dataDrains } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { getDestination } from '@/lib/data-drains/destinations/registry'
 import { decryptCredentials } from '@/lib/data-drains/encryption'
+import { createCredentialErrorRedactor } from '@/lib/data-drains/errors'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import { getSource } from '@/lib/data-drains/sources/registry'
 import type { Cursor, RunTrigger } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainsService')
-
-const CHUNK_SIZE = 1000
 
 export interface RunDrainResult {
   drainId: string
@@ -23,26 +24,88 @@ export interface RunDrainResult {
   cursorBefore: Cursor
   cursorAfter: Cursor
   locators: string[]
+  hasMore: boolean
   error?: string
 }
 
 /**
  * Orchestrates one drain export. Source-/destination-agnostic — talks only to
- * the registry interfaces. The drain's cursor is advanced only when the entire
- * run completes successfully so consumers see at-least-once delivery and can
- * dedupe on the per-row `id` field.
+ * the registry interfaces. Each provider acknowledgement checkpoints its cursor;
+ * a crash between delivery and checkpoint can replay those rows, so consumers
+ * dedupe on the per-row `id` field. A database claim fences concurrent workers.
  */
 export async function runDrain(
   drainId: string,
   trigger: RunTrigger,
   options: { signal?: AbortSignal } = {}
 ): Promise<RunDrainResult> {
-  const signal = options.signal ?? new AbortController().signal
-  const [drain] = await db.select().from(dataDrains).where(eq(dataDrains.id, drainId)).limit(1)
-  if (!drain) {
-    throw new Error(`Data drain not found: ${drainId}`)
+  const startedAt = new Date()
+  const signal = AbortSignal.any([
+    ...(options.signal ? [options.signal] : []),
+    AbortSignal.timeout(DATA_DRAIN_LIMITS.hardDurationMs),
+  ])
+  signal.throwIfAborted()
+  const [snapshot] = await db
+    .select({
+      organizationId: dataDrains.organizationId,
+      enabled: dataDrains.enabled,
+      cursor: dataDrains.cursor,
+    })
+    .from(dataDrains)
+    .where(eq(dataDrains.id, drainId))
+    .limit(1)
+  if (!snapshot) throw new Error(`Data drain not found: ${drainId}`)
+  if (
+    !snapshot.enabled ||
+    (!isBillingEnabled && !isDataDrainsEnabled) ||
+    (isBillingEnabled && !(await isOrganizationOnEnterprisePlan(snapshot.organizationId)))
+  ) {
+    return {
+      drainId,
+      runId: '',
+      status: 'skipped',
+      rowsExported: 0,
+      bytesWritten: 0,
+      cursorBefore: snapshot.cursor,
+      cursorAfter: snapshot.cursor,
+      locators: [],
+      hasMore: false,
+    }
   }
-  if (!drain.enabled) {
+  const runId = generateId()
+  const claim = await db.transaction(async (tx) => {
+    const [drain] = await tx
+      .select()
+      .from(dataDrains)
+      .where(eq(dataDrains.id, drainId))
+      .limit(1)
+      .for('update')
+    if (!drain) throw new Error(`Data drain not found: ${drainId}`)
+    if (!drain.enabled) return { drain, claimed: false }
+    const [running] = await tx
+      .select({ id: dataDrainRuns.id })
+      .from(dataDrainRuns)
+      .where(and(eq(dataDrainRuns.drainId, drainId), eq(dataDrainRuns.status, 'running')))
+      .limit(1)
+    if (running) return { drain, claimed: false }
+    signal.throwIfAborted()
+    await tx.insert(dataDrainRuns).values({
+      id: runId,
+      drainId,
+      status: 'running',
+      trigger,
+      startedAt,
+      cursorBefore: drain.cursor,
+      cursorAfter: drain.cursor,
+    })
+    await tx
+      .update(dataDrains)
+      .set({ lastRunAt: startedAt, updatedAt: startedAt })
+      .where(eq(dataDrains.id, drainId))
+    return { drain, claimed: true }
+  })
+  const { drain } = claim
+  if (!claim.claimed) {
     return {
       drainId,
       runId: '',
@@ -52,28 +115,20 @@ export async function runDrain(
       cursorBefore: drain.cursor,
       cursorAfter: drain.cursor,
       locators: [],
+      hasMore: false,
     }
   }
 
   const source = getSource(drain.source)
   const destination = getDestination(drain.destinationType)
 
-  const runId = generateId()
-  const startedAt = new Date()
-  await db.insert(dataDrainRuns).values({
-    id: runId,
-    drainId,
-    status: 'running',
-    trigger,
-    startedAt,
-    cursorBefore: drain.cursor,
-  })
-
   const cursorBefore = drain.cursor
   let cursor: Cursor = drain.cursor
+  let checkpointCursor: Cursor = drain.cursor
   let rowsExported = 0
   let bytesWritten = 0
   let sequence = 0
+  let hasMore = false
   const locators: string[] = []
 
   /**
@@ -83,24 +138,92 @@ export async function runDrain(
    * background-job logs while `lastRunAt` quietly advances.
    */
   let session: ReturnType<typeof destination.openSession> | null = null
+  let redactError = createCredentialErrorRedactor()
+
+  async function checkpoint(status: 'running' | 'success'): Promise<void> {
+    const now = new Date()
+    await db.transaction(async (tx) => {
+      const [currentDrain] = await tx
+        .select({ cursor: dataDrains.cursor })
+        .from(dataDrains)
+        .where(eq(dataDrains.id, drainId))
+        .limit(1)
+        .for('update')
+      const [currentRun] = await tx
+        .select({ status: dataDrainRuns.status })
+        .from(dataDrainRuns)
+        .where(eq(dataDrainRuns.id, runId))
+        .limit(1)
+        .for('update')
+      if (
+        !currentDrain ||
+        currentRun?.status !== 'running' ||
+        currentDrain.cursor !== checkpointCursor
+      ) {
+        throw new Error('Data drain run lease lost')
+      }
+      await tx
+        .update(dataDrains)
+        .set({
+          cursor,
+          ...(status === 'success' ? { lastSuccessAt: now } : {}),
+          updatedAt: now,
+        })
+        .where(eq(dataDrains.id, drainId))
+      await tx
+        .update(dataDrainRuns)
+        .set({
+          status,
+          ...(status === 'success' ? { finishedAt: now } : {}),
+          rowsExported,
+          bytesWritten,
+          cursorAfter: cursor,
+          locators,
+          error: null,
+        })
+        .where(eq(dataDrainRuns.id, runId))
+    })
+    checkpointCursor = cursor
+  }
 
   try {
     const config = destination.configSchema.parse(drain.destinationConfig)
-    const credentials = destination.credentialsSchema.parse(
-      await decryptCredentials(drain.destinationCredentials)
-    )
+    const savedCredentials = await decryptCredentials(drain.destinationCredentials)
+    redactError = createCredentialErrorRedactor(savedCredentials)
+    const credentials = destination.credentialsSchema.parse(savedCredentials)
     const activeSession = destination.openSession({ config, credentials })
     session = activeSession
 
-    for await (const chunk of source.pages({
-      organizationId: drain.organizationId,
-      cursor,
-      chunkSize: CHUNK_SIZE,
-      signal,
-    })) {
-      const ndjson = `${chunk.map((row) => JSON.stringify(source.serialize(row))).join('\n')}\n`
-      const body = Buffer.from(ndjson, 'utf8')
+    let lines: string[] = []
+    let rowCursors: Cursor[] = []
+    let lineSizes: number[] = []
+    let chunkBytes = 0
+    const softDeadline = startedAt.getTime() + DATA_DRAIN_LIMITS.softDurationMs
 
+    async function deliverChunk(): Promise<void> {
+      if (lines.length === 0) return
+      signal.throwIfAborted()
+      const rowCount = lines.length
+      const body = Buffer.from(`${lines.join('\n')}\n`, 'utf8')
+      let acknowledgedRows = 0
+      const acknowledge = async (result: { locator: string; rowCount: number }) => {
+        if (
+          !Number.isInteger(result.rowCount) ||
+          result.rowCount <= 0 ||
+          acknowledgedRows + result.rowCount > rowCount
+        ) {
+          throw new Error('Invalid data drain delivery acknowledgement')
+        }
+        const nextRows = acknowledgedRows + result.rowCount
+        locators.push(result.locator)
+        rowsExported += result.rowCount
+        for (let index = acknowledgedRows; index < nextRows; index++) {
+          bytesWritten += lineSizes[index]
+        }
+        cursor = rowCursors[nextRows - 1]
+        await checkpoint('running')
+        acknowledgedRows = nextRows
+      }
       const result = await runWithOutboundOrganization(drain.organizationId, () =>
         activeSession.deliver({
           body,
@@ -110,48 +233,82 @@ export async function runDrain(
             runId,
             source: drain.source,
             sequence,
-            rowCount: chunk.length,
+            rowCount,
             runStartedAt: startedAt,
           },
           signal,
+          acknowledge,
         })
       )
-
-      locators.push(result.locator)
-      rowsExported += chunk.length
-      bytesWritten += body.byteLength
-      cursor = source.cursorAfter(chunk[chunk.length - 1])
+      if (acknowledgedRows === 0) await acknowledge({ locator: result.locator, rowCount })
+      if (acknowledgedRows !== rowCount) {
+        throw new Error('Incomplete data drain delivery acknowledgement')
+      }
       sequence++
+      lines = []
+      rowCursors = []
+      lineSizes = []
+      chunkBytes = 0
+    }
+
+    function runWindowFull(): boolean {
+      return (
+        sequence >= DATA_DRAIN_LIMITS.maxChunksPerRun ||
+        rowsExported >= DATA_DRAIN_LIMITS.maxRowsPerRun ||
+        bytesWritten >= DATA_DRAIN_LIMITS.maxBytesPerRun ||
+        Date.now() >= softDeadline
+      )
+    }
+
+    pages: for await (const chunk of source.pages({
+      organizationId: drain.organizationId,
+      cursor,
+      chunkSize: DATA_DRAIN_LIMITS.pageRows,
+      signal,
+    })) {
+      for (const row of chunk) {
+        if (runWindowFull() || rowsExported + lines.length >= DATA_DRAIN_LIMITS.maxRowsPerRun) {
+          await deliverChunk()
+          hasMore = true
+          break pages
+        }
+        const line = JSON.stringify(source.serialize(row))
+        const rowBytes = Buffer.byteLength(line, 'utf8')
+        if (rowBytes > DATA_DRAIN_LIMITS.maxRowBytes) {
+          throw new Error(
+            `Data drain record is ${rowBytes} bytes, exceeds the ${DATA_DRAIN_LIMITS.maxRowBytes}-byte limit`
+          )
+        }
+        const lineBytes = rowBytes + 1
+        if (chunkBytes + lineBytes > DATA_DRAIN_LIMITS.maxChunkBytes) {
+          await deliverChunk()
+          if (runWindowFull()) {
+            hasMore = true
+            break pages
+          }
+        }
+        if (bytesWritten + chunkBytes + lineBytes > DATA_DRAIN_LIMITS.maxBytesPerRun) {
+          await deliverChunk()
+          hasMore = true
+          break pages
+        }
+        lines.push(line)
+        rowCursors.push(source.cursorAfter(row))
+        lineSizes.push(lineBytes)
+        chunkBytes += lineBytes
+      }
+      await deliverChunk()
+      if (runWindowFull()) {
+        hasMore = true
+        break
+      }
     }
 
     if (signal.aborted) {
       throw new Error('Data drain run cancelled')
     }
 
-    const finishedAt = new Date()
-    await db.transaction(async (tx) => {
-      await tx
-        .update(dataDrains)
-        .set({
-          cursor,
-          lastRunAt: finishedAt,
-          lastSuccessAt: finishedAt,
-          updatedAt: finishedAt,
-        })
-        .where(eq(dataDrains.id, drainId))
-      await tx
-        .update(dataDrainRuns)
-        .set({
-          status: 'success',
-          finishedAt,
-          rowsExported,
-          bytesWritten,
-          cursorAfter: cursor,
-          locators,
-          error: null,
-        })
-        .where(eq(dataDrainRuns.id, runId))
-    })
+    await checkpoint('success')
 
     logger.info('Data drain run succeeded', {
       drainId,
@@ -161,6 +318,7 @@ export async function runDrain(
       rowsExported,
       bytesWritten,
       chunks: sequence,
+      hasMore,
     })
 
     return {
@@ -172,16 +330,27 @@ export async function runDrain(
       cursorBefore,
       cursorAfter: cursor,
       locators,
+      hasMore,
     }
   } catch (error) {
     const finishedAt = new Date()
-    const message = toError(error).message
+    const message = redactError(error)
     try {
       await db.transaction(async (tx) => {
         await tx
-          .update(dataDrains)
-          .set({ lastRunAt: finishedAt, updatedAt: finishedAt })
+          .select({ id: dataDrains.id })
+          .from(dataDrains)
           .where(eq(dataDrains.id, drainId))
+          .limit(1)
+          .for('update')
+        const [currentRun] = await tx
+          .select({ status: dataDrainRuns.status, cursorAfter: dataDrainRuns.cursorAfter })
+          .from(dataDrainRuns)
+          .where(eq(dataDrainRuns.id, runId))
+          .limit(1)
+          .for('update')
+        if (currentRun?.status !== 'running') return
+        await tx.update(dataDrains).set({ updatedAt: finishedAt }).where(eq(dataDrains.id, drainId))
         await tx
           .update(dataDrainRuns)
           .set({
@@ -189,9 +358,9 @@ export async function runDrain(
             finishedAt,
             rowsExported,
             bytesWritten,
-            cursorAfter: cursorBefore,
+            cursorAfter: currentRun.cursorAfter,
             locators,
-            error: message.slice(0, 4000),
+            error: message,
           })
           .where(eq(dataDrainRuns.id, runId))
       })
@@ -202,7 +371,7 @@ export async function runDrain(
         drainId,
         runId,
         deliveryError: message,
-        statusError: toError(statusError).message,
+        statusError: redactError(statusError),
       })
     }
 
@@ -214,7 +383,7 @@ export async function runDrain(
       error: message,
     })
 
-    throw error
+    throw new Error(message)
   } finally {
     if (session) {
       try {
@@ -223,7 +392,7 @@ export async function runDrain(
         logger.warn('Data drain session close failed', {
           drainId,
           runId,
-          error: toError(closeError).message,
+          error: redactError(closeError),
         })
       }
     }

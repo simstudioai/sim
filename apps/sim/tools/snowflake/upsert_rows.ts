@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeUpsertRowsParams } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -36,6 +37,7 @@ function parseMatchColumns(value: unknown): string[] {
 export const upsertRowsTool: ToolConfig<SnowflakeUpsertRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_upsert_rows',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Upsert Rows',
   description: 'Update matching rows and insert unmatched rows with a bound MERGE statement.',
   params: {

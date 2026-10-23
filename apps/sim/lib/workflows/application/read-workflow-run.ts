@@ -1,10 +1,12 @@
 import { isValidUuid } from '@sim/utils/id'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
   FunctionalOutputsUnavailableError,
 } from '@/lib/logs/execution/functional-outputs'
-import { logProjectionSubjectUserId } from '@/lib/logs/log-projection'
+import { logProjectionSubjectUserId } from '@/lib/logs/projection'
+import { admitRunFiles } from '@/lib/workflows/application/admit-run-files'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -61,6 +63,8 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
       assertedWorkflowId: input.workflowId,
     }),
   async execute({ principal, context, input }) {
+    /** Only inlined file bytes are sourced content here; they are admitted per file below. */
+    await admitContent(principal, [])
     try {
       /**
        * The projection subject, not an attribution: a workspace API key
@@ -122,12 +126,24 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
           workflowId: context.workflowId,
           runId: context.runId,
         })
+        const includeBase64 = input.includeFileBase64 === true
+        /** Inlined base64 is opaque to text redaction, so each file is inlined only if admitted. */
+        const inlineable =
+          runFiles && includeBase64
+            ? await admitRunFiles(
+                principal,
+                context.workspaceId,
+                [...runFiles.filesById.values()],
+                'opaque'
+              )
+            : undefined
         files = runFiles
           ? await describeWorkflowRunFiles(runFiles.filesById, {
               workflowId: context.workflowId,
               runId: context.runId,
-              includeBase64: input.includeFileBase64 === true,
+              includeBase64,
               base64MaxBytes: input.base64MaxBytes,
+              ...(inlineable ? { inlineable } : {}),
             })
           : []
       }

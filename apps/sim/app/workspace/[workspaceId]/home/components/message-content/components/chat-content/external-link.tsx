@@ -2,10 +2,8 @@
 
 import { createContext, type ReactNode, useContext } from 'react'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import {
-  handleExternalLinkClick,
-  PROSE_LINK_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
+import { PROSE_LINK_CLASS } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import { SourcePreview } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-preview'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
@@ -20,6 +18,7 @@ interface ExternalLinkProps {
 /** The anchor stays inline so long link text wraps with the surrounding prose. */
 export function ExternalLink({ href, children }: ExternalLinkProps) {
   const source = useContext(LinkSourcesContext).get(href) ?? { url: href }
+  const navigate = useSourceNavigation(source)
   return (
     <SourcePreview key={source.url} source={source}>
       <a
@@ -27,7 +26,8 @@ export function ExternalLink({ href, children }: ExternalLinkProps) {
         className={PROSE_LINK_CLASS}
         target='_blank'
         rel='noopener noreferrer'
-        onClick={(event) => handleExternalLinkClick(event, href)}
+        onClick={navigate}
+        onAuxClick={navigate}
       >
         <span aria-hidden className='mr-1 inline-flex items-center align-middle'>
           <SourceIcon source={source} />

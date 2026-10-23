@@ -2,7 +2,6 @@ import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { MicrosoftAdResponse } from '@/tools/microsoft_ad/types'
 
 /** Operations that act on a single user and therefore require the User ID field. */
 const USER_ID_OPERATIONS = [
@@ -124,12 +123,12 @@ const DIRECTORY_ROLE_OPERATIONS = [
   'remove_directory_role_member',
 ]
 
-export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
+export const MicrosoftAdBlock: BlockConfig = {
   type: 'microsoft_ad',
   name: 'Azure AD',
   description: 'Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)',
   longDescription:
-    'Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.',
+    'Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,

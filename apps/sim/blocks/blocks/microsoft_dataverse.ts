@@ -4,7 +4,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DataverseResponse } from '@/tools/microsoft_dataverse/types'
 
 /** Canonical upload pair for the file column payload, basic then advanced. */
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
@@ -17,7 +16,7 @@ export const MicrosoftDataverseBlock = {
   description: 'Manage records in Microsoft Dataverse tables',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.',
+    'Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_dataverse',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -791,7 +790,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       description: 'Full raw table metadata response (get table metadata)',
     },
   },
-} satisfies BlockConfig<DataverseResponse>
+} satisfies BlockConfig
 
 export const MicrosoftDataverseV2Block: BlockConfig = {
   ...MicrosoftDataverseBlock,

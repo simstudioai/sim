@@ -6,15 +6,15 @@ import JSZip from 'jszip'
 import { readZipCentralDirectoryStats } from '@/lib/file-parsers/zip-guard'
 import { buildFolderPath, FolderPathError } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
-import { archiveWorkspaceFileFolderIfEmpty } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { archiveWorkspaceFileFolderIfEmpty } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   purgeCreatedWorkspaceFile,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
-import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/folders'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import type { UserFile } from '@/executor/types'
 
@@ -154,17 +154,27 @@ type InflateResult =
 const inflateEntryWithinCaps = (
   entry: JSZip.JSZipObject,
   remainingTotalBudget: number,
-  retain: boolean
+  retain: boolean,
+  signal?: AbortSignal
 ): Promise<InflateResult> =>
   new Promise((resolve, reject) => {
+    signal?.throwIfAborted()
     const chunks: Buffer[] = []
     let size = 0
     let settled = false
     const stream = entry.nodeStream() as Readable
 
+    const abort = () => {
+      if (settled) return
+      settled = true
+      stream.destroy()
+      reject(signal?.reason)
+    }
+    signal?.addEventListener('abort', abort, { once: true })
     const settle = (result: InflateResult) => {
       if (settled) return
       settled = true
+      signal?.removeEventListener('abort', abort)
       stream.destroy()
       resolve(result)
     }
@@ -187,6 +197,7 @@ const inflateEntryWithinCaps = (
     stream.on('error', () => {
       if (settled) return
       settled = true
+      signal?.removeEventListener('abort', abort)
       stream.destroy()
       // A stream error here means the entry's compressed data is corrupt or
       // truncated (it passed the central-directory parse) — surface it under the
@@ -258,74 +269,43 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
   )
 }
 
-/**
- * Decompress an archive buffer into workspace files under `rootFolderSegments`
- * (default: the workspace root). Reuses the same caps and zip-slip / zip-bomb /
- * symlink guards everywhere. Throws {@link ArchiveError} for an invalid archive
- * or a cap violation; returns `{ extracted: [] }` when every entry was skipped.
- *
- * All-or-nothing: pass 1 inflates every entry through a discarding counting sink
- * to enforce the per-entry and total caps on REAL inflated bytes (declared sizes
- * can lie), and nothing is uploaded until the whole archive has passed — so a
- * mid-archive violation never leaves a partial tree in the workspace. Pass 2
- * re-inflates and uploads one entry at a time. Peak memory stays ~one entry in
- * both passes; the cost is inflating twice (CPU only, bounded by the caps).
- *
- * `signal` aborts between entries in both passes. Callers that hold a lease or run
- * under a request deadline must pass one: the write loop is otherwise unbounded, and a
- * process killed mid-pass-2 strands a partial tree that no `catch` can roll back.
- * Aborting instead unwinds through the same all-or-nothing rollback as any other failure.
- *
- * When `prepareRootFolder` is provided it takes precedence over
- * `rootFolderSegments`: it runs once, only after the caps have been proven and
- * only when at least one safe entry exists, and extraction lands under the
- * segments it returns. It must create exactly one folder, and must pass its
- * final segments to the supplied validator before inserting it so the complete
- * destination path is rejected before any folder mutation. That one folder is
- * counted by the `maxMaterializedItems` pre-check (files + implied folders +
- * root folder), which rejects an over-limit archive before the callback
- * materializes anything. That cap always applies — it defaults to
- * {@link MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} — because the file count alone
- * does not bound folder creation.
- *
- * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
- * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
- * them; the agent-facing extract path drops them. Decompression is not byte-preserving,
- * so only an exact-empty archive classification can remain exact on extracted files;
- * every other classification becomes unknown without changing the extracted bytes.
- */
-export async function decompressArchiveBufferToWorkspaceFiles(
+/** Derives a safe, human-readable extraction root from the archive name. */
+export function archiveFolderName(fileName: string): string {
+  const stripped = fileName
+    .replace(/\.zip$/i, '')
+    .normalize('NFC')
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/[/\\]/g, '-')
+    .trim()
+  return stripped && stripped !== '.' && stripped !== '..' ? stripped : 'archive'
+}
+
+export interface PreparedArchiveExtraction {
+  readonly entryCount: number
+  readonly skipped: number
+  readonly skippedUnsafePaths: readonly string[]
+  validateRootFolderSegments(segments: readonly string[]): void
+  entries(signal?: AbortSignal): AsyncGenerator<{ segments: readonly string[]; buffer: Buffer }>
+}
+
+/** Validates one bounded archive before any destination mutation or storage upload. */
+export async function prepareArchiveExtraction(
   buffer: Buffer,
-  opts: {
-    workspaceId: string
-    principal: Principal
-    rootFolderSegments?: string[]
-    prepareRootFolder?: (
-      validateRootFolderSegments: (rootFolderSegments: string[]) => void
-    ) => Promise<string[]>
+  options: {
+    rootFolderSegments?: readonly string[]
+    includeRootFolder?: boolean
     signal?: AbortSignal
     maxMaterializedItems?: number
     skipNoiseEntries?: boolean
-    secretProvenance?: WorkspaceFileSecretProvenance
-    notifyWorkspaceChange?: boolean
-  }
-): Promise<DecompressResult> {
+  } = {}
+): Promise<PreparedArchiveExtraction> {
   const {
-    workspaceId,
-    principal,
     rootFolderSegments = [],
-    prepareRootFolder,
+    includeRootFolder = false,
     signal,
     maxMaterializedItems = MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
     skipNoiseEntries = false,
-    secretProvenance = { status: 'unknown' },
-    notifyWorkspaceChange = true,
-  } = opts
-  const extractedSecretProvenance: WorkspaceFileSecretProvenance =
-    secretProvenance.status === 'exact' && secretProvenance.entries.length === 0
-      ? secretProvenance
-      : { status: 'unknown' }
-
+  } = options
   assertCentralDirWithinCaps(buffer)
 
   let zip: JSZip
@@ -366,7 +346,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     )
   }
 
-  const validateRootFolderSegments = (candidateRootFolderSegments: string[]): void => {
+  const validateRootFolderSegments = (candidateRootFolderSegments: readonly string[]): void => {
     for (const { entry, segments } of safeEntries) {
       try {
         buildFolderPath([...candidateRootFolderSegments, ...segments.slice(0, -1)])
@@ -392,13 +372,13 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   }
   /**
    * Bounds the whole output tree, not just the file count: 1000 entries nested 64 deep imply
-   * far more folders than files, and nothing else caps folder creation. `prepareRootFolder`
+   * far more folders than files, and nothing else caps folder creation. `includeRootFolder`
    * contributes exactly one more folder when it runs.
    */
   const materializedItems =
     safeEntries.length +
     impliedFolderPaths.size +
-    (safeEntries.length > 0 && prepareRootFolder ? 1 : 0)
+    (safeEntries.length > 0 && includeRootFolder ? 1 : 0)
   if (materializedItems > maxMaterializedItems) {
     throw new ArchiveError(
       'too_many_entries',
@@ -424,14 +404,112 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     const result = await inflateEntryWithinCaps(
       entry,
       MAX_ARCHIVE_TOTAL_BYTES - validatedTotal,
-      false
+      false,
+      signal
     )
     if (!result.ok) throwInflateCapError(result.reason, entry.name)
     validatedTotal += result.size
   }
 
+  return Object.freeze({
+    entryCount: safeEntries.length,
+    skipped,
+    skippedUnsafePaths: Object.freeze(skippedUnsafePaths),
+    validateRootFolderSegments,
+    async *entries(entrySignal = signal) {
+      let totalBytes = 0
+      for (const { entry, segments } of safeEntries) {
+        entrySignal?.throwIfAborted()
+        const result = await inflateEntryWithinCaps(
+          entry,
+          MAX_ARCHIVE_TOTAL_BYTES - totalBytes,
+          true,
+          entrySignal
+        )
+        if (!result.ok) throwInflateCapError(result.reason, entry.name)
+        if (!result.buffer) throw new Error('Archive entry bytes are unavailable')
+        totalBytes += result.size
+        yield { segments: Object.freeze(segments), buffer: result.buffer }
+      }
+    },
+  })
+}
+
+/**
+ * Decompress an archive buffer into workspace files under `rootFolderSegments`
+ * (default: the workspace root). Reuses the same caps and zip-slip / zip-bomb /
+ * symlink guards everywhere. Throws {@link ArchiveError} for an invalid archive
+ * or a cap violation; returns `{ extracted: [] }` when every entry was skipped.
+ *
+ * All-or-nothing: pass 1 inflates every entry through a discarding counting sink
+ * to enforce the per-entry and total caps on REAL inflated bytes (declared sizes
+ * can lie), and nothing is uploaded until the whole archive has passed — so a
+ * mid-archive violation never leaves a partial tree in the workspace. Pass 2
+ * re-inflates and uploads one entry at a time. Peak memory stays ~one entry in
+ * both passes; the cost is inflating twice (CPU only, bounded by the caps).
+ *
+ * `signal` aborts between entries in both passes. Callers that hold a lease or run
+ * under a request deadline must pass one: the write loop is otherwise unbounded, and a
+ * process killed mid-pass-2 strands a partial tree that no `catch` can roll back.
+ * Aborting instead unwinds through the same all-or-nothing rollback as any other failure.
+ *
+ * When `prepareRootFolder` is provided it takes precedence over
+ * `rootFolderSegments`: it runs once, only after the caps have been proven and
+ * only when at least one safe entry exists, and extraction lands under the
+ * segments it returns. It must create exactly one folder, and must pass its
+ * final segments to the supplied validator before inserting it so the complete
+ * destination path is rejected before any folder mutation. That one folder is
+ * counted by the `maxMaterializedItems` pre-check (files + implied folders +
+ * root folder), which rejects an over-limit archive before the callback
+ * materializes anything. That cap always applies — it defaults to
+ * {@link MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} — because the file count alone
+ * does not bound folder creation.
+ *
+ * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
+ * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
+ * them; the agent-facing extract path drops them. Decompression is not byte-preserving,
+ * so every extracted file inherits the archive's full candidate set. Runtime consumers redact
+ * decoded content; direct opaque delivery still refuses known secret contributions.
+ */
+export async function decompressArchiveBufferToWorkspaceFiles(
+  buffer: Buffer,
+  opts: {
+    workspaceId: string
+    principal: Principal
+    rootFolderSegments?: string[]
+    prepareRootFolder?: (
+      validateRootFolderSegments: (rootFolderSegments: string[]) => void
+    ) => Promise<string[]>
+    signal?: AbortSignal
+    maxMaterializedItems?: number
+    skipNoiseEntries?: boolean
+    secretProvenance?: WorkspaceFileSecretProvenance
+    notifyWorkspaceChange?: boolean
+  }
+): Promise<DecompressResult> {
+  const {
+    workspaceId,
+    principal,
+    rootFolderSegments = [],
+    prepareRootFolder,
+    signal,
+    maxMaterializedItems = MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+    skipNoiseEntries = false,
+    secretProvenance = { status: 'unknown' },
+    notifyWorkspaceChange = true,
+  } = opts
+
+  const prepared = await prepareArchiveExtraction(buffer, {
+    rootFolderSegments,
+    includeRootFolder: Boolean(prepareRootFolder),
+    signal,
+    maxMaterializedItems,
+    skipNoiseEntries,
+  })
+  const { validateRootFolderSegments, skipped } = prepared
+  const skippedUnsafePaths = [...prepared.skippedUnsafePaths]
   const resolvedRootFolderSegments =
-    safeEntries.length > 0 && prepareRootFolder
+    prepared.entryCount > 0 && prepareRootFolder
       ? await prepareRootFolder(validateRootFolderSegments)
       : rootFolderSegments
   // Re-check what the callback actually returned; identical segments were proven above.
@@ -451,14 +529,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   const createdFolderIds: string[] = []
   const createdFiles: WorkspaceFileRecord[] = []
   const extracted: UserFile[] = []
-  let totalBytes = 0
   try {
-    for (const { entry, segments } of safeEntries) {
+    for await (const { segments, buffer: entryBuffer } of prepared.entries(signal)) {
       signal?.throwIfAborted()
-      const result = await inflateEntryWithinCaps(entry, MAX_ARCHIVE_TOTAL_BYTES - totalBytes, true)
-      if (!result.ok) throwInflateCapError(result.reason, entry.name)
-      totalBytes += result.size
-      const entryBuffer = result.buffer as Buffer
 
       const leafName = segments[segments.length - 1]
       const folderSegments = [...resolvedRootFolderSegments, ...segments.slice(0, -1)]
@@ -490,7 +563,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
             // Auto-suffix on collision: one leaf name that already exists must not
             // roll back an otherwise valid extraction.
             exactName: false,
-            secretProvenance: extractedSecretProvenance,
+            secretProvenance,
             notifyWorkspaceChange: false,
           },
         })

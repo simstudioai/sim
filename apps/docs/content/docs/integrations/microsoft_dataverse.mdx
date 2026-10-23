@@ -1,31 +1,48 @@
 ---
 title: Microsoft Dataverse
 description: Manage records in Microsoft Dataverse tables
+integration:
+  type: "microsoft_dataverse_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_dataverse_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Dataverse](https://learn.microsoft.com/en-us/power-apps/maker/data-platform/data-platform-intro) to manage records and relationships in Dynamics 365, Power Platform, or custom environments. The block also supports queries, bulk operations, file transfer, metadata lookup, and Dataverse actions and functions.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Dataverse account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-dataverse` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `https://dynamics.microsoft.com/user_impersonation` | Access Microsoft Dataverse on your behalf |
+| `offline_access` | Access account when not using the application |
 
+In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.
+
+## Use the block [#usage-instructions]
+
+Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
 
 ## Actions
 
 ### Associate Microsoft Dataverse Records
 
 Associate two records in Microsoft Dataverse via a navigation property. Creates a relationship between a source record and a target record. Supports both collection-valued (POST) and single-valued (PUT) navigation properties.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -50,9 +67,13 @@ Associate two records in Microsoft Dataverse via a navigation property. Creates 
 | `targetEntitySetName` | string | Target entity set name used in the association |
 | `targetRecordId` | string | Target record GUID that was associated |
 
+</ReferenceDetails>
+
 ### Create Multiple Microsoft Dataverse Records
 
 Create multiple records of the same table type in a single request. Each record in the Targets array must include an @odata.type annotation. Recommended batch size: 100-1000 records for standard tables.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,9 +92,13 @@ Create multiple records of the same table type in a single request. Each record 
 | `count` | number | Number of records created |
 | `success` | boolean | Whether all records were created successfully |
 
+</ReferenceDetails>
+
 ### Create Microsoft Dataverse Record
 
 Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +116,13 @@ Create a new record in a Microsoft Dataverse table. Requires the entity set name
 | `record` | object | Dataverse record object. Contains dynamic columns based on the queried table, plus OData metadata fields. |
 | `success` | boolean | Whether the record was created successfully |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Dataverse Record
 
 Delete a record from a Microsoft Dataverse table by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,9 +139,13 @@ Delete a record from a Microsoft Dataverse table by its ID.
 | `recordId` | string | The ID of the deleted record |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Disassociate Microsoft Dataverse Records
 
 Remove an association between two records in Microsoft Dataverse. For collection-valued navigation properties, provide the target record ID. For single-valued navigation properties, only the navigation property name is needed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +167,13 @@ Remove an association between two records in Microsoft Dataverse. For collection
 | `navigationProperty` | string | Navigation property used for the disassociation |
 | `targetRecordId` | string | Target record GUID that was disassociated |
 
+</ReferenceDetails>
+
 ### Download File from Microsoft Dataverse
 
 Download a file from a Dataverse file or image column and return its stored file reference and metadata
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,9 +191,13 @@ Download a file from a Dataverse file or image column and return its stored file
 | `file` | file | Downloaded file stored in execution files |
 | `fileColumn` | string | File column the file was downloaded from |
 
+</ReferenceDetails>
+
 ### Execute Microsoft Dataverse Action
 
 Execute a bound or unbound Dataverse action. Actions perform operations with side effects (e.g., Merge, GrantAccess, SendEmail, QualifyLead). For bound actions, provide the entity set name and record ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +216,13 @@ Execute a bound or unbound Dataverse action. Actions perform operations with sid
 | `result` | object | Action response data. Structure varies by action. Null for actions that return 204 No Content. |
 | `success` | boolean | Whether the action executed successfully |
 
+</ReferenceDetails>
+
 ### Execute Microsoft Dataverse Function
 
 Execute a bound or unbound Dataverse function. Functions are read-only operations (e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount, InitializeFrom). For bound functions, provide the entity set name and record ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +241,13 @@ Execute a bound or unbound Dataverse function. Functions are read-only operation
 | `result` | object | Function response data. Structure varies by function. |
 | `success` | boolean | Whether the function executed successfully |
 
+</ReferenceDetails>
+
 ### FetchXML Query Microsoft Dataverse
 
 Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports aggregation, grouping, linked-entity joins, and complex filtering beyond OData capabilities.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -218,9 +267,13 @@ Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports 
 | `moreRecords` | boolean | Whether more records are available beyond the current page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Microsoft Dataverse Table Metadata
 
 Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -244,9 +297,13 @@ Retrieve table (entity) and column (attribute) definitions for a Microsoft Datav
 | `metadata` | object | The full raw entity metadata response from Dataverse |
 | `success` | boolean | Whether the metadata was retrieved successfully |
 
+</ReferenceDetails>
+
 ### Get Microsoft Dataverse Record
 
 Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +323,13 @@ Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $s
 | `recordId` | string | The record primary key ID \(auto-detected from response\) |
 | `success` | boolean | Whether the record was retrieved successfully |
 
+</ReferenceDetails>
+
 ### List Microsoft Dataverse Records
 
 Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -293,9 +354,13 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `nextLink` | string | URL for the next page of results |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Search Microsoft Dataverse
 
 Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -328,9 +393,13 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 | `facets` | object | Facet results when facets were requested. Keys are facet names, values are arrays of facet value objects with count and value properties. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Multiple Microsoft Dataverse Records
 
 Update multiple records of the same table type in a single request. Each record must include its primary key. Only include columns that need to be changed. Recommended batch size: 100-1000 records.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -347,9 +416,13 @@ Update multiple records of the same table type in a single request. Each record 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether all records were updated successfully |
 
+</ReferenceDetails>
+
 ### Update Microsoft Dataverse Record
 
 Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -367,9 +440,13 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 | `recordId` | string | The ID of the updated record |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Upload File to Microsoft Dataverse
 
-Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.
+Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MiB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -391,9 +468,13 @@ Upload a file to a file or image column on a Dataverse record. Supports single-r
 | `fileName` | string | Name of the uploaded file |
 | `success` | boolean | Whether the file was uploaded successfully |
 
+</ReferenceDetails>
+
 ### Upsert Microsoft Dataverse Record
 
 Create or update a record in a Microsoft Dataverse table. If a record with the given ID exists, it is updated; otherwise, a new record is created.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -413,9 +494,13 @@ Create or update a record in a Microsoft Dataverse table. If a record with the g
 | `record` | object | Dataverse record object. Contains dynamic columns based on the queried table, plus OData metadata fields. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Microsoft Dataverse WhoAmI
 
 Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -431,5 +516,7 @@ Retrieve the current authenticated user information from Microsoft Dataverse. Us
 | `businessUnitId` | string | The business unit ID |
 | `organizationId` | string | The organization ID |
 | `success` | boolean | Operation success status |
+
+</ReferenceDetails>
 
 

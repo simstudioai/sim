@@ -7,10 +7,6 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((a, b) => ({ type: 'eq', left: a, right: b })),
-}))
-
 const mockDb = databaseMock.db as Record<string, ReturnType<typeof vi.fn>>
 
 import {

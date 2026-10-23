@@ -1,21 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: mockWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  logger: { info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() },
-  runWithRequestContext: <T>(_context: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-  setRequestTraceId: vi.fn(),
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 import { brexCreateBudgetTool } from '@/tools/brex/create_budget'
 import { brexCreateSpendLimitTool } from '@/tools/brex/create_spend_limit'
@@ -23,6 +7,8 @@ import { brexCreateTransferTool } from '@/tools/brex/create_transfer'
 import { brexCreateVendorTool } from '@/tools/brex/create_vendor'
 import { brexUpdateVendorTool } from '@/tools/brex/update_vendor'
 import type { ToolConfig } from '@/tools/types'
+
+const { warn: mockWarn } = getMockLogger('BrexIdempotency')
 
 /** A complete execution identity, as the executor is expected to inject it. */
 const CONTEXT = {
@@ -50,10 +36,6 @@ const SITES: ReadonlyArray<{
 ]
 
 describe('brex idempotency keys', () => {
-  beforeEach(() => {
-    mockWarn.mockClear()
-  })
-
   describe.each(SITES.map((site) => [site.tool.id, site] as const))('%s', (_id, site) => {
     it('derives the header from the execution identity, keyed to its own tool id', () => {
       const headers = site.tool.request.headers({ ...site.params(), _context: { ...CONTEXT } })

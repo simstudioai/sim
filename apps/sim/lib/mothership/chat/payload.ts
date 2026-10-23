@@ -6,9 +6,9 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
+import { isComputerUseAvailableFor } from '@/lib/computer-use/application/availability'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import {
   type IntegrationGateConfig,
@@ -30,9 +30,14 @@ import {
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
+import {
+  type ChatRequest,
+  type ModelSelection,
+  TOOL_DEADLINE_CAPABILITY,
+} from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
@@ -41,7 +46,7 @@ import { listOrganizationSecretNames } from '@/lib/organization-secrets/applicat
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { trackChatUpload } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
 
@@ -65,8 +70,8 @@ interface BuildPayloadParams {
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
   /**
-   * MCP servers enabled for this chat — every server tagged on this or any
-   * earlier turn. Servers never tagged in the chat stay unavailable.
+   * MCP servers tagged on this or any earlier turn of the chat. Every usable
+   * workspace server is discoverable without a tag; tagged ones rank first.
    */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
@@ -220,9 +225,7 @@ export async function buildIntegrationToolSchemas(
     return structuredClone(
       schemas.filter((schema) => {
         const original = getToolMetadata(schema.name)
-        const metadata = original
-          ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
-          : undefined
+        const metadata = original ? projectAssistantConnectedAccountTool(original) : undefined
         return (
           !metadata?.personalToken &&
           metadata?.oauth?.required &&
@@ -252,7 +255,7 @@ async function buildIntegrationToolSchemasUncached({
     const metadata = getToolMetadata(toolId)
     if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
     const projectedTool = options.personalAccountsOnly
-      ? projectAssistantConnectedAccountTool(toolConfig, isLiveEnterpriseSearchEnabled)
+      ? projectAssistantConnectedAccountTool(toolConfig)
       : toolConfig
     const userSchema = createUserToolSchema(projectedTool, {
       surface: options.schemaSurface,
@@ -315,18 +318,22 @@ async function buildIntegrationToolSchemasUncached({
 /**
  * Build the request payload for the copilot backend.
  */
-export async function buildCopilotRequestPayload(
-  params: BuildPayloadParams,
-  options: {
-    selectedModel: string
-  }
-): Promise<ChatRequest> {
+export async function buildCopilotRequestPayload(params: BuildPayloadParams): Promise<ChatRequest> {
   const { message, workflowId, userId, userMessageId, mode, contexts, fileAttachments, chatId } =
     params
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const isAssistant = effectiveMode === 'assistant'
+  const computerUseOwner = params.organizationId
+    ? { organizationId: params.organizationId }
+    : params.workspaceId
+      ? { workspaceId: params.workspaceId }
+      : null
   const computerUse =
-    !isAssistant && params.computerUse === true && (await isComputerUseAvailable())
+    !isAssistant &&
+    params.computerUse === true &&
+    params.principal !== undefined &&
+    computerUseOwner !== null &&
+    (await isComputerUseAvailableFor(params.principal, computerUseOwner))
   const integrationGateway = !isAssistant || (await isSearchIntegrationToolsEnabled())
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
@@ -448,7 +455,15 @@ export async function buildCopilotRequestPayload(
     !isAssistant && params.principal && params.workspaceId
       ? await buildWorkspaceInventory(params.principal, params.workspaceId)
       : undefined
+  const entitlements = isAssistant
+    ? []
+    : await computeEntitlements({
+        principal: params.principal,
+        workspaceId: params.workspaceId,
+        organizationId: params.organizationId,
+      })
   return {
+    entitlements,
     message,
     ...(!isAssistant && workflowId ? { workflowId } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
@@ -495,8 +510,12 @@ export async function buildCopilotRequestPayload(
         }
       : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
-    // UI declares that capability explicitly; headless callers omit or send [] and the
-    // server runs those tools immediately instead of waiting out the pickup grace.
-    clientCapabilities: isAssistant ? [] : ['workflow-tool-pickup'],
+    // UI declares that capability explicitly; headless callers omit it and the server runs
+    // those tools immediately. The deadline token is this server's own: it bounds every
+    // handed call by the deadline its frame names.
+    clientCapabilities: [
+      ...(isAssistant ? [] : ['workflow-tool-pickup']),
+      TOOL_DEADLINE_CAPABILITY,
+    ],
   }
 }

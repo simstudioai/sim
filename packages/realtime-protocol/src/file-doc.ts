@@ -1,3 +1,5 @@
+import type { FileDocOwner } from '@sim/realtime-protocol/file-doc-target'
+
 /**
  * Wire protocol for the collaborative file-document room
  * ({@link ROOM_TYPES.WORKSPACE_FILE_DOC}). Live carets and text selection ride
@@ -21,6 +23,7 @@ export const FILE_DOC_EVENTS = {
   JOIN_SUCCESS: 'join-file-doc-success',
   /** Server → client: join rejected ({@link JoinFileDocError}). */
   JOIN_ERROR: 'join-file-doc-error',
+  PERMISSION: 'file-doc-permission',
   /** Client → server: leave the session ({@link LeaveFileDocPayload}). */
   LEAVE: 'leave-file-doc',
   /** Both directions: a framed Yjs message (binary), tagged by {@link FILE_DOC_MESSAGE_TYPE}. */
@@ -147,6 +150,8 @@ export const FILE_DOC_LIMITS = {
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */
 export interface JoinFileDocPayload {
+  owner?: FileDocOwner
+  projectId?: string
   fileId: string
   /**
    * The joining Yjs document's `clientID`. The server binds it to this socket so
@@ -160,6 +165,9 @@ export interface JoinFileDocPayload {
 
 /** Server → client acceptance of a {@link FILE_DOC_EVENTS.JOIN}. */
 export interface JoinFileDocSuccess {
+  canWrite?: boolean
+  owner?: FileDocOwner
+  projectId?: string
   fileId: string
   /** The provider whose join was accepted. Optional while older relays are still deployed. */
   clientId?: number
@@ -190,6 +198,8 @@ export interface JoinFileDocError {
 
 /** Client → server leave request. */
 export interface LeaveFileDocPayload {
+  owner?: FileDocOwner
+  projectId?: string
   fileId: string
 }
 
@@ -205,6 +215,8 @@ export interface FileDocInvalidated {
 
 /** A bounded, retry-safe batch of user-authored changes. */
 export interface FileDocUpdatePayload {
+  owner?: FileDocOwner
+  projectId?: string
   fileId: string
   docId: string
   updateId: string
@@ -254,4 +266,18 @@ export function toFileDocBytes(data: unknown): Uint8Array | null {
   if (data instanceof Uint8Array) return data
   if (data instanceof ArrayBuffer) return new Uint8Array(data)
   return null
+}
+
+/** Authenticated relay identity assertions, accepted only with the internal service credential. */
+export const FILE_DOC_INTERNAL_HEADERS = {
+  userId: 'x-sim-subject-user-id',
+  connectionId: 'x-sim-realtime-connection-id',
+} as const
+
+/** Current write capability for a subscribed Project document. */
+export interface FileDocPermission {
+  owner?: FileDocOwner
+  projectId?: string
+  fileId: string
+  canWrite: boolean
 }

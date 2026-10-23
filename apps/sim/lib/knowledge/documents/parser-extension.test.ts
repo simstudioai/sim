@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { classifyDocumentProcessingFailure } from '@/lib/knowledge/documents/document-processing-error'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
+import { classifyDocumentProcessingFailure } from '@/lib/knowledge/documents/processing-error'
 
 describe('resolveParserExtension', () => {
   it('throws when neither filename nor mime type resolves to a supported parser', () => {

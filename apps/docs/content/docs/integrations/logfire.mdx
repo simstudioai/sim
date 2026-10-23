@@ -1,36 +1,25 @@
 ---
 title: Logfire
 description: Query traces, logs, and metrics in Pydantic Logfire
+integration:
+  type: "logfire"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="logfire"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Pydantic Logfire](https://pydantic.dev/logfire) is an observability platform built on OpenTelemetry. It collects the traces, logs, and metrics your services emit, stores every span in a queryable `records` table, and exposes that table through a read-only SQL API.
+Use [Pydantic Logfire](https://pydantic.dev/logfire) to query telemetry collected with OpenTelemetry. Search spans and logs by message, service, span name, severity, environment, or exception status, or run PostgreSQL-compatible read-only SQL over the `records` and `metrics` tables.
 
-With Logfire, you can:
+Trace lookup returns spans ordered by time with parent-child relationships for request investigation. Credential lookup identifies the organization and project targeted by a read token.
 
-- **Search spans and logs**: Filter by message text, service, span name, severity, deployment environment, and whether an exception was recorded — no SQL required.
-- **Run SQL directly**: Query the `records` and `metrics` tables with PostgreSQL-compatible syntax for aggregations like error rates and latency percentiles.
-- **Reconstruct a request**: Pull every span in a trace, ordered earliest to latest, and walk the parent-child tree to see where time went and where it failed.
-- **Confirm a credential**: Resolve which organization and project a read token targets before querying it.
-
-Sim's Logfire integration lets agents read production telemetry as part of a run. Use it to triage errors against a live service, attach a root-cause summary to an incident ticket, or watch latency between deploys and page when it regresses.
-
-Authentication uses a Logfire **read token**, which you create per project under Settings → Read tokens. The region is detected from the token's prefix, so Cloud users on US and EU need no extra configuration. Self-hosted instances set the Host field to their own base URL, which must be reachable over HTTPS at a publicly resolvable domain.
+Create a project **read token** under **Settings → Read tokens**. Sim detects the cloud region from its prefix. For a self-hosted instance, set **Host** to a publicly resolvable HTTPS base URL that Sim can reach.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Pydantic Logfire into workflows. Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.
-
-
+Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.
 
 ## Actions
 
@@ -66,6 +55,8 @@ Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the r
 ### Logfire Search Records
 
 Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +98,13 @@ Search Logfire spans and logs using structured filters for message text, service
 | `rowCount` | number | Number of rows returned |
 | `sql` | string | SQL query that was executed against Logfire |
 
+</ReferenceDetails>
+
 ### Logfire Get Trace
 
 Fetch every span and log belonging to a Logfire trace, ordered from earliest to latest, so a single request can be reconstructed end to end.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,6 +140,8 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 |   ↳ `exceptionMessage` | string | Exception message |
 | `rowCount` | number | Number of rows returned |
 | `sql` | string | SQL query that was executed against Logfire |
+
+</ReferenceDetails>
 
 ### Logfire Get Token Info
 

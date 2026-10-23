@@ -1,34 +1,35 @@
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   checkServerSideUsageLimits: vi.fn(),
-  getHighestPrioritySubscription: vi.fn(),
-  getRateLimitStatusWithSubscription: vi.fn(),
-  getUserStorageLimit: vi.fn(),
-  getUserStorageUsage: vi.fn(),
 }))
 
 vi.mock('@/lib/billing', () => ({
-  checkServerSideUsageLimits: mocks.checkServerSideUsageLimits,
+  checkServerSideUsageLimits: hoisted.checkServerSideUsageLimits,
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mocks.getHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  getUserStorageLimit: mocks.getUserStorageLimit,
-  getUserStorageUsage: mocks.getUserStorageUsage,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    getRateLimitStatusWithSubscription = mocks.getRateLimitStatusWithSubscription
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { GET } from '@/app/api/users/me/usage-limits/route'
+
+const mocks = {
+  getUserStorageLimit: billingStorageMockFns.mockGetUserStorageLimit,
+  getUserStorageUsage: billingStorageMockFns.mockGetUserStorageUsage,
+  ...hoisted,
+  getHighestPrioritySubscription: billingSubscriptionMockFns.mockGetHighestPrioritySubscription,
+  getRateLimitStatusWithSubscription: rateLimiterMockFns.mockGetRateLimitStatusWithSubscription,
+}
 
 const SYNC_RESET_AT = new Date('2026-08-11T12:00:00.000Z')
 const ASYNC_RESET_AT = new Date('2026-08-11T12:01:00.000Z')

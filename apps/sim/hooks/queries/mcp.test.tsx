@@ -1,19 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   discoverMcpToolsContract,
@@ -23,6 +22,8 @@ import {
 } from '@/lib/api/contracts/mcp'
 import { useMcpToolServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -145,7 +146,6 @@ describe('useMcpToolsQuery', () => {
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     // mcp.ts captured these Map/Set instances in module consts at import, so reassigning the
     // globalThis property wouldn't reset what the module uses — clear the shared instances.
     ;(

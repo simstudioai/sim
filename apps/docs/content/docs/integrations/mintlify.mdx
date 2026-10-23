@@ -1,50 +1,38 @@
 ---
 title: Mintlify
 description: Deploy, edit, search, and measure Mintlify documentation
+integration:
+  type: "mintlify"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mintlify"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Mintlify](https://mintlify.com/) is a documentation platform for building, deploying, and maintaining developer docs. Docs live as MDX in your Git repository, deploy on every merge, and ship with a built-in AI assistant trained on your content.
+Use [Mintlify](https://mintlify.com/) to trigger production or branch-preview deployments, poll deployment status, run scheduled automations, and manage background documentation-agent jobs. Search and retrieve pages, ask the docs assistant, detect AI-sounding passages, or export feedback, conversations, caller statistics, searches, page views, and visitor analytics.
 
-With Mintlify, you can:
+## Authentication
 
-- **Deploy documentation from Git**: Trigger production updates and per-branch preview deployments, then poll deployment status for logs, commit details, and screenshots
-- **Run automations on demand**: Kick off a scheduled automation immediately from CI/CD instead of waiting for its next run
-- **Edit docs with an agent**: Launch background agent jobs from a prompt, send follow-up instructions, and get a pull request when the agent changes files
-- **Check writing quality**: Analyze a page for AI-sounding prose and get flagged passages with suggested human rewrites
-- **Search and retrieve content**: Run semantic and keyword search across your docs, then fetch the full text of any matching page
-- **Ask the docs assistant**: Get a grounded answer with its cited source pages, and continue the conversation across turns with a thread ID
-- **Export analytics**: Pull user feedback, assistant conversations, caller stats, search queries, page views, and unique visitors
+The **API Key** field takes the key required by the selected operation:
 
-In Sim, the Mintlify integration lets your agents ship docs, drive documentation agent jobs, answer questions from your published content, and measure how that content performs — all from a single block.
+- **Admin API key** (`mint_`): Trigger Update, Get Update Status, Trigger Preview Deployment, Trigger Automation, Create/Get Agent Job, Send Agent Message, Detect AI-Sounding Prose, and analytics exports.
+- **Assistant API key** (`mint_dsc_`): Search Documentation, Get Page Content, and Ask Assistant.
 
-**Authentication.** Mintlify issues two key types for these endpoints, and the API Key field takes whichever the selected operation needs:
-
-- **Admin API key** (`mint_` prefix) — Trigger Update, Get Update Status, Trigger Preview Deployment, Trigger Automation, Create/Get Agent Job, Send Agent Message, Detect AI-Sounding Prose, and every analytics export
-- **Assistant API key** (`mint_dsc_` prefix) — Search Documentation, Get Page Content, and Ask Assistant
-
-Generate both on the [API keys page](https://app.mintlify.com/settings/organization/api-keys) in your Mintlify dashboard. The **Project ID** used by the admin operations is on the same page; the **Domain** used by the assistant operations is the identifier at the end of your dashboard URL (`app.mintlify.com/organization/domain`). The REST API requires a Mintlify Pro or Enterprise plan.
+Generate keys on Mintlify's [API keys page](https://app.mintlify.com/settings/organization/api-keys). Admin operations use **Project ID** from that page. Assistant operations use **Domain**, the identifier in `app.mintlify.com/organization/domain`. API availability depends on your Mintlify plan; check your account's API access before scheduling a workflow.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.
-
-
+Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.
 
 ## Actions
 
 ### Mintlify Trigger Update
 
 Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -59,9 +47,13 @@ Queue a deployment update for a Mintlify documentation project from its configur
 | --------- | ---- | ----------- |
 | `statusId` | string | Status ID of the queued update. Poll it with Get Update Status. |
 
+</ReferenceDetails>
+
 ### Mintlify Get Update Status
 
 Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +91,13 @@ Get the status of a Mintlify deployment update from its status ID, including log
 |     ↳ `removed` | array | Files that were removed |
 | `source` | string | Source of the update trigger: internal, github-app-installation, api, github, dashboard, gitlab, or onboarding |
 
+</ReferenceDetails>
+
 ### Mintlify Trigger Preview Deployment
 
 Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +114,13 @@ Create or update a Mintlify preview deployment for a Git branch. Redeploys when 
 | `statusId` | string | Status ID for tracking the preview deployment |
 | `previewUrl` | string | URL where the preview deployment is hosted |
 
+</ReferenceDetails>
+
 ### Mintlify Trigger Automation
 
 Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +138,13 @@ Run a scheduled Mintlify automation immediately instead of waiting for its next 
 | `instanceId` | string | ID of the queued automation run, visible in the run history |
 | `jobId` | string | ID of the background job processing the run |
 
+</ReferenceDetails>
+
 ### Mintlify Detect AI-Sounding Prose
 
 Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -173,9 +177,13 @@ Analyze a documentation page for AI-generated prose and return flagged passages 
 |     ↳ `rationale` | string | Why the rewrite reads more human |
 | `creditsCharged` | number | AI credits charged for this request \(0 when skipped\) |
 
+</ReferenceDetails>
+
 ### Mintlify Create Agent Job
 
 Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -239,9 +247,13 @@ Create a background Mintlify agent job that edits your documentation from a prom
 | `nextCursor` | string | Cursor for the next page of results |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Get Agent Job
 
 Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +317,13 @@ Retrieve the current status and details of a Mintlify agent job, including the p
 | `nextCursor` | string | Cursor for the next page of results |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Send Agent Message
 
 Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +388,13 @@ Send a follow-up instruction to an existing Mintlify agent job. The message is p
 | `nextCursor` | string | Cursor for the next page of results |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Search Documentation
 
 Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -400,9 +420,13 @@ Run a semantic and keyword search across a Mintlify documentation site, with opt
 |   ↳ `metadata` | json | Additional metadata about the search result |
 | `resultCount` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### Mintlify Get Page Content
 
 Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -420,9 +444,13 @@ Retrieve the full text content of a Mintlify documentation page by its path. Use
 | `path` | string | The page path that was requested |
 | `content` | string | Full text content of the page |
 
+</ReferenceDetails>
+
 ### Mintlify Create Assistant Message
 
 Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +480,13 @@ Ask the Mintlify assistant, trained on your documentation, a question and get th
 |   ↳ `url` | string | URL of the cited page |
 |   ↳ `title` | string | Title of the cited page |
 
+</ReferenceDetails>
+
 ### Mintlify Get Feedback
 
 Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -488,9 +520,13 @@ Export paginated user feedback from a Mintlify documentation project, with optio
 | `nextCursor` | string | Cursor for the next page, or null when there are no more results |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Get Feedback By Page
 
 Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -516,9 +552,13 @@ Export Mintlify feedback counts aggregated by documentation page path, broken do
 |   ↳ `total` | number | Total feedback entries |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Get Assistant Conversations
 
 Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -549,9 +589,13 @@ Export paginated Mintlify AI assistant conversation history, including the query
 | `nextCursor` | string | Cursor for the next page, or null when there are no more results |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Get Assistant Caller Stats
 
 Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -571,9 +615,13 @@ Get a breakdown of Mintlify assistant query counts by caller type — web, API, 
 | `other` | number | Assistant queries from other sources such as integrations and SDKs |
 | `total` | number | Total assistant queries across all caller types |
 
+</ReferenceDetails>
+
 ### Mintlify Get Search Queries
 
 Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -599,9 +647,13 @@ Export Mintlify documentation search terms for a date range, ordered by hit coun
 | `totalSearches` | number | Total search events in the date range, summing all hits rather than distinct queries |
 | `nextCursor` | string | Cursor for the next page, or null when there are no more results |
 
+</ReferenceDetails>
+
 ### Mintlify Get Page Views
 
 Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -618,6 +670,10 @@ Export Mintlify per-path and site-wide content view counts for a date range, spl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `totals` | object | Site-wide totals for the date range |
+|   ↳ `human` | number | Site-wide human traffic |
+|   ↳ `ai` | number | Site-wide AI bot traffic |
+|   ↳ `total` | number | Site-wide total |
 | `views` | array | Per-page content view event counts |
 |   ↳ `path` | string | The documentation page path |
 |   ↳ `human` | number | Content view events from human traffic |
@@ -625,9 +681,13 @@ Export Mintlify per-path and site-wide content view counts for a date range, spl
 |   ↳ `total` | number | Total content view events |
 | `hasMore` | boolean | Whether additional results are available |
 
+</ReferenceDetails>
+
 ### Mintlify Get Unique Visitors
 
 Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -644,11 +704,17 @@ Export Mintlify per-path and site-wide approximate distinct visitor counts for a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `totals` | object | Site-wide totals for the date range |
+|   ↳ `human` | number | Site-wide human traffic |
+|   ↳ `ai` | number | Site-wide AI bot traffic |
+|   ↳ `total` | number | Site-wide total |
 | `visitors` | array | Per-page unique visitor counts |
 |   ↳ `path` | string | The documentation page path |
 |   ↳ `human` | number | Unique human visitors |
 |   ↳ `ai` | number | Unique AI bot visitors |
 |   ↳ `total` | number | Approximate distinct visitors, deduplicated across human and AI |
 | `hasMore` | boolean | Whether additional results are available |
+
+</ReferenceDetails>
 
 

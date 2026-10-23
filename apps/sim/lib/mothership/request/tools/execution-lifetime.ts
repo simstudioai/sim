@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import {
   SIM_TOOL_EXECUTION_HEARTBEAT_MS,
   SimToolExecutionLeaseLostError,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/mothership/async-runs/execution-lease'
 import {
   type CompleteAsyncToolCallInput,
-  claimSimToolExecution,
+  claimToolExecution,
   completeAsyncToolCall,
   completeOwnedSimToolCall,
   prepareWorkbenchAccess,
@@ -81,7 +81,7 @@ export async function withToolExecutionLifetime<T>(
       )
     },
     async claim(runId, userId) {
-      const claim = await claimSimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(
+      const claim = await claimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(
         () => {
           throw new Error('Tool could not start because execution admission could not be recorded')
         }

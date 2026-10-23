@@ -6,6 +6,8 @@ import {
   projectEscapedMarkdownForSearch,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
+  stripTrailingSlashes,
+  toWellFormed,
   truncateAtCodePoint,
 } from './string.js'
 
@@ -22,6 +24,15 @@ describe('sanitizeForJsonb', () => {
 
   it('handles a lone high surrogate followed by a valid pair', () => {
     expect(sanitizeForJsonb('\uD835\uD835\uDC00')).toBe('\uFFFD\uD835\uDC00')
+  })
+})
+
+describe('toWellFormed', () => {
+  it('replaces each unpaired half one-for-one, keeping pairs, NUL, and length', () => {
+    const input = '\uDE00a\uDE00\uD83D\uD83D\uDE00b\u0000\uD83D'
+    const output = toWellFormed(input)
+    expect(output).toBe('\uFFFDa\uFFFD\uFFFD\uD83D\uDE00b\u0000\uFFFD')
+    expect(output).toHaveLength(input.length)
   })
 })
 
@@ -82,6 +93,14 @@ describe('forEachSearchOccurrence', () => {
 describe('escapeRegExp', () => {
   it('escapes every occurrence, not just the first', () => {
     expect(escapeRegExp('a.b.c')).toBe('a\\.b\\.c')
+  })
+})
+
+describe('stripTrailingSlashes', () => {
+  it('removes only the trailing run', () => {
+    expect(stripTrailingSlashes('/a//b///')).toBe('/a//b')
+    expect(stripTrailingSlashes('///')).toBe('')
+    expect(stripTrailingSlashes('a')).toBe('a')
   })
 })
 

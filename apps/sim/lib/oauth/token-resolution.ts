@@ -13,6 +13,7 @@ import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/applicatio
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   getCredential,
   type ResolvedCredential,
@@ -26,9 +27,15 @@ import {
 } from '@/lib/oauth/microsoft-dataverse'
 import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import {
+  credentialProviderMatchesService,
+  getCanonicalScopesForProvider,
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
+import type { OAuthConfig } from '@/tools/types'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
@@ -45,6 +52,8 @@ export interface CredentialAuditRequest {
 export type CredentialTokenPayload = OAuthTokenResponse
 
 export interface ResolveCredentialTokenInput {
+  /** Tool whose canonical provider and credential-kind policy applies before token minting. */
+  toolId?: string
   /** Correlation id used by the credential service's own logging. */
   requestId: string
   credentialId?: string
@@ -212,8 +221,53 @@ export async function completeOAuthCredentialToken(params: {
 
     return { ok: true, token: buildOAuthTokenPayload(credential, accessToken) }
   } catch (error) {
+    if (error instanceof CredentialRevokedError) {
+      logger.warn(`[${requestId}] OAuth credential revoked by provider; reconnect required`, {
+        credentialId: resolvedCredentialId,
+        providerId: error.provider?.providerId,
+        errorCode: error.provider?.errorCode,
+      })
+      return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
+    }
     logger.error(`[${requestId}] Failed to refresh access token:`, error)
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
+  }
+}
+
+function validateToolCredentialKind(
+  requiredKind: OAuthConfig['credentialKind'],
+  actualKind: NonNullable<OAuthConfig['credentialKind']>
+): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
+  if (requiredKind && requiredKind !== actualKind) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_TYPE_MISMATCH',
+      error: 'The selected credential type is not supported by this tool',
+    }
+  }
+}
+
+function validateToolCredentialBinding(
+  toolId: string | undefined,
+  providerId: string | null | undefined,
+  credentialKind: NonNullable<OAuthConfig['credentialKind']>
+): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
+  if (!toolId) return
+  const policy = getToolMetadata(toolId)?.oauth
+  const kindError = validateToolCredentialKind(policy?.credentialKind, credentialKind)
+  if (kindError) return kindError
+  const service = policy?.required
+    ? (getServiceConfigByServiceId(policy.provider) ??
+      getServiceConfigByProviderId(policy.provider))
+    : undefined
+  if (!providerId || !service || !credentialProviderMatchesService(providerId, service)) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'The selected credential does not belong to this tool provider',
+    }
   }
 }
 
@@ -261,6 +315,13 @@ export async function resolveCredentialToken(
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
+
+      const bindingError = validateToolCredentialBinding(
+        input.toolId,
+        resolved.providerId,
+        'service-account'
+      )
+      if (bindingError) return bindingError
 
       const saActorId = authz.requesterUserId
       const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
@@ -349,6 +410,9 @@ export async function resolveCredentialToken(
       return { ok: false, status: 404, error: 'Credential not found' }
     }
 
+    const bindingError = validateToolCredentialBinding(input.toolId, credential.providerId, 'oauth')
+    if (bindingError) return bindingError
+
     return completeOAuthCredentialToken({
       requestId,
       credential,
@@ -365,8 +429,6 @@ export async function resolveCredentialToken(
 
 export interface ResolveCredentialAccessTokenInput
   extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
-  /** Tool consuming the token; required by the managed-OAuth scope policy. */
-  toolId?: string
   /**
    * Authenticates the caller for non-managed credentials. Invoked only when the
    * credential is not managed OAuth, which authenticates through delegation instead.
@@ -411,6 +473,7 @@ export async function resolveCredentialAccessToken(
       callerUserId: input.callerUserId,
       auditRequest,
       resolvedCredential: resolved,
+      toolId,
     })
   }
 
@@ -455,6 +518,9 @@ export async function resolveCredentialAccessToken(
       error: 'This tool is not configured to use managed credentials',
     }
   }
+  const kindError = validateToolCredentialKind(toolMetadata.oauth.credentialKind, 'oauth')
+  if (kindError) return kindError
+
   const requiredScopes =
     toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
   if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {

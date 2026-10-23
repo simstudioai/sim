@@ -416,19 +416,6 @@ console.log(limits);`
     }
   }
 
-  const getAsyncExampleTitle = () => {
-    switch (asyncExampleType) {
-      case 'execute':
-        return 'Start Execution'
-      case 'status':
-        return 'Check Status'
-      case 'rate-limits':
-        return 'Usage Limits'
-      default:
-        return 'Start Execution'
-    }
-  }
-
   const handleCopy = (key: keyof CopiedState, value: string) => {
     navigator.clipboard.writeText(value)
     setCopied((prev) => ({ ...prev, [key]: true }))

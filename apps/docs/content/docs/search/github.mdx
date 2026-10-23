@@ -1,53 +1,69 @@
 ---
 title: GitHub
-description: Search GitHub with member accounts or an App restricted to selected repositories
+description: Search GitHub with your account and optional repository restrictions
 ---
 
-GitHub supports **Member accounts** and **GitHub App**. Each person connects their own GitHub account in both modes. Live Search calls GitHub's APIs for issues, code, and repositories on `github.com`.
+GitHub Search reads repositories, code, issues, pull request discussions, and commits on `github.com`. **Member accounts** uses your access; **GitHub App** limits Search to repositories your admin adds. Both modes require your personal GitHub connection. GitHub Enterprise Server and `ghe.com` hosts are not supported.
 
-## Member accounts
+## Connect member accounts
 
-An admin adds GitHub in **Settings → Sources**, selects **Member accounts**, and saves. Each member connects GitHub from **Integrations**. There is no admin repository selection in this mode: the member's provider access determines what they can search.
+An admin adds **GitHub** in **Settings → Sources**, chooses **Member accounts**, and saves. Each member connects GitHub in **Integrations**. There is no admin repository selection in this mode.
 
-Native GitHub qualifiers such as `repo:`, `org:`, and `user:` can narrow an individual search. Without an explicit scope, discovery is bounded to the connected account's first 100 affiliated repositories. Provider search and pagination limits still apply.
+Search a known issue or file, read the result, and follow its GitHub link. Native qualifiers such as `repo:`, `org:`, and `user:` narrow a query. Without explicit scope, discovery is bounded to the account's first 100 affiliated repositories. Search and pagination limits still apply.
 
 ## Add a repository
 
-For an organization-selected repository boundary, use **GitHub App**:
+Use **GitHub App** for an organization-selected repository boundary:
 
 1. Open **Settings → Sources → Add source → GitHub**, choose **GitHub App**, and select **Add repository**.
-2. Connect the GitHub App installation. Choose the account or organization and approve its repository access. An organization owner may need to approve or perform installation.
-3. Choose one repository from the searchable **Repository** picker. Installing on all repositories does not automatically add them all to Search.
-4. Optionally set **Path Filter** and **File Extensions** for code results, then save.
-5. Use **Add repository** again for every additional repository.
-6. Each teammate opens **Integrations → GitHub → Connect** and authorizes their own account.
+2. Connect the App installation and approve repository access for its account or organization. An organization owner may need to approve or perform installation.
+3. Select one repository in **Repository**. Installing on all repositories does not add them all to Search.
+4. Optionally set **Path Filter** and **File Extensions**, then save.
+5. Use **Add repository** for each additional repository.
+6. Each teammate connects their own GitHub account in **Integrations**.
 
-The App installation and personal authorization are separate. A member connects once per Sim organization; adding another repository reuses that connection. The member never receives the installer's permissions.
+A member connects once per Sim organization; additional repositories reuse that connection. The installation does not give members the installer's permissions.
 
-GitHub's live code search uses the default branch, so the live source form does not offer a branch setting. Path and extension filters apply to code; they do not narrow issue text by file path.
+Code search uses the default branch, so the source form has no branch setting. Path and extension filters affect code results, not issue text.
 
-## How access and filtering work
+## Search pull request discussions
 
-Search queries GitHub using the member's connected token. In App mode, Sim scopes the query to configured repositories. For each result, it checks the installation's current repository access, obtains a repository-scoped read token, verifies stable repository and owner identities under both tokens, and applies the source's code filters.
+Use native kind `issues` for issues and pull requests:
 
-Document reads use the member token and repeat the same boundary checks. A personal repository outside the selected sources is excluded even when the member can read it. Removing a repository from the App or revoking the member's access blocks later requests once GitHub reflects the change.
+| Find | Example query |
+| --- | --- |
+| Migration discussion | `repo:org/repo is:pr migration in:comments` |
+| PRs needing changes | `repo:org/repo is:pr review:changes_requested` |
+| PRs reviewed by someone | `repo:org/repo is:pr reviewed-by:octocat` |
+| PRs awaiting someone's review | `repo:org/repo is:pr review-requested:octocat` |
 
-There is no content crawl, PDF/Office extraction, embedding, or indexed-document retry in live GitHub Search. Provider search freshness, API limits, and supported search types determine coverage. Code search is not a complete inventory of every file.
+Without `in:`, GitHub searches titles, bodies, and conversation comments. Previews use matching passages where provided. Issue search is not exhaustive across inline reviews: first locate the PR by repository, title, participant, or review state, then read it. Commits require native kind `commits`.
 
-## Manage repositories
+Issue reads include comments. PR reads also include submitted reviews and inline comments, preserving authors, timestamps, links, file/line context, review and reply IDs, and diff excerpts. A historical approval is not the current merge approval status.
 
-Open **Settings → Sources → GitHub** to add repositories or change their settings. Replace a connection only with one that can access the same configured repository; use **Add repository** for another repository. Removing a source stops subsequent Search access through that source.
+Each discussion category is limited to three pages of 50 entries and 120,000 characters, in provider order. Failed endpoints or reached limits produce an incomplete-coverage notice while preserving available content. Follow returned document offsets for more read windows; open GitHub for remaining history.
+
+## Access and source changes
+
+Search and reads use your connected token. App mode also checks the installation's current repository access, verifies repository and owner identities under both tokens, and applies code filters. Personal repositories outside the selected sources are excluded. Revoking member access or removing installation access blocks later requests once GitHub reflects the change.
+
+Open **Settings → Sources → GitHub** to edit repositories. A replacement connection must access the same configured repository; use **Add repository** for another. Removing a source stops later access through it.
+
+Provider freshness, API limits, and supported search types determine coverage. Live code search is not an inventory of every file and does not run a crawl, Office/PDF extraction, or embedding job.
 
 ## Troubleshooting
 
-| Problem | Next step |
+| Problem | Check |
 | --- | --- |
-| GitHub is unavailable | Add the source and check the deployment's GitHub Search App configuration. |
-| Repository missing from the picker | Confirm the installation includes it and that the selected account can read it. |
-| Member cannot find an allowed repository | Confirm both personal access and App installation access. Check GitHub SSO and app policies. |
-| The wrong account is connected | Disconnect or reconnect with the intended GitHub account. |
-| A file does not appear in search | Check the default branch, path/extensions, GitHub code-search behavior, and provider limits. |
-| Installation does not return to Sim | Check the App setup URL and Redirect on update settings. |
-| Reconnect appears | Renew the member grant; changing App permissions may require renewed approval. |
+| GitHub unavailable | Add the source and check the deployment's GitHub Search App setup. |
+| Repository missing from picker | Check installation access and the selected account's access. |
+| Allowed repository missing | Check personal access, installation access, GitHub SSO, and app policies. |
+| Wrong account connected | Disconnect or reconnect with the intended account. |
+| File missing | Check default branch, path/extensions, code-search behavior, and limits. |
+| Installation does not return to Sim | Check App setup URL and **Redirect on update**. |
+| **Reconnect** needed | Renew the member grant; App permission changes may require approval. |
 
-Self-hosted Sim operators configure the App using [GitHub Search setup](/platform/self-hosting/integrations-oauth#github-search). This adapter does not support GitHub Enterprise Server or `ghe.com` hosts. Ordinary GitHub knowledge-base connectors retain their separate indexing behavior.
+## Related docs
+
+- [Self-hosted GitHub Search setup](/platform/self-hosting/integrations-oauth#github-search)
+- [Knowledge-base connectors](/knowledgebase/connectors) — separate indexing behavior

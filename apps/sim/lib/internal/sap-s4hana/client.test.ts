@@ -1,16 +1,15 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockSecureFetchWithValidation: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { fetchSapCsrf } from '@/lib/internal/sap-s4hana/client'
 import { sapS4HanaOperationInputSchema } from '@/lib/internal/sap-s4hana/schema'
+
+const { mockSecureFetchWithValidation } = inputValidationMockFns
 
 function response(
   body: unknown,

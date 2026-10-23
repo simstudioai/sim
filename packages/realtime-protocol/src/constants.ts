@@ -16,8 +16,6 @@ export const BLOCK_OPERATIONS = {
   TOGGLE_HANDLES: 'toggle-handles',
 } as const
 
-export type BlockOperation = (typeof BLOCK_OPERATIONS)[keyof typeof BLOCK_OPERATIONS]
-
 export const BLOCKS_OPERATIONS = {
   BATCH_UPDATE_POSITIONS: 'batch-update-positions',
   BATCH_ADD_BLOCKS: 'batch-add-blocks',
@@ -28,27 +26,19 @@ export const BLOCKS_OPERATIONS = {
   BATCH_TOGGLE_LOCKED: 'batch-toggle-locked',
 } as const
 
-export type BlocksOperation = (typeof BLOCKS_OPERATIONS)[keyof typeof BLOCKS_OPERATIONS]
-
 export const EDGE_OPERATIONS = {
   ADD: 'add',
   REMOVE: 'remove',
 } as const
-
-export type EdgeOperation = (typeof EDGE_OPERATIONS)[keyof typeof EDGE_OPERATIONS]
 
 export const EDGES_OPERATIONS = {
   BATCH_ADD_EDGES: 'batch-add-edges',
   BATCH_REMOVE_EDGES: 'batch-remove-edges',
 } as const
 
-export type EdgesOperation = (typeof EDGES_OPERATIONS)[keyof typeof EDGES_OPERATIONS]
-
 export const SUBFLOW_OPERATIONS = {
   UPDATE: 'update',
 } as const
-
-export type SubflowOperation = (typeof SUBFLOW_OPERATIONS)[keyof typeof SUBFLOW_OPERATIONS]
 
 export const VARIABLE_OPERATIONS = {
   ADD: 'add',
@@ -62,15 +52,11 @@ export const WORKFLOW_OPERATIONS = {
   REPLACE_STATE: 'replace-state',
 } as const
 
-export type WorkflowOperation = (typeof WORKFLOW_OPERATIONS)[keyof typeof WORKFLOW_OPERATIONS]
-
 export const SUBBLOCK_OPERATIONS = {
   UPDATE: 'subblock-update',
   BATCH_UPDATE: 'subblock-batch-update',
   UPDATE_WITH_CANONICAL_MODES: 'subblock-update-with-canonical-modes',
 } as const
-
-export type SubblockOperation = (typeof SUBBLOCK_OPERATIONS)[keyof typeof SUBBLOCK_OPERATIONS]
 
 export const OPERATION_TARGETS = {
   BLOCK: 'block',

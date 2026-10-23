@@ -13,21 +13,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockAuthenticateManagedOAuthDelegation,
   mockAuthorizeCredentialUse,
-  mockGetToolMetadata,
   mockResolveManagedOAuthCredentialToken,
-  mockResolveServiceAccountToken,
 } = vi.hoisted(() => ({
   mockAuthenticateManagedOAuthDelegation: vi.fn(),
   mockAuthorizeCredentialUse: vi.fn(),
-  mockGetToolMetadata: vi.fn(),
   mockResolveManagedOAuthCredentialToken: vi.fn(),
-  mockResolveServiceAccountToken: vi.fn(),
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  ...authOAuthUtilsMock,
-  resolveServiceAccountToken: mockResolveServiceAccountToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
@@ -43,10 +36,11 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
   resolveManagedOAuthCredentialToken: { execute: mockResolveManagedOAuthCredentialToken },
 }))
 
-vi.mock('@/tools/metadata', () => ({ getToolMetadata: mockGetToolMetadata }))
-
 import { createQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
+import { getToolMetadata } from '@/tools/metadata'
+
+const mockGetToolMetadata = vi.mocked(getToolMetadata)
 
 describe('OAuth Token API Routes', () => {
   beforeEach(() => {

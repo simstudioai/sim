@@ -1,3 +1,4 @@
+import type { rateLimitBucket } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +31,6 @@ const INPUT = {
 describe('provider admission', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({
       KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: undefined,
@@ -168,8 +168,8 @@ describe('provider admission', () => {
       maxWaitMs: 1,
     }
     let stored: { key: string; tokens: string; lastRefillAt: Date } | undefined
-    dbChainMockFns.values.mockImplementation((rows) => {
-      stored ??= rows.find((row: { key: string }) => row.key.endsWith(':requests'))
+    dbChainMockFns.values.mockImplementation((row) => {
+      stored ??= { ...(row as typeof rateLimitBucket.$inferSelect) }
       return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
     })
     dbChainMockFns.limit.mockImplementation(async () => [stored])
@@ -178,9 +178,15 @@ describe('provider admission', () => {
       return { where: vi.fn().mockResolvedValue(undefined) }
     })
     const bucket = new DbTokenBucket()
-    consumeTokens.mockImplementation((reservations, options) =>
-      bucket.consumeTokensAtomically(reservations, options)
-    )
+    /** The single-dimension refill arithmetic the atomic statement mirrors in SQL. */
+    consumeTokens.mockImplementation(async ([reservation]) => {
+      const result = await bucket.consumeTokens(
+        reservation.key,
+        reservation.cost,
+        reservation.config
+      )
+      return { allowed: result.allowed, retryAfterMs: result.retryAfterMs ?? 0 }
+    })
 
     for (let request = 0; request < 16; request++) await waitForProviderAdmission(input)
     await expect(waitForProviderAdmission(input)).rejects.toMatchObject({ retryAfterMs: 1000 })

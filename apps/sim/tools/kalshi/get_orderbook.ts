@@ -43,7 +43,7 @@ export const kalshiGetOrderbookTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_orderbook')
+      handleKalshiError(data, 'get_orderbook')
     }
 
     const orderbook = data.orderbook || { yes: [], no: [] }
@@ -96,7 +96,7 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
   id: 'kalshi_get_orderbook_v2',
   name: 'Get Market Orderbook from Kalshi V2',
   description:
-    'Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes depth and fp fields)',
+    'Retrieve the orderbook (yes and no bids) for a specific market with depth and fixed-point fields',
   version: '2.0.0',
 
   params: {
@@ -133,7 +133,7 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_orderbook_v2')
+      handleKalshiError(data, 'get_orderbook_v2')
     }
 
     const orderbook = data.orderbook || {}

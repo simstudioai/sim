@@ -1,6 +1,5 @@
 import { ConvexIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ConvexResponse } from '@/tools/convex/types'
 
 /**
  * A List Documents page is resumed with either the page cursor or the snapshot
@@ -8,13 +7,13 @@ import type { ConvexResponse } from '@/tools/convex/types'
  */
 const PAGE_RESUME_FIELD = ['pageCursor', 'snapshot'] as const
 
-export const ConvexBlock: BlockConfig<ConvexResponse> = {
+export const ConvexBlock: BlockConfig = {
   type: 'convex',
   name: 'Convex',
   description: 'Use Convex database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.',
+    'Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.',
   docsLink: 'https://docs.sim.ai/integrations/convex',
   category: 'tools',
   integrationType: IntegrationType.Databases,

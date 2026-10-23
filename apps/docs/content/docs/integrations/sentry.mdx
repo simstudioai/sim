@@ -1,31 +1,29 @@
 ---
 title: Sentry
 description: Manage Sentry issues, projects, events, and releases
+integration:
+  type: "sentry"
+  color: "#362D59"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sentry"
-  color="#362D59"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Sentry](https://sentry.io/) to read and update issues, inspect events, manage projects and releases, and record deployments. Webhook triggers can start workflows when Sentry reports an issue or alert.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.
-
-
+Monitor issues, manage projects, track events, and coordinate releases across your applications.
 
 ## Actions
 
 ### List Issues
 
 List issues from Sentry for a specific organization and optionally a specific project. Returns issue details including status, error counts, and last seen timestamps.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +86,13 @@ List issues from Sentry for a specific organization and optionally a specific pr
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
+</ReferenceDetails>
+
 ### Get Issue
 
 Retrieve detailed information about a specific Sentry issue by its ID. Returns complete issue details including metadata, tags, and statistics.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +146,13 @@ Retrieve detailed information about a specific Sentry issue by its ID. Returns c
 |   ↳ `lastSeen` | string | When the issue was last seen \(ISO timestamp\) |
 |   ↳ `stats` | object | Statistical information about the issue |
 
+</ReferenceDetails>
+
 ### Update Issue
 
 Update a Sentry issue by changing its status, assignment, bookmark state, or other properties. Returns the updated issue details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -181,9 +187,13 @@ Update a Sentry issue by changing its status, assignment, bookmark state, or oth
 |   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
 |   ↳ `permalink` | string | Direct link to the issue in Sentry |
 
+</ReferenceDetails>
+
 ### List Projects
 
 List all projects in a Sentry organization. Returns project details including name, platform, teams, and configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -221,9 +231,13 @@ List all projects in a Sentry organization. Returns project details including na
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
+</ReferenceDetails>
+
 ### Get Project
 
 Retrieve detailed information about a specific Sentry project by its slug. Returns complete project details including teams, features, and configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -272,9 +286,13 @@ Retrieve detailed information about a specific Sentry project by its slug. Retur
 |   ↳ `hasReplays` | boolean | Whether the project has session replays enabled |
 |   ↳ `hasSessions` | boolean | Whether the project has sessions enabled |
 
+</ReferenceDetails>
+
 ### Create Project
 
 Create a new Sentry project in an organization. Requires a team to associate the project with. Returns the created project details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -319,9 +337,13 @@ Create a new Sentry project in an organization. Requires a team to associate the
 |   ↳ `color` | string | Project color code |
 |   ↳ `isPublic` | boolean | Whether the project is public |
 
+</ReferenceDetails>
+
 ### Update Project
 
 Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -356,9 +378,13 @@ Update a Sentry project by changing its name, slug, platform, or other settings.
 |     ↳ `name` | string | Team name |
 |     ↳ `slug` | string | Team slug |
 
+</ReferenceDetails>
+
 ### List Events
 
 List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -417,9 +443,13 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
+</ReferenceDetails>
+
 ### Get Event
 
 Retrieve detailed information about a specific Sentry event by its ID. Returns complete event details including stack traces, breadcrumbs, context, and user information.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -471,9 +501,13 @@ Retrieve detailed information about a specific Sentry event by its ID. Returns c
 |     ↳ `name` | string | SDK name |
 |     ↳ `version` | string | SDK version |
 
+</ReferenceDetails>
+
 ### List Releases
 
 List releases for a Sentry organization or project. Returns release details including version, commits, deploy information, and associated projects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -535,9 +569,13 @@ List releases for a Sentry organization or project. Returns release details incl
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
+</ReferenceDetails>
+
 ### Create Release
 
 Create a new release in Sentry. A release is a version of your code deployed to an environment. Can include commit information and associated projects. Returns the created release details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -598,9 +636,13 @@ Create a new release in Sentry. A release is a version of your code deployed to 
 |       ↳ `raw` | string | Raw version string |
 |     ↳ `package` | string | Package name |
 
+</ReferenceDetails>
+
 ### Create Deploy
 
 Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -627,9 +669,13 @@ Create a deploy record for a Sentry release in a specific environment. Deploys t
 |   ↳ `dateStarted` | string | When the deploy started \(ISO timestamp\) |
 |   ↳ `dateFinished` | string | When the deploy finished \(ISO timestamp\) |
 
+</ReferenceDetails>
+
 ### List Teams
 
 List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -664,15 +710,19 @@ List all teams in a Sentry organization. Useful for discovering the team slug re
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Sentry Error Created
 
 Trigger workflow when a new error event is created in Sentry
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -687,7 +737,7 @@ Trigger workflow when a new error event is created in Sentry
 | `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
 | `installation` | json | Installation object containing the integration installation uuid |
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
-| `error` | object | error output from the tool |
+| `error` | object |  |
 |   ↳ `event_id` | string | Unique event ID |
 |   ↳ `issue_id` | string | ID of the issue this error belongs to |
 |   ↳ `issue_url` | string | API URL of the issue |
@@ -716,8 +766,7 @@ Trigger workflow when a new error event is created in Sentry
 |   ↳ `url` | string | API URL for the event |
 |   ↳ `web_url` | string | Browser URL for the event |
 
-
----
+</ReferenceDetails>
 
 ### Sentry Issue Alert
 
@@ -738,7 +787,7 @@ Trigger workflow when a Sentry issue alert rule fires
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
 | `event` | json | The event that triggered the alert rule |
 | `triggered_rule` | string | Label of the alert rule that was triggered |
-| `issue_alert` | object | issue_alert output from the tool |
+| `issue_alert` | object |  |
 |   ↳ `title` | string | Alert rule name |
 |   ↳ `settings` | json | Alert rule action settings \(name/value pairs\) |
 
@@ -749,6 +798,8 @@ Trigger workflow when a Sentry issue alert rule fires
 
 Trigger workflow when a new issue is created in Sentry
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -762,7 +813,7 @@ Trigger workflow when a new issue is created in Sentry
 | `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
 | `installation` | json | Installation object containing the integration installation uuid |
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `shortId` | string | Short human-readable issue ID |
 |   ↳ `shareId` | string | Share ID for the issue |
@@ -791,7 +842,7 @@ Trigger workflow when a new issue is created in Sentry
 |   ↳ `assignedTo` | json | Assignee \(user or team\), or null |
 |   ↳ `annotations` | json | Issue annotations |
 |   ↳ `metadata` | json | Issue metadata \(title, type, value, sdk, severity\) |
-|   ↳ `project` | object | project output from the tool |
+|   ↳ `project` | object |  |
 |     ↳ `id` | string | Project ID |
 |     ↳ `name` | string | Project name |
 |     ↳ `slug` | string | Project slug |
@@ -801,13 +852,14 @@ Trigger workflow when a new issue is created in Sentry
 |   ↳ `project_url` | string | Browser URL for the project |
 |   ↳ `permalink` | string | Permalink to the issue |
 
-
----
+</ReferenceDetails>
 
 ### Sentry Issue Resolved
 
 Trigger workflow when an issue is resolved in Sentry
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -821,7 +873,7 @@ Trigger workflow when an issue is resolved in Sentry
 | `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
 | `installation` | json | Installation object containing the integration installation uuid |
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `shortId` | string | Short human-readable issue ID |
 |   ↳ `shareId` | string | Share ID for the issue |
@@ -850,7 +902,7 @@ Trigger workflow when an issue is resolved in Sentry
 |   ↳ `assignedTo` | json | Assignee \(user or team\), or null |
 |   ↳ `annotations` | json | Issue annotations |
 |   ↳ `metadata` | json | Issue metadata \(title, type, value, sdk, severity\) |
-|   ↳ `project` | object | project output from the tool |
+|   ↳ `project` | object |  |
 |     ↳ `id` | string | Project ID |
 |     ↳ `name` | string | Project name |
 |     ↳ `slug` | string | Project slug |
@@ -860,8 +912,7 @@ Trigger workflow when an issue is resolved in Sentry
 |   ↳ `project_url` | string | Browser URL for the project |
 |   ↳ `permalink` | string | Permalink to the issue |
 
-
----
+</ReferenceDetails>
 
 ### Sentry Metric Alert
 

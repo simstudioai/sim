@@ -2,7 +2,7 @@ import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { isBenchmarkEnabled, requireBenchmarkEnabled } from '@/lib/benchmarks/config'
+import { canUseBenchmarks, requireBenchmarkEnabled } from '@/lib/benchmarks/config'
 import type { AuthorizingUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import {
   assertOperationPrincipal,
@@ -19,13 +19,7 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
-
-export async function canUseBenchmarks(userId: string): Promise<boolean> {
-  if (!isBenchmarkEnabled()) return false
-  return (await verifyEffectiveSuperUser(userId)).effectiveSuperUser
-}
 
 /** The initiating admin stays the authenticated principal; no session or cookie is replaced. */
 export async function requireBenchmarkOperator(principal: Principal): Promise<SessionPrincipal> {
@@ -82,6 +76,7 @@ export function defineAuthorizedBenchmarkUseCase<
 
 const targetOperation = defineOrganizationOperation({
   id: 'benchmarks.target.authorize',
+  contentDelivery: 'none',
   minimumRole: 'member',
   capability: 'copilot.use',
   principalKinds: ['organization_delegated'],

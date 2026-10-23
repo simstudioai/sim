@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import {
@@ -23,6 +24,11 @@ const logger = createLogger('KnowledgeBaseOrchestration')
 
 export type PerformKnowledgeBaseResult = KnowledgeOrchestrationResult<{
   knowledgeBase: KnowledgeBaseWithCounts
+}>
+
+/** The updated base without document totals, which a surface reads as its caller. */
+export type PerformUpdateKnowledgeBaseResult = KnowledgeOrchestrationResult<{
+  knowledgeBase: ActiveKnowledgeBaseReference
 }>
 
 export interface PerformCreateKnowledgeBaseParams extends KnowledgeOperationContext {
@@ -143,7 +149,7 @@ export interface PerformUpdateKnowledgeBaseParams extends KnowledgeOperationCont
  */
 export async function performUpdateKnowledgeBase(
   params: PerformUpdateKnowledgeBaseParams
-): Promise<PerformKnowledgeBaseResult> {
+): Promise<PerformUpdateKnowledgeBaseResult> {
   const { knowledgeBaseId, updates, request, source } = params
   const requestId = params.requestId ?? generateRequestId()
 
@@ -154,7 +160,7 @@ export async function performUpdateKnowledgeBase(
     return fail('No updates specified', 'validation')
   }
 
-  let updated: KnowledgeBaseWithCounts
+  let updated: ActiveKnowledgeBaseReference
   try {
     updated = await updateKnowledgeBase(knowledgeBaseId, updates, requestId, {
       actorUserId: params.userId,

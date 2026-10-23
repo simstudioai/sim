@@ -1,4 +1,6 @@
 import { loggerMock } from '@sim/testing'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -14,6 +16,8 @@ import {
 import type { ExecutionResult } from '@/executor/types'
 import type { AgentStreamSink } from '@/providers/stream-events'
 
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
 const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'WorkflowStreaming'
 )
@@ -23,15 +27,7 @@ if (!workflowStreamingLogger) {
   throw new Error('WorkflowStreaming logger mock was not initialized')
 }
 
-const { mockDownloadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 const manifestChunk = [{ id: 1 }]
 const manifestChunkBytes = Buffer.byteLength(JSON.stringify(manifestChunk), 'utf8')
@@ -1419,6 +1415,37 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(sawAbort).toBe(true)
     expect(events.some((event) => event.event === 'final')).toBe(false)
     expect(events).toContainEqual({ event: 'error', error: 'Client cancelled request' })
+  })
+
+  it('stops writing frames once the client cancels the response stream', async () => {
+    let finishExecution!: (result: ExecutionResult) => void
+    let completeBlock!: (blockId: string, output: unknown) => Promise<void>
+    const stream = await createStreamingResponse({
+      requestId: 'request-client-cancel',
+      streamConfig: { selectedOutputs: ['block_answer'], includeFileBase64: false },
+      executeFn: async ({ onBlockComplete }) => {
+        completeBlock = onBlockComplete
+        return await new Promise<ExecutionResult>((resolve) => {
+          finishExecution = resolve
+        })
+      },
+    })
+    const reader = stream.getReader()
+    await reader.read()
+    await reader.cancel()
+
+    await expect(completeBlock('block', { answer: 'late answer' })).resolves.toBeUndefined()
+    finishExecution({ success: false, status: 'cancelled', output: {}, logs: [] })
+
+    await vi.waitFor(() =>
+      expect(workflowStreamingLogger.info).toHaveBeenCalledWith(
+        '[request-client-cancel] Streaming execution aborted by client disconnect'
+      )
+    )
+    expect(workflowStreamingLogger.error).not.toHaveBeenCalledWith(
+      '[request-client-cancel] Stream error',
+      expect.anything()
+    )
   })
 
   it('thinking never enters streamedChunks / log content rewrite', async () => {

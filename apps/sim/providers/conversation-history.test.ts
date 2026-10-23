@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () => ({ env: {} }))
-vi.mock('@/lib/core/utils/urls', () => ({ getOllamaUrl: () => 'http://localhost:11434' }))
 vi.mock('@/providers/runtime-context', () => ({ getProviderRuntimeContext: vi.fn() }))
 vi.mock('@/providers/cost-policy', () => ({
   resolveModelCostPolicy: () => ({ billable: true, multiplier: 1 }),
@@ -23,6 +22,15 @@ import {
 } from '@/providers/conversation-history'
 import { getProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
+
+setEnv({
+  AZURE_OPENAI_API_VERSION: undefined,
+  AZURE_OPENAI_ENDPOINT: undefined,
+  LITELLM_BASE_URL: undefined,
+  OLLAMA_URL: undefined,
+  VLLM_BASE_URL: undefined,
+})
+afterAll(resetEnvMock)
 
 describe('native history request binding', () => {
   const request: ProviderRequest = {

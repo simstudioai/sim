@@ -1,182 +1,177 @@
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { CREDIT_TIERS } from '@/lib/billing/constants'
+import type { CompetitorProfile, Fact, Prose } from '@/lib/compare/data'
+import { simProfile } from '@/lib/compare/data'
+import { toSiteUrl } from '@/lib/core/utils/urls'
+import { getAllCustomerStoryMeta, getCustomerStorySource } from '@/lib/customers/registry'
+import { DOCS_URL } from '@/lib/help-links'
+import {
+  getAllPostMeta as getAllLibraryPostMeta,
+  getPostSource as getLibraryPostSource,
+} from '@/lib/library/registry'
+import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/comparison-sections'
+import {
+  ALL_COMPETITORS,
+  buildBottomLine,
+  getLatestVerifiedDate,
+  SIM_LATEST_VERIFIED,
+} from '@/app/(landing)/comparisons/utils'
+import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
+import {
+  LLMS_HEADER,
+  linkLine,
+  markdownResponse,
+  navMenuLines,
+  SOLUTION_LINES,
+  section,
+  toLlmsMarkdown,
+} from '@/app/llms.txt/llms'
 
-export function GET() {
-  const baseUrl = getBaseUrl()
+export const dynamic = 'force-static'
+export const revalidate = 86400
 
-  const llmsFullContent = `# Sim — The AI Workspace | Build, Deploy & Manage AI Agents
+const CONCEPTS = [
+  [
+    'Workspace',
+    'The container for a team’s agents, workflows, knowledge bases, tables, files, credentials, and run history.',
+  ],
+  [
+    'Chat',
+    'Talk to Sim in natural language to build, run, and manage everything in the workspace.',
+  ],
+  [
+    'Workflow',
+    'The agent logic built in the visual builder: blocks connected into a graph that runs from a trigger.',
+  ],
+  [
+    'Block',
+    'One step in a workflow, such as an Agent (LLM call with tools), Function (code), API request, Condition, Router, Loop, or Parallel.',
+  ],
+  [
+    'Trigger',
+    'What starts a run: a manual run, a schedule, a webhook, an API call, a chat message, or an event in a connected app.',
+  ],
+  [
+    'Knowledge Base',
+    'Documents uploaded or synced from sources such as Notion, Google Drive, and Confluence, searchable by agents.',
+  ],
+  ['Tables', 'A built-in database agents read and update while they work.'],
+  ['Logs', 'Every run traced block by block, with inputs, outputs, cost, and duration.'],
+] as const
 
-> Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.
+function proseToMarkdown(prose: Prose): string {
+  return prose
+    .map((segment) =>
+      typeof segment === 'string' ? segment : `[${segment.text}](${toSiteUrl(segment.href)})`
+    )
+    .join('')
+}
 
-## Overview
+/** A fact as a table cell: its compact form, as the comparison table renders it. */
+function factCell(fact: Fact | undefined): string {
+  const value = fact ? (fact.shortValue ?? fact.value) : 'Unknown'
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\s*\n\s*/g, ' ')
+}
 
-Sim is the AI workspace where teams create agents visually with the workflow builder, conversationally through Chat, or programmatically with the API. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that automate real work across systems, and manage them with full observability. SOC2 compliant.
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
 
-## Product Details
-
-- **Product Name**: Sim
-- **Category**: AI Workspace / AI Agent Builder
-- **Deployment**: Cloud (SaaS) and Self-hosted options
-- **Pricing**: Free tier, Pro ($25/month, 6K credits), Max ($100/month, 25K credits), Team plans available, Enterprise (custom)
-- **Compliance**: SOC2 Type II
-
-## Core Concepts
-
-### Workspace
-A workspace is the top-level container in Sim. It holds workflows, data sources, credentials, and execution history. Users can create multiple workspaces for different projects or teams.
-
-### Workflow
-A workflow is a directed graph of blocks that defines an agentic process. Workflows can be triggered manually, on a schedule, or via webhooks. Each workflow has a unique ID and can be versioned.
-
-### Block
-A block is an individual step in a workflow. Types include:
-- **Agent Block**: Executes an LLM call with system prompts and tools
-- **Function Block**: Runs custom JavaScript/TypeScript code
-- **API Block**: Makes HTTP requests to external services
-- **Condition Block**: Branches workflow based on conditions
-- **Loop Block**: Iterates over arrays or until conditions are met
-- **Router Block**: Routes to different paths based on LLM classification
-
-### Trigger
-A trigger initiates workflow execution. Types include:
-- **Manual**: User clicks "Run" button
-- **Schedule**: Cron-based scheduling (e.g., every hour, daily at 9am)
-- **Webhook**: HTTP endpoint that triggers on incoming requests
-- **Event**: Triggered by external events (email received, Slack message, etc.)
-
-### Execution
-An execution is a single run of a workflow. It includes:
-- Input parameters
-- Block-by-block execution logs
-- Output data
-- Token usage and cost tracking
-- Duration and performance metrics
-
-## Capabilities
-
-### LLM Orchestration
-Sim supports all major LLM providers:
-- OpenAI (GPT-5.2, GPT-5.1, GPT-5, GPT-4o, GPT-4.1)
-- Anthropic (Claude Opus 4.6, Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5)
-- Google (Gemini Pro 3, Gemini Pro 3 Preview, Gemini 2.5 Pro, Gemini 2.5 Flash)
-- Mistral (Mistral Large, Mistral Medium)
-- xAI (Grok)
-- Perplexity
-- Ollama or VLLM (self-hosted open-source models) 
-- Azure OpenAI
-- Amazon Bedrock
-
-### Integrations
-1,000+ pre-built integrations including:
-- **Communication**: Slack, Discord, Email (Gmail, Outlook), SMS (Twilio)
-- **Productivity**: Notion, Airtable, Google Sheets, Google Docs
-- **Development**: GitHub, GitLab, Jira, Linear
-- **Data**: PostgreSQL, MySQL, MongoDB, Supabase, Pinecone
-- **Storage**: AWS S3, Google Cloud Storage, Dropbox
-- **CRM**: Salesforce, HubSpot, Pipedrive
-
-### RAG (Retrieval-Augmented Generation)
-Built-in support for:
-- Document ingestion (PDF, DOCX, TXT, Markdown)
-- Vector database integration (Pinecone, Weaviate, Qdrant)
-- Semantic search and retrieval
-- Chunking strategies (fixed size, semantic, recursive)
-
-### Tables
-Built-in table creation and management:
-- Structured data storage
-- Queryable tables for agent workflows
-- Native integrations
-
-### Code Execution
-- Sandboxed JavaScript/TypeScript execution
-- Access to npm packages
-- Persistent state across executions
-- Error handling and retry logic
-
-## Use Cases
-
-### Customer Support Automation
-- Classify incoming tickets by urgency and topic
-- Generate draft responses using RAG over knowledge base
-- Route to appropriate team members
-- Auto-close resolved tickets
-
-### Content Generation Pipeline
-- Research topics using web search tools
-- Generate outlines and drafts with LLMs
-- Review and edit with human-in-the-loop
-- Publish to CMS platforms
-
-### Data Processing Workflows
-- Extract data from documents (invoices, receipts, forms)
-- Transform and validate data
-- Load into databases or spreadsheets
-- Generate reports and summaries
-
-### Sales and Marketing Automation
-- Enrich leads with company data
-- Score leads based on fit criteria
-- Generate personalized outreach emails
-- Sync with CRM systems
-
-## Technical Architecture
-
-### Frontend
-- Next.js 16 with App Router
-- React Flow for the visual builder
-- Tailwind CSS for styling
-- Zustand for state management
-
-### Backend
-- Node.js with TypeScript
-- PostgreSQL for persistent storage
-- Redis for caching and queues
-- S3-compatible storage for files
-
-### Execution Engine
-- Isolated execution per workflow run
-- Parallel block execution where possible
-- Retry logic with exponential backoff
-- Real-time streaming of outputs
-
-## Getting Started
-
-1. **Sign Up**: Create a free account at ${baseUrl}
-2. **Create Workspace**: Set up your first workspace
-3. **Build Workflow**: Drag blocks onto the workflow builder and connect them
-4. **Configure Blocks**: Set up LLM providers, tools, and integrations
-5. **Test**: Run the workflow manually to verify
-6. **Deploy**: Set up triggers for automated execution
-
-## Links
-
-- [Website](${baseUrl}): Product overview and primary entry point
-- [Documentation](https://docs.sim.ai): Product guides and technical reference
-- [API Reference](https://docs.sim.ai/api): API documentation
-- [GitHub](https://github.com/simstudioai/sim): Open-source codebase
-- [Slack](https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA): Community workspace
-- [X/Twitter](https://x.com/simdotai): Announcements and updates
-- [LinkedIn](https://linkedin.com/company/simdotai): Company page
-
-## Support
-
-- [Documentation](https://docs.sim.ai): Self-serve guides and reference
-- [Community Slack](https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA): Community support
-- Email: help@sim.ai
-- Security issues: security@sim.ai
-
-## Legal
-
-- [Terms of Service](${baseUrl}/terms): Legal terms
-- [Privacy Policy](${baseUrl}/privacy): Data handling practices
-- [Cookie Policy](${baseUrl}/cookie-policy): Cookies Sim sets, why, and how to change your choice
-- [Security](${baseUrl}/.well-known/security.txt): Vulnerability disclosure policy
-`
-
-  return new Response(llmsFullContent, {
-    headers: {
-      'Content-Type': 'text/markdown; charset=utf-8',
-      'Cache-Control': 'public, max-age=86400, s-maxage=86400',
-    },
+/** The key facts of one `/comparisons/{id}` page as markdown, from the same profile data. */
+function comparisonMarkdown(competitor: CompetitorProfile): string {
+  const verdict = buildBottomLine(competitor)
+  const verified = new Date(
+    Math.max(SIM_LATEST_VERIFIED.getTime(), getLatestVerifiedDate(competitor).getTime())
+  )
+  const rows = COMPARISON_SECTIONS.flatMap((s) => {
+    const sim = getFactGroup(simProfile, s.group)
+    const other = getFactGroup(competitor, s.group)
+    return s.rows.map(
+      (row) =>
+        `| ${s.title}: ${row.label} | ${factCell(sim[row.key])} | ${factCell(other[row.key])} |`
+    )
   })
+
+  return [
+    `### Sim vs ${competitor.name}`,
+    `URL: ${toSiteUrl(`/comparisons/${competitor.id}`)} · Facts last verified ${isoDate(verified)}`,
+    `${competitor.name}: ${competitor.oneLiner}`,
+    competitor.leadAnswer ? proseToMarkdown(competitor.leadAnswer) : '',
+    competitor.betterThanAnswer ? proseToMarkdown(competitor.betterThanAnswer) : '',
+    `- ${verdict.chooseSim}\n- ${verdict.chooseCompetitor}`,
+    competitor.standoutFeatures.length > 0
+      ? `Standout features of ${competitor.name}:\n\n${competitor.standoutFeatures.map((f) => `- ${f.title}: ${f.description}`).join('\n')}`
+      : '',
+    competitor.limitations.length > 0
+      ? `Documented limitations of ${competitor.name}:\n\n${competitor.limitations.map((l) => `- ${l.title}: ${l.description}`).join('\n')}`
+      : '',
+    [`| Feature | Sim | ${competitor.name} |`, '| --- | --- | --- |', ...rows].join('\n'),
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+/**
+ * `/llms-full.txt`: the substantive public content in one markdown file for AI
+ * engines to ingest — product overview, the full text of every published
+ * library article and customer story, and the sourced facts behind every
+ * comparison page. Generated from the content registries and comparison data,
+ * so retired articles and new comparisons track automatically.
+ */
+export async function GET() {
+  const [libraryPosts, customerStories] = await Promise.all([
+    getAllLibraryPostMeta(),
+    getAllCustomerStoryMeta(),
+  ])
+  const toBody = (source: string | null) => toLlmsMarkdown(source ?? '', 2)
+  const [libraryBodies, customerBodies] = await Promise.all([
+    Promise.all(libraryPosts.map((p) => getLibraryPostSource(p.slug).then(toBody))),
+    Promise.all(customerStories.map((s) => getCustomerStorySource(s.slug).then(toBody))),
+  ])
+
+  const [pro, max] = CREDIT_TIERS
+
+  return markdownResponse(
+    [
+      LLMS_HEADER,
+      `This file holds the full text of Sim’s public library, customer stories, and comparison facts. The link index is [llms.txt](${toSiteUrl('/llms.txt')}); the product documentation is at [${DOCS_URL}/llms-full.txt](${DOCS_URL}/llms-full.txt).`,
+      section('Overview', [
+        'Teams build agents in the visual workflow builder, by talking to Sim in Chat, or with code through the API and SDKs. Sim is open source under the Apache 2.0 license and runs as a managed cloud service or self-hosted with Docker or Kubernetes.',
+        '',
+        ...CONCEPTS.map(([term, definition]) => `- **${term}**: ${definition}`),
+      ]),
+      section('Platform', navMenuLines(PLATFORM_MENU)),
+      section('Pricing', [
+        linkLine('Pricing', '/pricing'),
+        '- Free: $0 to start building agents.',
+        `- ${pro.name}: $${pro.dollars} per user per month, ${pro.credits.toLocaleString('en-US')} credits.`,
+        `- ${max.name}: $${max.dollars} per user per month, ${max.credits.toLocaleString('en-US')} credits.`,
+        '- Enterprise: custom limits, infrastructure, and governance for large organizations.',
+      ]),
+      section('Solutions', SOLUTION_LINES),
+      section(
+        'Customer stories',
+        customerStories.map((story, i) =>
+          [`### ${story.title}`, `URL: ${story.canonical}`, customerBodies[i]].join('\n\n')
+        ),
+        '\n\n'
+      ),
+      section('Comparisons', ALL_COMPETITORS.map(comparisonMarkdown), '\n\n'),
+      section(
+        'Library',
+        libraryPosts.map((p, i) =>
+          [
+            `### ${p.title}`,
+            `URL: ${p.canonical} · Updated ${(p.updated ?? p.date).slice(0, 10)}`,
+            `> ${p.description}`,
+            libraryBodies[i],
+          ].join('\n\n')
+        ),
+        '\n\n'
+      ),
+    ],
+    revalidate
+  )
 }

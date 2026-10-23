@@ -4,8 +4,8 @@ import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/
 import { DropboxClient, DropboxUploadError } from '@/lib/internal/dropbox/client'
 import type { DropboxUploadInput } from '@/lib/internal/dropbox/schema'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 

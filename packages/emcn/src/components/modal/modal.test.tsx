@@ -87,7 +87,6 @@ describe('native-surface modal preparation', () => {
     container = null
     document.body.replaceChildren()
     document.body.removeAttribute('style')
-    vi.restoreAllMocks()
   })
 
   it('keeps both the scrim and content hidden until every registered preparation settles', async () => {

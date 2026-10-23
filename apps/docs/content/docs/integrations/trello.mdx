@@ -1,24 +1,37 @@
 ---
 title: Trello
 description: Manage Trello lists, cards, checklists, and activity
+integration:
+  type: "trello"
+  color: "#0052CC"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="trello"
-  color="#0052CC"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Trello](https://trello.com) to manage boards, lists, cards, checklists, labels, and members, or retrieve activity and add comments. Complete the OAuth Allowed Origins setup below before connecting your account.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [API tokens](/integrations/trello-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Trello account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Environment variables | `TRELLO_API_KEY` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read` | Read boards, lists, cards, and workspaces |
+| `write` | Create and update boards, lists, and cards |
+
+## Use the block [#usage-instructions]
 
 {/* MANUAL-CONTENT-START:usage */}
-## Trello OAuth Setup
+## Trello OAuth setup [#trello-oauth-setup]
 
 Before connecting Trello in Sim, add your Sim app origin to the **Allowed Origins** list for your Trello API key in the Trello Power-Up admin settings.
 
@@ -28,13 +41,13 @@ Trello's authorization flow redirects back to Sim using a `return_url`. If your 
 
 Integrate with Trello to list, search, create, update, and delete cards and lists, manage checklists and checklist items, assign labels and members, review activity, and add comments.
 
-
-
 ## Actions
 
 ### Trello Get Lists
 
 List all lists on a Trello board
+
+<ReferenceDetails>
 
 #### Input
 
@@ -55,9 +68,13 @@ List all lists on a Trello board
 |   ↳ `idBoard` | string | Board ID containing the list |
 | `count` | number | Number of lists returned |
 
+</ReferenceDetails>
+
 ### Trello List Cards
 
 List cards from a Trello board or list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +105,13 @@ List cards from a Trello board or list
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 | `count` | number | Number of cards returned |
 
+</ReferenceDetails>
+
 ### Trello Search
 
 Search Trello cards and boards by keyword
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +143,13 @@ Search Trello cards and boards by keyword
 |   ↳ `idOrganization` | string | Workspace/organization ID that owns the board |
 | `count` | number | Total number of cards and boards returned |
 
+</ReferenceDetails>
+
 ### Trello Create Card
 
 Create a new card in a Trello list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +184,13 @@ Create a new card in a Trello list
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 
+</ReferenceDetails>
+
 ### Trello Update Card
 
 Update an existing card on Trello
+
+<ReferenceDetails>
 
 #### Input
 
@@ -195,9 +224,13 @@ Update an existing card on Trello
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 
+</ReferenceDetails>
+
 ### Trello Delete Card
 
 Permanently delete a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +244,13 @@ Permanently delete a Trello card
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the card was deleted |
 
+</ReferenceDetails>
+
 ### Trello Get Actions
 
 Get activity/actions from a board or card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,9 +293,13 @@ Get activity/actions from a board or card
 |     ↳ `name` | string | List name |
 | `count` | number | Number of actions returned |
 
+</ReferenceDetails>
+
 ### Trello Add Comment
 
 Add a comment to a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +336,13 @@ Add a comment to a Trello card
 |     ↳ `id` | string | List ID |
 |     ↳ `name` | string | List name |
 
+</ReferenceDetails>
+
 ### Trello Create Board
 
 Create a new Trello board
+
+<ReferenceDetails>
 
 #### Input
 
@@ -320,9 +365,13 @@ Create a new Trello board
 |   ↳ `closed` | boolean | Whether the board is closed |
 |   ↳ `idOrganization` | string | ID of the workspace/organization the board belongs to |
 
+</ReferenceDetails>
+
 ### Trello Get Board
 
 Retrieve a single Trello board by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -342,9 +391,13 @@ Retrieve a single Trello board by ID
 |   ↳ `closed` | boolean | Whether the board is closed |
 |   ↳ `idOrganization` | string | ID of the workspace/organization the board belongs to |
 
+</ReferenceDetails>
+
 ### Trello Create List
 
 Create a new list on a Trello board
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,9 +418,13 @@ Create a new list on a Trello board
 |   ↳ `pos` | number | List position on the board |
 |   ↳ `idBoard` | string | Board ID containing the list |
 
+</ReferenceDetails>
+
 ### Trello Update List
 
 Rename, move, archive, or reopen a Trello list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -390,9 +447,13 @@ Rename, move, archive, or reopen a Trello list
 |   ↳ `pos` | number | List position on the board |
 |   ↳ `idBoard` | string | Board ID containing the list |
 
+</ReferenceDetails>
+
 ### Trello Get Card
 
 Retrieve a single Trello card by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -420,9 +481,13 @@ Retrieve a single Trello card by ID
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
 
+</ReferenceDetails>
+
 ### Trello Add Checklist
 
 Add a checklist to a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +508,13 @@ Add a checklist to a Trello card
 |   ↳ `idBoard` | string | Board ID containing the checklist |
 |   ↳ `pos` | number | Checklist position on the card |
 
+</ReferenceDetails>
+
 ### Trello Add Checklist Item
 
 Add an item to a Trello checklist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,9 +536,13 @@ Add an item to a Trello checklist
 |   ↳ `pos` | number | Item position on the checklist |
 |   ↳ `idChecklist` | string | Checklist ID containing the item |
 
+</ReferenceDetails>
+
 ### Trello Update Checklist Item
 
 Check off, uncheck, or rename a Trello checklist item
+
+<ReferenceDetails>
 
 #### Input
 
@@ -491,9 +564,13 @@ Check off, uncheck, or rename a Trello checklist item
 |   ↳ `pos` | number | Item position on the checklist |
 |   ↳ `idChecklist` | string | Checklist ID containing the item |
 
+</ReferenceDetails>
+
 ### Trello Add Label
 
 Attach an existing label to a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -508,9 +585,13 @@ Attach an existing label to a Trello card
 | --------- | ---- | ----------- |
 | `labelIds` | array | Label IDs now applied to the card |
 
+</ReferenceDetails>
+
 ### Trello Remove Label
 
 Detach a label from a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -525,9 +606,13 @@ Detach a label from a Trello card
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the label was removed from the card |
 
+</ReferenceDetails>
+
 ### Trello Add Member
 
 Assign a member to a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -542,9 +627,13 @@ Assign a member to a Trello card
 | --------- | ---- | ----------- |
 | `memberIds` | array | Member IDs now assigned to the card |
 
+</ReferenceDetails>
+
 ### Trello Remove Member
 
 Unassign a member from a Trello card
+
+<ReferenceDetails>
 
 #### Input
 
@@ -559,9 +648,13 @@ Unassign a member from a Trello card
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the member was removed from the card |
 
+</ReferenceDetails>
+
 ### Trello List Members
 
 List members of a Trello board
+
+<ReferenceDetails>
 
 #### Input
 
@@ -578,5 +671,7 @@ List members of a Trello board
 |   ↳ `fullName` | string | Member full name |
 |   ↳ `username` | string | Member username |
 | `count` | number | Number of members returned |
+
+</ReferenceDetails>
 
 

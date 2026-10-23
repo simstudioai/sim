@@ -9,7 +9,6 @@ import { falaiVideoTool } from '@/tools/video/falai'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 describe('Fal.ai hosted key pricing', () => {

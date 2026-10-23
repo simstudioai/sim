@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { StreamingResponseFormatProcessor } from '@/executor/utils'
 
 describe('StreamingResponseFormatProcessor', () => {
@@ -6,10 +6,6 @@ describe('StreamingResponseFormatProcessor', () => {
 
   beforeEach(() => {
     processor = new StreamingResponseFormatProcessor()
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('processStream', () => {

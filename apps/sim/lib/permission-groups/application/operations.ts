@@ -7,6 +7,7 @@ function definePermissionGroupOperation<const Id extends string>(
 ) {
   return defineOrganizationOperation({
     id,
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -62,13 +63,16 @@ export const permissionGroupOperations = {
 export const permissionGroupWorkspaceOperations = {
   /**
    * permission-group-exempt: Members must be able to read their own restrictions.
+   * Chat delegated by the member reads the same config, so it can say why a tool is withheld.
    */
   readUserConfig: defineWorkspaceOperation({
     id: 'permission_groups.read_user_config',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
     oauthScope: 'api:read',
     capability: 'none',
+    contentDelivery: 'none',
   }),
 } as const

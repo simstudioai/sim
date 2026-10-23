@@ -1,20 +1,17 @@
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getOrganizationSubscription, getBillingPeriodUsageCostByUser } = vi.hoisted(() => ({
-  getOrganizationSubscription: vi.fn(),
-  getBillingPeriodUsageCostByUser: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription,
-  getPlanPricing: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: vi.fn(),
-  getBillingPeriodUsageCostByUser,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
+
+const getOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const getBillingPeriodUsageCostByUser = billingUsageLogMockFns.mockGetBillingPeriodUsageCostByUser
 
 describe('getOrganizationMemberUsageSnapshot', () => {
   beforeEach(() => {

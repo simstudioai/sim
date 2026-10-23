@@ -10,10 +10,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
-import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
   Predicate,
@@ -52,6 +50,7 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ChatContext } from '@/stores/panel'
@@ -175,7 +174,6 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
-  tableRowTtlEnabled: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
   remoteSelections: RemoteTableSelection[]
   /** Broadcast the local viewer's cell selection to the table presence room. */
@@ -450,7 +448,6 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
-  tableRowTtlEnabled,
   remoteSelections,
   emitCellSelection,
   locks,
@@ -496,12 +493,11 @@ export function TableGrid({
   workspaceIdRef.current = workspaceId
   const tableIdRef = useRef(tableId)
   tableIdRef.current = tableId
-  const posthog = usePostHog()
-
-  useEffect(() => {
-    if (!tableId || !workspaceId) return
-    captureEvent(posthog, 'table_opened', { table_id: tableId, workspace_id: workspaceId })
-  }, [tableId, workspaceId, posthog])
+  useCaptureWhenReady(
+    'table_opened',
+    tableId && workspaceId ? { table_id: tableId, workspace_id: workspaceId } : null,
+    tableId
+  )
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
@@ -600,7 +596,6 @@ export function TableGrid({
     workflows,
     columns,
     tableWorkflowGroups,
-    workflowStates,
     columnSourceInfo,
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,
@@ -4256,20 +4251,18 @@ export function TableGrid({
    * count label and the multi-row "Run workflows" action.
    */
   const contextMenuRowIds = useMemo<string[]>(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return []
-    if (
-      !rowSelectionIsEmpty(rowSelection) &&
-      rowSelectionIncludes(rowSelection, contextMenu.row.id)
-    ) {
+    const contextRow = contextMenu.row
+    if (!contextMenu.isOpen || !contextRow) return []
+    if (!rowSelectionIsEmpty(rowSelection) && rowSelectionIncludes(rowSelection, contextRow.id)) {
       const ids: string[] = []
       for (const row of rows) {
         if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
       }
-      return ids.length > 0 ? ids : [contextMenu.row.id]
+      return ids.length > 0 ? ids : [contextRow.id]
     }
     const sel = normalizedSelection
     if (sel) {
-      const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+      const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
       const isInSelection =
         contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
       if (isInSelection) {
@@ -4280,10 +4273,10 @@ export function TableGrid({
           const row = rows[r]
           if (row) ids.push(row.id)
         }
-        return ids.length > 0 ? ids : [contextMenu.row.id]
+        return ids.length > 0 ? ids : [contextRow.id]
       }
     }
-    return [contextMenu.row.id]
+    return [contextRow.id]
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows])
 
   /**
@@ -4333,16 +4326,14 @@ export function TableGrid({
    * send every column (undefined).
    */
   const contextMenuColumnIds = useMemo<string[] | undefined>(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return undefined
-    if (
-      !rowSelectionIsEmpty(rowSelection) &&
-      rowSelectionIncludes(rowSelection, contextMenu.row.id)
-    ) {
+    const contextRow = contextMenu.row
+    if (!contextMenu.isOpen || !contextRow) return undefined
+    if (!rowSelectionIsEmpty(rowSelection) && rowSelectionIncludes(rowSelection, contextRow.id)) {
       return undefined
     }
     const sel = normalizedSelection
     if (!sel) return undefined
-    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
     if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return undefined
     // Collapsed here too (not only in buildTableSelectionContext) because this
     // also decides whether the menu item reads "cell range" or "rows".
@@ -4969,7 +4960,6 @@ export function TableGrid({
                       {userPermissions.canEdit && (
                         <ColumnDropdown
                           columns={columns}
-                          tableRowTtlEnabled={tableRowTtlEnabled}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}

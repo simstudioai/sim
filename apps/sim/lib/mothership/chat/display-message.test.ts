@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { toDisplayMessage } from './display-message'
+
+function storedAssistant(id: string, state: string): PersistedMessage {
+  return {
+    id,
+    role: 'assistant',
+    content: '',
+    timestamp: '2026-09-29T00:00:00.000Z',
+    contentBlocks: [{ type: 'tool', toolCall: { id: 'call-1', name: 'read', state } }],
+  } as PersistedMessage
+}
 
 describe('display-message', () => {
   it('maps canonical tool, subagent text, and cancelled complete blocks to display blocks', () => {
@@ -142,6 +154,20 @@ describe('display-message', () => {
     ])
   })
 
+  it('keeps the dashboard id on a reopened dashboard mention', () => {
+    const display = toDisplayMessage({
+      id: 'msg-dashboard',
+      role: 'user',
+      content: '@Dashboard',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      contexts: [{ kind: 'dashboard', label: 'Dashboard', dashboardId: 'dash-1' }],
+    })
+
+    expect(display.contexts).toEqual([
+      { kind: 'dashboard', label: 'Dashboard', dashboardId: 'dash-1' },
+    ])
+  })
+
   it('preserves browser and terminal selection metadata for reopened messages', () => {
     const display = toDisplayMessage({
       id: 'msg-selection',
@@ -194,5 +220,22 @@ describe('display-message', () => {
         },
       },
     ])
+  })
+
+  it.each(['pending', 'executing', 'awaiting_approval'])(
+    'shows a %s row of a stored message as interrupted, not running',
+    (state) => {
+      const display = toDisplayMessage(storedAssistant('assistant-1', state))
+
+      expect(display.contentBlocks?.[0].toolCall?.status).toBe('interrupted')
+    }
+  )
+
+  it('keeps a running row of the live message running', () => {
+    const display = toDisplayMessage(
+      storedAssistant(getLiveAssistantMessageId('stream-1'), 'executing')
+    )
+
+    expect(display.contentBlocks?.[0].toolCall?.status).toBe('executing')
   })
 })

@@ -5,6 +5,7 @@
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition } from '@/lib/table/types'
 
@@ -269,4 +270,10 @@ export function shapeTableRows(
     out.push(shaped)
   }
   return out
+}
+
+/** Cartesian charts with one horizontal time axis share dashboard interactions. */
+export function isTimeSeriesOption(option: Record<string, unknown>): boolean {
+  const axes = Array.isArray(option.xAxis) ? option.xAxis : [option.xAxis]
+  return axes.length === 1 && toRecord(axes[0]).type === 'time'
 }

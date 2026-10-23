@@ -1,65 +1,55 @@
-import { recordAudit } from '@sim/audit'
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  preauth: vi.fn(),
-  rate: vi.fn(),
-  config: vi.fn(),
-  subscription: vi.fn(),
-  entitled: vi.fn(),
-  limit: vi.fn(),
-  used: vi.fn(),
-  setLimit: vi.fn(),
-  limitTarget: vi.fn(),
   totals: vi.fn(),
   series: vi.fn(),
   breakdown: vi.fn(),
   entities: vi.fn(),
-  logs: vi.fn(),
-  Unauthenticated: class extends Error {},
 }))
-vi.mock('@sim/audit', async (original) => ({
-  ...(await original<typeof import('@sim/audit')>()),
-  recordAudit: vi.fn(),
-}))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: mocks.Unauthenticated,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauth
-    checkRateLimitDirectOrThrow = mocks.rate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
-vi.mock('@/lib/billing/core/subscription', async (original) => ({
-  ...(await original<typeof import('@/lib/billing/core/subscription')>()),
-  isOrganizationFeatureEntitled: mocks.entitled,
-}))
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  getOrgMemberUsageLimit: mocks.limit,
-  getOrgMemberUsageForCurrentPeriod: mocks.used,
-  setOrgMemberUsageLimit: mocks.setLimit,
-  isOrgMemberUsageLimitTarget: mocks.limitTarget,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
   readUsageTotals: mocks.totals,
   readUsageTimeSeries: mocks.series,
   readUsageGroups: mocks.breakdown,
   readUsageEntities: mocks.entities,
 }))
-vi.mock('@/lib/billing/core/usage-log', () => ({ getBillingEntityUsageLogs: mocks.logs }))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -72,7 +62,18 @@ import { GET as breakdown } from '@/app/api/v2/organizations/[organizationId]/us
 import { GET as events } from '@/app/api/v2/organizations/[organizationId]/usage/events/route'
 import { GET as summary } from '@/app/api/v2/organizations/[organizationId]/usage/summary/route'
 
-const personal = { kind: 'personal_api_key', userId: 'actor', keyId: 'key' } as const
+const {
+  mockGetOrgMemberUsageLimit,
+  mockGetOrgMemberUsageForCurrentPeriod,
+  mockSetOrgMemberUsageLimit,
+  mockIsOrgMemberUsageLimitTarget,
+} = organizationMemberLimitsMockFns
+const { mockGetBillingEntityUsageLogs } = billingUsageLogMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
+const personal = createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' })
 const oauth: OAuthAccessTokenPrincipal = {
   kind: 'oauth_access_token',
   userId: 'actor',
@@ -81,10 +82,10 @@ const oauth: OAuthAccessTokenPrincipal = {
   scopes: ['api:read', 'api:write'],
   expiresAt: new Date('2099-01-01'),
 }
-const context = { params: Promise.resolve({ organizationId: 'org', userId: 'external-user' }) }
-const usageContext = { params: Promise.resolve({ organizationId: 'org' }) }
+const context = createRouteContext({ organizationId: 'org', userId: 'external-user' })
+const usageContext = createRouteContext({ organizationId: 'org' })
 function authenticate(principal: Principal) {
-  mocks.authenticate.mockResolvedValue({
+  v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
     rateLimitSubjectIds: ['key:key'],
@@ -92,14 +93,15 @@ function authenticate(principal: Principal) {
   })
 }
 function request(path: string, body?: unknown) {
-  return new NextRequest(`http://localhost/api/v2/organizations/org/${path}`, {
+  return createMockRequest({
     method: body === undefined ? 'GET' : 'PATCH',
+    url: `http://localhost/api/v2/organizations/org/${path}`,
     headers: {
       'x-api-key': 'key',
       'content-type': 'application/json',
       'x-forwarded-for': '127.0.0.1',
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    body,
   })
 }
 function admin() {
@@ -116,24 +118,27 @@ beforeEach(() => {
     resetAt: new Date(Date.now() + 60_000),
     retryAfterMs: 0,
   }
-  mocks.preauth.mockResolvedValue(admission)
-  mocks.rate.mockResolvedValue(admission)
-  mocks.config.mockResolvedValue(null)
-  mocks.entitled.mockResolvedValue(true)
-  mocks.subscription.mockResolvedValue({
+  v2RouteMocks.preauthRate.mockResolvedValue(admission)
+  v2RouteMocks.operationRate.mockResolvedValue(admission)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(true)
+  mockGetOrganizationSubscription.mockResolvedValue({
     plan: 'enterprise',
     periodStart: new Date('2026-08-01'),
     periodEnd: new Date('2026-09-01'),
   })
-  mocks.limit.mockResolvedValue(2)
-  mocks.used.mockResolvedValue(1)
-  mocks.limitTarget.mockResolvedValue(true)
-  mocks.setLimit.mockResolvedValue(undefined)
+  mockGetOrgMemberUsageLimit.mockResolvedValue(2)
+  mockGetOrgMemberUsageForCurrentPeriod.mockResolvedValue(1)
+  mockIsOrgMemberUsageLimitTarget.mockResolvedValue(true)
+  mockSetOrgMemberUsageLimit.mockResolvedValue(undefined)
   mocks.totals.mockResolvedValue({ cost: 1 })
   mocks.series.mockResolvedValue([])
   mocks.breakdown.mockResolvedValue([])
   mocks.entities.mockResolvedValue(new Map())
-  mocks.logs.mockResolvedValue({ logs: [], pagination: { hasMore: false, nextCursorKeys: null } })
+  mockGetBillingEntityUsageLogs.mockResolvedValue({
+    logs: [],
+    pagination: { hasMore: false, nextCursorKeys: null },
+  })
 })
 afterEach(() => vi.useRealTimers())
 afterAll(resetEnvFlagsMock)
@@ -151,9 +156,15 @@ describe('organization credit-limit API', () => {
       )
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ data: { creditLimit: 400 } })
-      expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', 2, 'actor', db)
-      expect(mocks.limitTarget).toHaveBeenCalledWith('org', 'external-user')
-      expect(recordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith(
+        'org',
+        'external-user',
+        2,
+        'actor',
+        db
+      )
+      expect(mockIsOrgMemberUsageLimitTarget).toHaveBeenCalledWith('org', 'external-user')
+      expect(mockRecordAudit).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
           actorId: 'actor',
           resourceId: 'org',
@@ -174,24 +185,30 @@ describe('organization credit-limit API', () => {
       (await setLimit(request('members/external-user/usage-limit', { creditLimit }), context))
         .status
     ).toBe(200)
-    expect(mocks.setLimit).toHaveBeenCalledWith('org', 'external-user', creditLimit, 'actor', db)
+    expect(mockSetOrgMemberUsageLimit).toHaveBeenCalledWith(
+      'org',
+      'external-user',
+      creditLimit,
+      'actor',
+      db
+    )
   })
 
   it('rechecks the target after acquiring mutation locks', async () => {
     admin()
     admin()
-    mocks.limitTarget.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    mockIsOrgMemberUsageLimitTarget.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
     const response = await setLimit(
       request('members/external-user/usage-limit', { creditLimit: 400 }),
       context
     )
     expect(response.status).toBe(404)
-    expect(mocks.limitTarget).toHaveBeenLastCalledWith('org', 'external-user', {
+    expect(mockIsOrgMemberUsageLimitTarget).toHaveBeenLastCalledWith('org', 'external-user', {
       executor: db,
       forShare: true,
     })
-    expect(mocks.setLimit).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
+    expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('refuses an actor demoted while waiting for mutation locks', async () => {
@@ -202,8 +219,8 @@ describe('organization credit-limit API', () => {
       context
     )
     expect(response.status).toBe(403)
-    expect(mocks.setLimit).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
+    expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -216,18 +233,22 @@ describe('organization credit-limit API', () => {
       authenticate(principal)
       admin()
       admin()
-      mocks.config.mockResolvedValueOnce(null).mockResolvedValueOnce({
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        ...restriction,
-      })
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          ...DEFAULT_PERMISSION_GROUP_CONFIG,
+          ...restriction,
+        })
       const response = await setLimit(
         request('members/external-user/usage-limit', { creditLimit: 400 }),
         context
       )
       expect(response.status).toBe(403)
-      expect(mocks.config).toHaveBeenLastCalledWith('org', db)
-      expect(mocks.setLimit).not.toHaveBeenCalled()
-      expect(recordAudit).not.toHaveBeenCalled()
+      expect(
+        permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+      ).toHaveBeenLastCalledWith('org', db)
+      expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
     }
   )
 
@@ -237,18 +258,18 @@ describe('organization credit-limit API', () => {
     expect(await response.json()).toEqual({
       data: { creditsUsed: 200, creditLimit: 400, billingInterval: 'month' },
     })
-    expect(mocks.used).toHaveBeenCalledWith(
+    expect(mockGetOrgMemberUsageForCurrentPeriod).toHaveBeenCalledWith(
       'org',
       'external-user',
-      await mocks.subscription.mock.results[0].value
+      await mockGetOrganizationSubscription.mock.results[0].value
     )
   })
 
   it('does not require Usage Monitoring for hosted caps', async () => {
     admin()
-    mocks.entitled.mockResolvedValue(false)
+    billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(false)
     expect((await getLimit(request('members/external-user/usage-limit'), context)).status).toBe(200)
-    expect(mocks.entitled).not.toHaveBeenCalled()
+    expect(billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled).not.toHaveBeenCalled()
   })
 
   it('preserves hosted-only admission before body validation', async () => {
@@ -257,31 +278,31 @@ describe('organization credit-limit API', () => {
       (await setLimit(request('members/external-user/usage-limit', { invalid: true }), context))
         .status
     ).toBe(404)
-    expect(mocks.setLimit).not.toHaveBeenCalled()
+    expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()
   })
 
   it('refuses reads for a user outside the organization before loading usage', async () => {
     admin()
-    mocks.limitTarget.mockResolvedValue(false)
+    mockIsOrgMemberUsageLimitTarget.mockResolvedValue(false)
     const response = await getLimit(request('members/external-user/usage-limit'), context)
     expect(response.status).toBe(404)
-    expect(mocks.limit).not.toHaveBeenCalled()
-    expect(mocks.used).not.toHaveBeenCalled()
-    expect(mocks.subscription).not.toHaveBeenCalled()
+    expect(mockGetOrgMemberUsageLimit).not.toHaveBeenCalled()
+    expect(mockGetOrgMemberUsageForCurrentPeriod).not.toHaveBeenCalled()
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
   })
 
   it.each([10, null])(
     'refuses cap %s for a user outside the organization without mutation or audit',
     async (creditLimit) => {
       admin()
-      mocks.limitTarget.mockResolvedValue(false)
+      mockIsOrgMemberUsageLimitTarget.mockResolvedValue(false)
       const response = await setLimit(
         request('members/external-user/usage-limit', { creditLimit }),
         context
       )
       expect(response.status).toBe(404)
-      expect(mocks.setLimit).not.toHaveBeenCalled()
-      expect(recordAudit).not.toHaveBeenCalled()
+      expect(mockSetOrgMemberUsageLimit).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
     }
   )
 
@@ -291,7 +312,7 @@ describe('organization credit-limit API', () => {
       (await setLimit(request('members/external-user/usage-limit', { creditLimit: 10 }), context))
         .status
     ).toBe(403)
-    expect(mocks.limitTarget).not.toHaveBeenCalled()
+    expect(mockIsOrgMemberUsageLimitTarget).not.toHaveBeenCalled()
   })
 })
 
@@ -306,7 +327,10 @@ describe('organization usage API authorization and bounds', () => {
       expect(await response.json()).toMatchObject({
         data: { totals: { credits: 200 }, previousTotals: null },
       })
-      expect(mocks.entitled).toHaveBeenCalledWith('org', expect.any(Boolean))
+      expect(billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled).toHaveBeenCalledWith(
+        'org',
+        expect.any(Boolean)
+      )
     }
   )
 
@@ -326,7 +350,7 @@ describe('organization usage API authorization and bounds', () => {
 
   it('keeps weekly bucket boundaries in the selected timezone for billing presets', async () => {
     admin()
-    mocks.subscription.mockResolvedValue({
+    mockGetOrganizationSubscription.mockResolvedValue({
       plan: 'enterprise',
       periodStart: new Date('2026-01-01'),
       periodEnd: new Date('2026-07-01'),
@@ -352,7 +376,7 @@ describe('organization usage API authorization and bounds', () => {
   ] as const)('refuses current organization role %s', async (role, status) => {
     queueTableRows(member, role ? [{ role }] : [])
     expect((await summary(request('usage/summary'), usageContext)).status).toBe(status)
-    expect(mocks.entitled).not.toHaveBeenCalled()
+    expect(billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled).not.toHaveBeenCalled()
     expect(mocks.totals).not.toHaveBeenCalled()
   })
 
@@ -365,7 +389,7 @@ describe('organization usage API authorization and bounds', () => {
     expect((await summary(request('usage/summary'), usageContext)).status).toBe(
       principal.kind === 'oauth_access_token' && principal.expiresAt < new Date() ? 401 : 403
     )
-    expect(mocks.entitled).not.toHaveBeenCalled()
+    expect(billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -375,16 +399,19 @@ describe('organization usage API authorization and bounds', () => {
   ] as const)('rechecks current credential policy %s / %s', async (principal, field) => {
     authenticate(principal)
     admin()
-    mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, [field]: true })
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      [field]: true,
+    })
     expect((await summary(request('usage/summary'), usageContext)).status).toBe(403)
     expect(mocks.totals).not.toHaveBeenCalled()
   })
 
   it('retains the Usage Monitoring entitlement', async () => {
     admin()
-    mocks.entitled.mockResolvedValue(false)
+    billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(false)
     expect((await events(request('usage/events'), usageContext)).status).toBe(403)
-    expect(mocks.logs).not.toHaveBeenCalled()
+    expect(mockGetBillingEntityUsageLogs).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -401,7 +428,7 @@ describe('organization usage API authorization and bounds', () => {
 
   it('rejects an oversized billing period before analytics reads', async () => {
     admin()
-    mocks.subscription.mockResolvedValue({
+    mockGetOrganizationSubscription.mockResolvedValue({
       plan: 'enterprise',
       periodStart: new Date('2020-01-01'),
       periodEnd: new Date('2026-01-01'),
@@ -443,7 +470,7 @@ describe('organization usage event cursors', () => {
 
   async function firstCustomPage() {
     admin()
-    mocks.logs.mockResolvedValueOnce({
+    mockGetBillingEntityUsageLogs.mockResolvedValueOnce({
       logs: [],
       pagination: { hasMore: true, nextCursorKeys: eventKeys },
     })
@@ -460,8 +487,8 @@ describe('organization usage event cursors', () => {
       usageContext
     )
     expect(response.status).toBe(200)
-    expect(mocks.logs).toHaveBeenCalledTimes(2)
-    for (const [, options] of mocks.logs.mock.calls) {
+    expect(mockGetBillingEntityUsageLogs).toHaveBeenCalledTimes(2)
+    for (const [, options] of mockGetBillingEntityUsageLogs.mock.calls) {
       expect(options).toMatchObject({
         startDate: new Date('2026-03-08T08:00:00.000Z'),
         endDate: new Date('2026-03-10T07:00:00.000Z'),
@@ -469,7 +496,7 @@ describe('organization usage event cursors', () => {
       })
       expect(options.billingPeriod).toBeUndefined()
     }
-    expect(mocks.logs.mock.calls[1][1].keyset.cursorKeys).toEqual(eventKeys)
+    expect(mockGetBillingEntityUsageLogs.mock.calls[1][1].keyset.cursorKeys).toEqual(eventKeys)
   })
 
   it.each([
@@ -493,7 +520,7 @@ describe('organization usage event cursors', () => {
         message: 'Usage event cursor does not match the requested custom range; restart pagination',
       },
     })
-    expect(mocks.logs).toHaveBeenCalledTimes(1)
+    expect(mockGetBillingEntityUsageLogs).toHaveBeenCalledTimes(1)
   })
 
   it.each([
@@ -509,19 +536,19 @@ describe('organization usage event cursors', () => {
     query.set('cursor', cursor)
     const response = await events(request(`usage/events?${query}`), usageContext)
     expect(response.status).toBe(400)
-    expect(mocks.logs).toHaveBeenCalledTimes(1)
+    expect(mockGetBillingEntityUsageLogs).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the first billing predicate after a subscription period changes', async () => {
     admin()
-    mocks.logs.mockResolvedValueOnce({
+    mockGetBillingEntityUsageLogs.mockResolvedValueOnce({
       logs: [],
       pagination: { hasMore: true, nextCursorKeys: ['2026-08-15T00:00:00.000Z', 'event-1'] },
     })
     const first = await events(request('usage/events?preset=current-period'), usageContext)
     expect(first.status).toBe(200)
     const { nextCursor } = await first.json()
-    mocks.subscription.mockResolvedValue({
+    mockGetOrganizationSubscription.mockResolvedValue({
       plan: 'enterprise',
       periodStart: new Date('2026-09-01'),
       periodEnd: new Date('2026-10-01'),
@@ -532,8 +559,8 @@ describe('organization usage event cursors', () => {
       usageContext
     )
     expect(second.status).toBe(200)
-    expect(mocks.logs).toHaveBeenCalledTimes(2)
-    for (const [, options] of mocks.logs.mock.calls) {
+    expect(mockGetBillingEntityUsageLogs).toHaveBeenCalledTimes(2)
+    for (const [, options] of mockGetBillingEntityUsageLogs.mock.calls) {
       expect(options.billingPeriod).toEqual({
         start: new Date('2026-08-01'),
         end: new Date('2026-09-01'),
@@ -547,7 +574,7 @@ describe('organization usage event cursors', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-10T12:00:00Z'))
     admin()
-    mocks.logs.mockResolvedValueOnce({
+    mockGetBillingEntityUsageLogs.mockResolvedValueOnce({
       logs: [
         {
           id: 'event-1',
@@ -563,7 +590,7 @@ describe('organization usage event cursors', () => {
     expect(response.status).toBe(200)
     const first = await response.json()
     expect(first.data[0]).toMatchObject({ source: 'sim-chat', credits: 0, hasCost: true })
-    const firstOptions = mocks.logs.mock.calls[0][1]
+    const firstOptions = mockGetBillingEntityUsageLogs.mock.calls[0][1]
     expect(firstOptions.source).toEqual(['copilot', 'workspace-chat'])
     expect(firstOptions.keyset.sortOrder).toBe('desc')
     vi.setSystemTime(new Date('2026-09-15T12:00:00Z'))
@@ -575,7 +602,7 @@ describe('organization usage event cursors', () => {
       usageContext
     )
     expect(second.status).toBe(200)
-    const secondOptions = mocks.logs.mock.calls[1][1]
+    const secondOptions = mockGetBillingEntityUsageLogs.mock.calls[1][1]
     expect(secondOptions.startDate).toEqual(firstOptions.startDate)
     expect(secondOptions.endDate).toEqual(firstOptions.endDate)
     expect(secondOptions.keyset.cursorKeys).toEqual(['2026-09-01T00:00:00.000Z', 'event-1'])
@@ -587,6 +614,6 @@ describe('organization usage event cursors', () => {
       usageContext
     )
     expect(changed.status).toBe(400)
-    expect(mocks.logs).toHaveBeenCalledTimes(2)
+    expect(mockGetBillingEntityUsageLogs).toHaveBeenCalledTimes(2)
   })
 })

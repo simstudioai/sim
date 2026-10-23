@@ -4,7 +4,7 @@ import { isValidUuid } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('AdminUsersQuery')
@@ -263,6 +263,7 @@ export function useImpersonateUser() {
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
       const result = await client.admin.impersonateUser({ userId })
+      if (result.error) throw new Error(result.error.message ?? 'Failed to impersonate user')
       return result
     },
     onError: (err) => {

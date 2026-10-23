@@ -1,15 +1,13 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { Agent, fetch as nativeFetch } from 'undici'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockSecureFetchWithValidation: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { fetchWithRetry, secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
@@ -21,6 +19,8 @@ import {
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
+
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
 
 /** Case-insensitive header reader over a plain lowercase-keyed record. */
 function headers(entries: Record<string, string>) {
@@ -221,7 +221,6 @@ describe('fetchWithRetry rate-limit handling', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
-    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -399,12 +398,15 @@ describe('fetchWithRetry rate-limit handling', () => {
   })
 
   it('does not retry GitHub before a reset beyond the operation budget', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-14T12:00:00.000Z'))
+    const nowSeconds = Date.now() / 1000
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
         response(403, {
           'x-ratelimit-remaining': '0',
-          'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 900),
+          'x-ratelimit-reset': String(nowSeconds + 900),
         })
       )
       .mockResolvedValueOnce(response(200))
@@ -416,8 +418,7 @@ describe('fetchWithRetry rate-limit handling', () => {
     )
 
     expect(error?.message).toBe('HTTP 403 - upstream rate limit exceeded')
-    expect(getRetryAfterMs(error)).toBeGreaterThan(899_000)
-    expect(getRetryAfterMs(error)).toBeLessThanOrEqual(900_000)
+    expect(getRetryAfterMs(error)).toBe(900_000)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

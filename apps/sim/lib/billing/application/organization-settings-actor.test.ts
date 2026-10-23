@@ -1,10 +1,12 @@
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const authorization = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: authorization,
-}))
+const authorization = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 import { organizationBillingSettingsActor } from './organization-settings-actor'
 

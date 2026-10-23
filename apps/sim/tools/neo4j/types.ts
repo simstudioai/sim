@@ -66,12 +66,6 @@ interface Neo4jBaseResponse extends ToolResponse {
   error?: string
 }
 
-interface Neo4jQueryResponse extends Neo4jBaseResponse {}
-interface Neo4jCreateResponse extends Neo4jBaseResponse {}
-interface Neo4jMergeResponse extends Neo4jBaseResponse {}
-interface Neo4jUpdateResponse extends Neo4jBaseResponse {}
-interface Neo4jDeleteResponse extends Neo4jBaseResponse {}
-interface Neo4jExecuteResponse extends Neo4jBaseResponse {}
 export interface Neo4jResponse extends Neo4jBaseResponse {}
 
 export interface Neo4jIntrospectParams extends Neo4jConnectionConfig {}

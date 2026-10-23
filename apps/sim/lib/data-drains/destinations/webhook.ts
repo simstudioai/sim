@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
@@ -8,7 +8,6 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainWebhookDestination')
@@ -205,9 +204,8 @@ export const webhookDestination: DrainDestination<
           } catch (error) {
             lastError = error
             logger.debug('Webhook delivery attempt failed', {
-              url: config.url,
+              host: new URL(config.url).hostname,
               attempt,
-              error: toError(error).message,
             })
           }
           if (response) {
@@ -217,7 +215,7 @@ export const webhookDestination: DrainDestination<
                 response.headers.get('x-amzn-trace-id') ??
                 null
               logger.debug('Webhook chunk delivered', {
-                url: config.url,
+                host: new URL(config.url).hostname,
                 attempt,
                 status: response.status,
                 bytes: body.byteLength,
@@ -235,7 +233,7 @@ export const webhookDestination: DrainDestination<
             retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
           }
           if (attempt < MAX_ATTEMPTS) {
-            await sleepUntilAborted(backoffWithJitter(attempt, retryAfterMs), signal)
+            await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), signal)
           }
         }
         throw lastError instanceof Error

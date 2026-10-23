@@ -1,63 +1,237 @@
 import { CloudflareIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { CloudflareResponse } from '@/tools/cloudflare/types'
 
-/**
- * Per-operation aliases from a tool param name to the subBlock id that supplies
- * it, keyed by operation.
- *
- * Block state is keyed by subBlock id, so two controls sharing an id share one
- * stored value and the last definition in file order wins the seeded default.
- * That is fine — and deliberate — when both controls mean the same thing (a zone
- * id, a page number, a record name). It is not fine when they differ: a control
- * in `mode: 'advanced'` is serialized whenever its stored value is non-empty,
- * *before* its own `condition` is evaluated (`shouldSerializeSubBlock` in
- * `serializer/index.ts`), so a hidden filter from one operation would otherwise
- * arrive as a written value on another — a `list_dns_records` "Content Filter"
- * silently overwriting a record's content on `update_dns_record`, or a
- * `list_zones` status reaching `list_tunnels`, whose status enum is disjoint.
- *
- * Every such control therefore carries its own id and is republished here under
- * the tool's param name, before any coercion in the mapper reads it.
- *
- * Which side of a collision gets the new id is not a free choice. Block state
- * is never migrated, and `extractBlockParams` (`serializer/index.ts`) drops a
- * stored value whose id matches no subBlock config — a deleted input — so the
- * renamed side silently loses whatever shipped workflows stored. The read
- * filters therefore keep their original ids, where losing a value means
- * returning the whole zone under `success: true`, and the write controls take
- * the new ones, where losing a value means a PATCH simply omits the field.
- */
+/** Advanced inputs serialize before conditions; separate aliases prevent hidden values crossing operations. */
 const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   create_zone: { type: 'zoneType' },
-  create_dns_record: { type: 'recordType', proxied: 'recordProxied', tags: 'recordTags' },
+  create_dns_record: {
+    type: 'recordType',
+    proxied: 'recordProxied',
+    tags: 'recordTags',
+    settings: 'dnsRecordSettings',
+    private_routing: 'dnsRecordPrivateRouting',
+    data: 'dnsRecordData',
+    include_shadow_metadata: 'dnsRecordIncludeShadowMetadata',
+  },
   update_dns_record: {
     type: 'updateRecordType',
     name: 'updateRecordName',
     content: 'updateRecordContent',
     proxied: 'updateRecordProxied',
     tags: 'updateRecordTags',
+    clearComment: 'dnsRecordClearcomment',
+    settings: 'dnsRecordSettings',
+    private_routing: 'dnsRecordPrivateRouting',
+    data: 'dnsRecordData',
+    include_shadow_metadata: 'dnsRecordIncludeShadowMetadata',
   },
-  list_dns_records: { order: 'dnsOrder' },
+  list_dns_records: {
+    order: 'dnsOrder',
+    name_contains: 'listDnsRecordsNameContains',
+    name_startswith: 'listDnsRecordsNameStartswith',
+    name_endswith: 'listDnsRecordsNameEndswith',
+    content_contains: 'listDnsRecordsContentContains',
+    content_startswith: 'listDnsRecordsContentStartswith',
+    content_endswith: 'listDnsRecordsContentEndswith',
+    comment_present: 'listDnsRecordsCommentPresent',
+    comment_absent: 'listDnsRecordsCommentAbsent',
+    comment_exact: 'listDnsRecordsCommentExact',
+    comment_startswith: 'listDnsRecordsCommentStartswith',
+    comment_endswith: 'listDnsRecordsCommentEndswith',
+    tag_present: 'listDnsRecordsTagPresent',
+    tag_absent: 'listDnsRecordsTagAbsent',
+    tag_contains: 'listDnsRecordsTagContains',
+    tag_startswith: 'listDnsRecordsTagStartswith',
+    tag_endswith: 'listDnsRecordsTagEndswith',
+    include_shadow_metadata: 'listDnsRecordsIncludeShadowMetadata',
+    shadowed_by_name: 'listDnsRecordsShadowedByName',
+    shadowing_name: 'listDnsRecordsShadowingName',
+  },
   list_certificates: { status: 'certificateStatus' },
-  create_ruleset: { name: 'rulesetName' },
-  update_ruleset_rule: { enabled: 'updateRuleEnabled' },
-  create_rate_limit_rule: { action: 'rateLimitAction' },
+  create_ruleset: { name: 'rulesetName', dry_run: 'rulesetDryRun' },
+  update_ruleset_rule: {
+    enabled: 'updateRuleEnabled',
+    exposed_credential_check: 'rulesetRuleExposedCredentialCheck',
+    position: 'rulesetRulePosition',
+    dry_run: 'rulesetRuleDryRun',
+  },
+  create_rate_limit_rule: {
+    action: 'rateLimitAction',
+    actionParameters: 'rateLimitRuleActionparameters',
+    exposed_credential_check: 'rateLimitRuleExposedCredentialCheck',
+    id: 'rateLimitRuleId',
+    logging: 'rateLimitRuleLogging',
+    ref: 'rateLimitRuleRef',
+    position: 'rateLimitRulePosition',
+    score_per_period: 'rateLimitRuleScorePerPeriod',
+    score_response_header_name: 'rateLimitRuleScoreResponseHeaderName',
+    dry_run: 'rateLimitRuleDryRun',
+  },
   update_rate_limit_rule: {
     action: 'updateRateLimitAction',
     enabled: 'updateRuleEnabled',
     actionParameters: 'rateLimitActionParameters',
+    exposed_credential_check: 'rateLimitRuleExposedCredentialCheck',
+    position: 'rateLimitRulePosition',
+    score_per_period: 'rateLimitRuleScorePerPeriod',
+    score_response_header_name: 'rateLimitRuleScoreResponseHeaderName',
+    dry_run: 'rateLimitRuleDryRun',
   },
-  create_access_application: { type: 'appType', tags: 'accessAppTags' },
-  update_access_application: { type: 'updateAppType', tags: 'accessAppTags' },
-  update_access_policy: { decision: 'updatePolicyDecision' },
-  list_access_applications: { name: 'listNameFilter', domain: 'accessAppDomainFilter' },
+  create_access_application: {
+    type: 'appType',
+    tags: 'accessAppTags',
+    destinations: 'accessApplicationDestinations',
+    oauth_configuration: 'accessApplicationOauthConfiguration',
+    self_hosted_domains: 'accessApplicationSelfHostedDomains',
+    user_populations: 'accessApplicationUserPopulations',
+    allow_authenticate_via_warp: 'accessApplicationAllowAuthenticateViaWarp',
+    allow_iframe: 'accessApplicationAllowIframe',
+    cors_headers: 'accessApplicationCorsHeaders',
+    custom_non_identity_deny_url: 'accessApplicationCustomNonIdentityDenyUrl',
+    custom_pages: 'accessApplicationCustomPages',
+    eager_redirect_cookie_setting: 'accessApplicationEagerRedirectCookieSetting',
+    enable_binding_cookie: 'accessApplicationEnableBindingCookie',
+    http_only_cookie_attribute: 'accessApplicationHttpOnlyCookieAttribute',
+    mfa_config: 'accessApplicationMfaConfig',
+    options_preflight_bypass: 'accessApplicationOptionsPreflightBypass',
+    path_cookie_attribute: 'accessApplicationPathCookieAttribute',
+    read_service_tokens_from_header: 'accessApplicationReadServiceTokensFromHeader',
+    same_site_cookie_attribute: 'accessApplicationSameSiteCookieAttribute',
+    scim_config: 'accessApplicationScimConfig',
+    service_auth_401_redirect: 'accessApplicationServiceAuth401Redirect',
+    skip_interstitial: 'accessApplicationSkipInterstitial',
+    use_clientless_isolation_app_launcher_url:
+      'accessApplicationUseClientlessIsolationAppLauncherUrl',
+    app_launcher_logo_url: 'accessApplicationAppLauncherLogoUrl',
+    bg_color: 'accessApplicationBgColor',
+    footer_links: 'accessApplicationFooterLinks',
+    header_bg_color: 'accessApplicationHeaderBgColor',
+    landing_page_design: 'accessApplicationLandingPageDesign',
+    skip_app_launcher_login_page: 'accessApplicationSkipAppLauncherLoginPage',
+  },
+  update_access_application: {
+    type: 'updateAppType',
+    tags: 'accessAppTags',
+    destinations: 'accessApplicationDestinations',
+    oauth_configuration: 'accessApplicationOauthConfiguration',
+    self_hosted_domains: 'accessApplicationSelfHostedDomains',
+    user_populations: 'accessApplicationUserPopulations',
+    allow_authenticate_via_warp: 'accessApplicationAllowAuthenticateViaWarp',
+    allow_iframe: 'accessApplicationAllowIframe',
+    cors_headers: 'accessApplicationCorsHeaders',
+    custom_non_identity_deny_url: 'accessApplicationCustomNonIdentityDenyUrl',
+    custom_pages: 'accessApplicationCustomPages',
+    eager_redirect_cookie_setting: 'accessApplicationEagerRedirectCookieSetting',
+    enable_binding_cookie: 'accessApplicationEnableBindingCookie',
+    http_only_cookie_attribute: 'accessApplicationHttpOnlyCookieAttribute',
+    mfa_config: 'accessApplicationMfaConfig',
+    options_preflight_bypass: 'accessApplicationOptionsPreflightBypass',
+    path_cookie_attribute: 'accessApplicationPathCookieAttribute',
+    read_service_tokens_from_header: 'accessApplicationReadServiceTokensFromHeader',
+    same_site_cookie_attribute: 'accessApplicationSameSiteCookieAttribute',
+    scim_config: 'accessApplicationScimConfig',
+    service_auth_401_redirect: 'accessApplicationServiceAuth401Redirect',
+    skip_interstitial: 'accessApplicationSkipInterstitial',
+    use_clientless_isolation_app_launcher_url:
+      'accessApplicationUseClientlessIsolationAppLauncherUrl',
+    app_launcher_logo_url: 'accessApplicationAppLauncherLogoUrl',
+    bg_color: 'accessApplicationBgColor',
+    footer_links: 'accessApplicationFooterLinks',
+    header_bg_color: 'accessApplicationHeaderBgColor',
+    landing_page_design: 'accessApplicationLandingPageDesign',
+    skip_app_launcher_login_page: 'accessApplicationSkipAppLauncherLoginPage',
+  },
+  update_access_policy: {
+    decision: 'updatePolicyDecision',
+    approval_groups: 'accessPolicyApprovalGroups',
+    connection_rules: 'accessPolicyConnectionRules',
+    mfa_config: 'accessPolicyMfaConfig',
+  },
+  list_access_applications: {
+    name: 'listNameFilter',
+    domain: 'accessAppDomainFilter',
+    target_attributes: 'listAccessApplicationsTargetAttributes',
+  },
   list_access_groups: { name: 'listNameFilter' },
   list_access_service_tokens: { name: 'listNameFilter' },
   list_worker_scripts: { tags: 'workerTagFilter' },
   list_tunnels: { status: 'tunnelStatus', name: 'listNameFilter' },
-  list_r2_buckets: { cursor: 'r2Cursor' },
+  list_r2_buckets: { cursor: 'r2Cursor', order: 'listR2BucketsOrder' },
   list_rulesets: { cursor: 'rulesetCursor' },
+  create_access_group: {
+    exclude: 'accessGroupExclude',
+    include: 'accessGroupInclude',
+    is_default: 'accessGroupIsDefault',
+    name: 'accessGroupName',
+    require: 'accessGroupRequire',
+  },
+  create_access_policy: {
+    approval_groups: 'accessPolicyApprovalGroups',
+    connection_rules: 'accessPolicyConnectionRules',
+    mfa_config: 'accessPolicyMfaConfig',
+  },
+  create_access_service_token: {
+    client_secret_version: 'accessServiceTokenClientSecretVersion',
+    enabled: 'accessServiceTokenEnabled',
+    previous_client_secret_expires_at: 'accessServiceTokenPreviousClientSecretExpiresAt',
+  },
+  create_ruleset_rule: {
+    exposed_credential_check: 'rulesetRuleExposedCredentialCheck',
+    id: 'rulesetRuleId',
+    logging: 'rulesetRuleLogging',
+    ratelimit: 'rulesetRuleRatelimit',
+    dry_run: 'rulesetRuleDryRun',
+  },
+  create_tunnel: {
+    config_src: 'tunnelConfigSrc',
+    name: 'tunnelName',
+    tunnel_secret: 'tunnelTunnelSecret',
+  },
+  create_worker_route: { pattern: 'workerRoutePattern', script: 'workerRouteScript' },
+  delete_ruleset_rule: { dry_run: 'deleteRulesetRuleDryRun' },
+  delete_ruleset: { dry_run: 'deleteRulesetDryRun' },
+  delete_worker_script: { force: 'deleteWorkerScriptForce' },
+  get_dns_record: { include_shadow_metadata: 'getDnsRecordIncludeShadowMetadata' },
+  list_access_identity_providers: {
+    scim_enabled: 'listAccessIdentityProvidersScimEnabled',
+    page: 'listAccessIdentityProvidersPage',
+    per_page: 'listAccessIdentityProvidersPerPage',
+  },
+  list_zones: { type: 'listZonesType', account_name: 'listZonesAccountName' },
+  rotate_access_service_token: {
+    previous_client_secret_expires_at: 'rotateAccessServiceTokenPreviousClientSecretExpiresAt',
+  },
+  update_access_group: {
+    exclude: 'accessGroupExclude',
+    include: 'accessGroupInclude',
+    is_default: 'accessGroupIsDefault',
+    name: 'accessGroupName',
+    require: 'accessGroupRequire',
+  },
+  update_access_service_token: {
+    client_secret_version: 'accessServiceTokenClientSecretVersion',
+    duration: 'accessServiceTokenDuration',
+    enabled: 'accessServiceTokenEnabled',
+    name: 'accessServiceTokenName',
+    previous_client_secret_expires_at: 'accessServiceTokenPreviousClientSecretExpiresAt',
+  },
+  update_r2_bucket_cors: { rules: 'r2BucketCorsRules' },
+  update_r2_bucket_lifecycle: { rules: 'r2BucketLifecycleRules' },
+  update_ruleset: {
+    description: 'rulesetDescription',
+    rules: 'rulesetRules',
+    dry_run: 'rulesetDryRun',
+  },
+  update_tunnel_configuration: { config: 'tunnelConfigurationConfig' },
+  update_tunnel: { name: 'tunnelName', tunnel_secret: 'tunnelTunnelSecret' },
+  update_worker_route: { pattern: 'workerRoutePattern', script: 'workerRouteScript' },
+  update_zone_setting: { enabled: 'zoneSettingEnabled' },
+  update_zone: {
+    paused: 'zonePaused',
+    plan: 'zonePlan',
+    type: 'updateZoneType',
+    vanity_name_servers: 'zoneVanityNameServers',
+  },
 }
 
 /**
@@ -75,13 +249,13 @@ const ALIASED_SUBBLOCK_IDS = [
   ...new Set(Object.values(SUBBLOCK_ALIASES).flatMap((aliases) => Object.values(aliases))),
 ]
 
-export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
+export const CloudflareBlock: BlockConfig = {
   type: 'cloudflare',
   name: 'Cloudflare',
   description: 'Manage DNS, WAF, Zero Trust access, and edge infrastructure',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.',
+    'Manage Cloudflare DNS, zones, SSL, cache, and analytics. Configure WAF rulesets and rate limiting; administer Access applications, policies, groups, and service tokens; manage Worker routes and tunnels; and configure R2 buckets, CORS, and lifecycle rules.',
   docsLink: 'https://docs.sim.ai/integrations/cloudflare',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
@@ -134,11 +308,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
           { text: 'to', field: 'value' },
           { text: 'on zone', field: 'zoneId' },
         ],
-        dns_analytics: [
-          { text: 'Report DNS analytics for zone', field: 'zoneId', core: true },
-          { text: ', from', field: 'since', core: true },
-          { text: 'to', field: 'until', core: true },
-        ],
+        dns_analytics: [{ text: 'Report DNS analytics for zone', field: 'zoneId', core: true }],
         purge_cache: [
           { text: 'Purge cache for zone', field: 'zoneId', core: true },
           { text: ', limited to', field: ['files', 'prefixes', 'hosts', 'tags'] },
@@ -192,8 +362,8 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         get_access_application: [{ text: 'Read Access application', field: 'appId', core: true }],
         create_access_application: [
-          { text: 'Protect', field: 'domain', core: true },
-          { text: 'with an Access application named', field: 'name' },
+          'Create an Access application',
+          { text: 'named', field: 'name' },
         ],
         update_access_application: [
           { text: 'Update Access application', field: 'appId', core: true },
@@ -260,6 +430,34 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         get_tunnel_configuration: [
           { text: 'Read the configuration of tunnel', field: 'tunnelId', core: true },
         ],
+        create_access_group: ['Create Access Group'],
+        create_tunnel: ['Create Tunnel'],
+        create_worker_route: ['Create Worker Route'],
+        delete_access_group: ['Delete Access Group'],
+        delete_r2_bucket_cors: ['Delete R2 Bucket CORS'],
+        delete_ruleset: ['Delete Ruleset'],
+        delete_tunnel: ['Delete Tunnel'],
+        delete_worker_route: ['Delete Worker Route'],
+        delete_worker_script: ['Delete Worker Script'],
+        get_access_group: ['Get Access Group'],
+        get_access_policy: ['Get Access Policy'],
+        get_access_service_token: ['Get Access Service Token'],
+        get_dns_record: ['Get DNS Record'],
+        get_r2_bucket_cors: ['Get R2 Bucket CORS'],
+        get_r2_bucket_lifecycle: ['Get R2 Bucket Lifecycle'],
+        get_tunnel_token: ['Get Tunnel Token'],
+        get_worker_route: ['Get Worker Route'],
+        refresh_access_service_token: ['Refresh Access Service Token'],
+        rotate_access_service_token: ['Rotate Access Service Token'],
+        update_access_group: ['Update Access Group'],
+        update_access_service_token: ['Update Access Service Token'],
+        update_r2_bucket_cors: ['Update R2 Bucket CORS'],
+        update_r2_bucket_lifecycle: ['Update R2 Bucket Lifecycle'],
+        update_ruleset: ['Update Ruleset'],
+        update_tunnel_configuration: ['Update Tunnel Configuration'],
+        update_tunnel: ['Update Tunnel'],
+        update_worker_route: ['Update Worker Route'],
+        update_zone: ['Update Zone'],
       },
     },
   },
@@ -277,9 +475,11 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Create DNS Record', id: 'create_dns_record' },
         { label: 'Update DNS Record', id: 'update_dns_record' },
         { label: 'Delete DNS Record', id: 'delete_dns_record' },
+        { label: 'Get DNS Record', id: 'get_dns_record' },
         { label: 'List Certificates', id: 'list_certificates' },
         { label: 'Get Zone Settings', id: 'get_zone_settings' },
         { label: 'Update Zone Setting', id: 'update_zone_setting' },
+        { label: 'Update Zone', id: 'update_zone' },
         { label: 'DNS Analytics', id: 'dns_analytics' },
         { label: 'Purge Cache', id: 'purge_cache' },
         { label: 'List Rulesets', id: 'list_rulesets' },
@@ -290,6 +490,8 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Update Ruleset Rule', id: 'update_ruleset_rule' },
         { label: 'Delete Ruleset Rule', id: 'delete_ruleset_rule' },
         { label: 'List Managed Ruleset Overrides', id: 'list_managed_ruleset_overrides' },
+        { label: 'Delete Ruleset', id: 'delete_ruleset' },
+        { label: 'Update Ruleset', id: 'update_ruleset' },
         { label: 'List Rate Limiting Rules', id: 'list_rate_limit_rules' },
         { label: 'Create Rate Limiting Rule', id: 'create_rate_limit_rule' },
         { label: 'Update Rate Limiting Rule', id: 'update_rate_limit_rule' },
@@ -302,33 +504,82 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Create Access Policy', id: 'create_access_policy' },
         { label: 'Update Access Policy', id: 'update_access_policy' },
         { label: 'Delete Access Policy', id: 'delete_access_policy' },
+        { label: 'Get Access Policy', id: 'get_access_policy' },
         { label: 'List Access Groups', id: 'list_access_groups' },
+        { label: 'Create Access Group', id: 'create_access_group' },
+        { label: 'Delete Access Group', id: 'delete_access_group' },
+        { label: 'Get Access Group', id: 'get_access_group' },
+        { label: 'Update Access Group', id: 'update_access_group' },
         { label: 'List Access Identity Providers', id: 'list_access_identity_providers' },
         { label: 'List Access Service Tokens', id: 'list_access_service_tokens' },
         { label: 'Create Access Service Token', id: 'create_access_service_token' },
         { label: 'Revoke Access Service Token', id: 'revoke_access_service_token' },
+        { label: 'Get Access Service Token', id: 'get_access_service_token' },
+        { label: 'Refresh Access Service Token', id: 'refresh_access_service_token' },
+        { label: 'Rotate Access Service Token', id: 'rotate_access_service_token' },
+        { label: 'Update Access Service Token', id: 'update_access_service_token' },
         { label: 'List R2 Buckets', id: 'list_r2_buckets' },
         { label: 'Get R2 Bucket', id: 'get_r2_bucket' },
         { label: 'Create R2 Bucket', id: 'create_r2_bucket' },
         { label: 'Delete R2 Bucket', id: 'delete_r2_bucket' },
         { label: 'List Worker Scripts', id: 'list_worker_scripts' },
         { label: 'Get Worker Script Settings', id: 'get_worker_script_settings' },
+        { label: 'Delete Worker Script', id: 'delete_worker_script' },
         { label: 'List Worker Routes', id: 'list_worker_routes' },
+        { label: 'Create Worker Route', id: 'create_worker_route' },
+        { label: 'Delete Worker Route', id: 'delete_worker_route' },
+        { label: 'Get Worker Route', id: 'get_worker_route' },
+        { label: 'Update Worker Route', id: 'update_worker_route' },
         { label: 'List Tunnels', id: 'list_tunnels' },
         { label: 'Get Tunnel', id: 'get_tunnel' },
         { label: 'Get Tunnel Configuration', id: 'get_tunnel_configuration' },
+        { label: 'Update Tunnel Configuration', id: 'update_tunnel_configuration' },
+        { label: 'Create Tunnel', id: 'create_tunnel' },
+        { label: 'Delete Tunnel', id: 'delete_tunnel' },
+        { label: 'Delete R2 Bucket CORS', id: 'delete_r2_bucket_cors' },
+        { label: 'Get R2 Bucket CORS', id: 'get_r2_bucket_cors' },
+        { label: 'Update R2 Bucket CORS', id: 'update_r2_bucket_cors' },
+        { label: 'Get R2 Bucket Lifecycle', id: 'get_r2_bucket_lifecycle' },
+        { label: 'Update R2 Bucket Lifecycle', id: 'update_r2_bucket_lifecycle' },
+        { label: 'Get Tunnel Token', id: 'get_tunnel_token' },
+        { label: 'Update Tunnel', id: 'update_tunnel' },
       ],
       value: () => 'list_zones',
     },
-
-    // List Zones inputs
     {
       id: 'name',
-      title: 'Domain Name',
+      title: 'Name',
       type: 'short-input',
-      placeholder: 'Filter by domain (e.g., example.com)',
-      condition: { field: 'operation', value: 'list_zones' },
-      mode: 'advanced',
+      placeholder: 'Enter name',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_zones',
+          'create_zone',
+          'list_dns_records',
+          'create_dns_record',
+          'create_access_application',
+          'update_access_application',
+          'create_access_policy',
+          'update_access_policy',
+          'create_access_service_token',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'create_zone',
+          'create_dns_record',
+          'create_access_policy',
+          'update_access_policy',
+          'create_access_service_token',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare name value. Return ONLY the value.',
+        placeholder: 'Describe the name',
+      },
     },
     {
       id: 'status',
@@ -350,24 +601,162 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       title: 'Page',
       type: 'short-input',
       placeholder: 'Page number (default: 1)',
-      condition: { field: 'operation', value: 'list_zones' },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_zones',
+          'list_dns_records',
+          'list_certificates',
+          'list_access_applications',
+          'list_access_policies',
+          'list_access_groups',
+          'list_access_service_tokens',
+          'list_tunnels',
+        ],
+      },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare page value. Return ONLY the value.',
+        placeholder: 'Describe the page',
+      },
     },
     {
       id: 'per_page',
       title: 'Per Page',
       type: 'short-input',
       placeholder: 'Results per page (default: 20, max: 50)',
-      condition: { field: 'operation', value: 'list_zones' },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_zones',
+          'list_dns_records',
+          'list_certificates',
+          'list_access_applications',
+          'list_access_policies',
+          'list_access_groups',
+          'list_access_service_tokens',
+          'list_r2_buckets',
+          'list_rulesets',
+          'list_tunnels',
+        ],
+      },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare per page value. Return ONLY the value.',
+        placeholder: 'Describe the per page',
+      },
     },
     {
       id: 'accountId',
       title: 'Account ID',
       type: 'short-input',
-      placeholder: 'Filter by account ID',
-      condition: { field: 'operation', value: 'list_zones' },
-      mode: 'advanced',
+      placeholder: 'Enter account id',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_zones',
+          'create_zone',
+          'list_access_applications',
+          'get_access_application',
+          'create_access_application',
+          'update_access_application',
+          'delete_access_application',
+          'list_access_policies',
+          'create_access_policy',
+          'update_access_policy',
+          'delete_access_policy',
+          'list_access_groups',
+          'list_access_identity_providers',
+          'list_access_service_tokens',
+          'create_access_service_token',
+          'revoke_access_service_token',
+          'list_r2_buckets',
+          'get_r2_bucket',
+          'create_r2_bucket',
+          'delete_r2_bucket',
+          'list_worker_scripts',
+          'get_worker_script_settings',
+          'list_tunnels',
+          'get_tunnel',
+          'get_tunnel_configuration',
+          'create_access_group',
+          'create_tunnel',
+          'delete_access_group',
+          'delete_r2_bucket_cors',
+          'delete_tunnel',
+          'delete_worker_script',
+          'get_access_group',
+          'get_access_policy',
+          'get_access_service_token',
+          'get_r2_bucket_cors',
+          'get_r2_bucket_lifecycle',
+          'get_tunnel_token',
+          'refresh_access_service_token',
+          'rotate_access_service_token',
+          'update_access_group',
+          'update_access_service_token',
+          'update_r2_bucket_cors',
+          'update_r2_bucket_lifecycle',
+          'update_tunnel_configuration',
+          'update_tunnel',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'create_zone',
+          'list_access_applications',
+          'get_access_application',
+          'create_access_application',
+          'update_access_application',
+          'delete_access_application',
+          'list_access_policies',
+          'create_access_policy',
+          'update_access_policy',
+          'delete_access_policy',
+          'list_access_groups',
+          'list_access_identity_providers',
+          'list_access_service_tokens',
+          'create_access_service_token',
+          'revoke_access_service_token',
+          'list_r2_buckets',
+          'get_r2_bucket',
+          'create_r2_bucket',
+          'delete_r2_bucket',
+          'list_worker_scripts',
+          'get_worker_script_settings',
+          'list_tunnels',
+          'get_tunnel',
+          'get_tunnel_configuration',
+          'create_access_group',
+          'create_tunnel',
+          'delete_access_group',
+          'delete_r2_bucket_cors',
+          'delete_tunnel',
+          'delete_worker_script',
+          'get_access_group',
+          'get_access_policy',
+          'get_access_service_token',
+          'get_r2_bucket_cors',
+          'get_r2_bucket_lifecycle',
+          'get_tunnel_token',
+          'refresh_access_service_token',
+          'rotate_access_service_token',
+          'update_access_group',
+          'update_access_service_token',
+          'update_r2_bucket_cors',
+          'update_r2_bucket_lifecycle',
+          'update_tunnel_configuration',
+          'update_tunnel',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare account id value. Return ONLY the value.',
+        placeholder: 'Describe the account id',
+      },
     },
     {
       id: 'order',
@@ -395,7 +784,10 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Descending', id: 'desc' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: 'list_zones' },
+      condition: {
+        field: 'operation',
+        value: ['list_zones', 'list_dns_records', 'list_r2_buckets'],
+      },
       mode: 'advanced',
     },
     {
@@ -408,26 +800,8 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'All', id: 'all' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: 'list_zones' },
+      condition: { field: 'operation', value: ['list_zones', 'list_dns_records'] },
       mode: 'advanced',
-    },
-
-    // Create Zone inputs
-    {
-      id: 'name',
-      title: 'Domain Name',
-      type: 'short-input',
-      required: true,
-      placeholder: 'e.g., example.com',
-      condition: { field: 'operation', value: 'create_zone' },
-    },
-    {
-      id: 'accountId',
-      title: 'Account ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter Cloudflare account ID',
-      condition: { field: 'operation', value: 'create_zone' },
     },
     {
       id: 'zoneType',
@@ -437,99 +811,119 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Full (Cloudflare DNS)', id: 'full' },
         { label: 'Partial (CNAME Setup)', id: 'partial' },
         { label: 'Secondary (Secondary DNS)', id: 'secondary' },
+        { label: 'Internal DNS', id: 'internal' },
       ],
       value: () => 'full',
       condition: { field: 'operation', value: 'create_zone' },
       mode: 'advanced',
     },
-    // Get Zone inputs
     {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'get_zone' },
+      id: 'updateZoneType',
+      title: 'Zone Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'Full (Cloudflare DNS)', id: 'full' },
+        { label: 'Partial (CNAME Setup)', id: 'partial' },
+        { label: 'Secondary (Secondary DNS)', id: 'secondary' },
+        { label: 'Internal DNS', id: 'internal' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_zone' },
+      mode: 'advanced',
     },
-
-    // Delete Zone inputs
     {
       id: 'zoneId',
       title: 'Zone ID',
       type: 'short-input',
       required: true,
-      placeholder: 'Enter zone ID to delete',
-      condition: { field: 'operation', value: 'delete_zone' },
-    },
-
-    // List DNS Records inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'list_dns_records' },
+      placeholder: 'Enter zone id',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_zone',
+          'delete_zone',
+          'list_dns_records',
+          'create_dns_record',
+          'update_dns_record',
+          'delete_dns_record',
+          'list_certificates',
+          'get_zone_settings',
+          'update_zone_setting',
+          'dns_analytics',
+          'purge_cache',
+          'list_rulesets',
+          'get_ruleset',
+          'get_ruleset_entrypoint',
+          'create_ruleset',
+          'create_ruleset_rule',
+          'update_ruleset_rule',
+          'delete_ruleset_rule',
+          'list_managed_ruleset_overrides',
+          'list_rate_limit_rules',
+          'create_rate_limit_rule',
+          'update_rate_limit_rule',
+          'list_worker_routes',
+          'create_worker_route',
+          'delete_ruleset',
+          'delete_worker_route',
+          'get_dns_record',
+          'get_worker_route',
+          'update_ruleset',
+          'update_worker_route',
+          'update_zone',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare zone id value. Return ONLY the value.',
+        placeholder: 'Describe the zone id',
+      },
     },
     {
       id: 'type',
       title: 'Record Type',
       type: 'dropdown',
       options: [
-        { label: 'All', id: '' },
+        { label: 'Any / unchanged', id: '' },
         { label: 'A', id: 'A' },
         { label: 'AAAA', id: 'AAAA' },
+        { label: 'CAA', id: 'CAA' },
+        { label: 'CERT', id: 'CERT' },
         { label: 'CNAME', id: 'CNAME' },
+        { label: 'DNSKEY', id: 'DNSKEY' },
+        { label: 'DS', id: 'DS' },
+        { label: 'HTTPS', id: 'HTTPS' },
+        { label: 'LOC', id: 'LOC' },
         { label: 'MX', id: 'MX' },
-        { label: 'TXT', id: 'TXT' },
+        { label: 'NAPTR', id: 'NAPTR' },
         { label: 'NS', id: 'NS' },
+        { label: 'OPENPGPKEY', id: 'OPENPGPKEY' },
+        { label: 'PTR', id: 'PTR' },
+        { label: 'SMIMEA', id: 'SMIMEA' },
         { label: 'SRV', id: 'SRV' },
+        { label: 'SSHFP', id: 'SSHFP' },
+        { label: 'SVCB', id: 'SVCB' },
+        { label: 'TLSA', id: 'TLSA' },
+        { label: 'TXT', id: 'TXT' },
+        { label: 'URI', id: 'URI' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: 'list_dns_records' },
-      mode: 'advanced',
-    },
-    {
-      id: 'name',
-      title: 'Name Filter',
-      type: 'short-input',
-      placeholder: 'Filter by record name (exact match)',
       condition: { field: 'operation', value: 'list_dns_records' },
       mode: 'advanced',
     },
     {
       id: 'content',
-      title: 'Content Filter',
+      title: 'Content',
       type: 'short-input',
-      placeholder: 'Filter by record content (exact match)',
-      condition: { field: 'operation', value: 'list_dns_records' },
-      mode: 'advanced',
-    },
-    {
-      id: 'direction',
-      title: 'Sort Direction',
-      type: 'dropdown',
-      options: [
-        { label: 'Default', id: '' },
-        { label: 'Ascending', id: 'asc' },
-        { label: 'Descending', id: 'desc' },
-      ],
-      value: () => '',
-      condition: { field: 'operation', value: 'list_dns_records' },
-      mode: 'advanced',
-    },
-    {
-      id: 'match',
-      title: 'Match Logic',
-      type: 'dropdown',
-      options: [
-        { label: 'All (default)', id: '' },
-        { label: 'Any', id: 'any' },
-        { label: 'All', id: 'all' },
-      ],
-      value: () => '',
-      condition: { field: 'operation', value: 'list_dns_records' },
-      mode: 'advanced',
+      placeholder: 'Record value, or provide structured record data',
+      condition: { field: 'operation', value: ['list_dns_records', 'create_dns_record'] },
+      required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare content value. Return ONLY the value.',
+        placeholder: 'Describe the content',
+      },
     },
     {
       id: 'dnsOrder',
@@ -565,8 +959,21 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       title: 'Search',
       type: 'short-input',
       placeholder: 'Free-text search across record properties',
-      condition: { field: 'operation', value: 'list_dns_records' },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_dns_records',
+          'list_access_applications',
+          'list_access_groups',
+          'list_access_service_tokens',
+        ],
+      },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare search value. Return ONLY the value.',
+        placeholder: 'Describe the search',
+      },
     },
     {
       id: 'tag',
@@ -575,6 +982,11 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       placeholder: 'Exact tag name to filter by',
       condition: { field: 'operation', value: 'list_dns_records' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tag filter value. Return ONLY the value.',
+        placeholder: 'Describe the tag filter',
+      },
     },
     {
       id: 'tag_match',
@@ -596,32 +1008,11 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       placeholder: 'Filter by comment content (substring match)',
       condition: { field: 'operation', value: 'list_dns_records' },
       mode: 'advanced',
-    },
-    {
-      id: 'page',
-      title: 'Page',
-      type: 'short-input',
-      placeholder: 'Page number (default: 1)',
-      condition: { field: 'operation', value: 'list_dns_records' },
-      mode: 'advanced',
-    },
-    {
-      id: 'per_page',
-      title: 'Per Page',
-      type: 'short-input',
-      placeholder: 'Results per page (default: 100, max: 5000000)',
-      condition: { field: 'operation', value: 'list_dns_records' },
-      mode: 'advanced',
-    },
-
-    // Create DNS Record inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'create_dns_record' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare comment filter value. Return ONLY the value.',
+        placeholder: 'Describe the comment filter',
+      },
     },
     {
       id: 'recordType',
@@ -630,29 +1021,27 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       options: [
         { label: 'A', id: 'A' },
         { label: 'AAAA', id: 'AAAA' },
+        { label: 'CAA', id: 'CAA' },
+        { label: 'CERT', id: 'CERT' },
         { label: 'CNAME', id: 'CNAME' },
+        { label: 'DNSKEY', id: 'DNSKEY' },
+        { label: 'DS', id: 'DS' },
+        { label: 'HTTPS', id: 'HTTPS' },
+        { label: 'LOC', id: 'LOC' },
         { label: 'MX', id: 'MX' },
-        { label: 'TXT', id: 'TXT' },
+        { label: 'NAPTR', id: 'NAPTR' },
         { label: 'NS', id: 'NS' },
+        { label: 'OPENPGPKEY', id: 'OPENPGPKEY' },
+        { label: 'PTR', id: 'PTR' },
+        { label: 'SMIMEA', id: 'SMIMEA' },
         { label: 'SRV', id: 'SRV' },
+        { label: 'SSHFP', id: 'SSHFP' },
+        { label: 'SVCB', id: 'SVCB' },
+        { label: 'TLSA', id: 'TLSA' },
+        { label: 'TXT', id: 'TXT' },
+        { label: 'URI', id: 'URI' },
       ],
       value: () => 'A',
-      condition: { field: 'operation', value: 'create_dns_record' },
-    },
-    {
-      id: 'name',
-      title: 'Record Name',
-      type: 'short-input',
-      required: true,
-      placeholder: 'e.g., example.com or sub.example.com',
-      condition: { field: 'operation', value: 'create_dns_record' },
-    },
-    {
-      id: 'content',
-      title: 'Record Content',
-      type: 'short-input',
-      required: true,
-      placeholder: 'e.g., 192.0.2.1 or target.example.com',
       condition: { field: 'operation', value: 'create_dns_record' },
     },
     {
@@ -660,8 +1049,13 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       title: 'TTL (seconds)',
       type: 'short-input',
       placeholder: '1 (automatic)',
-      condition: { field: 'operation', value: 'create_dns_record' },
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare ttl (seconds) value. Return ONLY the value.',
+        placeholder: 'Describe the ttl (seconds)',
+      },
     },
     {
       id: 'recordProxied',
@@ -680,16 +1074,26 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       title: 'Priority',
       type: 'short-input',
       placeholder: 'MX/URI priority (e.g., 10)',
-      condition: { field: 'operation', value: 'create_dns_record' },
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare priority value. Return ONLY the value.',
+        placeholder: 'Describe the priority',
+      },
     },
     {
       id: 'comment',
       title: 'Comment',
       type: 'short-input',
       placeholder: 'Optional comment',
-      condition: { field: 'operation', value: 'create_dns_record' },
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare comment value. Return ONLY the value.',
+        placeholder: 'Describe the comment',
+      },
     },
     {
       id: 'recordTags',
@@ -698,55 +1102,72 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       placeholder: 'Comma-separated tags (e.g., production,web)',
       condition: { field: 'operation', value: 'create_dns_record' },
       mode: 'advanced',
-    },
-
-    // Update DNS Record inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'update_dns_record' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tags value. Return ONLY the value.',
+        placeholder: 'Describe the tags',
+      },
     },
     {
       id: 'recordId',
       title: 'Record ID',
       type: 'short-input',
       required: true,
-      placeholder: 'Enter DNS record ID',
-      condition: { field: 'operation', value: 'update_dns_record' },
+      placeholder: 'Enter record id',
+      condition: {
+        field: 'operation',
+        value: ['update_dns_record', 'delete_dns_record', 'get_dns_record'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare record id value. Return ONLY the value.',
+        placeholder: 'Describe the record id',
+      },
     },
     {
       id: 'updateRecordType',
       title: 'Record Type',
       type: 'dropdown',
       options: [
-        { label: 'No Change', id: '' },
+        { label: 'Any / unchanged', id: '' },
         { label: 'A', id: 'A' },
         { label: 'AAAA', id: 'AAAA' },
+        { label: 'CAA', id: 'CAA' },
+        { label: 'CERT', id: 'CERT' },
         { label: 'CNAME', id: 'CNAME' },
+        { label: 'DNSKEY', id: 'DNSKEY' },
+        { label: 'DS', id: 'DS' },
+        { label: 'HTTPS', id: 'HTTPS' },
+        { label: 'LOC', id: 'LOC' },
         { label: 'MX', id: 'MX' },
-        { label: 'TXT', id: 'TXT' },
+        { label: 'NAPTR', id: 'NAPTR' },
         { label: 'NS', id: 'NS' },
+        { label: 'OPENPGPKEY', id: 'OPENPGPKEY' },
+        { label: 'PTR', id: 'PTR' },
+        { label: 'SMIMEA', id: 'SMIMEA' },
         { label: 'SRV', id: 'SRV' },
+        { label: 'SSHFP', id: 'SSHFP' },
+        { label: 'SVCB', id: 'SVCB' },
+        { label: 'TLSA', id: 'TLSA' },
+        { label: 'TXT', id: 'TXT' },
+        { label: 'URI', id: 'URI' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'update_dns_record' },
       mode: 'advanced',
     },
     {
-      /**
-       * Renaming a live DNS record is a write, and this control is advanced, so
-       * sharing the bare `name` id let a name typed under any other operation
-       * reach the PATCH and rename the record.
-       */
       id: 'updateRecordName',
       title: 'Record Name',
       type: 'short-input',
       placeholder: 'e.g., example.com or sub.example.com',
       condition: { field: 'operation', value: 'update_dns_record' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare record name value. Return ONLY the value.',
+        placeholder: 'Describe the record name',
+      },
     },
     {
       id: 'updateRecordContent',
@@ -755,14 +1176,11 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       placeholder: 'e.g., 192.0.2.1',
       condition: { field: 'operation', value: 'update_dns_record' },
       mode: 'advanced',
-    },
-    {
-      id: 'ttl',
-      title: 'TTL (seconds)',
-      type: 'short-input',
-      placeholder: '1 (automatic)',
-      condition: { field: 'operation', value: 'update_dns_record' },
-      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare new content value. Return ONLY the value.',
+        placeholder: 'Describe the new content',
+      },
     },
     {
       id: 'updateRecordProxied',
@@ -778,56 +1196,17 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'priority',
-      title: 'Priority',
-      type: 'short-input',
-      placeholder: 'MX/URI priority (e.g., 10)',
-      condition: { field: 'operation', value: 'update_dns_record' },
-      mode: 'advanced',
-    },
-    {
-      id: 'comment',
-      title: 'Comment',
-      type: 'short-input',
-      placeholder: 'Optional comment',
-      condition: { field: 'operation', value: 'update_dns_record' },
-      mode: 'advanced',
-    },
-    {
       id: 'updateRecordTags',
       title: 'Tags',
       type: 'short-input',
       placeholder: 'Comma-separated tags (e.g., production,web)',
       condition: { field: 'operation', value: 'update_dns_record' },
       mode: 'advanced',
-    },
-
-    // Delete DNS Record inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'delete_dns_record' },
-    },
-    {
-      id: 'recordId',
-      title: 'Record ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter DNS record ID to delete',
-      condition: { field: 'operation', value: 'delete_dns_record' },
-    },
-
-    // List Certificates inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'list_certificates' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tags value. Return ONLY the value.',
+        placeholder: 'Describe the tags',
+      },
     },
     {
       id: 'certificateStatus',
@@ -838,22 +1217,6 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Active only', id: '' },
       ],
       value: () => 'all',
-      condition: { field: 'operation', value: 'list_certificates' },
-      mode: 'advanced',
-    },
-    {
-      id: 'page',
-      title: 'Page',
-      type: 'short-input',
-      placeholder: 'Page number (default: 1)',
-      condition: { field: 'operation', value: 'list_certificates' },
-      mode: 'advanced',
-    },
-    {
-      id: 'per_page',
-      title: 'Per Page',
-      type: 'short-input',
-      placeholder: 'Results per page (default: 20, min: 5, max: 50)',
       condition: { field: 'operation', value: 'list_certificates' },
       mode: 'advanced',
     },
@@ -870,38 +1233,18 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       condition: { field: 'operation', value: 'list_certificates' },
       mode: 'advanced',
     },
-
-    // Get Zone Settings inputs
     {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'get_zone_settings' },
-    },
-    {
-      /**
-       * Cloudflare retired the endpoint that read every setting in one request,
-       * so this operation reads one setting per request. Naming the settings
-       * keeps the fan-out to what the workflow actually reads.
-       */
       id: 'settingIds',
       title: 'Settings',
       type: 'short-input',
       placeholder: 'Comma-separated setting IDs (blank reads the default set)',
       condition: { field: 'operation', value: 'get_zone_settings' },
       mode: 'advanced',
-    },
-
-    // Update Zone Setting inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'update_zone_setting' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare settings value. Return ONLY the value.',
+        placeholder: 'Describe the settings',
+      },
     },
     {
       id: 'settingId',
@@ -930,46 +1273,15 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       id: 'value',
       title: 'Value',
       type: 'short-input',
-      required: true,
+      required: { field: 'settingId', value: 'ssl_recommender', not: true },
       placeholder: 'e.g., full, strict, on, off, medium',
       condition: { field: 'operation', value: 'update_zone_setting' },
       wandConfig: {
         enabled: true,
-        prompt: `Generate the correct value for a Cloudflare zone setting based on the user's description.
-
-Common settings and their valid values:
-- ssl: "off", "flexible", "full", "strict"
-- always_use_https: "on", "off"
-- security_level: "off", "essentially_off", "low", "medium", "high", "under_attack"
-- cache_level: "aggressive", "basic", "simplified"
-- browser_cache_ttl: number in seconds (e.g., 14400 for 4 hours, 86400 for 1 day)
-- rocket_loader: "on", "off"
-- email_obfuscation: "on", "off"
-- hotlink_protection: "on", "off"
-- ip_geolocation: "on", "off"
-- http2: "on", "off"
-- http3: "on", "off"
-- websockets: "on", "off"
-- tls_1_3: "on", "off", "zrt"
-- min_tls_version: "1.0", "1.1", "1.2", "1.3"
-
-For simple string/boolean settings, return the plain value (e.g., "full", "on").
-For numeric settings like browser_cache_ttl, return the number (e.g., 14400).
-
-Return ONLY the value - no explanations, no extra text.`,
-        placeholder:
-          'Describe the setting value (e.g., "enable strict SSL", "cache everything")...',
+        prompt:
+          'Generate the correct value for a Cloudflare zone setting based on the user\'s description.\n\nCommon settings and their valid values:\n- ssl: "off", "flexible", "full", "strict"\n- always_use_https: "on", "off"\n- security_level: "off", "essentially_off", "low", "medium", "high", "under_attack"\n- cache_level: "aggressive", "basic", "simplified"\n- browser_cache_ttl: number in seconds (e.g., 14400 for 4 hours, 86400 for 1 day)\n- rocket_loader: "on", "off"\n- email_obfuscation: "on", "off"\n- hotlink_protection: "on", "off"\n- ip_geolocation: "on", "off"\n- http2: "on", "off"\n- http3: "on", "off"\n- websockets: "on", "off"\n- tls_1_3: "on", "off", "zrt"\n- min_tls_version: "1.0", "1.1", "1.2", "1.3"\n\nFor simple string/boolean settings, return the plain value (e.g., "full", "on").\nFor numeric settings like browser_cache_ttl, return the number (e.g., 14400).\n\nReturn ONLY the value - no explanations, no extra text.',
+        placeholder: 'Describe the value',
       },
-    },
-
-    // DNS Analytics inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'dns_analytics' },
     },
     {
       id: 'since',
@@ -979,21 +1291,12 @@ Return ONLY the value - no explanations, no extra text.`,
       condition: { field: 'operation', value: 'dns_analytics' },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a timestamp or relative time expression for the Cloudflare DNS Analytics API based on the user's description.
-Cloudflare accepts either ISO 8601 timestamps (e.g., 2024-01-01T00:00:00Z) or relative expressions (e.g., -6h, -7d, -30d).
-Examples:
-- "last 6 hours" -> -6h
-- "last 24 hours" -> -24h
-- "last 7 days" -> -7d
-- "last 30 days" -> -30d
-- "since January 1st 2024" -> 2024-01-01T00:00:00Z
-- "beginning of this month" -> First day of current month at 00:00:00Z
-- "1 hour ago" -> -1h
-
-Return ONLY the timestamp or relative expression - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the start time (e.g., "last 7 days", "since January 1st")...',
+        prompt:
+          'Generate a timestamp or relative time expression for the Cloudflare DNS Analytics API based on the user\'s description.\nCloudflare accepts either ISO 8601 timestamps (e.g., 2024-01-01T00:00:00Z) or relative expressions (e.g., -6h, -7d, -30d).\nExamples:\n- "last 6 hours" -> -6h\n- "last 24 hours" -> -24h\n- "last 7 days" -> -7d\n- "last 30 days" -> -30d\n- "since January 1st 2024" -> 2024-01-01T00:00:00Z\n- "beginning of this month" -> First day of current month at 00:00:00Z\n- "1 hour ago" -> -1h\n\nReturn ONLY the timestamp or relative expression - no explanations, no quotes, no extra text.',
+        placeholder: 'Describe the start date',
         generationType: 'timestamp',
       },
+      mode: 'advanced',
     },
     {
       id: 'until',
@@ -1003,18 +1306,12 @@ Return ONLY the timestamp or relative expression - no explanations, no quotes, n
       condition: { field: 'operation', value: 'dns_analytics' },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a timestamp or relative time expression for the Cloudflare DNS Analytics API based on the user's description.
-Cloudflare accepts either ISO 8601 timestamps (e.g., 2024-01-31T23:59:59Z) or relative expressions (e.g., now).
-Examples:
-- "now" -> now
-- "today" -> Today's date at 23:59:59Z
-- "end of yesterday" -> Yesterday's date at 23:59:59Z
-- "end of last month" -> Last day of previous month at 23:59:59Z
-
-Return ONLY the timestamp or relative expression - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the end time (e.g., "now", "end of yesterday")...',
+        prompt:
+          'Generate a timestamp or relative time expression for the Cloudflare DNS Analytics API based on the user\'s description.\nCloudflare accepts either ISO 8601 timestamps (e.g., 2024-01-31T23:59:59Z) or relative expressions (e.g., now).\nExamples:\n- "now" -> now\n- "today" -> Today\'s date at 23:59:59Z\n- "end of yesterday" -> Yesterday\'s date at 23:59:59Z\n- "end of last month" -> Last day of previous month at 23:59:59Z\n\nReturn ONLY the timestamp or relative expression - no explanations, no quotes, no extra text.',
+        placeholder: 'Describe the end date',
         generationType: 'timestamp',
       },
+      mode: 'advanced',
     },
     {
       id: 'metrics',
@@ -1024,25 +1321,9 @@ Return ONLY the timestamp or relative expression - no explanations, no quotes, n
       condition: { field: 'operation', value: 'dns_analytics' },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a comma-separated list of Cloudflare DNS Analytics metrics based on the user's description.
-
-Available metrics:
-- queryCount: Total number of DNS queries
-- uncachedCount: Number of DNS queries not served from cache
-- staleCount: Number of stale DNS responses served
-- responseTimeAvg: Average response time in milliseconds
-- responseTimeMedian: Median response time in milliseconds
-- responseTime90th: 90th percentile response time
-- responseTime99th: 99th percentile response time
-
-Examples:
-- "query counts" -> queryCount
-- "all query metrics" -> queryCount,uncachedCount,staleCount
-- "response times" -> responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th
-- "everything" -> queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th
-
-Return ONLY the comma-separated metric names - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe what to measure (e.g., "query counts and response times")...',
+        prompt:
+          'Generate a comma-separated list of Cloudflare DNS Analytics metrics based on the user\'s description.\n\nAvailable metrics:\n- queryCount: Total number of DNS queries\n- uncachedCount: Number of DNS queries not served from cache\n- staleCount: Number of stale DNS responses served\n- responseTimeAvg: Average response time in milliseconds\n- responseTimeMedian: Median response time in milliseconds\n- responseTime90th: 90th percentile response time\n- responseTime99th: 99th percentile response time\n\nExamples:\n- "query counts" -> queryCount\n- "all query metrics" -> queryCount,uncachedCount,staleCount\n- "response times" -> responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th\n- "everything" -> queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th\n\nReturn ONLY the comma-separated metric names - no explanations, no quotes, no extra text.',
+        placeholder: 'Describe the metrics',
       },
     },
     {
@@ -1054,27 +1335,9 @@ Return ONLY the comma-separated metric names - no explanations, no quotes, no ex
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: `Generate a comma-separated list of Cloudflare DNS Analytics dimensions based on the user's description.
-
-Available dimensions:
-- queryName: DNS record name being queried
-- queryType: DNS query type (A, AAAA, CNAME, MX, etc.)
-- responseCode: DNS response code (NOERROR, NXDOMAIN, SERVFAIL, etc.)
-- responseCached: Whether the response was cached
-- coloName: Cloudflare data center handling the query
-- origin: Origin server
-- dayOfWeek: Day of the week
-- tcp: Whether the query used TCP
-- ipVersion: IP version (4 or 6)
-
-Examples:
-- "by record type" -> queryType
-- "by record name and type" -> queryName,queryType
-- "by data center" -> coloName
-- "by response code and cache status" -> responseCode,responseCached
-
-Return ONLY the comma-separated dimension names - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe how to group results (e.g., "by record type and name")...',
+        prompt:
+          'Generate a comma-separated list of Cloudflare DNS Analytics dimensions based on the user\'s description.\n\nAvailable dimensions:\n- queryName: DNS record name being queried\n- queryType: DNS query type (A, AAAA, CNAME, MX, etc.)\n- responseCode: DNS response code (NOERROR, NXDOMAIN, SERVFAIL, etc.)\n- responseCached: Whether the response was cached\n- coloName: Cloudflare data center handling the query\n- origin: Origin server\n- dayOfWeek: Day of the week\n- tcp: Whether the query used TCP\n- ipVersion: IP version (4 or 6)\n\nExamples:\n- "by record type" -> queryType\n- "by record name and type" -> queryName,queryType\n- "by data center" -> coloName\n- "by response code and cache status" -> responseCode,responseCached\n\nReturn ONLY the comma-separated dimension names - no explanations, no quotes, no extra text.',
+        placeholder: 'Describe the dimensions',
       },
     },
     {
@@ -1086,29 +1349,9 @@ Return ONLY the comma-separated dimension names - no explanations, no quotes, no
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: `Generate a Cloudflare DNS Analytics filter expression based on the user's description.
-
-Filter syntax: field==value or field!=value
-Multiple filters can be combined with semicolons: field1==value1;field2==value2
-
-Available filter fields:
-- queryType: DNS record type (A, AAAA, CNAME, MX, TXT, NS, SRV, etc.)
-- queryName: DNS record name
-- responseCode: DNS response code (NOERROR, NXDOMAIN, SERVFAIL, REFUSED)
-- responseCached: Whether cached (0 or 1)
-- coloName: Data center name
-- origin: Origin server
-
-Examples:
-- "only A records" -> queryType==A
-- "only CNAME records" -> queryType==CNAME
-- "failed queries" -> responseCode==SERVFAIL
-- "non-existent domains" -> responseCode==NXDOMAIN
-- "A records that weren't cached" -> queryType==A;responseCached==0
-- "queries for example.com" -> queryName==example.com
-
-Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe what to filter (e.g., "only A records", "failed queries")...',
+        prompt:
+          'Generate a Cloudflare DNS Analytics filter expression based on the user\'s description.\n\nFilter syntax: field==value or field!=value\nMultiple filters can be combined with semicolons: field1==value1;field2==value2\n\nAvailable filter fields:\n- queryType: DNS record type (A, AAAA, CNAME, MX, TXT, NS, SRV, etc.)\n- queryName: DNS record name\n- responseCode: DNS response code (NOERROR, NXDOMAIN, SERVFAIL, REFUSED)\n- responseCached: Whether cached (0 or 1)\n- coloName: Data center name\n- origin: Origin server\n\nExamples:\n- "only A records" -> queryType==A\n- "only CNAME records" -> queryType==CNAME\n- "failed queries" -> responseCode==SERVFAIL\n- "non-existent domains" -> responseCode==NXDOMAIN\n- "A records that weren\'t cached" -> queryType==A;responseCached==0\n- "queries for example.com" -> queryName==example.com\n\nReturn ONLY the filter expression - no explanations, no quotes, no extra text.',
+        placeholder: 'Describe the filters',
       },
     },
     {
@@ -1118,6 +1361,11 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
       placeholder: 'e.g., +queryCount or -responseTimeAvg',
       condition: { field: 'operation', value: 'dns_analytics' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare sort value. Return ONLY the value.',
+        placeholder: 'Describe the sort',
+      },
     },
     {
       id: 'limit',
@@ -1126,16 +1374,11 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
       placeholder: 'Max results (e.g., 100)',
       condition: { field: 'operation', value: 'dns_analytics' },
       mode: 'advanced',
-    },
-
-    // Purge Cache inputs
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: { field: 'operation', value: 'purge_cache' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare limit value. Return ONLY the value.',
+        placeholder: 'Describe the limit',
+      },
     },
     {
       id: 'purge_everything',
@@ -1161,119 +1404,62 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
       },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a comma-separated list of URLs to purge from Cloudflare's cache based on the user's description.
-
-Each URL should be a full URL including the protocol (https://).
-Examples:
-- "the homepage and about page of example.com" -> https://example.com/, https://example.com/about
-- "all CSS and JS files" -> https://example.com/style.css, https://example.com/app.js
-- "the API endpoint" -> https://example.com/api/v1/data
-
-Return ONLY the comma-separated URLs - no explanations, no extra text.`,
-        placeholder: 'Describe what to purge (e.g., "homepage and CSS files")...',
+        prompt:
+          'Generate a comma-separated list of URLs to purge from Cloudflare\'s cache based on the user\'s description.\n\nEach URL should be a full URL including the protocol (https://).\nExamples:\n- "the homepage and about page of example.com" -> https://example.com/, https://example.com/about\n- "all CSS and JS files" -> https://example.com/style.css, https://example.com/app.js\n- "the API endpoint" -> https://example.com/api/v1/data\n\nReturn ONLY the comma-separated URLs - no explanations, no extra text.',
+        placeholder: 'Describe the files to purge',
       },
     },
     {
       id: 'tags',
       title: 'Cache Tags',
       type: 'short-input',
-      placeholder: 'Comma-separated cache tags (Enterprise only)',
+      placeholder: 'Comma-separated cache tags',
       condition: {
         field: 'operation',
         value: 'purge_cache',
         and: { field: 'purge_everything', value: 'true', not: true },
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare cache tags value. Return ONLY the value.',
+        placeholder: 'Describe the cache tags',
+      },
     },
     {
       id: 'hosts',
       title: 'Hostnames',
       type: 'short-input',
-      placeholder: 'Comma-separated hostnames (Enterprise only)',
+      placeholder: 'Comma-separated hostnames',
       condition: {
         field: 'operation',
         value: 'purge_cache',
         and: { field: 'purge_everything', value: 'true', not: true },
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare hostnames value. Return ONLY the value.',
+        placeholder: 'Describe the hostnames',
+      },
     },
     {
       id: 'prefixes',
       title: 'URL Prefixes',
       type: 'short-input',
-      placeholder: 'Comma-separated URL prefixes (Enterprise only)',
+      placeholder: 'Comma-separated URL prefixes',
       condition: {
         field: 'operation',
         value: 'purge_cache',
         and: { field: 'purge_everything', value: 'true', not: true },
       },
       mode: 'advanced',
-    },
-
-    // Zone ID for zone-scoped WAF, rate limiting, and Workers routes operations
-    {
-      id: 'zoneId',
-      title: 'Zone ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter zone ID',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_rulesets',
-          'get_ruleset',
-          'get_ruleset_entrypoint',
-          'create_ruleset',
-          'create_ruleset_rule',
-          'update_ruleset_rule',
-          'delete_ruleset_rule',
-          'list_managed_ruleset_overrides',
-          'list_rate_limit_rules',
-          'create_rate_limit_rule',
-          'update_rate_limit_rule',
-          'list_worker_routes',
-        ],
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare url prefixes value. Return ONLY the value.',
+        placeholder: 'Describe the url prefixes',
       },
     },
-
-    // Account ID for account-scoped Access, R2, Workers scripts, and Tunnels operations
-    {
-      id: 'accountId',
-      title: 'Account ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter Cloudflare account ID',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_access_applications',
-          'get_access_application',
-          'create_access_application',
-          'update_access_application',
-          'delete_access_application',
-          'list_access_policies',
-          'create_access_policy',
-          'update_access_policy',
-          'delete_access_policy',
-          'list_access_groups',
-          'list_access_identity_providers',
-          'list_access_service_tokens',
-          'create_access_service_token',
-          'revoke_access_service_token',
-          'list_r2_buckets',
-          'get_r2_bucket',
-          'create_r2_bucket',
-          'delete_r2_bucket',
-          'list_worker_scripts',
-          'get_worker_script_settings',
-          'list_tunnels',
-          'get_tunnel',
-          'get_tunnel_configuration',
-        ],
-      },
-    },
-
-    // Ruleset inputs
     {
       id: 'phase',
       title: 'Phase',
@@ -1304,6 +1490,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       required: true,
       placeholder: 'e.g. Zone rate limiting ruleset',
       condition: { field: 'operation', value: 'create_ruleset' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare ruleset name value. Return ONLY the value.',
+        placeholder: 'Describe the ruleset name',
+      },
     },
     {
       id: 'kind',
@@ -1327,22 +1518,9 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       wandConfig: {
         enabled: true,
         maintainHistory: true,
-        prompt: `Generate a Cloudflare ruleset rules array from the user's description.
-
-Each rule is an object with:
-- "action": the action to take, e.g. "block", "challenge", "managed_challenge", "js_challenge", "log", "skip", "execute"
-- "expression": a Cloudflare filter expression selecting matching requests
-- "description": optional human-readable description
-- "enabled": optional boolean, defaults to true
-
-A rate limiting rule (http_ratelimit phase) also takes "ratelimit" with "characteristics", "period", and "requests_per_period".
-
-Examples:
-- "block traffic from Russia" -> [{"action":"block","expression":"(ip.geoip.country eq \\"RU\\")","description":"Block RU"}]
-- "rate limit the login endpoint to 10 requests a minute per IP" -> [{"action":"block","expression":"(http.request.uri.path eq \\"/login\\")","description":"Login rate limit","ratelimit":{"characteristics":["ip.src","cf.colo.id"],"period":60,"requests_per_period":10}}]
-
-Return ONLY the JSON array - no explanations, no markdown fences.`,
-        placeholder: 'Describe the rules to seed this ruleset with...',
+        prompt:
+          'Generate a Cloudflare ruleset rules array from the user\'s description.\n\nEach rule is an object with:\n- "action": the action to take, e.g. "block", "challenge", "managed_challenge", "js_challenge", "log", "skip", "execute"\n- "expression": a Cloudflare filter expression selecting matching requests\n- "description": optional human-readable description\n- "enabled": optional boolean, defaults to true\n\nA rate limiting rule (http_ratelimit phase) also takes "ratelimit" with "characteristics", "period", and "requests_per_period".\n\nExamples:\n- "block traffic from Russia" -> [{"action":"block","expression":"(ip.geoip.country eq \\"RU\\")","description":"Block RU"}]\n- "rate limit the login endpoint to 10 requests a minute per IP" -> [{"action":"block","expression":"(http.request.uri.path eq \\"/login\\")","description":"Login rate limit","ratelimit":{"characteristics":["ip.src","cf.colo.id"],"period":60,"requests_per_period":10}}]\n\nReturn ONLY the JSON array - no explanations, no markdown fences.',
+        placeholder: 'Describe the initial rules',
         generationType: 'json-array',
       },
     },
@@ -1351,21 +1529,24 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       title: 'Ruleset ID',
       type: 'short-input',
       required: true,
-      placeholder: 'From "List Rulesets" or "Get Phase Entry Point Ruleset"',
+      placeholder: 'Enter ruleset id',
       condition: {
         field: 'operation',
-        value: ['get_ruleset', 'create_ruleset_rule', 'update_ruleset_rule', 'delete_ruleset_rule'],
+        value: [
+          'get_ruleset',
+          'create_ruleset_rule',
+          'update_ruleset_rule',
+          'delete_ruleset_rule',
+          'create_rate_limit_rule',
+          'update_rate_limit_rule',
+          'delete_ruleset',
+          'update_ruleset',
+        ],
       },
-    },
-    {
-      id: 'rulesetId',
-      title: 'Rate Limiting Ruleset ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'From "List Rate Limiting Rules"',
-      condition: {
-        field: 'operation',
-        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare ruleset id value. Return ONLY the value.',
+        placeholder: 'Describe the ruleset id',
       },
     },
     {
@@ -1378,19 +1559,23 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         field: 'operation',
         value: ['update_ruleset_rule', 'delete_ruleset_rule', 'update_rate_limit_rule'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare rule id value. Return ONLY the value.',
+        placeholder: 'Describe the rule id',
+      },
     },
     {
       id: 'action',
       title: 'Action',
       type: 'short-input',
-      required: {
-        field: 'operation',
-        value: ['create_ruleset_rule', 'update_ruleset_rule'],
-      },
+      required: { field: 'operation', value: ['create_ruleset_rule', 'update_ruleset_rule'] },
       placeholder: 'block, challenge, managed_challenge, js_challenge, log, skip, execute',
-      condition: {
-        field: 'operation',
-        value: ['create_ruleset_rule', 'update_ruleset_rule'],
+      condition: { field: 'operation', value: ['create_ruleset_rule', 'update_ruleset_rule'] },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare action value. Return ONLY the value.',
+        placeholder: 'Describe the action',
       },
     },
     {
@@ -1408,12 +1593,6 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       condition: { field: 'operation', value: 'create_rate_limit_rule' },
     },
     {
-      /**
-       * The update endpoint replaces the rule, so a seeded action would rewrite
-       * whatever the rule currently does the moment anything else is edited.
-       * This control carries no default: the user has to state the action the
-       * replaced rule should end up with.
-       */
       id: 'updateRateLimitAction',
       title: 'Action',
       type: 'dropdown',
@@ -1452,27 +1631,9 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a Cloudflare Ruleset Engine filter expression from the user's description.
-
-Syntax uses fields, operators, and logical connectors:
-- ip.src, ip.src.country, ip.src.asnum
-- http.host, http.request.uri.path, http.request.uri.query, http.request.method
-- http.user_agent, http.referer
-- cf.threat_score, cf.bot_management.score, cf.client.bot
-- ssl
-
-Operators: eq, ne, lt, gt, contains, matches (regex), in { }
-Connectors: and, or, not, with parentheses
-
-Examples:
-- "block traffic from the UK and France" -> (ip.src.country in {"GB" "FR"})
-- "everything under /api" -> (http.request.uri.path matches "^/api/")
-- "the login page from non-verified bots" -> (http.request.uri.path eq "/login" and cf.client.bot)
-- "all requests" -> true
-
-Return ONLY the expression - no explanations, no quotes around the whole expression, no extra text.`,
-        placeholder:
-          'Describe the traffic to match (e.g., "requests to /api from outside the US")...',
+        prompt:
+          'Generate a Cloudflare Ruleset Engine filter expression from the user\'s description.\n\nSyntax uses fields, operators, and logical connectors:\n- ip.src, ip.src.country, ip.src.asnum\n- http.host, http.request.uri.path, http.request.uri.query, http.request.method\n- http.user_agent, http.referer\n- cf.threat_score, cf.bot_management.score, cf.client.bot\n- ssl\n\nOperators: eq, ne, lt, gt, contains, matches (regex), in { }\nConnectors: and, or, not, with parentheses\n\nExamples:\n- "block traffic from the UK and France" -> (ip.src.country in {"GB" "FR"})\n- "everything under /api" -> (http.request.uri.path matches "^/api/")\n- "the login page from non-verified bots" -> (http.request.uri.path eq "/login" and cf.client.bot)\n- "all requests" -> true\n\nReturn ONLY the expression - no explanations, no quotes around the whole expression, no extra text.',
+        placeholder: 'Describe the expression',
       },
     },
     {
@@ -1490,6 +1651,11 @@ Return ONLY the expression - no explanations, no quotes around the whole express
           'update_rate_limit_rule',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare description value. Return ONLY the value.',
+        placeholder: 'Describe the description',
+      },
     },
     {
       id: 'enabled',
@@ -1501,34 +1667,20 @@ Return ONLY the expression - no explanations, no quotes around the whole express
         { label: 'No', id: 'false' },
       ],
       value: () => '',
-      condition: {
-        field: 'operation',
-        value: ['create_ruleset_rule', 'create_rate_limit_rule'],
-      },
+      condition: { field: 'operation', value: ['create_ruleset_rule', 'create_rate_limit_rule'] },
       mode: 'advanced',
     },
     {
-      /**
-       * The update endpoints replace the rule, so `enabled` is a live on/off
-       * switch for WAF and rate limiting there rather than a starting state.
-       * Sharing the create control's id let a `false` chosen while drafting a
-       * new rule reach a later update and disable an enforcing rule — from a
-       * field the operation does not render in basic mode, since an advanced
-       * control serializes on stored value alone, before its `condition` runs.
-       */
       id: 'updateRuleEnabled',
       title: 'Enabled',
       type: 'dropdown',
       options: [
-        { label: 'Leave unchanged (Cloudflare re-enables the rule)', id: '' },
+        { label: 'Default (enabled)', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
       value: () => '',
-      condition: {
-        field: 'operation',
-        value: ['update_ruleset_rule', 'update_rate_limit_rule'],
-      },
+      condition: { field: 'operation', value: ['update_ruleset_rule', 'update_rate_limit_rule'] },
       mode: 'advanced',
     },
     {
@@ -1541,6 +1693,11 @@ Return ONLY the expression - no explanations, no quotes around the whole express
         value: ['create_ruleset_rule', 'update_ruleset_rule', 'update_rate_limit_rule'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare reference tag value. Return ONLY the value.',
+        placeholder: 'Describe the reference tag',
+      },
     },
     {
       id: 'ratelimit',
@@ -1550,55 +1707,37 @@ Return ONLY the expression - no explanations, no quotes around the whole express
         '{"characteristics":["cf.colo.id","ip.src"],"period":60,"requests_per_period":100}',
       condition: { field: 'operation', value: 'update_ruleset_rule' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare rate limiting configuration value. Return ONLY the value.',
+        placeholder: 'Describe the rate limiting configuration',
+      },
     },
     {
       id: 'logging',
       title: 'Logging Configuration',
       type: 'long-input',
       placeholder: '{"enabled":true}',
-      condition: {
-        field: 'operation',
-        value: ['update_ruleset_rule', 'update_rate_limit_rule'],
-      },
+      condition: { field: 'operation', value: ['update_ruleset_rule', 'update_rate_limit_rule'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare logging configuration value. Return ONLY the value.',
+        placeholder: 'Describe the logging configuration',
+      },
     },
     {
       id: 'actionParameters',
       title: 'Action Parameters',
       type: 'long-input',
-      /**
-       * An `execute` rule carries the managed ruleset it deploys here, and the
-       * update endpoint replaces the rule — so leaving this blank resets
-       * action_parameters to {} and unbinds that ruleset.
-       */
       required: { field: 'action', value: 'execute' },
       placeholder: '{"id":"<MANAGED_RULESET_ID>","overrides":{"action":"log"}}',
-      condition: {
-        field: 'operation',
-        value: ['create_ruleset_rule', 'update_ruleset_rule'],
-      },
+      condition: { field: 'operation', value: ['create_ruleset_rule', 'update_ruleset_rule'] },
       wandConfig: {
         enabled: true,
-        prompt: `Generate the JSON action_parameters object for a Cloudflare ruleset rule from the user's description.
-
-For an "execute" rule that deploys a WAF managed ruleset:
-{"id":"<MANAGED_RULESET_ID>"}
-
-To override the whole managed ruleset:
-{"id":"<MANAGED_RULESET_ID>","overrides":{"action":"log"}}
-
-To override specific categories:
-{"id":"<MANAGED_RULESET_ID>","overrides":{"categories":[{"category":"wordpress","action":"block","enabled":true}]}}
-
-To override specific rules:
-{"id":"<MANAGED_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","action":"log","enabled":true}]}}
-
-"action" and "enabled" are overridable at every level. Individual managed rulesets may accept more: an OWASP Core Ruleset rule override also takes "score_threshold", e.g.
-{"id":"<OWASP_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","score_threshold":60,"action":"managed_challenge"}]}}
-
-Return ONLY the JSON object - no explanations, no markdown fences.`,
-        placeholder:
-          'Describe the action parameters (e.g., "deploy the Cloudflare Managed Ruleset in log mode")...',
+        prompt:
+          'Generate the JSON action_parameters object for a Cloudflare ruleset rule from the user\'s description.\n\nFor an "execute" rule that deploys a WAF managed ruleset:\n{"id":"<MANAGED_RULESET_ID>"}\n\nTo override the whole managed ruleset:\n{"id":"<MANAGED_RULESET_ID>","overrides":{"action":"log"}}\n\nTo override specific categories:\n{"id":"<MANAGED_RULESET_ID>","overrides":{"categories":[{"category":"wordpress","action":"block","enabled":true}]}}\n\nTo override specific rules:\n{"id":"<MANAGED_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","action":"log","enabled":true}]}}\n\n"action" and "enabled" are overridable at every level. Individual managed rulesets may accept more: an OWASP Core Ruleset rule override also takes "score_threshold", e.g.\n{"id":"<OWASP_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","score_threshold":60,"action":"managed_challenge"}]}}\n\nReturn ONLY the JSON object - no explanations, no markdown fences.',
+        placeholder: 'Describe the action parameters',
         generationType: 'json-object',
       },
     },
@@ -1609,17 +1748,17 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       placeholder: '{"index":1} or {"before":"<RULE_ID>"} or {"after":"<RULE_ID>"}',
       condition: { field: 'operation', value: 'create_ruleset_rule' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare position value. Return ONLY the value.',
+        placeholder: 'Describe the position',
+      },
     },
-
-    // Rate limiting inputs
     {
       id: 'characteristics',
       title: 'Characteristics',
       type: 'short-input',
-      required: {
-        field: 'operation',
-        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
-      },
+      required: { field: 'operation', value: ['create_rate_limit_rule', 'update_rate_limit_rule'] },
       placeholder: 'cf.colo.id,ip.src',
       condition: {
         field: 'operation',
@@ -1627,33 +1766,9 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a comma-separated list of Cloudflare rate limiting counting characteristics from the user's description.
-
-cf.colo.id is mandatory in every list. ip.src and cf.unique_visitor_id are mutually exclusive - include at most one, and neither is required. Do not add an IP or visitor characteristic the user did not ask for; a rule keyed on host, path, country, header, cookie or JA3/JA4 alone is valid.
-
-Available characteristics:
-- cf.colo.id (mandatory)
-- ip.src
-- cf.unique_visitor_id
-- http.host
-- http.request.uri.path
-- ip.src.asnum
-- ip.src.country
-- http.request.headers["<name>"]
-- http.request.cookies["<name>"]
-- http.request.uri.args["<name>"]
-- cf.bot_management.ja3_hash
-- cf.bot_management.ja4
-
-Examples:
-- "per IP address" -> cf.colo.id,ip.src
-- "per visitor" -> cf.colo.id,cf.unique_visitor_id
-- "per API key header" -> cf.colo.id,http.request.headers["x-api-key"]
-- "per country" -> cf.colo.id,ip.src.country
-
-Return ONLY the comma-separated list - no explanations, no extra text.`,
-        placeholder:
-          'Describe how to group counters (e.g., "per IP address", "per API key header")...',
+        prompt:
+          'Generate a comma-separated list of Cloudflare rate limiting counting characteristics from the user\'s description.\n\ncf.colo.id is mandatory in every list. ip.src and cf.unique_visitor_id are mutually exclusive - include at most one, and neither is required. Do not add an IP or visitor characteristic the user did not ask for; a rule keyed on host, path, country, header, cookie or JA3/JA4 alone is valid.\n\nAvailable characteristics:\n- cf.colo.id (mandatory)\n- ip.src\n- cf.unique_visitor_id\n- http.host\n- http.request.uri.path\n- ip.src.asnum\n- ip.src.country\n- http.request.headers["<name>"]\n- http.request.cookies["<name>"]\n- http.request.uri.args["<name>"]\n- cf.bot_management.ja3_hash\n- cf.bot_management.ja4\n\nExamples:\n- "per IP address" -> cf.colo.id,ip.src\n- "per visitor" -> cf.colo.id,cf.unique_visitor_id\n- "per API key header" -> cf.colo.id,http.request.headers["x-api-key"]\n- "per country" -> cf.colo.id,ip.src.country\n\nReturn ONLY the comma-separated list - no explanations, no extra text.',
+        placeholder: 'Describe the characteristics',
       },
     },
     {
@@ -1669,10 +1784,7 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
         { label: '1 hour', id: '3600' },
       ],
       value: () => '60',
-      required: {
-        field: 'operation',
-        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
-      },
+      required: { field: 'operation', value: ['create_rate_limit_rule', 'update_rate_limit_rule'] },
       condition: {
         field: 'operation',
         value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
@@ -1682,14 +1794,16 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       id: 'requestsPerPeriod',
       title: 'Requests Per Period',
       type: 'short-input',
-      required: {
-        field: 'operation',
-        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
-      },
+      required: { field: 'operation', value: ['create_rate_limit_rule', 'update_rate_limit_rule'] },
       placeholder: 'e.g., 100',
       condition: {
         field: 'operation',
         value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare requests per period value. Return ONLY the value.',
+        placeholder: 'Describe the requests per period',
       },
     },
     {
@@ -1724,6 +1838,11 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
         value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare counting expression value. Return ONLY the value.',
+        placeholder: 'Describe the counting expression',
+      },
     },
     {
       id: 'requestsToOrigin',
@@ -1742,13 +1861,6 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       mode: 'advanced',
     },
     {
-      /**
-       * A rate limiting rule carries its custom mitigation response here, and
-       * the update endpoint replaces the rule — so leaving this blank resets
-       * action_parameters to {} and the rule falls back to Cloudflare's default
-       * block page. It gets its own id because the WAF control of the same name
-       * holds a managed-ruleset payload, which is not what this rule takes.
-       */
       id: 'rateLimitActionParameters',
       title: 'Action Parameters',
       type: 'long-input',
@@ -1757,25 +1869,13 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       condition: { field: 'operation', value: 'update_rate_limit_rule' },
       wandConfig: {
         enabled: true,
-        prompt: `Generate the JSON action_parameters object for a Cloudflare rate limiting rule from the user's description.
-
-Only a "block" action takes action_parameters, and only to define a custom response:
-{"response":{"status_code":429,"content":"You have been rate limited.","content_type":"text/plain"}}
-
-status_code must be in the 400-499 range. content_type is one of "text/plain", "text/html", or "application/json". For a JSON body, "content" is the JSON payload as a string:
-{"response":{"status_code":429,"content":"{\\"error\\":\\"rate limited\\"}","content_type":"application/json"}}
-
-Challenge and log actions take no action_parameters - return {} for those.
-
-Return ONLY the JSON object - no explanations, no markdown fences.`,
-        placeholder:
-          'Describe the mitigation response (e.g., "return a 429 with a JSON error body")...',
+        prompt:
+          'Generate the JSON action_parameters object for a Cloudflare rate limiting rule from the user\'s description.\n\nOnly a "block" action takes action_parameters, and only to define a custom response:\n{"response":{"status_code":429,"content":"You have been rate limited.","content_type":"text/plain"}}\n\nstatus_code must be in the 400-499 range. content_type is one of "text/plain", "text/html", or "application/json". For a JSON body, "content" is the JSON payload as a string:\n{"response":{"status_code":429,"content":"{\\"error\\":\\"rate limited\\"}","content_type":"application/json"}}\n\nChallenge and log actions take no action_parameters - return {} for those.\n\nReturn ONLY the JSON object - no explanations, no markdown fences.',
+        placeholder: 'Describe the action parameters',
         generationType: 'json-object',
       },
       mode: 'advanced',
     },
-
-    // Access application inputs
     {
       id: 'appId',
       title: 'Application ID',
@@ -1792,7 +1892,13 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
           'create_access_policy',
           'update_access_policy',
           'delete_access_policy',
+          'get_access_policy',
         ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare application id value. Return ONLY the value.',
+        placeholder: 'Describe the application id',
       },
     },
     {
@@ -1800,6 +1906,7 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       title: 'Application Type',
       type: 'dropdown',
       options: [
+        { label: 'End User', id: 'end_user' },
         { label: 'Self-Hosted', id: 'self_hosted' },
         { label: 'SaaS', id: 'saas' },
         { label: 'SSH', id: 'ssh' },
@@ -1819,15 +1926,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       condition: { field: 'operation', value: 'create_access_application' },
     },
     {
-      /**
-       * Updating an Access application replaces it, so a seeded type would
-       * rewrite what a live application IS as soon as anything else is edited.
-       * No default: the caller states the type the replaced application keeps.
-       */
       id: 'updateAppType',
       title: 'Application Type',
       type: 'dropdown',
       options: [
+        { label: 'End User', id: 'end_user' },
         { label: 'Self-Hosted', id: 'self_hosted' },
         { label: 'SaaS', id: 'saas' },
         { label: 'SSH', id: 'ssh' },
@@ -1858,9 +1961,13 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         field: 'operation',
         value: ['create_access_application', 'update_access_application'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare domain value. Return ONLY the value.',
+        placeholder: 'Describe the domain',
+      },
     },
     {
-      /** `saas_app` is required on the saas request variant and rejected elsewhere. */
       id: 'saasApp',
       title: 'SaaS Application',
       type: 'long-input',
@@ -1878,9 +1985,13 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
               value: 'saas',
               and: { field: 'operation', value: 'create_access_application' },
             },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare saas application value. Return ONLY the value.',
+        placeholder: 'Describe the saas application',
+      },
     },
     {
-      /** `target_criteria` is required on the infrastructure and rdp variants. */
       id: 'targetCriteria',
       title: 'Target Criteria',
       type: 'long-input',
@@ -1898,6 +2009,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
               value: ['infrastructure', 'rdp'],
               and: { field: 'operation', value: 'create_access_application' },
             },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare target criteria value. Return ONLY the value.',
+        placeholder: 'Describe the target criteria',
+      },
     },
     {
       id: 'accessAppDomainFilter',
@@ -1906,15 +2022,10 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       placeholder: 'Filter by the hostname the application secures',
       condition: { field: 'operation', value: 'list_access_applications' },
       mode: 'advanced',
-    },
-    {
-      id: 'name',
-      title: 'Application Name',
-      type: 'short-input',
-      placeholder: 'Friendly name shown in the dashboard',
-      condition: {
-        field: 'operation',
-        value: ['create_access_application', 'update_access_application'],
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare domain filter value. Return ONLY the value.',
+        placeholder: 'Describe the domain filter',
       },
     },
     {
@@ -1932,6 +2043,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         ],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare name filter value. Return ONLY the value.',
+        placeholder: 'Describe the name filter',
+      },
     },
     {
       id: 'aud',
@@ -1940,17 +2056,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       placeholder: 'Filter by application AUD tag',
       condition: { field: 'operation', value: 'list_access_applications' },
       mode: 'advanced',
-    },
-    {
-      id: 'search',
-      title: 'Search',
-      type: 'short-input',
-      placeholder: 'Free-text search',
-      condition: {
-        field: 'operation',
-        value: ['list_access_applications', 'list_access_groups', 'list_access_service_tokens'],
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare audience tag value. Return ONLY the value.',
+        placeholder: 'Describe the audience tag',
       },
-      mode: 'advanced',
     },
     {
       id: 'exact',
@@ -1980,6 +2090,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         ],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare session duration value. Return ONLY the value.',
+        placeholder: 'Describe the session duration',
+      },
     },
     {
       id: 'allowedIdps',
@@ -1991,6 +2106,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         value: ['create_access_application', 'update_access_application'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare allowed identity providers value. Return ONLY the value.',
+        placeholder: 'Describe the allowed identity providers',
+      },
     },
     {
       id: 'appLauncherVisible',
@@ -2034,6 +2154,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         value: ['create_access_application', 'update_access_application'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare custom deny message value. Return ONLY the value.',
+        placeholder: 'Describe the custom deny message',
+      },
     },
     {
       id: 'customDenyUrl',
@@ -2045,6 +2170,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         value: ['create_access_application', 'update_access_application'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare custom deny url value. Return ONLY the value.',
+        placeholder: 'Describe the custom deny url',
+      },
     },
     {
       id: 'logoUrl',
@@ -2056,6 +2186,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         value: ['create_access_application', 'update_access_application'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare logo url value. Return ONLY the value.',
+        placeholder: 'Describe the logo url',
+      },
     },
     {
       id: 'accessAppTags',
@@ -2067,6 +2202,11 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         value: ['create_access_application', 'update_access_application'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tags value. Return ONLY the value.',
+        placeholder: 'Describe the tags',
+      },
     },
     {
       id: 'policies',
@@ -2078,9 +2218,12 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         value: ['create_access_application', 'update_access_application'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare policies value. Return ONLY the value.',
+        placeholder: 'Describe the policies',
+      },
     },
-
-    // Access policy inputs
     {
       id: 'policyId',
       title: 'Policy ID',
@@ -2089,18 +2232,12 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       placeholder: 'Enter Access policy ID',
       condition: {
         field: 'operation',
-        value: ['update_access_policy', 'delete_access_policy'],
+        value: ['update_access_policy', 'delete_access_policy', 'get_access_policy'],
       },
-    },
-    {
-      id: 'name',
-      title: 'Policy Name',
-      type: 'short-input',
-      required: true,
-      placeholder: 'e.g., Allow engineering team',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare policy id value. Return ONLY the value.',
+        placeholder: 'Describe the policy id',
       },
     },
     {
@@ -2118,11 +2255,6 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       condition: { field: 'operation', value: 'create_access_policy' },
     },
     {
-      /**
-       * Updating a policy replaces it, so a seeded allow would silently widen a
-       * live deny, bypass, or non_identity policy the moment its rules are
-       * edited. No default: the caller states the decision.
-       */
       id: 'updatePolicyDecision',
       title: 'Decision',
       type: 'dropdown',
@@ -2141,38 +2273,12 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       type: 'long-input',
       required: true,
       placeholder: '[{"email_domain":{"domain":"example.com"}}]',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a JSON array of Cloudflare Access rules from the user's description. These are evaluated with OR logic.
-
-Rule shapes:
-- {"email":{"email":"user@example.com"}}
-- {"email_domain":{"domain":"example.com"}}
-- {"email_list":{"id":"<LIST_ID>"}}
-- {"everyone":{}}
-- {"ip":{"ip":"192.0.2.1/32"}}
-- {"ip_list":{"id":"<LIST_ID>"}}
-- {"group":{"id":"<ACCESS_GROUP_ID>"}}
-- {"service_token":{"token_id":"<SERVICE_TOKEN_ID>"}}
-- {"any_valid_service_token":{}}
-- {"certificate":{}}
-- {"geo":{"country_code":"US"}}
-- {"azureAD":{"id":"<GROUP_ID>","connection_id":"<IDP_ID>"}}
-- {"okta":{"name":"<GROUP_NAME>","connection_id":"<IDP_ID>"}}
-- {"gsuite":{"email":"<GROUP_EMAIL>","connection_id":"<IDP_ID>"}}
-
-Examples:
-- "anyone at example.com" -> [{"email_domain":{"domain":"example.com"}}]
-- "a specific person" -> [{"email":{"email":"user@example.com"}}]
-- "any service token" -> [{"any_valid_service_token":{}}]
-- "everyone" -> [{"everyone":{}}]
-
-Return ONLY the JSON array - no explanations, no markdown fences.`,
-        placeholder: 'Describe who should match (e.g., "anyone with an @example.com email")...',
+        prompt:
+          'Generate a JSON array of Cloudflare Access rules from the user\'s description. These are evaluated with OR logic.\n\nRule shapes:\n- {"email":{"email":"user@example.com"}}\n- {"email_domain":{"domain":"example.com"}}\n- {"email_list":{"id":"<LIST_ID>"}}\n- {"everyone":{}}\n- {"ip":{"ip":"192.0.2.1/32"}}\n- {"ip_list":{"id":"<LIST_ID>"}}\n- {"group":{"id":"<ACCESS_GROUP_ID>"}}\n- {"service_token":{"token_id":"<SERVICE_TOKEN_ID>"}}\n- {"any_valid_service_token":{}}\n- {"certificate":{}}\n- {"geo":{"country_code":"US"}}\n- {"azureAD":{"id":"<GROUP_ID>","connection_id":"<IDP_ID>"}}\n- {"okta":{"name":"<GROUP_NAME>","connection_id":"<IDP_ID>"}}\n- {"gsuite":{"email":"<GROUP_EMAIL>","connection_id":"<IDP_ID>"}}\n\nExamples:\n- "anyone at example.com" -> [{"email_domain":{"domain":"example.com"}}]\n- "a specific person" -> [{"email":{"email":"user@example.com"}}]\n- "any service token" -> [{"any_valid_service_token":{}}]\n- "everyone" -> [{"everyone":{}}]\n\nReturn ONLY the JSON array - no explanations, no markdown fences.',
+        placeholder: 'Describe the include rules',
         generationType: 'json-array',
       },
     },
@@ -2181,33 +2287,39 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       title: 'Exclude Rules',
       type: 'long-input',
       placeholder: 'JSON array of Access rules evaluated with NOT logic',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare exclude rules value. Return ONLY the value.',
+        placeholder: 'Describe the exclude rules',
+      },
     },
     {
       id: 'require',
       title: 'Require Rules',
       type: 'long-input',
       placeholder: 'JSON array of Access rules evaluated with AND logic',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare require rules value. Return ONLY the value.',
+        placeholder: 'Describe the require rules',
+      },
     },
     {
       id: 'precedence',
       title: 'Precedence',
       type: 'short-input',
       placeholder: 'Evaluation order within the application',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare precedence value. Return ONLY the value.',
+        placeholder: 'Describe the precedence',
+      },
     },
     {
       id: 'approvalRequired',
@@ -2219,10 +2331,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         { label: 'No', id: 'false' },
       ],
       value: () => '',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
     },
     {
@@ -2235,10 +2344,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         { label: 'No', id: 'false' },
       ],
       value: () => '',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
     },
     {
@@ -2251,10 +2357,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         { label: 'No', id: 'false' },
       ],
       value: () => '',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
     },
     {
@@ -2262,21 +2365,13 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       title: 'Purpose Justification Prompt',
       type: 'short-input',
       placeholder: 'Why do you need access?',
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
       mode: 'advanced',
-    },
-
-    // Access service token inputs
-    {
-      id: 'name',
-      title: 'Service Token Name',
-      type: 'short-input',
-      required: true,
-      placeholder: 'e.g., ci-pipeline',
-      condition: { field: 'operation', value: 'create_access_service_token' },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare purpose justification prompt value. Return ONLY the value.',
+        placeholder: 'Describe the purpose justification prompt',
+      },
     },
     {
       id: 'duration',
@@ -2285,6 +2380,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'e.g., 8760h',
       condition: { field: 'operation', value: 'create_access_service_token' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare duration value. Return ONLY the value.',
+        placeholder: 'Describe the duration',
+      },
     },
     {
       id: 'serviceTokenId',
@@ -2292,10 +2392,22 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       type: 'short-input',
       required: true,
       placeholder: 'Enter the service token ID to revoke',
-      condition: { field: 'operation', value: 'revoke_access_service_token' },
+      condition: {
+        field: 'operation',
+        value: [
+          'revoke_access_service_token',
+          'get_access_service_token',
+          'refresh_access_service_token',
+          'rotate_access_service_token',
+          'update_access_service_token',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare service token id value. Return ONLY the value.',
+        placeholder: 'Describe the service token id',
+      },
     },
-
-    // R2 inputs
     {
       id: 'bucketName',
       title: 'Bucket Name',
@@ -2304,7 +2416,21 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Enter R2 bucket name',
       condition: {
         field: 'operation',
-        value: ['get_r2_bucket', 'create_r2_bucket', 'delete_r2_bucket'],
+        value: [
+          'get_r2_bucket',
+          'create_r2_bucket',
+          'delete_r2_bucket',
+          'delete_r2_bucket_cors',
+          'get_r2_bucket_cors',
+          'get_r2_bucket_lifecycle',
+          'update_r2_bucket_cors',
+          'update_r2_bucket_lifecycle',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare bucket name value. Return ONLY the value.',
+        placeholder: 'Describe the bucket name',
       },
     },
     {
@@ -2349,7 +2475,17 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       value: () => '',
       condition: {
         field: 'operation',
-        value: ['list_r2_buckets', 'get_r2_bucket', 'create_r2_bucket', 'delete_r2_bucket'],
+        value: [
+          'list_r2_buckets',
+          'get_r2_bucket',
+          'create_r2_bucket',
+          'delete_r2_bucket',
+          'delete_r2_bucket_cors',
+          'get_r2_bucket_cors',
+          'get_r2_bucket_lifecycle',
+          'update_r2_bucket_cors',
+          'update_r2_bucket_lifecycle',
+        ],
       },
       mode: 'advanced',
     },
@@ -2360,6 +2496,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Filter buckets by name substring',
       condition: { field: 'operation', value: 'list_r2_buckets' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare name contains value. Return ONLY the value.',
+        placeholder: 'Describe the name contains',
+      },
     },
     {
       id: 'start_after',
@@ -2368,19 +2509,24 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Bucket name to start listing after',
       condition: { field: 'operation', value: 'list_r2_buckets' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare start after value. Return ONLY the value.',
+        placeholder: 'Describe the start after',
+      },
     },
     {
-      /**
-       * R2 returns its cursor at `result_info.cursor` and the Rulesets API at
-       * `result_info.cursors.after`. The two are not interchangeable, so a
-       * cursor carried across from the other list 400s.
-       */
       id: 'r2Cursor',
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from a previous call',
       condition: { field: 'operation', value: 'list_r2_buckets' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare cursor value. Return ONLY the value.',
+        placeholder: 'Describe the cursor',
+      },
     },
     {
       id: 'rulesetCursor',
@@ -2389,29 +2535,27 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Pagination cursor from a previous call',
       condition: { field: 'operation', value: 'list_rulesets' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare cursor value. Return ONLY the value.',
+        placeholder: 'Describe the cursor',
+      },
     },
-    {
-      id: 'direction',
-      title: 'Sort Direction',
-      type: 'dropdown',
-      options: [
-        { label: 'Default', id: '' },
-        { label: 'Ascending', id: 'asc' },
-        { label: 'Descending', id: 'desc' },
-      ],
-      value: () => '',
-      condition: { field: 'operation', value: 'list_r2_buckets' },
-      mode: 'advanced',
-    },
-
-    // Workers inputs
     {
       id: 'scriptName',
       title: 'Script Name',
       type: 'short-input',
       required: true,
       placeholder: 'Enter Worker script name',
-      condition: { field: 'operation', value: 'get_worker_script_settings' },
+      condition: {
+        field: 'operation',
+        value: ['get_worker_script_settings', 'delete_worker_script'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare script name value. Return ONLY the value.',
+        placeholder: 'Describe the script name',
+      },
     },
     {
       id: 'workerTagFilter',
@@ -2420,16 +2564,34 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Filter scripts by tag',
       condition: { field: 'operation', value: 'list_worker_scripts' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tag filter value. Return ONLY the value.',
+        placeholder: 'Describe the tag filter',
+      },
     },
-
-    // Tunnel inputs
     {
       id: 'tunnelId',
       title: 'Tunnel ID',
       type: 'short-input',
       required: true,
       placeholder: 'Enter tunnel ID',
-      condition: { field: 'operation', value: ['get_tunnel', 'get_tunnel_configuration'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_tunnel',
+          'get_tunnel_configuration',
+          'delete_tunnel',
+          'get_tunnel_token',
+          'update_tunnel_configuration',
+          'update_tunnel',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tunnel id value. Return ONLY the value.',
+        placeholder: 'Describe the tunnel id',
+      },
     },
     {
       id: 'tunnelStatus',
@@ -2453,6 +2615,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Filter by tunnel UUID',
       condition: { field: 'operation', value: 'list_tunnels' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare tunnel uuid value. Return ONLY the value.',
+        placeholder: 'Describe the tunnel uuid',
+      },
     },
     {
       id: 'is_deleted',
@@ -2474,6 +2641,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Only tunnels whose name starts with this prefix',
       condition: { field: 'operation', value: 'list_tunnels' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare include name prefix value. Return ONLY the value.',
+        placeholder: 'Describe the include name prefix',
+      },
     },
     {
       id: 'exclude_prefix',
@@ -2482,6 +2654,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Skip tunnels whose name starts with this prefix',
       condition: { field: 'operation', value: 'list_tunnels' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare exclude name prefix value. Return ONLY the value.',
+        placeholder: 'Describe the exclude name prefix',
+      },
     },
     {
       id: 'existed_at',
@@ -2490,6 +2667,12 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'RFC 3339 timestamp',
       condition: { field: 'operation', value: 'list_tunnels' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare existed at value. Return ONLY the value.',
+        placeholder: 'Describe the existed at',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'was_active_at',
@@ -2498,6 +2681,12 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'RFC 3339 timestamp',
       condition: { field: 'operation', value: 'list_tunnels' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare was active at value. Return ONLY the value.',
+        placeholder: 'Describe the was active at',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'was_inactive_at',
@@ -2506,47 +2695,13 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'RFC 3339 timestamp',
       condition: { field: 'operation', value: 'list_tunnels' },
       mode: 'advanced',
-    },
-
-    // Shared pagination for the new list operations
-    {
-      id: 'page',
-      title: 'Page',
-      type: 'short-input',
-      placeholder: 'Page number (default: 1)',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_access_applications',
-          'list_access_policies',
-          'list_access_groups',
-          'list_access_service_tokens',
-          'list_tunnels',
-        ],
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate a Cloudflare was inactive at value. Return ONLY the value.',
+        placeholder: 'Describe the was inactive at',
+        generationType: 'timestamp',
       },
-      mode: 'advanced',
     },
-    {
-      id: 'per_page',
-      title: 'Per Page',
-      type: 'short-input',
-      placeholder: 'Results per page',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_access_applications',
-          'list_access_policies',
-          'list_access_groups',
-          'list_access_service_tokens',
-          'list_r2_buckets',
-          'list_rulesets',
-          'list_tunnels',
-        ],
-      },
-      mode: 'advanced',
-    },
-
-    // API Key (common)
     {
       id: 'apiKey',
       title: 'API Token',
@@ -2555,122 +2710,1843 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       placeholder: 'Enter your Cloudflare API token',
       password: true,
     },
+    {
+      id: 'accessApplicationDestinations',
+      title: 'Destinations',
+      type: 'long-input',
+      placeholder: 'Enter destinations as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare destinations value. JSON array. List of destinations secured by Access. This supersedes `self_hosted_domains` to allow for more flexibility in defining different types of domains. If `destinations` are provided, then `self_hosted_domains` will be ignored. Fields: overrides, type, uri, cidr, hostname, l4_protocol, port_range, vnet_id, mcp_server_id, worker_id. Return ONLY the value.',
+        placeholder: 'Describe the destinations',
+      },
+    },
+    {
+      id: 'accessApplicationOauthConfiguration',
+      title: 'OAuth Configuration',
+      type: 'long-input',
+      placeholder: 'Enter oauth configuration as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: (params) => ({
+        field: params?.operation === 'update_access_application' ? 'updateAppType' : 'appType',
+        value: 'end_user',
+      }),
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare oauth configuration value. JSON object. **Beta:** Optional configuration for managing an OAuth authorization flow controlled by Access. When set, Access will act as the OAuth authorization server for this application. Only compatible with OAuth clients that support [RFC 8707](https://datatracker.ietf.org/doc/html/rfc8707) (Resource Indicators for OAuth 2.0). This feature is currently in beta. Fields: dynamic_client_registration, enabled, grant. Return ONLY the value.',
+        placeholder: 'Describe the oauth configuration',
+      },
+    },
+    {
+      id: 'accessApplicationSelfHostedDomains',
+      title: 'Self Hosted Domains',
+      type: 'long-input',
+      placeholder: 'Enter self hosted domains as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare self hosted domains value. JSON array. List of public domains that Access will secure. This field is deprecated in favor of `destinations` and will be supported until **November 21, 2025.** If `destinations` are provided, then `self_hosted_domains` will be ignored. Return ONLY the value.',
+        placeholder: 'Describe the self hosted domains',
+      },
+    },
+    {
+      id: 'accessApplicationUserPopulations',
+      title: 'User Populations',
+      type: 'long-input',
+      placeholder: 'Enter user populations as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: (params) => ({
+        field: params?.operation === 'update_access_application' ? 'updateAppType' : 'appType',
+        value: 'end_user',
+      }),
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare user populations value. JSON array. The single user population associated with this application. Return ONLY the value.',
+        placeholder: 'Describe the user populations',
+      },
+    },
+    {
+      id: 'accessApplicationAllowAuthenticateViaWarp',
+      title: 'Allow Authenticate Via Warp',
+      type: 'dropdown',
+      placeholder: 'Enter allow authenticate via warp',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationAllowIframe',
+      title: 'Allow Iframe',
+      type: 'dropdown',
+      placeholder: 'Enter allow iframe',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationCorsHeaders',
+      title: 'CORS Headers',
+      type: 'long-input',
+      placeholder: 'Enter cors headers as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare cors headers value. JSON object. cors headers Fields: allow_all_headers, allow_all_methods, allow_all_origins, allow_credentials, allowed_headers, allowed_methods, allowed_origins, max_age. Return ONLY the value.',
+        placeholder: 'Describe the cors headers',
+      },
+    },
+    {
+      id: 'accessApplicationCustomNonIdentityDenyUrl',
+      title: 'Custom Non Identity Deny URL',
+      type: 'short-input',
+      placeholder: 'Enter custom non identity deny url',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare custom non identity deny url value. The custom URL a user is redirected to when they are denied access to the application when failing non-identity rules. Return ONLY the value.',
+        placeholder: 'Describe the custom non identity deny url',
+      },
+    },
+    {
+      id: 'accessApplicationCustomPages',
+      title: 'Custom Pages',
+      type: 'long-input',
+      placeholder: 'Enter custom pages as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare custom pages value. JSON array. The custom pages that will be displayed when applicable for this application Return ONLY the value.',
+        placeholder: 'Describe the custom pages',
+      },
+    },
+    {
+      id: 'accessApplicationEagerRedirectCookieSetting',
+      title: 'Eager Redirect Cookie Setting',
+      type: 'dropdown',
+      placeholder: 'Enter eager redirect cookie setting',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationEnableBindingCookie',
+      title: 'Enable Binding Cookie',
+      type: 'dropdown',
+      placeholder: 'Enter enable binding cookie',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationHttpOnlyCookieAttribute',
+      title: 'Http Only Cookie Attribute',
+      type: 'dropdown',
+      placeholder: 'Enter http only cookie attribute',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationMfaConfig',
+      title: 'MFA Config',
+      type: 'long-input',
+      placeholder: 'Enter mfa config as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare mfa config value. JSON object. Configures multi-factor authentication (MFA) settings. Fields: allowed_authenticators, mfa_disabled, session_duration. Return ONLY the value.',
+        placeholder: 'Describe the mfa config',
+      },
+    },
+    {
+      id: 'accessApplicationOptionsPreflightBypass',
+      title: 'Options Preflight Bypass',
+      type: 'dropdown',
+      placeholder: 'Enter options preflight bypass',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationPathCookieAttribute',
+      title: 'Path Cookie Attribute',
+      type: 'dropdown',
+      placeholder: 'Enter path cookie attribute',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationReadServiceTokensFromHeader',
+      title: 'Read Service Tokens From Header',
+      type: 'short-input',
+      placeholder: 'Enter read service tokens from header',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare read service tokens from header value. Allows matching Access Service Tokens passed HTTP in a single header with this name. This works as an alternative to the (CF-Access-Client-Id, CF-Access-Client-Secret) pair of headers. The header value will be interpreted as a json object similar to: { "cf-access-client-id": "<CLIENT_ID>", "cf-access-client-secret": "<CLIENT_SECRET>" } Return ONLY the value.',
+        placeholder: 'Describe the read service tokens from header',
+      },
+    },
+    {
+      id: 'accessApplicationSameSiteCookieAttribute',
+      title: 'Same Site Cookie Attribute',
+      type: 'short-input',
+      placeholder: 'Enter same site cookie attribute',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare same site cookie attribute value. Sets the SameSite cookie setting, which provides increased security against CSRF attacks. Return ONLY the value.',
+        placeholder: 'Describe the same site cookie attribute',
+      },
+    },
+    {
+      id: 'accessApplicationScimConfig',
+      title: 'SCIM Config',
+      type: 'long-input',
+      placeholder: 'Enter scim config as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare scim config value. JSON object. Configuration for provisioning to this application via SCIM. This is currently in closed beta. Fields: authentication, deactivate_on_delete, enabled, idp_uid, mappings, remote_uri. Return ONLY the value.',
+        placeholder: 'Describe the scim config',
+      },
+    },
+    {
+      id: 'accessApplicationServiceAuth401Redirect',
+      title: 'Service Auth 401 Redirect',
+      type: 'dropdown',
+      placeholder: 'Enter service auth 401 redirect',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationSkipInterstitial',
+      title: 'Skip Interstitial',
+      type: 'dropdown',
+      placeholder: 'Enter skip interstitial',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationUseClientlessIsolationAppLauncherUrl',
+      title: 'Use Clientless Isolation App Launcher URL',
+      type: 'dropdown',
+      placeholder: 'Enter use clientless isolation app launcher url',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessApplicationAppLauncherLogoUrl',
+      title: 'App Launcher Logo URL',
+      type: 'short-input',
+      placeholder: 'Enter app launcher logo url',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare app launcher logo url value. The image URL of the logo shown in the App Launcher header. Return ONLY the value.',
+        placeholder: 'Describe the app launcher logo url',
+      },
+    },
+    {
+      id: 'accessApplicationBgColor',
+      title: 'Bg Color',
+      type: 'short-input',
+      placeholder: 'Enter bg color',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare bg color value. The background color of the App Launcher page. Return ONLY the value.',
+        placeholder: 'Describe the bg color',
+      },
+    },
+    {
+      id: 'accessApplicationFooterLinks',
+      title: 'Footer Links',
+      type: 'long-input',
+      placeholder: 'Enter footer links as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare footer links value. JSON array. The links in the App Launcher footer. Fields: name, url. Return ONLY the value.',
+        placeholder: 'Describe the footer links',
+      },
+    },
+    {
+      id: 'accessApplicationHeaderBgColor',
+      title: 'Header Bg Color',
+      type: 'short-input',
+      placeholder: 'Enter header bg color',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare header bg color value. The background color of the App Launcher header. Return ONLY the value.',
+        placeholder: 'Describe the header bg color',
+      },
+    },
+    {
+      id: 'accessApplicationLandingPageDesign',
+      title: 'Landing Page Design',
+      type: 'long-input',
+      placeholder: 'Enter landing page design as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare landing page design value. JSON object. The design of the App Launcher landing page shown to users when they log in. Fields: button_color, button_text_color, image_url, message, title. Return ONLY the value.',
+        placeholder: 'Describe the landing page design',
+      },
+    },
+    {
+      id: 'accessApplicationSkipAppLauncherLoginPage',
+      title: 'Skip App Launcher Login Page',
+      type: 'dropdown',
+      placeholder: 'Enter skip app launcher login page',
+      condition: {
+        field: 'operation',
+        value: ['create_access_application', 'update_access_application'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessGroupExclude',
+      title: 'Exclude',
+      type: 'long-input',
+      placeholder: 'Enter exclude as JSON',
+      condition: { field: 'operation', value: ['create_access_group', 'update_access_group'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare exclude value. JSON array. Rules evaluated with a NOT logical operator. To match a policy, a user cannot meet any of the Exclude rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. Return ONLY the value.',
+        placeholder: 'Describe the exclude',
+      },
+    },
+    {
+      id: 'accessGroupInclude',
+      title: 'Include',
+      type: 'long-input',
+      placeholder: 'Enter include as JSON',
+      condition: { field: 'operation', value: ['create_access_group', 'update_access_group'] },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare include value. JSON array. Rules evaluated with an OR logical operator. A user needs to meet only one of the Include rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. Return ONLY the value.',
+        placeholder: 'Describe the include',
+      },
+    },
+    {
+      id: 'accessGroupIsDefault',
+      title: 'Is Default',
+      type: 'dropdown',
+      placeholder: 'Enter is default',
+      condition: { field: 'operation', value: ['create_access_group', 'update_access_group'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessGroupName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Enter name',
+      condition: { field: 'operation', value: ['create_access_group', 'update_access_group'] },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare name value. The name of the Access group. Return ONLY the value.',
+        placeholder: 'Describe the name',
+      },
+    },
+    {
+      id: 'accessGroupRequire',
+      title: 'Require',
+      type: 'long-input',
+      placeholder: 'Enter require as JSON',
+      condition: { field: 'operation', value: ['create_access_group', 'update_access_group'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare require value. JSON array. Rules evaluated with an AND logical operator. To match a policy, a user must meet all of the Require rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. Return ONLY the value.',
+        placeholder: 'Describe the require',
+      },
+    },
+    {
+      id: 'accessPolicyApprovalGroups',
+      title: 'Approval Groups',
+      type: 'long-input',
+      placeholder: 'Enter approval groups as JSON',
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare approval groups value. JSON array. Administrators who can approve a temporary authentication request. Fields: approvals_needed, email_addresses, email_list_uuid. Return ONLY the value.',
+        placeholder: 'Describe the approval groups',
+      },
+    },
+    {
+      id: 'accessPolicyConnectionRules',
+      title: 'Connection Rules',
+      type: 'long-input',
+      placeholder: 'Enter connection rules as JSON',
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare connection rules value. JSON object. The rules that define how users may connect to the targets secured by your application. Fields: rdp, ssh. Return ONLY the value.',
+        placeholder: 'Describe the connection rules',
+      },
+    },
+    {
+      id: 'accessPolicyMfaConfig',
+      title: 'MFA Config',
+      type: 'long-input',
+      placeholder: 'Enter mfa config as JSON',
+      condition: { field: 'operation', value: ['create_access_policy', 'update_access_policy'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare mfa config value. JSON object. Configures multi-factor authentication (MFA) settings for infrastructure applications. Fields: allowed_authenticators, mfa_disabled, session_duration. Return ONLY the value.',
+        placeholder: 'Describe the mfa config',
+      },
+    },
+    {
+      id: 'accessServiceTokenClientSecretVersion',
+      title: 'Client Secret Version',
+      type: 'short-input',
+      placeholder: 'Enter client secret version',
+      condition: {
+        field: 'operation',
+        value: ['create_access_service_token', 'update_access_service_token'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare client secret version value. A version number identifying the current `client_secret` associated with the service token. Incrementing it triggers a rotation; the previous secret will still be accepted until the time indicated by `previous_client_secret_expires_at`. If the service token was reported as leaked, `previous_client_secret_expires_at` is not required, may not be in the future, and the previous secret is discarded immediately. Return ONLY the value.',
+        placeholder: 'Describe the client secret version',
+      },
+    },
+    {
+      id: 'accessServiceTokenEnabled',
+      title: 'Enabled',
+      type: 'dropdown',
+      placeholder: 'Enter enabled',
+      condition: {
+        field: 'operation',
+        value: ['create_access_service_token', 'update_access_service_token'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'accessServiceTokenPreviousClientSecretExpiresAt',
+      title: 'Previous Client Secret Expires At',
+      type: 'short-input',
+      placeholder: 'Enter previous client secret expires at',
+      condition: {
+        field: 'operation',
+        value: ['create_access_service_token', 'update_access_service_token'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare previous client secret expires at value. The expiration of the previous `client_secret`. This can be modified at any point after a rotation. For example, you may extend it further into the future if you need more time to update services with the new secret; or move it into the past to immediately invalidate the previous token in case of compromise. Rotating a service token that was reported as leaked discards the previous secret entirely, so no grace period can be set. Return ONLY the value.',
+        placeholder: 'Describe the previous client secret expires at',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dnsRecordSettings',
+      title: 'Settings',
+      type: 'long-input',
+      placeholder: 'Enter settings as JSON',
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare settings value. JSON object. Settings for the DNS record. Fields: ipv4_only, ipv6_only, flatten_cname. Return ONLY the value.',
+        placeholder: 'Describe the settings',
+      },
+    },
+    {
+      id: 'dnsRecordPrivateRouting',
+      title: 'Private Routing',
+      type: 'dropdown',
+      placeholder: 'Enter private routing',
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'dnsRecordData',
+      title: 'Data',
+      type: 'long-input',
+      placeholder: 'Enter data as JSON',
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare data value. JSON object. Structured record data; fields depend on the DNS record type. Fields: flags, tag, value, algorithm, certificate, key_tag, type, protocol, public_key, digest, digest_type, priority, target, altitude, lat_degrees, lat_direction, lat_minutes, lat_seconds, long_degrees, long_direction, long_minutes, long_seconds, precision_horz, precision_vert, size, order, preference, regex, replacement, service, matching_type, selector, usage, port, weight, fingerprint. Return ONLY the value.',
+        placeholder: 'Describe the data',
+      },
+    },
+    {
+      id: 'dnsRecordIncludeShadowMetadata',
+      title: 'Include Shadow Metadata',
+      type: 'dropdown',
+      placeholder: 'Enter include shadow metadata',
+      condition: { field: 'operation', value: ['create_dns_record', 'update_dns_record'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'rateLimitRuleActionparameters',
+      title: 'Action Parameters',
+      type: 'long-input',
+      placeholder: 'Enter action parameters as JSON',
+      condition: { field: 'operation', value: ['create_rate_limit_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate the Cloudflare action parameters value. JSON object. The parameters configuring the rule's action. Fields: response, algorithms, id, matched_data, overrides, cookie_fields, raw_response_fields, request_fields, response_fields, transformed_request_fields, from_list, from_value, headers, uri, host_header, origin, sni, increment, content_type, status_code, content, asset_name, immutable, max-age, must-revalidate, must-understand, no-cache, no-store, no-transform, private, proxy-revalidate, public, s-maxage, stale-if-error, stale-while-revalidate, additional_cacheable_ports, browser_ttl, cache, cache_key, cache_reserve, edge_ttl, origin_cache_control, origin_error_page_passthru, origin_range_requests, read_timeout, respect_strong_etags, serve_stale, shared_dictionary, strip_etags, strip_last_modified, strip_set_cookie, vary, operation, values, expression, automatic_https_rewrites, autominify, bic, content_converter, disable_apps, disable_pay_per_crawl, disable_rum, disable_zaraz, email_obfuscation, fonts, hotlink_protection, mirage, opportunistic_encryption, polish, redirects_for_ai_training, request_body_buffering, response_body_buffering, rocket_loader, security_level, server_side_excludes, ssl, sxg, webmcp_enabled, webmcp_packs, phase, phases, products, rules, ruleset, rulesets, link_maze. Return ONLY the value.",
+        placeholder: 'Describe the action parameters',
+      },
+    },
+    {
+      id: 'rateLimitRuleExposedCredentialCheck',
+      title: 'Exposed Credential Check',
+      type: 'long-input',
+      placeholder: 'Enter exposed credential check as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare exposed credential check value. JSON object. Configuration for exposed credential checking. Fields: password_expression, username_expression. Return ONLY the value.',
+        placeholder: 'Describe the exposed credential check',
+      },
+    },
+    {
+      id: 'rateLimitRuleId',
+      title: 'ID',
+      type: 'short-input',
+      placeholder: 'Enter id',
+      condition: { field: 'operation', value: ['create_rate_limit_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare id value. The unique ID of the rule. Return ONLY the value.',
+        placeholder: 'Describe the id',
+      },
+    },
+    {
+      id: 'rateLimitRuleLogging',
+      title: 'Logging',
+      type: 'long-input',
+      placeholder: 'Enter logging as JSON',
+      condition: { field: 'operation', value: ['create_rate_limit_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate the Cloudflare logging value. JSON object. An object configuring the rule's logging behavior. Fields: enabled. Return ONLY the value.",
+        placeholder: 'Describe the logging',
+      },
+    },
+    {
+      id: 'rateLimitRuleRef',
+      title: 'Ref',
+      type: 'short-input',
+      placeholder: 'Enter ref',
+      condition: { field: 'operation', value: ['create_rate_limit_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate the Cloudflare ref value. The reference of the rule (the rule's ID by default). Return ONLY the value.",
+        placeholder: 'Describe the ref',
+      },
+    },
+    {
+      id: 'rateLimitRulePosition',
+      title: 'Position',
+      type: 'long-input',
+      placeholder: 'Enter position as JSON',
+      condition: {
+        field: 'operation',
+        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare position value. JSON object. An object configuring where the rule will be placed. Fields: before, after, index. Return ONLY the value.',
+        placeholder: 'Describe the position',
+      },
+    },
+    {
+      id: 'rateLimitRuleScorePerPeriod',
+      title: 'Score Per Period',
+      type: 'short-input',
+      placeholder: 'Enter score per period',
+      condition: {
+        field: 'operation',
+        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare score per period value. The score threshold per period for which the action will be executed the first time. Return ONLY the value.',
+        placeholder: 'Describe the score per period',
+      },
+    },
+    {
+      id: 'rateLimitRuleScoreResponseHeaderName',
+      title: 'Score Response Header Name',
+      type: 'short-input',
+      placeholder: 'Enter score response header name',
+      condition: {
+        field: 'operation',
+        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare score response header name value. A response header name provided by the origin, which contains the score to increment rate limit counter with. Return ONLY the value.',
+        placeholder: 'Describe the score response header name',
+      },
+    },
+    {
+      id: 'rateLimitRuleDryRun',
+      title: 'Dry Run',
+      type: 'dropdown',
+      placeholder: 'Enter dry run',
+      condition: {
+        field: 'operation',
+        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'rulesetRuleExposedCredentialCheck',
+      title: 'Exposed Credential Check',
+      type: 'long-input',
+      placeholder: 'Enter exposed credential check as JSON',
+      condition: { field: 'operation', value: ['create_ruleset_rule', 'update_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare exposed credential check value. JSON object. Configuration for exposed credential checking. Fields: password_expression, username_expression. Return ONLY the value.',
+        placeholder: 'Describe the exposed credential check',
+      },
+    },
+    {
+      id: 'rulesetRuleId',
+      title: 'ID',
+      type: 'short-input',
+      placeholder: 'Enter id',
+      condition: { field: 'operation', value: ['create_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare id value. The unique ID of the rule. Return ONLY the value.',
+        placeholder: 'Describe the id',
+      },
+    },
+    {
+      id: 'rulesetRuleLogging',
+      title: 'Logging',
+      type: 'long-input',
+      placeholder: 'Enter logging as JSON',
+      condition: { field: 'operation', value: ['create_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate the Cloudflare logging value. JSON object. An object configuring the rule's logging behavior. Fields: enabled. Return ONLY the value.",
+        placeholder: 'Describe the logging',
+      },
+    },
+    {
+      id: 'rulesetRuleRatelimit',
+      title: 'Ratelimit',
+      type: 'long-input',
+      placeholder: 'Enter ratelimit as JSON',
+      condition: { field: 'operation', value: ['create_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate the Cloudflare ratelimit value. JSON object. An object configuring the rule's rate limit behavior. Fields: characteristics, counting_expression, mitigation_timeout, period, requests_per_period, requests_to_origin, score_per_period, score_response_header_name. Return ONLY the value.",
+        placeholder: 'Describe the ratelimit',
+      },
+    },
+    {
+      id: 'rulesetRuleDryRun',
+      title: 'Dry Run',
+      type: 'dropdown',
+      placeholder: 'Enter dry run',
+      condition: { field: 'operation', value: ['create_ruleset_rule', 'update_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'rulesetDryRun',
+      title: 'Dry Run',
+      type: 'dropdown',
+      placeholder: 'Enter dry run',
+      condition: { field: 'operation', value: ['create_ruleset', 'update_ruleset'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'tunnelConfigSrc',
+      title: 'Config Src',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['create_tunnel'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'local', id: 'local' },
+        { label: 'cloudflare', id: 'cloudflare' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'tunnelName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Enter name',
+      condition: { field: 'operation', value: ['create_tunnel', 'update_tunnel'] },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare name value. A user-friendly name for a tunnel. Return ONLY the value.',
+        placeholder: 'Describe the name',
+      },
+    },
+    {
+      id: 'tunnelTunnelSecret',
+      title: 'Tunnel Secret',
+      type: 'short-input',
+      placeholder: 'Enter tunnel secret',
+      condition: { field: 'operation', value: ['create_tunnel', 'update_tunnel'] },
+      required: false,
+      mode: 'advanced',
+      password: true,
+    },
+    {
+      id: 'workerRoutePattern',
+      title: 'Pattern',
+      type: 'short-input',
+      placeholder: 'Enter pattern',
+      condition: { field: 'operation', value: ['create_worker_route', 'update_worker_route'] },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare pattern value. Pattern to match incoming requests against. [Learn more](https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior). Return ONLY the value.',
+        placeholder: 'Describe the pattern',
+      },
+    },
+    {
+      id: 'workerRouteScript',
+      title: 'Script',
+      type: 'short-input',
+      placeholder: 'Enter script',
+      condition: { field: 'operation', value: ['create_worker_route', 'update_worker_route'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare script value. Name of the script to run if the route matches. Return ONLY the value.',
+        placeholder: 'Describe the script',
+      },
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Enter group id',
+      condition: {
+        field: 'operation',
+        value: ['delete_access_group', 'get_access_group', 'update_access_group'],
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate the Cloudflare group id value. Group id Return ONLY the value.',
+        placeholder: 'Describe the group id',
+      },
+    },
+    {
+      id: 'deleteRulesetRuleDryRun',
+      title: 'Dry Run',
+      type: 'dropdown',
+      placeholder: 'Enter dry run',
+      condition: { field: 'operation', value: ['delete_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'deleteRulesetDryRun',
+      title: 'Dry Run',
+      type: 'dropdown',
+      placeholder: 'Enter dry run',
+      condition: { field: 'operation', value: ['delete_ruleset'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'routeId',
+      title: 'Route ID',
+      type: 'short-input',
+      placeholder: 'Enter route id',
+      condition: {
+        field: 'operation',
+        value: ['delete_worker_route', 'get_worker_route', 'update_worker_route'],
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate the Cloudflare route id value. Route id Return ONLY the value.',
+        placeholder: 'Describe the route id',
+      },
+    },
+    {
+      id: 'deleteWorkerScriptForce',
+      title: 'Force',
+      type: 'dropdown',
+      placeholder: 'Enter force',
+      condition: { field: 'operation', value: ['delete_worker_script'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'getDnsRecordIncludeShadowMetadata',
+      title: 'Include Shadow Metadata',
+      type: 'dropdown',
+      placeholder: 'Enter include shadow metadata',
+      condition: { field: 'operation', value: ['get_dns_record'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'listAccessApplicationsTargetAttributes',
+      title: 'Target Attributes',
+      type: 'short-input',
+      placeholder: 'Enter target attributes',
+      condition: { field: 'operation', value: ['list_access_applications'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare target attributes value. Target Criteria attributes in key=value format. Return ONLY the value.',
+        placeholder: 'Describe the target attributes',
+      },
+    },
+    {
+      id: 'listAccessIdentityProvidersScimEnabled',
+      title: 'SCIM Enabled',
+      type: 'short-input',
+      placeholder: 'Enter scim enabled',
+      condition: { field: 'operation', value: ['list_access_identity_providers'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare scim enabled value. Indicates to Access to only retrieve identity providers that have the System for Cross-Domain Identity Management (SCIM) enabled. Return ONLY the value.',
+        placeholder: 'Describe the scim enabled',
+      },
+    },
+    {
+      id: 'listAccessIdentityProvidersPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: 'Enter page',
+      condition: { field: 'operation', value: ['list_access_identity_providers'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare page value. Page number of results. Return ONLY the value.',
+        placeholder: 'Describe the page',
+      },
+    },
+    {
+      id: 'listAccessIdentityProvidersPerPage',
+      title: 'Per Page',
+      type: 'short-input',
+      placeholder: 'Enter per page',
+      condition: { field: 'operation', value: ['list_access_identity_providers'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare per page value. Number of results per page. Return ONLY the value.',
+        placeholder: 'Describe the per page',
+      },
+    },
+    {
+      id: 'listDnsRecordsNameContains',
+      title: 'Name Contains',
+      type: 'short-input',
+      placeholder: 'Enter name contains',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare name contains value. Substring of the DNS record name. Name filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the name contains',
+      },
+    },
+    {
+      id: 'listDnsRecordsNameStartswith',
+      title: 'Name Startswith',
+      type: 'short-input',
+      placeholder: 'Enter name startswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare name startswith value. Prefix of the DNS record name. Name filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the name startswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsNameEndswith',
+      title: 'Name Endswith',
+      type: 'short-input',
+      placeholder: 'Enter name endswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare name endswith value. Suffix of the DNS record name. Name filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the name endswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsContentContains',
+      title: 'Content Contains',
+      type: 'short-input',
+      placeholder: 'Enter content contains',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare content contains value. Substring of the DNS record content. Content filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the content contains',
+      },
+    },
+    {
+      id: 'listDnsRecordsContentStartswith',
+      title: 'Content Startswith',
+      type: 'short-input',
+      placeholder: 'Enter content startswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare content startswith value. Prefix of the DNS record content. Content filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the content startswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsContentEndswith',
+      title: 'Content Endswith',
+      type: 'short-input',
+      placeholder: 'Enter content endswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare content endswith value. Suffix of the DNS record content. Content filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the content endswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsCommentPresent',
+      title: 'Comment Present',
+      type: 'dropdown',
+      placeholder: 'Enter comment present',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'listDnsRecordsCommentAbsent',
+      title: 'Comment Absent',
+      type: 'dropdown',
+      placeholder: 'Enter comment absent',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'listDnsRecordsCommentExact',
+      title: 'Comment Exact',
+      type: 'short-input',
+      placeholder: 'Enter comment exact',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare comment exact value. Exact value of the DNS record comment. Comment filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the comment exact',
+      },
+    },
+    {
+      id: 'listDnsRecordsCommentStartswith',
+      title: 'Comment Startswith',
+      type: 'short-input',
+      placeholder: 'Enter comment startswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare comment startswith value. Prefix of the DNS record comment. Comment filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the comment startswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsCommentEndswith',
+      title: 'Comment Endswith',
+      type: 'short-input',
+      placeholder: 'Enter comment endswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare comment endswith value. Suffix of the DNS record comment. Comment filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the comment endswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsTagPresent',
+      title: 'Tag Present',
+      type: 'short-input',
+      placeholder: 'Enter tag present',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare tag present value. Name of a tag which must be present on the DNS record. Tag filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the tag present',
+      },
+    },
+    {
+      id: 'listDnsRecordsTagAbsent',
+      title: 'Tag Absent',
+      type: 'short-input',
+      placeholder: 'Enter tag absent',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare tag absent value. Name of a tag which must *not* be present on the DNS record. Tag filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the tag absent',
+      },
+    },
+    {
+      id: 'listDnsRecordsTagContains',
+      title: 'Tag Contains',
+      type: 'short-input',
+      placeholder: 'Enter tag contains',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare tag contains value. A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value contains `<tag-value>`. Tag filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the tag contains',
+      },
+    },
+    {
+      id: 'listDnsRecordsTagStartswith',
+      title: 'Tag Startswith',
+      type: 'short-input',
+      placeholder: 'Enter tag startswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare tag startswith value. A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value starts with `<tag-value>`. Tag filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the tag startswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsTagEndswith',
+      title: 'Tag Endswith',
+      type: 'short-input',
+      placeholder: 'Enter tag endswith',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare tag endswith value. A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value ends with `<tag-value>`. Tag filters are case-insensitive. Return ONLY the value.',
+        placeholder: 'Describe the tag endswith',
+      },
+    },
+    {
+      id: 'listDnsRecordsIncludeShadowMetadata',
+      title: 'Include Shadow Metadata',
+      type: 'dropdown',
+      placeholder: 'Enter include shadow metadata',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'listDnsRecordsShadowedByName',
+      title: 'Shadowed By Name',
+      type: 'short-input',
+      placeholder: 'Enter shadowed by name',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare shadowed by name value. Filters the response to records at or below the specified NS delegation name. NS, DS, and NSEC records at the delegation name are excluded because they are not shadowed by that delegation. Those record types are included only when they exist below the delegation. The value must be a non-apex subdomain of the zone. Requires `include_shadow_metadata=true`. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records). Return ONLY the value.',
+        placeholder: 'Describe the shadowed by name',
+      },
+    },
+    {
+      id: 'listDnsRecordsShadowingName',
+      title: 'Shadowing Name',
+      type: 'short-input',
+      placeholder: 'Enter shadowing name',
+      condition: { field: 'operation', value: ['list_dns_records'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare shadowing name value. Returns NS records that shadow the given name, searching at the name itself and each of its ancestor names within the zone, excluding the zone apex. The value must be a subdomain of the zone; the zone apex is not accepted. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records). Return ONLY the value.',
+        placeholder: 'Describe the shadowing name',
+      },
+    },
+    {
+      id: 'listR2BucketsOrder',
+      title: 'Order',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['list_r2_buckets'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'name', id: 'name' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'listZonesType',
+      title: 'Type',
+      type: 'short-input',
+      placeholder: 'Enter type',
+      condition: { field: 'operation', value: ['list_zones'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare type value. Comma-separated zone types: full, partial, secondary, internal Return ONLY the value.',
+        placeholder: 'Describe the type',
+      },
+    },
+    {
+      id: 'listZonesAccountName',
+      title: 'Account Name',
+      type: 'short-input',
+      placeholder: 'Enter account name',
+      condition: { field: 'operation', value: ['list_zones'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare account name value. An account Name. Optional filter operators can be provided to extend refine the search: * `equal` (default) * `not_equal` * `starts_with` * `ends_with` * `contains` * `starts_with_case_sensitive` * `ends_with_case_sensitive` * `contains_case_sensitive` Return ONLY the value.',
+        placeholder: 'Describe the account name',
+      },
+    },
+    {
+      id: 'rotateAccessServiceTokenPreviousClientSecretExpiresAt',
+      title: 'Previous Client Secret Expires At',
+      type: 'short-input',
+      placeholder: 'Enter previous client secret expires at',
+      condition: { field: 'operation', value: ['rotate_access_service_token'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare previous client secret expires at value. The expiration of the previous `client_secret`. If not provided, it defaults to the current timestamp in order to immediately expire the previous secret. If the service token was reported as leaked, this must not be in the future; the leaked secret is discarded immediately. Return ONLY the value.',
+        placeholder: 'Describe the previous client secret expires at',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'accessServiceTokenDuration',
+      title: 'Duration',
+      type: 'short-input',
+      placeholder: 'Enter duration',
+      condition: { field: 'operation', value: ['update_access_service_token'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare duration value. The duration for how long the service token will be valid. Must be in the format `300ms` or `2h45m`, or the special value `forever` for non-expiring tokens. Valid time units are: ns, us (or µs), ms, s, m, h. The default is 1 year in hours (8760h). Return ONLY the value.',
+        placeholder: 'Describe the duration',
+      },
+    },
+    {
+      id: 'accessServiceTokenName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Enter name',
+      condition: { field: 'operation', value: ['update_access_service_token'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare name value. The name of the service token. Return ONLY the value.',
+        placeholder: 'Describe the name',
+      },
+    },
+    {
+      id: 'dnsRecordClearcomment',
+      title: 'Clear Comment',
+      type: 'dropdown',
+      placeholder: 'Enter clear comment',
+      condition: { field: 'operation', value: ['update_dns_record'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'r2BucketCorsRules',
+      title: 'Rules',
+      type: 'long-input',
+      placeholder: 'Enter rules as JSON',
+      condition: { field: 'operation', value: ['update_r2_bucket_cors'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare rules value. JSON array. rules Fields: allowed, exposeHeaders, id, maxAgeSeconds. Return ONLY the value.',
+        placeholder: 'Describe the rules',
+      },
+    },
+    {
+      id: 'r2BucketLifecycleRules',
+      title: 'Rules',
+      type: 'long-input',
+      placeholder: 'Enter all lifecycle rules as JSON; [] removes all rules',
+      condition: { field: 'operation', value: ['update_r2_bucket_lifecycle'] },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the complete Cloudflare lifecycle rules JSON array. Include every existing rule the user wants to retain. Use [] only when the user wants to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions. Return ONLY the value.',
+        placeholder: 'Describe the rules',
+      },
+    },
+    {
+      id: 'rulesetRulePosition',
+      title: 'Position',
+      type: 'long-input',
+      placeholder: 'Enter position as JSON',
+      condition: { field: 'operation', value: ['update_ruleset_rule'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare position value. JSON object. An object configuring where the rule will be placed. Fields: before, after, index. Return ONLY the value.',
+        placeholder: 'Describe the position',
+      },
+    },
+    {
+      id: 'rulesetDescription',
+      title: 'Description',
+      type: 'short-input',
+      placeholder: 'Enter description',
+      condition: { field: 'operation', value: ['update_ruleset'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare description value. An informative description of the ruleset. Return ONLY the value.',
+        placeholder: 'Describe the description',
+      },
+    },
+
+    {
+      id: 'rulesetRules',
+      title: 'Rules',
+      type: 'long-input',
+      placeholder: 'Enter rules as JSON',
+      description:
+        'Read Get Ruleset first and include every rule to retain. This array replaces the complete rule list; [] removes all rules.',
+      condition: { field: 'operation', value: ['update_ruleset'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare rules value. JSON array replacing the complete rule list. Preserve every existing rule the user wants to keep from their Get Ruleset output. Omitted rules are removed, and [] removes all rules. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version. Return ONLY the value.',
+        placeholder: 'Describe the rules',
+      },
+    },
+    {
+      id: 'tunnelConfigurationConfig',
+      title: 'Config',
+      type: 'long-input',
+      placeholder: 'Enter config as JSON',
+      condition: { field: 'operation', value: ['update_tunnel_configuration'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare config value. JSON object. The tunnel configuration and ingress rules. Fields: ingress, originRequest, warp-routing. Return ONLY the value.',
+        placeholder: 'Describe the config',
+      },
+    },
+    {
+      id: 'zoneSettingEnabled',
+      title: 'Enabled',
+      type: 'dropdown',
+      placeholder: 'Enter enabled',
+      condition: {
+        field: 'operation',
+        value: ['update_zone_setting'],
+        and: { field: 'settingId', value: 'ssl_recommender' },
+      },
+      required: true,
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'zonePaused',
+      title: 'Paused',
+      type: 'dropdown',
+      placeholder: 'Enter paused',
+      condition: { field: 'operation', value: ['update_zone'] },
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'zonePlan',
+      title: 'Plan',
+      type: 'long-input',
+      placeholder: 'Enter plan as JSON',
+      condition: { field: 'operation', value: ['update_zone'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate the Cloudflare plan value. JSON object. (Deprecated) Please use the `/zones/{zone_id}/subscription` API to update a zone's plan. Changing this value will create/cancel associated subscriptions. To view available plans for this zone, see Zone Plans. Fields: id. Return ONLY the value.",
+        placeholder: 'Describe the plan',
+      },
+    },
+    {
+      id: 'zoneVanityNameServers',
+      title: 'Vanity Name Servers',
+      type: 'long-input',
+      placeholder: 'Enter vanity name servers as JSON',
+      condition: { field: 'operation', value: ['update_zone'] },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the Cloudflare vanity name servers value. JSON array. An array of domains used for custom name servers. This is only available for Business and Enterprise plans. Return ONLY the value.',
+        placeholder: 'Describe the vanity name servers',
+      },
+    },
   ],
   tools: {
     access: [
-      'cloudflare_list_zones',
-      'cloudflare_get_zone',
-      'cloudflare_create_zone',
-      'cloudflare_delete_zone',
-      'cloudflare_list_dns_records',
+      'cloudflare_create_access_application',
+      'cloudflare_create_access_group',
+      'cloudflare_create_access_policy',
+      'cloudflare_create_access_service_token',
       'cloudflare_create_dns_record',
-      'cloudflare_update_dns_record',
-      'cloudflare_delete_dns_record',
-      'cloudflare_list_certificates',
-      'cloudflare_get_zone_settings',
-      'cloudflare_update_zone_setting',
-      'cloudflare_dns_analytics',
-      'cloudflare_purge_cache',
-      'cloudflare_list_rulesets',
-      'cloudflare_get_ruleset',
-      'cloudflare_get_ruleset_entrypoint',
+      'cloudflare_create_r2_bucket',
+      'cloudflare_create_rate_limit_rule',
       'cloudflare_create_ruleset',
       'cloudflare_create_ruleset_rule',
-      'cloudflare_update_ruleset_rule',
-      'cloudflare_delete_ruleset_rule',
-      'cloudflare_list_managed_ruleset_overrides',
-      'cloudflare_list_rate_limit_rules',
-      'cloudflare_create_rate_limit_rule',
-      'cloudflare_update_rate_limit_rule',
-      'cloudflare_list_access_applications',
-      'cloudflare_get_access_application',
-      'cloudflare_create_access_application',
-      'cloudflare_update_access_application',
+      'cloudflare_create_tunnel',
+      'cloudflare_create_worker_route',
+      'cloudflare_create_zone',
       'cloudflare_delete_access_application',
-      'cloudflare_list_access_policies',
-      'cloudflare_create_access_policy',
-      'cloudflare_update_access_policy',
+      'cloudflare_delete_access_group',
       'cloudflare_delete_access_policy',
-      'cloudflare_list_access_groups',
-      'cloudflare_list_access_identity_providers',
-      'cloudflare_list_access_service_tokens',
-      'cloudflare_create_access_service_token',
-      'cloudflare_revoke_access_service_token',
-      'cloudflare_list_r2_buckets',
-      'cloudflare_get_r2_bucket',
-      'cloudflare_create_r2_bucket',
+      'cloudflare_delete_dns_record',
       'cloudflare_delete_r2_bucket',
-      'cloudflare_list_worker_scripts',
-      'cloudflare_get_worker_script_settings',
-      'cloudflare_list_worker_routes',
-      'cloudflare_list_tunnels',
+      'cloudflare_delete_r2_bucket_cors',
+      'cloudflare_delete_ruleset',
+      'cloudflare_delete_ruleset_rule',
+      'cloudflare_delete_tunnel',
+      'cloudflare_delete_worker_route',
+      'cloudflare_delete_worker_script',
+      'cloudflare_delete_zone',
+      'cloudflare_dns_analytics',
+      'cloudflare_get_access_application',
+      'cloudflare_get_access_group',
+      'cloudflare_get_access_policy',
+      'cloudflare_get_access_service_token',
+      'cloudflare_get_dns_record',
+      'cloudflare_get_r2_bucket',
+      'cloudflare_get_r2_bucket_cors',
+      'cloudflare_get_r2_bucket_lifecycle',
+      'cloudflare_get_ruleset',
+      'cloudflare_get_ruleset_entrypoint',
       'cloudflare_get_tunnel',
       'cloudflare_get_tunnel_configuration',
+      'cloudflare_get_tunnel_token',
+      'cloudflare_get_worker_route',
+      'cloudflare_get_worker_script_settings',
+      'cloudflare_get_zone',
+      'cloudflare_get_zone_settings',
+      'cloudflare_list_access_applications',
+      'cloudflare_list_access_groups',
+      'cloudflare_list_access_identity_providers',
+      'cloudflare_list_access_policies',
+      'cloudflare_list_access_service_tokens',
+      'cloudflare_list_certificates',
+      'cloudflare_list_dns_records',
+      'cloudflare_list_managed_ruleset_overrides',
+      'cloudflare_list_r2_buckets',
+      'cloudflare_list_rate_limit_rules',
+      'cloudflare_list_rulesets',
+      'cloudflare_list_tunnels',
+      'cloudflare_list_worker_routes',
+      'cloudflare_list_worker_scripts',
+      'cloudflare_list_zones',
+      'cloudflare_purge_cache',
+      'cloudflare_refresh_access_service_token',
+      'cloudflare_revoke_access_service_token',
+      'cloudflare_rotate_access_service_token',
+      'cloudflare_update_access_application',
+      'cloudflare_update_access_group',
+      'cloudflare_update_access_policy',
+      'cloudflare_update_access_service_token',
+      'cloudflare_update_dns_record',
+      'cloudflare_update_r2_bucket_cors',
+      'cloudflare_update_r2_bucket_lifecycle',
+      'cloudflare_update_rate_limit_rule',
+      'cloudflare_update_ruleset',
+      'cloudflare_update_ruleset_rule',
+      'cloudflare_update_tunnel',
+      'cloudflare_update_tunnel_configuration',
+      'cloudflare_update_worker_route',
+      'cloudflare_update_zone',
+      'cloudflare_update_zone_setting',
     ],
     config: {
       tool: (params) => `cloudflare_${params.operation}`,
       params: (params) => {
-        const result: Record<string, unknown> = { ...params }
+        const result = { ...params }
         const operation = typeof result.operation === 'string' ? result.operation : ''
-
-        for (const [toolParam, aliasId] of Object.entries(SUBBLOCK_ALIASES[operation] ?? {})) {
+        for (const [toolParam, aliasId] of Object.entries(SUBBLOCK_ALIASES[operation] ?? {}))
           result[toolParam] = result[aliasId]
+        for (const aliasId of ALIASED_SUBBLOCK_IDS) result[aliasId] = void 0
+        if (result.proxied === 'true') result.proxied = !0
+        else if (result.proxied === 'false') result.proxied = !1
+        else if (result.proxied === '') result.proxied = void 0
+        if (result.purge_everything === 'true') result.purge_everything = !0
+        else if (result.purge_everything === 'false') result.purge_everything = !1
+        if (operation === 'purge_cache' && result.purge_everything === !0) {
+          result.files = void 0
+          result.tags = void 0
+          result.hosts = void 0
+          result.prefixes = void 0
         }
-        /**
-         * The executor merges this mapper's output over the raw inputs
-         * (`finalInputs = { ...inputs, ...transformedParams }` in
-         * `executor/handlers/generic/generic-handler.ts`), so a key this mapper
-         * merely omits survives as its raw subBlock string. Every alias id must
-         * therefore be assigned `undefined` rather than destructured away.
-         */
-        for (const aliasId of ALIASED_SUBBLOCK_IDS) {
-          result[aliasId] = undefined
-        }
-
-        if (result.proxied === 'true') result.proxied = true
-        else if (result.proxied === 'false') result.proxied = false
-        else if (result.proxied === '') result.proxied = undefined
-
-        if (result.purge_everything === 'true') result.purge_everything = true
-        else if (result.purge_everything === 'false') result.purge_everything = false
-
-        /**
-         * `tags`, `hosts`, and `prefixes` are advanced controls, and an advanced
-         * control serializes on stored value alone — the serializer returns
-         * `isNonEmptyValue(...)` before it ever evaluates the
-         * `and: { field: 'purge_everything', not: true }` guard
-         * (`serializer/index.ts`). So a target typed while purging specific
-         * content survives the switch to "Purge Everything", and the tool then
-         * refuses the whole purge over a field the editor no longer renders.
-         * This mapper is the only layer that can override a stale raw input.
-         */
-        if (operation === 'purge_cache' && result.purge_everything === true) {
-          result.files = undefined
-          result.tags = undefined
-          result.hosts = undefined
-          result.prefixes = undefined
-        }
-
-        if (result.type === '') result.type = undefined
-        if (result.status === '') result.status = undefined
-        if (result.order === '') result.order = undefined
-        if (result.direction === '') result.direction = undefined
-        if (result.match === '') result.match = undefined
-        if (result.tag_match === '') result.tag_match = undefined
-        if (result.deploy === '') result.deploy = undefined
-
+        if (result.type === '') result.type = void 0
+        if (result.status === '') result.status = void 0
+        if (result.order === '') result.order = void 0
+        if (result.direction === '') result.direction = void 0
+        if (result.match === '') result.match = void 0
+        if (result.tag_match === '') result.tag_match = void 0
+        if (result.deploy === '') result.deploy = void 0
         if (result.operation === 'update_dns_record') {
-          if (result.content === '') result.content = undefined
-          if (result.name === '') result.name = undefined
-          if (result.comment === '') result.comment = undefined
+          if (result.content === '') result.content = void 0
+          if (result.name === '') result.name = void 0
+          if (result.comment === '') result.comment = void 0
         }
-
-        /**
-         * A blank optional number must reach the tool as `undefined`, not as
-         * `Number('')` — which is `0`, a value the tools then forward because
-         * they test presence rather than truthiness. `0` is out of range for
-         * `ttl` and silently rewrites an MX record's `priority`.
-         */
         const numericFields = [
           'ttl',
           'priority',
@@ -2681,15 +4557,12 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           'requestsPerPeriod',
           'mitigationTimeout',
           'precedence',
-        ] as const
-        for (const field of numericFields) {
-          if (result[field] === '' || result[field] == null) {
-            result[field] = undefined
-          } else {
-            result[field] = Number(result[field])
-          }
-        }
-
+          'client_secret_version',
+          'score_per_period',
+        ]
+        for (const field of numericFields)
+          if (result[field] === '' || result[field] == null) result[field] = void 0
+          else result[field] = Number(result[field])
         const booleanFields = [
           'enabled',
           'exact',
@@ -2700,24 +4573,79 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           'purposeJustificationRequired',
           'requestsToOrigin',
           'is_deleted',
-        ] as const
-        for (const field of booleanFields) {
-          if (result[field] === 'true') result[field] = true
-          else if (result[field] === 'false') result[field] = false
-          else if (result[field] === '') result[field] = undefined
-        }
-
+          'allow_authenticate_via_warp',
+          'allow_iframe',
+          'clearComment',
+          'comment_absent',
+          'comment_present',
+          'dry_run',
+          'eager_redirect_cookie_setting',
+          'enable_binding_cookie',
+          'force',
+          'http_only_cookie_attribute',
+          'include_shadow_metadata',
+          'is_default',
+          'options_preflight_bypass',
+          'path_cookie_attribute',
+          'paused',
+          'private_routing',
+          'service_auth_401_redirect',
+          'skip_app_launcher_login_page',
+          'skip_interstitial',
+          'use_clientless_isolation_app_launcher_url',
+        ]
+        for (const field of booleanFields)
+          if (result[field] === 'true') result[field] = !0
+          else if (result[field] === 'false') result[field] = !1
+          else if (result[field] === '') result[field] = void 0
         const optionalStringFields = [
           'phase',
           'action',
           'locationHint',
           'storageClass',
           'jurisdiction',
-        ] as const
-        for (const field of optionalStringFields) {
-          if (result[field] === '') result[field] = undefined
-        }
-
+          'account_name',
+          'app_launcher_logo_url',
+          'bg_color',
+          'comment_endswith',
+          'comment_exact',
+          'comment_startswith',
+          'config_src',
+          'content_contains',
+          'content_endswith',
+          'content_startswith',
+          'custom_non_identity_deny_url',
+          'description',
+          'duration',
+          'header_bg_color',
+          'id',
+          'kind',
+          'name',
+          'name_contains',
+          'name_endswith',
+          'name_startswith',
+          'order',
+          'previous_client_secret_expires_at',
+          'read_service_tokens_from_header',
+          'ref',
+          'saasApp',
+          'same_site_cookie_attribute',
+          'scim_enabled',
+          'score_response_header_name',
+          'script',
+          'shadowed_by_name',
+          'shadowing_name',
+          'tag_absent',
+          'tag_contains',
+          'tag_endswith',
+          'tag_present',
+          'tag_startswith',
+          'targetCriteria',
+          'target_attributes',
+          'tunnel_secret',
+          'type',
+        ]
+        for (const field of optionalStringFields) if (result[field] === '') result[field] = void 0
         return result
       },
     },
@@ -2727,6 +4655,10 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     apiKey: { type: 'string', description: 'Cloudflare API token' },
     zoneId: { type: 'string', description: 'Zone ID' },
     accountId: { type: 'string', description: 'Cloudflare account ID' },
+    updateZoneType: {
+      type: 'string',
+      description: 'New zone type; leave unchanged to update another property',
+    },
     zoneType: {
       type: 'string',
       description:
@@ -2781,7 +4713,6 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       description: 'Domain filter when listing Access applications',
     },
     tunnelStatus: { type: 'string', description: 'Status filter when listing tunnels' },
-
     appType: { type: 'string', description: 'Access application type' },
     updateAppType: {
       type: 'string',
@@ -2835,11 +4766,8 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     purge_everything: { type: 'boolean', description: 'Purge all cached content' },
     files: { type: 'string', description: 'Comma-separated URLs to purge' },
     tags: { type: 'string', description: 'Comma-separated DNS record tags' },
-    hosts: { type: 'string', description: 'Comma-separated hostnames to purge (Enterprise only)' },
-    prefixes: {
-      type: 'string',
-      description: 'Comma-separated URL prefixes to purge (Enterprise only)',
-    },
+    hosts: { type: 'string', description: 'Comma-separated hostnames to purge' },
+    prefixes: { type: 'string', description: 'Comma-separated URL prefixes to purge' },
     rulesetId: { type: 'string', description: 'Ruleset ID' },
     ruleId: { type: 'string', description: 'Rule ID within a ruleset' },
     phase: { type: 'string', description: 'Ruleset phase' },
@@ -2958,12 +4886,484 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       type: 'string',
       description: 'Return tunnels that were inactive at this timestamp',
     },
+    accessApplicationDestinations: {
+      type: 'json',
+      description:
+        'JSON array. List of destinations secured by Access. This supersedes `self_hosted_domains` to allow for more flexibility in defining different types of domains. If `destinations` are provided, then `self_hosted_domains` will be ignored. Fields: overrides, type, uri, cidr, hostname, l4_protocol, port_range, vnet_id, mcp_server_id, worker_id.',
+    },
+    accessApplicationOauthConfiguration: {
+      type: 'json',
+      description:
+        'JSON object. **Beta:** Optional configuration for managing an OAuth authorization flow controlled by Access. When set, Access will act as the OAuth authorization server for this application. Only compatible with OAuth clients that support [RFC 8707](https://datatracker.ietf.org/doc/html/rfc8707) (Resource Indicators for OAuth 2.0). This feature is currently in beta. Fields: dynamic_client_registration, enabled, grant.',
+    },
+    accessApplicationSelfHostedDomains: {
+      type: 'json',
+      description:
+        'JSON array. List of public domains that Access will secure. This field is deprecated in favor of `destinations` and will be supported until **November 21, 2025.** If `destinations` are provided, then `self_hosted_domains` will be ignored.',
+    },
+    accessApplicationUserPopulations: {
+      type: 'json',
+      description: 'JSON array. The single user population associated with this application.',
+    },
+    accessApplicationAllowAuthenticateViaWarp: {
+      type: 'boolean',
+      description:
+        'When set to true, users can authenticate to this application using their WARP session. When set to false this application will always require direct IdP authentication. This setting always overrides the organization setting for WARP authentication.',
+    },
+    accessApplicationAllowIframe: {
+      type: 'boolean',
+      description: 'Enables loading application content in an iFrame.',
+    },
+    accessApplicationCorsHeaders: {
+      type: 'json',
+      description:
+        'JSON object. cors headers Fields: allow_all_headers, allow_all_methods, allow_all_origins, allow_credentials, allowed_headers, allowed_methods, allowed_origins, max_age.',
+    },
+    accessApplicationCustomNonIdentityDenyUrl: {
+      type: 'string',
+      description:
+        'The custom URL a user is redirected to when they are denied access to the application when failing non-identity rules.',
+    },
+    accessApplicationCustomPages: {
+      type: 'json',
+      description:
+        'JSON array. The custom pages that will be displayed when applicable for this application',
+    },
+    accessApplicationEagerRedirectCookieSetting: {
+      type: 'boolean',
+      description:
+        'Preemptively sets the Access session cookie on every hostname in a multi-hostname self-hosted application during the initial redirect chain, rather than setting it lazily on first visit. Defaults to true. Set to false to disable the eager redirect cookie behavior.',
+    },
+    accessApplicationEnableBindingCookie: {
+      type: 'boolean',
+      description:
+        'Enables the binding cookie, which increases security against compromised authorization tokens and CSRF attacks.',
+    },
+    accessApplicationHttpOnlyCookieAttribute: {
+      type: 'boolean',
+      description:
+        'Enables the HttpOnly cookie attribute, which increases security against XSS attacks.',
+    },
+    accessApplicationMfaConfig: {
+      type: 'json',
+      description:
+        'JSON object. Configures multi-factor authentication (MFA) settings. Fields: allowed_authenticators, mfa_disabled, session_duration.',
+    },
+    accessApplicationOptionsPreflightBypass: {
+      type: 'boolean',
+      description:
+        'Allows options preflight requests to bypass Access authentication and go directly to the origin. Cannot turn on if cors_headers is set.',
+    },
+    accessApplicationPathCookieAttribute: {
+      type: 'boolean',
+      description:
+        "Enables cookie paths to scope an application's JWT to the application path. If disabled, the JWT will scope to the hostname by default",
+    },
+    accessApplicationReadServiceTokensFromHeader: {
+      type: 'string',
+      description:
+        'Allows matching Access Service Tokens passed HTTP in a single header with this name. This works as an alternative to the (CF-Access-Client-Id, CF-Access-Client-Secret) pair of headers. The header value will be interpreted as a json object similar to: { "cf-access-client-id": "<CLIENT_ID>", "cf-access-client-secret": "<CLIENT_SECRET>" }',
+    },
+    accessApplicationSameSiteCookieAttribute: {
+      type: 'string',
+      description:
+        'Sets the SameSite cookie setting, which provides increased security against CSRF attacks.',
+    },
+    accessApplicationScimConfig: {
+      type: 'json',
+      description:
+        'JSON object. Configuration for provisioning to this application via SCIM. This is currently in closed beta. Fields: authentication, deactivate_on_delete, enabled, idp_uid, mappings, remote_uri.',
+    },
+    accessApplicationServiceAuth401Redirect: {
+      type: 'boolean',
+      description:
+        'Returns a 401 status code when the request is blocked by a Service Auth policy.',
+    },
+    accessApplicationSkipInterstitial: {
+      type: 'boolean',
+      description: 'Enables automatic authentication through cloudflared.',
+    },
+    accessApplicationUseClientlessIsolationAppLauncherUrl: {
+      type: 'boolean',
+      description:
+        'Determines if users can access this application via a clientless browser isolation URL. This allows users to access private domains without connecting to Gateway. The option requires Clientless Browser Isolation to be set up with policies that allow users of this application.',
+    },
+    accessApplicationAppLauncherLogoUrl: {
+      type: 'string',
+      description: 'The image URL of the logo shown in the App Launcher header.',
+    },
+    accessApplicationBgColor: {
+      type: 'string',
+      description: 'The background color of the App Launcher page.',
+    },
+    accessApplicationFooterLinks: {
+      type: 'json',
+      description: 'JSON array. The links in the App Launcher footer. Fields: name, url.',
+    },
+    accessApplicationHeaderBgColor: {
+      type: 'string',
+      description: 'The background color of the App Launcher header.',
+    },
+    accessApplicationLandingPageDesign: {
+      type: 'json',
+      description:
+        'JSON object. The design of the App Launcher landing page shown to users when they log in. Fields: button_color, button_text_color, image_url, message, title.',
+    },
+    accessApplicationSkipAppLauncherLoginPage: {
+      type: 'boolean',
+      description: 'Determines when to skip the App Launcher landing page.',
+    },
+    accessGroupExclude: {
+      type: 'json',
+      description:
+        'JSON array. Rules evaluated with a NOT logical operator. To match a policy, a user cannot meet any of the Exclude rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member.',
+    },
+    accessGroupInclude: {
+      type: 'json',
+      description:
+        'JSON array. Rules evaluated with an OR logical operator. A user needs to meet only one of the Include rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member.',
+    },
+    accessGroupIsDefault: { type: 'boolean', description: 'Whether this is the default group' },
+    accessGroupName: { type: 'string', description: 'The name of the Access group.' },
+    accessGroupRequire: {
+      type: 'json',
+      description:
+        'JSON array. Rules evaluated with an AND logical operator. To match a policy, a user must meet all of the Require rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member.',
+    },
+    accessPolicyApprovalGroups: {
+      type: 'json',
+      description:
+        'JSON array. Administrators who can approve a temporary authentication request. Fields: approvals_needed, email_addresses, email_list_uuid.',
+    },
+    accessPolicyConnectionRules: {
+      type: 'json',
+      description:
+        'JSON object. The rules that define how users may connect to the targets secured by your application. Fields: rdp, ssh.',
+    },
+    accessPolicyMfaConfig: {
+      type: 'json',
+      description:
+        'JSON object. Configures multi-factor authentication (MFA) settings for infrastructure applications. Fields: allowed_authenticators, mfa_disabled, session_duration.',
+    },
+    accessServiceTokenClientSecretVersion: {
+      type: 'number',
+      description:
+        'A version number identifying the current `client_secret` associated with the service token. Incrementing it triggers a rotation; the previous secret will still be accepted until the time indicated by `previous_client_secret_expires_at`. If the service token was reported as leaked, `previous_client_secret_expires_at` is not required, may not be in the future, and the previous secret is discarded immediately.',
+    },
+    accessServiceTokenEnabled: {
+      type: 'boolean',
+      description:
+        'Whether the service token is enabled. A disabled service token cannot be used to authenticate; both its current and previous `client_secret` stop being accepted, but the token itself is preserved and can be re-enabled. A service token reported as leaked is disabled automatically and cannot be re-enabled until its secret is rotated; attempting to do so returns a 409. Defaults to enabled when omitted on create.',
+    },
+    accessServiceTokenPreviousClientSecretExpiresAt: {
+      type: 'string',
+      description:
+        'The expiration of the previous `client_secret`. This can be modified at any point after a rotation. For example, you may extend it further into the future if you need more time to update services with the new secret; or move it into the past to immediately invalidate the previous token in case of compromise. Rotating a service token that was reported as leaked discards the previous secret entirely, so no grace period can be set.',
+    },
+    dnsRecordSettings: {
+      type: 'json',
+      description:
+        'JSON object. Settings for the DNS record. Fields: ipv4_only, ipv6_only, flatten_cname.',
+    },
+    dnsRecordPrivateRouting: {
+      type: 'boolean',
+      description: 'Enables private network routing to the origin.',
+    },
+    dnsRecordData: {
+      type: 'json',
+      description:
+        'JSON object. Structured record data; fields depend on the DNS record type. Fields: flags, tag, value, algorithm, certificate, key_tag, type, protocol, public_key, digest, digest_type, priority, target, altitude, lat_degrees, lat_direction, lat_minutes, lat_seconds, long_degrees, long_direction, long_minutes, long_seconds, precision_horz, precision_vert, size, order, preference, regex, replacement, service, matching_type, selector, usage, port, weight, fingerprint.',
+    },
+    dnsRecordIncludeShadowMetadata: {
+      type: 'boolean',
+      description:
+        'Whether to include shadow metadata in the `meta` field of each record in the response. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    rateLimitRuleActionparameters: {
+      type: 'json',
+      description:
+        "JSON object. The parameters configuring the rule's action. Fields: response, algorithms, id, matched_data, overrides, cookie_fields, raw_response_fields, request_fields, response_fields, transformed_request_fields, from_list, from_value, headers, uri, host_header, origin, sni, increment, content_type, status_code, content, asset_name, immutable, max-age, must-revalidate, must-understand, no-cache, no-store, no-transform, private, proxy-revalidate, public, s-maxage, stale-if-error, stale-while-revalidate, additional_cacheable_ports, browser_ttl, cache, cache_key, cache_reserve, edge_ttl, origin_cache_control, origin_error_page_passthru, origin_range_requests, read_timeout, respect_strong_etags, serve_stale, shared_dictionary, strip_etags, strip_last_modified, strip_set_cookie, vary, operation, values, expression, automatic_https_rewrites, autominify, bic, content_converter, disable_apps, disable_pay_per_crawl, disable_rum, disable_zaraz, email_obfuscation, fonts, hotlink_protection, mirage, opportunistic_encryption, polish, redirects_for_ai_training, request_body_buffering, response_body_buffering, rocket_loader, security_level, server_side_excludes, ssl, sxg, webmcp_enabled, webmcp_packs, phase, phases, products, rules, ruleset, rulesets, link_maze.",
+    },
+    rateLimitRuleExposedCredentialCheck: {
+      type: 'json',
+      description:
+        'JSON object. Configuration for exposed credential checking. Fields: password_expression, username_expression.',
+    },
+    rateLimitRuleId: { type: 'string', description: 'The unique ID of the rule.' },
+    rateLimitRuleLogging: {
+      type: 'json',
+      description:
+        "JSON object. An object configuring the rule's logging behavior. Fields: enabled.",
+    },
+    rateLimitRuleRef: {
+      type: 'string',
+      description: "The reference of the rule (the rule's ID by default).",
+    },
+    rateLimitRulePosition: {
+      type: 'json',
+      description:
+        'JSON object. An object configuring where the rule will be placed. Fields: before, after, index.',
+    },
+    rateLimitRuleScorePerPeriod: {
+      type: 'number',
+      description:
+        'The score threshold per period for which the action will be executed the first time.',
+    },
+    rateLimitRuleScoreResponseHeaderName: {
+      type: 'string',
+      description:
+        'A response header name provided by the origin, which contains the score to increment rate limit counter with.',
+    },
+    rateLimitRuleDryRun: { type: 'boolean', description: 'dry run' },
+    rulesetRuleExposedCredentialCheck: {
+      type: 'json',
+      description:
+        'JSON object. Configuration for exposed credential checking. Fields: password_expression, username_expression.',
+    },
+    rulesetRuleId: { type: 'string', description: 'The unique ID of the rule.' },
+    rulesetRuleLogging: {
+      type: 'json',
+      description:
+        "JSON object. An object configuring the rule's logging behavior. Fields: enabled.",
+    },
+    rulesetRuleRatelimit: {
+      type: 'json',
+      description:
+        "JSON object. An object configuring the rule's rate limit behavior. Fields: characteristics, counting_expression, mitigation_timeout, period, requests_per_period, requests_to_origin, score_per_period, score_response_header_name.",
+    },
+    rulesetRuleDryRun: { type: 'boolean', description: 'dry run' },
+    rulesetDryRun: { type: 'boolean', description: 'dry run' },
+    tunnelConfigSrc: {
+      type: 'string',
+      description:
+        'Indicates if this is a locally or remotely configured tunnel. If `local`, manage the tunnel using a YAML file on the origin machine. If `cloudflare`, manage the tunnel on the Zero Trust dashboard. Allowed values: local, cloudflare.',
+    },
+    tunnelName: { type: 'string', description: 'A user-friendly name for a tunnel.' },
+    tunnelTunnelSecret: {
+      type: 'string',
+      description:
+        'Sets the password required to run a locally-managed tunnel. Must be at least 32 bytes and encoded as a base64 string.',
+    },
+    workerRoutePattern: {
+      type: 'string',
+      description:
+        'Pattern to match incoming requests against. [Learn more](https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior).',
+    },
+    workerRouteScript: {
+      type: 'string',
+      description: 'Name of the script to run if the route matches.',
+    },
+    groupId: { type: 'string', description: 'Group id' },
+    deleteRulesetRuleDryRun: { type: 'boolean', description: 'dry run' },
+    deleteRulesetDryRun: {
+      type: 'boolean',
+      description:
+        'Validates the request without persisting changes when set to `true`. Responses that normally return 200 return `result: null`; endpoints that normally return 204 continue to return 204.',
+    },
+    routeId: { type: 'string', description: 'Route id' },
+    deleteWorkerScriptForce: {
+      type: 'boolean',
+      description:
+        'If true, delete the Worker even when other Workers still reference it. Service bindings in those Workers may be left broken. Durable Object namespaces implemented by the deleted Worker are deleted even if other Workers reference them.',
+    },
+    getDnsRecordIncludeShadowMetadata: {
+      type: 'boolean',
+      description:
+        'Whether to include shadow metadata in the `meta` field of each record in the response. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    listAccessApplicationsTargetAttributes: {
+      type: 'string',
+      description: 'Target Criteria attributes in key=value format.',
+    },
+    listAccessIdentityProvidersScimEnabled: {
+      type: 'string',
+      description:
+        'Indicates to Access to only retrieve identity providers that have the System for Cross-Domain Identity Management (SCIM) enabled.',
+    },
+    listAccessIdentityProvidersPage: { type: 'number', description: 'Page number of results.' },
+    listAccessIdentityProvidersPerPage: {
+      type: 'number',
+      description: 'Number of results per page.',
+    },
+    listDnsRecordsNameContains: {
+      type: 'string',
+      description: 'Substring of the DNS record name. Name filters are case-insensitive.',
+    },
+    listDnsRecordsNameStartswith: {
+      type: 'string',
+      description: 'Prefix of the DNS record name. Name filters are case-insensitive.',
+    },
+    listDnsRecordsNameEndswith: {
+      type: 'string',
+      description: 'Suffix of the DNS record name. Name filters are case-insensitive.',
+    },
+    listDnsRecordsContentContains: {
+      type: 'string',
+      description: 'Substring of the DNS record content. Content filters are case-insensitive.',
+    },
+    listDnsRecordsContentStartswith: {
+      type: 'string',
+      description: 'Prefix of the DNS record content. Content filters are case-insensitive.',
+    },
+    listDnsRecordsContentEndswith: {
+      type: 'string',
+      description: 'Suffix of the DNS record content. Content filters are case-insensitive.',
+    },
+    listDnsRecordsCommentPresent: {
+      type: 'boolean',
+      description: 'If this parameter is present, only records *with* a comment are returned.',
+    },
+    listDnsRecordsCommentAbsent: {
+      type: 'boolean',
+      description: 'If this parameter is present, only records *without* a comment are returned.',
+    },
+    listDnsRecordsCommentExact: {
+      type: 'string',
+      description: 'Exact value of the DNS record comment. Comment filters are case-insensitive.',
+    },
+    listDnsRecordsCommentStartswith: {
+      type: 'string',
+      description: 'Prefix of the DNS record comment. Comment filters are case-insensitive.',
+    },
+    listDnsRecordsCommentEndswith: {
+      type: 'string',
+      description: 'Suffix of the DNS record comment. Comment filters are case-insensitive.',
+    },
+    listDnsRecordsTagPresent: {
+      type: 'string',
+      description:
+        'Name of a tag which must be present on the DNS record. Tag filters are case-insensitive.',
+    },
+    listDnsRecordsTagAbsent: {
+      type: 'string',
+      description:
+        'Name of a tag which must *not* be present on the DNS record. Tag filters are case-insensitive.',
+    },
+    listDnsRecordsTagContains: {
+      type: 'string',
+      description:
+        'A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value contains `<tag-value>`. Tag filters are case-insensitive.',
+    },
+    listDnsRecordsTagStartswith: {
+      type: 'string',
+      description:
+        'A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value starts with `<tag-value>`. Tag filters are case-insensitive.',
+    },
+    listDnsRecordsTagEndswith: {
+      type: 'string',
+      description:
+        'A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value ends with `<tag-value>`. Tag filters are case-insensitive.',
+    },
+    listDnsRecordsIncludeShadowMetadata: {
+      type: 'boolean',
+      description:
+        'Whether to include shadow metadata in the `meta` field of each record in the response. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    listDnsRecordsShadowedByName: {
+      type: 'string',
+      description:
+        'Filters the response to records at or below the specified NS delegation name. NS, DS, and NSEC records at the delegation name are excluded because they are not shadowed by that delegation. Those record types are included only when they exist below the delegation. The value must be a non-apex subdomain of the zone. Requires `include_shadow_metadata=true`. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    listDnsRecordsShadowingName: {
+      type: 'string',
+      description:
+        'Returns NS records that shadow the given name, searching at the name itself and each of its ancestor names within the zone, excluding the zone apex. The value must be a subdomain of the zone; the zone apex is not accepted. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    listR2BucketsOrder: {
+      type: 'string',
+      description: 'Order buckets by name. Allowed values: name.',
+    },
+    listZonesType: {
+      type: 'string',
+      description: 'Comma-separated zone types: full, partial, secondary, internal',
+    },
+    listZonesAccountName: {
+      type: 'string',
+      description:
+        'An account Name. Optional filter operators can be provided to extend refine the search: * `equal` (default) * `not_equal` * `starts_with` * `ends_with` * `contains` * `starts_with_case_sensitive` * `ends_with_case_sensitive` * `contains_case_sensitive`',
+    },
+    rotateAccessServiceTokenPreviousClientSecretExpiresAt: {
+      type: 'string',
+      description:
+        'The expiration of the previous `client_secret`. If not provided, it defaults to the current timestamp in order to immediately expire the previous secret. If the service token was reported as leaked, this must not be in the future; the leaked secret is discarded immediately.',
+    },
+    accessServiceTokenDuration: {
+      type: 'string',
+      description:
+        'The duration for how long the service token will be valid. Must be in the format `300ms` or `2h45m`, or the special value `forever` for non-expiring tokens. Valid time units are: ns, us (or µs), ms, s, m, h. The default is 1 year in hours (8760h).',
+    },
+    accessServiceTokenName: { type: 'string', description: 'The name of the service token.' },
+    dnsRecordClearcomment: { type: 'boolean', description: 'Clear the stored DNS record comment' },
+    r2BucketCorsRules: {
+      type: 'json',
+      description: 'JSON array. rules Fields: allowed, exposeHeaders, id, maxAgeSeconds.',
+    },
+    r2BucketLifecycleRules: {
+      type: 'string',
+      description:
+        'Complete JSON array of lifecycle rules. Read the current rules first and include every rule to retain. Use [] only to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions.',
+    },
+    rulesetRulePosition: {
+      type: 'json',
+      description:
+        'JSON object. An object configuring where the rule will be placed. Fields: before, after, index.',
+    },
+    rulesetDescription: {
+      type: 'string',
+      description: 'An informative description of the ruleset.',
+    },
+    rulesetRules: {
+      type: 'json',
+      description:
+        'JSON array. The list of rules in the ruleset. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version.',
+    },
+    tunnelConfigurationConfig: {
+      type: 'json',
+      description:
+        'JSON object. The tunnel configuration and ingress rules. Fields: ingress, originRequest, warp-routing.',
+    },
+    zoneSettingEnabled: {
+      type: 'boolean',
+      description:
+        'Enrollment value for ssl_recommender; this setting uses enabled instead of value',
+    },
+    zonePaused: {
+      type: 'boolean',
+      description:
+        'Indicates whether the zone is only using Cloudflare DNS services. A true value means the zone will not receive security or performance benefits.',
+    },
+    zonePlan: {
+      type: 'json',
+      description:
+        "JSON object. (Deprecated) Please use the `/zones/{zone_id}/subscription` API to update a zone's plan. Changing this value will create/cancel associated subscriptions. To view available plans for this zone, see Zone Plans. Fields: id.",
+    },
+    zoneVanityNameServers: {
+      type: 'json',
+      description:
+        'JSON array. An array of domains used for custom name servers. This is only available for Business and Enterprise plans.',
+    },
   },
   outputs: {
+    zone_id: {
+      type: 'string',
+      description: 'Legacy DNS response zone ID when returned by Cloudflare',
+    },
+    zone_name: {
+      type: 'string',
+      description: 'Legacy DNS response zone name when returned by Cloudflare',
+    },
+    locked: {
+      type: 'boolean',
+      description: 'Legacy DNS response lock flag when returned by Cloudflare',
+    },
     zones: { type: 'json', description: 'List of zones/domains' },
     records: { type: 'json', description: 'List of DNS records' },
     certificates: { type: 'json', description: 'List of SSL/TLS certificate packs' },
-    settings: { type: 'json', description: 'List of zone settings' },
+    settings: {
+      type: 'json',
+      description:
+        'DNS record settings, Worker configuration, or zone settings depending on the operation',
+    },
     unreadable: {
       type: 'json',
       description: 'Requested zone settings Cloudflare refused, with the reason for each',
@@ -2980,16 +5380,16 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         'Per-metric DNS analytics maximums. Cloudflare documents this as currently always an empty object',
     },
     query: { type: 'json', description: 'Echo of the DNS analytics query parameters sent' },
-    validation_errors: { type: 'json', description: 'Validation issues for certificate packs' },
-    data: { type: 'json', description: 'Raw analytics data rows from the DNS analytics report' },
+    data: {
+      type: 'json',
+      description: 'Structured DNS record data, or DNS analytics rows depending on the operation',
+    },
     data_lag: {
       type: 'number',
       description: 'Processing lag in seconds before analytics data becomes available',
     },
     rows: { type: 'number', description: 'Total number of rows in the DNS analytics result set' },
     id: { type: 'string', description: 'Resource ID' },
-    zone_id: { type: 'string', description: 'Zone ID the record belongs to' },
-    zone_name: { type: 'string', description: 'Zone domain name' },
     name: { type: 'string', description: 'Resource name' },
     status: { type: 'string', description: 'Resource status' },
     paused: { type: 'boolean', description: 'Whether the zone is paused' },
@@ -3018,7 +5418,6 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     proxiable: { type: 'boolean', description: 'Whether the record can be proxied' },
     proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
     ttl: { type: 'number', description: 'TTL in seconds (1 = automatic)' },
-    locked: { type: 'boolean', description: 'Whether the record is locked' },
     priority: { type: 'number', description: 'Record priority, returned for MX and URI records' },
     comment: { type: 'string', description: 'Record comment' },
     tags: { type: 'json', description: 'Tags associated with the record or cache tags to purge' },
@@ -3137,15 +5536,200 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     tun_type: { type: 'string', description: 'Tunnel type' },
     remote_config: { type: 'boolean', description: 'Whether the tunnel is remotely managed' },
     deleted_at: { type: 'string', description: 'Tunnel deletion timestamp' },
-    conns_active_at: {
-      type: 'string',
-      description: 'When the tunnel last had active connections',
-    },
-    conns_inactive_at: {
-      type: 'string',
-      description: 'When the tunnel last lost all connections',
-    },
+    conns_active_at: { type: 'string', description: 'When the tunnel last had active connections' },
+    conns_inactive_at: { type: 'string', description: 'When the tunnel last lost all connections' },
     connections: { type: 'json', description: 'Active connector connections for the tunnel' },
+    oauth_configuration: {
+      type: 'json',
+      description:
+        '**Beta:** Optional configuration for managing an OAuth authorization flow controlled by Access.',
+    },
+    user_populations: {
+      type: 'json',
+      description: 'The single user population associated with this application.',
+    },
+    allow_authenticate_via_warp: {
+      type: 'boolean',
+      description:
+        'When set to true, users can authenticate to this application using their WARP session. When set to false this application will always require direct IdP authentication. This setting always overrides the organization setting for WARP authentication.',
+    },
+    allow_iframe: {
+      type: 'boolean',
+      description: 'Enables loading application content in an iFrame.',
+    },
+    cors_headers: { type: 'json', description: 'cors headers' },
+    custom_non_identity_deny_url: {
+      type: 'string',
+      description:
+        'The custom URL a user is redirected to when they are denied access to the application when failing non-identity rules.',
+    },
+    custom_pages: {
+      type: 'json',
+      description: 'The custom pages that will be displayed when applicable for this application',
+    },
+    eager_redirect_cookie_setting: {
+      type: 'boolean',
+      description:
+        'Preemptively sets the Access session cookie on every hostname in a multi-hostname self-hosted application during the initial redirect chain, rather than setting it lazily on first visit. Defaults to true. Set to false to disable the eager redirect cookie behavior.',
+    },
+    enable_binding_cookie: {
+      type: 'boolean',
+      description:
+        'Enables the binding cookie, which increases security against compromised authorization tokens and CSRF attacks.',
+    },
+    http_only_cookie_attribute: {
+      type: 'boolean',
+      description:
+        'Enables the HttpOnly cookie attribute, which increases security against XSS attacks.',
+    },
+    mfa_config: {
+      type: 'json',
+      description: 'Configures multi-factor authentication (MFA) settings.',
+    },
+    options_preflight_bypass: {
+      type: 'boolean',
+      description:
+        'Allows options preflight requests to bypass Access authentication and go directly to the origin. Cannot turn on if cors_headers is set.',
+    },
+    path_cookie_attribute: {
+      type: 'boolean',
+      description:
+        "Enables cookie paths to scope an application's JWT to the application path. If disabled, the JWT will scope to the hostname by default",
+    },
+    read_service_tokens_from_header: {
+      type: 'string',
+      description:
+        'Allows matching Access Service Tokens passed HTTP in a single header with this name.',
+    },
+    same_site_cookie_attribute: {
+      type: 'string',
+      description:
+        'Sets the SameSite cookie setting, which provides increased security against CSRF attacks.',
+    },
+    scim_config: {
+      type: 'json',
+      description:
+        'Configuration for provisioning to this application via SCIM. This is currently in closed beta.',
+    },
+    service_auth_401_redirect: {
+      type: 'boolean',
+      description:
+        'Returns a 401 status code when the request is blocked by a Service Auth policy.',
+    },
+    skip_interstitial: {
+      type: 'boolean',
+      description: 'Enables automatic authentication through cloudflared.',
+    },
+    use_clientless_isolation_app_launcher_url: {
+      type: 'boolean',
+      description:
+        'Determines if users can access this application via a clientless browser isolation URL. This allows users to access private domains without connecting to Gateway. The option requires Clientless Browser Isolation to be set up with policies that allow users of this application.',
+    },
+    saas_app: { type: 'json', description: 'saas app' },
+    app_launcher_logo_url: {
+      type: 'string',
+      description: 'The image URL of the logo shown in the App Launcher header.',
+    },
+    bg_color: { type: 'string', description: 'The background color of the App Launcher page.' },
+    footer_links: { type: 'json', description: 'The links in the App Launcher footer.' },
+    header_bg_color: {
+      type: 'string',
+      description: 'The background color of the App Launcher header.',
+    },
+    landing_page_design: {
+      type: 'json',
+      description: 'The design of the App Launcher landing page shown to users when they log in.',
+    },
+    skip_app_launcher_login_page: {
+      type: 'boolean',
+      description: 'Determines when to skip the App Launcher landing page.',
+    },
+    target_criteria: { type: 'json', description: 'target criteria' },
+    is_default: {
+      type: 'json',
+      description:
+        'Rules evaluated with an AND logical operator. To match a policy, a user must meet all of the Require rules.',
+    },
+    approval_groups: {
+      type: 'json',
+      description: 'Administrators who can approve a temporary authentication request.',
+    },
+    connection_rules: {
+      type: 'json',
+      description:
+        'The rules that define how users may connect to the targets secured by your application.',
+    },
+    private_routing: {
+      type: 'boolean',
+      description: 'Enables private network routing to the origin.',
+    },
+    metadata: { type: 'json', description: 'Metadata associated with the tunnel.' },
+    pattern: {
+      type: 'string',
+      description:
+        'Pattern to match incoming requests against. [Learn more](https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior).',
+    },
+    script: { type: 'string', description: 'Name of the script to run if the route matches.' },
+    cname_suffix: {
+      type: 'string',
+      description: 'Allows the customer to use a custom apex. *Tenants Only Configuration*.',
+    },
+    original_dnshost: {
+      type: 'string',
+      description: 'DNS host at the time of switching to Cloudflare.',
+    },
+    original_registrar: {
+      type: 'string',
+      description: 'Registrar for the domain at the time of switching to Cloudflare.',
+    },
+    tenant: {
+      type: 'json',
+      description:
+        'The root organizational unit that this zone belongs to (such as a tenant or organization).',
+    },
+    tenant_unit: {
+      type: 'json',
+      description:
+        'The immediate parent organizational unit that this zone belongs to (such as under a tenant or sub-organization).',
+    },
+    verification_key: { type: 'string', description: 'Verification key for partial zone setup.' },
+    success: { type: 'boolean', description: 'Whether Cloudflare accepted the operation' },
+    leak_report_url: {
+      type: 'string',
+      description:
+        'Where the leaked `client_secret` was found, if provided by the reporter. Omitted if the token has not been reported as leaked.',
+    },
+    leak_reported_at: {
+      type: 'string',
+      description:
+        "When a secret scanning partner reported this service token's `client_secret` as leaked. A leaked service token is disabled and must be rotated before it can be re-enabled. Cleared once the secret is rotated. Omitted if the token has not been reported as leaked.",
+    },
+    leak_reporter: {
+      type: 'string',
+      description:
+        'The secret scanning partner that reported the leak. Omitted if the token has not been reported as leaked.',
+    },
+    token: { type: 'string', description: 'Token for connecting cloudflared to the tunnel' },
+    annotations: {
+      type: 'json',
+      description:
+        'Annotations for the Worker version. Annotations are not inherited across settings updates; omitting this field means the new version will have no annotations.',
+    },
+    cache_options: {
+      type: 'json',
+      description:
+        'Global CacheW configuration for the Worker. When caching is on, the platform provisions a `cloudflare.app` zone for the Worker. A `type: worker` entry in the `exports` map can override this value for a single entrypoint.',
+    },
+    exports: {
+      type: 'json',
+      description:
+        'Declarative exports for the Worker, keyed by export name. Worker entrypoint entries (`type: worker`) carry cache configuration for that entrypoint. Durable Object entries (`type: durable-object`) are also configured here and drive namespace reconciliation. At most 100 entries; class names are at most 128 characters.',
+    },
+    exports_reconciliation: {
+      type: 'json',
+      description: 'Summary of what the declarative exports reconciliation did on this upload.',
+    },
+    result_info: { type: 'json', description: 'Pagination metadata returned by Cloudflare' },
   },
 }
 

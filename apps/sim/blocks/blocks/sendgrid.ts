@@ -3,14 +3,13 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import { toActiveFlag } from '@/tools/sendgrid/create_template_version'
-import type { SendMailResult } from '@/tools/sendgrid/types'
 
-export const SendGridBlock: BlockConfig<SendMailResult> = {
+export const SendGridBlock: BlockConfig = {
   type: 'sendgrid',
   name: 'SendGrid',
   description: 'Send emails and manage contacts, lists, and templates with SendGrid',
   longDescription:
-    'Integrate SendGrid into your workflow. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.',
+    'Send transactional emails with dynamic templates and attachments. Manage marketing contacts, lists, and email templates.',
   docsLink: 'https://docs.sim.ai/integrations/sendgrid',
   category: 'tools',
   integrationType: IntegrationType.Email,

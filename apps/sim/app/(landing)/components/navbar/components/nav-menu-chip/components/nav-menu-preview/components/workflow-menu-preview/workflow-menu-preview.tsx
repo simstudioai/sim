@@ -31,12 +31,13 @@ interface WorkflowMenuPreviewProps {
 
 /** A cropped production canvas with a clear center and progressively softened inner edges. */
 export function WorkflowMenuPreview({ layout = 'menu', onReady }: WorkflowMenuPreviewProps) {
-  const readyBlocksRef = useRef(new Set<string>())
+  const readyBlocksRef = useRef<Set<string> | null>(null)
+  const readyBlocks = (readyBlocksRef.current ??= new Set())
 
   const handleBlockReady = (blockId: string) => {
-    if (readyBlocksRef.current.has(blockId)) return
-    readyBlocksRef.current.add(blockId)
-    if (readyBlocksRef.current.size === BLOCKS.length) onReady?.()
+    if (readyBlocks.has(blockId)) return
+    readyBlocks.add(blockId)
+    if (readyBlocks.size === BLOCKS.length) onReady?.()
   }
 
   return (

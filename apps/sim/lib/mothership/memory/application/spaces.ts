@@ -39,8 +39,8 @@ interface SelectSpaceInput extends ListSpacesInput {
   spaceId: string | null
 }
 
-async function requireAvailable() {
-  if (!(await isMemorySpacesEnabled()))
+async function requireAvailable({ context }: { context: { userId: string } }) {
+  if (!(await isMemorySpacesEnabled(context.userId)))
     throw new OrchestrationError('not_found', 'Knowledge graph settings are unavailable')
 }
 

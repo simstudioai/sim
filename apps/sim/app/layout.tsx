@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
+import { SettingsNavigationGuard } from '@/components/settings/settings-navigation-guard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
@@ -17,6 +18,7 @@ import {
 } from '@/lib/core/config/env-flags'
 import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
+import { DesktopUpdateNotification } from '@/app/_shell/desktop-update-notification'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
@@ -32,6 +34,7 @@ import { season } from '@/app/_styles/fonts/season/season'
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#0c0c0c' },
@@ -44,6 +47,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const themeCSS = generateThemeCSS()
   const application = (
     <ToastProvider>
+      <SettingsNavigationGuard />
+      <DesktopUpdateNotification />
       <PasteAdmissionGuard />
       <PostHogProvider consentRequired={isHosted}>
         <ThemeProvider>

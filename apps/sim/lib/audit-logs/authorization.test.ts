@@ -1,8 +1,10 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingAccessMock } from '@sim/testing/mocks/billing-access.mock'
+import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscription-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/core/access', () => ({ isOrganizationBillingBlocked: vi.fn() }))
-vi.mock('@/lib/billing/subscriptions/utils', () => ({ USABLE_SUBSCRIPTION_STATUSES: ['active'] }))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 import { resolveDefaultAuditOrganization } from '@/lib/audit-logs/authorization'
 

@@ -419,15 +419,3 @@ export interface RevokeGoogleSubscriptionResponse extends ToolResponse {
     subscriber: RevenueCatSubscriber
   }
 }
-
-export type RevenueCatResponse =
-  | CustomerResponse
-  | DeleteCustomerResponse
-  | GrantEntitlementResponse
-  | RevokeEntitlementResponse
-  | ListOfferingsResponse
-  | CreatePurchaseResponse
-  | UpdateSubscriberAttributesResponse
-  | DeferGoogleSubscriptionResponse
-  | RefundGoogleSubscriptionResponse
-  | RevokeGoogleSubscriptionResponse

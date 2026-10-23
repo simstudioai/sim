@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkspaceMoveOperation, WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
-import { badRequestResponse, internalErrorResponse } from '@/app/api/v1/admin/responses'
+import { adminBadRequestResponse, adminInternalErrorResponse } from '@/app/api/v1/admin/responses'
 
 interface RouteParams {
   id: string
@@ -30,8 +30,8 @@ export const GET = withRouteHandler(
         ),
       })
     } catch (error) {
-      if (error instanceof WorkspaceMoveError) return badRequestResponse(error.message)
-      return internalErrorResponse(
+      if (error instanceof WorkspaceMoveError) return adminBadRequestResponse(error.message)
+      return adminInternalErrorResponse(
         getErrorMessage(error, 'Could not load the workspace-move operation')
       )
     }

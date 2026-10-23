@@ -44,11 +44,11 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -81,13 +81,13 @@ export const POST = withRouteHandler(
           .limit(1)
 
         if (!userData) {
-          return notFoundResponse('User')
+          return adminNotFoundResponse('User')
         }
         resolvedUserId = userData.id
         userEmail = userData.email
       } else {
         if (!email) {
-          return badRequestResponse('Either userId or email is required')
+          return adminBadRequestResponse('Either userId or email is required')
         }
 
         const normalizedEmail = normalizeEmail(email)
@@ -98,7 +98,7 @@ export const POST = withRouteHandler(
           .limit(1)
 
         if (!userData) {
-          return notFoundResponse('User with email')
+          return adminNotFoundResponse('User with email')
         }
         resolvedUserId = userData.id
         userEmail = userData.email
@@ -107,7 +107,7 @@ export const POST = withRouteHandler(
       const userSubscription = await getHighestPrioritySubscription(resolvedUserId)
 
       if (!userSubscription || !isPaid(userSubscription.plan)) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'User must have an active Pro, Team, or Enterprise subscription to receive credits'
         )
       }
@@ -129,7 +129,7 @@ export const POST = withRouteHandler(
           .limit(1)
 
         if (!orgExists) {
-          return notFoundResponse('Organization')
+          return adminNotFoundResponse('Organization')
         }
 
         const [subData] = await db
@@ -243,7 +243,7 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to issue credits', { error })
-      return internalErrorResponse('Failed to issue credits')
+      return adminInternalErrorResponse('Failed to issue credits')
     }
   })
 )

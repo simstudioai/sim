@@ -38,7 +38,7 @@ export const RunStatusControl = memo(function RunStatusControl({
           </>
         )}
       </div>
-      <Chip leftIcon={Square} onClick={onStopAll} disabled={isStopping}>
+      <Chip leftIcon={Square} mobileIconOnly onClick={onStopAll} disabled={isStopping}>
         {isStopping ? 'Stopping…' : 'Stop all'}
       </Chip>
     </div>

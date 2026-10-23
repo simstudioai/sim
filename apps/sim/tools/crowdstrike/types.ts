@@ -36,7 +36,7 @@ interface CrowdStrikeAggregateRangeSpec {
 }
 
 /** CrowdStrike's `MsaAPIFiltersSpec`: an FQL-per-bucket map plus the catch-all bucket controls. */
-export interface CrowdStrikeAggregateFiltersSpec {
+interface CrowdStrikeAggregateFiltersSpec {
   filters: Record<string, string>
   other_bucket?: boolean
   other_bucket_key?: string
@@ -144,7 +144,7 @@ export interface CrowdStrikeGetSensorAggregatesResponse extends ToolResponse {
   }
 }
 
-export interface CrowdStrikeApiError {
+interface CrowdStrikeApiError {
   code: number | null
   id: string | null
   message: string | null
@@ -378,7 +378,7 @@ export interface CrowdStrikeDeleteIndicatorsParams extends CrowdStrikeBaseParams
   comment?: string
 }
 
-export interface CrowdStrikeIndicatorMetadata {
+interface CrowdStrikeIndicatorMetadata {
   avHits: number | null
   companyName: string | null
   fileDescription: string | null
@@ -423,7 +423,7 @@ export interface CrowdStrikeQueryIndicatorsResponse extends ToolResponse {
   }
 }
 
-export interface CrowdStrikeIndicatorListResponse extends ToolResponse {
+interface CrowdStrikeIndicatorListResponse extends ToolResponse {
   output: {
     indicators: CrowdStrikeIndicator[]
     count: number
@@ -454,7 +454,7 @@ export interface CrowdStrikeGetVulnerabilityDetailsParams extends CrowdStrikeBas
   vulnerabilityIds: string[]
 }
 
-export interface CrowdStrikeVulnerabilityCve {
+interface CrowdStrikeVulnerabilityCve {
   id: string | null
   baseScore: number | null
   severity: string | null
@@ -471,13 +471,13 @@ export interface CrowdStrikeVulnerabilityCve {
   cisaDueDate: string | null
 }
 
-export interface CrowdStrikeVulnerabilityApp {
+interface CrowdStrikeVulnerabilityApp {
   productNameNormalized: string | null
   productNameVersion: string | null
   vendorNormalized: string | null
 }
 
-export interface CrowdStrikeVulnerabilityHostInfo {
+interface CrowdStrikeVulnerabilityHostInfo {
   hostname: string | null
   localIp: string | null
   machineDomain: string | null
@@ -490,7 +490,7 @@ export interface CrowdStrikeVulnerabilityHostInfo {
   groups: string[]
 }
 
-export interface CrowdStrikeVulnerabilityRemediation {
+interface CrowdStrikeVulnerabilityRemediation {
   id: string | null
   title: string | null
   action: string | null
@@ -657,26 +657,3 @@ export interface CrowdStrikeGetCaseDetailsResponse extends ToolResponse {
     errors: CrowdStrikeApiError[]
   }
 }
-
-export type CrowdStrikeResponse =
-  | CrowdStrikeQuerySensorsResponse
-  | CrowdStrikeGetSensorDetailsResponse
-  | CrowdStrikeGetSensorAggregatesResponse
-  | CrowdStrikeQueryAlertsResponse
-  | CrowdStrikeGetAlertDetailsResponse
-  | CrowdStrikeUpdateAlertsResponse
-  | CrowdStrikePerformHostActionResponse
-  | CrowdStrikeQueryHostGroupsResponse
-  | CrowdStrikeGetHostGroupDetailsResponse
-  | CrowdStrikePerformHostGroupActionResponse
-  | CrowdStrikeQueryIndicatorsResponse
-  | CrowdStrikeIndicatorListResponse
-  | CrowdStrikeDeleteIndicatorsResponse
-  | CrowdStrikeQueryVulnerabilitiesResponse
-  | CrowdStrikeGetVulnerabilityDetailsResponse
-  | CrowdStrikeInitRtrSessionResponse
-  | CrowdStrikeExecuteRtrCommandResponse
-  | CrowdStrikeGetRtrCommandStatusResponse
-  | CrowdStrikeDeleteRtrSessionResponse
-  | CrowdStrikeQueryCasesResponse
-  | CrowdStrikeGetCaseDetailsResponse

@@ -3,7 +3,8 @@ import {
   applySourceEdits,
   CodePlaceholderCompileError,
   createCodePlaceholderCompilationContext,
-  isOffsetInRanges,
+  createOffsetRangeLookup,
+  partitionPoint,
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
@@ -357,27 +358,32 @@ function collectAnnexBHtmlCommentRanges(
   source: string,
   sourceFile: ts.SourceFile
 ): AnnexBHtmlCommentRange[] {
-  const protectedRanges = [
+  const isProtected = createOffsetRangeLookup([
     ...collectStandardCommentRanges(source, sourceFile),
     ...collectJavaScriptLiteralRanges(sourceFile),
-  ]
+  ])
   const ranges: AnnexBHtmlCommentRange[] = []
 
+  // Reused across lines: searching from every line start rescans to EOF when no marker exists.
+  let nextOpenMarker = source.indexOf('<!--')
   let lineStart = 0
   while (lineStart < source.length) {
     const newline = source.indexOf('\n', lineStart)
     const lineEnd = newline === -1 ? source.length : newline
     const leadingWhitespace = /^\s*/.exec(source.slice(lineStart, lineEnd))?.[0].length ?? 0
     const closeMarker = lineStart + leadingWhitespace
-    if (source.startsWith('-->', closeMarker) && !isOffsetInRanges(closeMarker, protectedRanges)) {
+    if (source.startsWith('-->', closeMarker) && !isProtected(closeMarker)) {
       ranges.push({ start: closeMarker, end: lineEnd, markerLength: 3 })
       lineStart = newline === -1 ? source.length : newline + 1
       continue
     }
 
-    let openMarker = source.indexOf('<!--', lineStart)
+    if (nextOpenMarker !== -1 && nextOpenMarker < lineStart) {
+      nextOpenMarker = source.indexOf('<!--', lineStart)
+    }
+    let openMarker = nextOpenMarker
     while (openMarker >= 0 && openMarker < lineEnd) {
-      if (!isOffsetInRanges(openMarker, protectedRanges)) {
+      if (!isProtected(openMarker)) {
         ranges.push({ start: openMarker, end: lineEnd, markerLength: 4 })
         break
       }
@@ -714,10 +720,10 @@ export async function compileJavaScriptPlaceholders(
     ts.ScriptKind.JS
   )
   if (!input.analysisOnly) assertSyntacticallyValidJavaScript(source, input.code, sourceFile)
-  const commentRanges: Array<[number, number]> = [
+  const isInComment = createOffsetRangeLookup([
     ...collectStandardCommentRanges(parserSource, sourceFile),
     ...htmlCommentRanges.map(({ start, end }) => [start, end] as [number, number]),
-  ]
+  ])
   const itemByRange = new Map(
     sentinelOccurrences.map((item) => [`${item.occurrence.start}:${item.occurrence.end}`, item])
   )
@@ -757,12 +763,19 @@ export async function compileJavaScriptPlaceholders(
       if (ts.isTemplateExpression(node.template)) {
         for (const span of node.template.templateSpans) visit(span.expression)
       }
-      const nestedEdits = edits.splice(nestedEditStart)
+      // A stable sort: applySourceEdits keeps input order among edits with equal bounds.
+      const nestedEdits = edits
+        .splice(nestedEditStart)
+        .sort((left, right) => left.start - right.start)
       const transformedNodeText = (child: ts.Node): string => {
         const childStart = child.getStart(sourceFile)
         const childEnd = child.getEnd()
         const childEdits = nestedEdits
-          .filter((edit) => edit.start >= childStart && edit.end <= childEnd)
+          .slice(
+            partitionPoint(nestedEdits, (edit) => edit.start < childStart),
+            partitionPoint(nestedEdits, (edit) => edit.start <= childEnd)
+          )
+          .filter((edit) => edit.end <= childEnd)
           .map((edit) => ({
             ...edit,
             start: edit.start - childStart,
@@ -873,7 +886,7 @@ export async function compileJavaScriptPlaceholders(
 
     if (ts.isIdentifier(node)) {
       const item = itemByRange.get(`${node.getStart(sourceFile)}:${node.getEnd()}`)
-      if (!item || isOffsetInRanges(item.occurrence.start, commentRanges)) return
+      if (!item || isInComment(item.occurrence.start)) return
       const resolved = context.resolve(item.occurrence)
       if (!resolved) return
       if (isDeclarationIdentifier(node) || isWriteIdentifier(node)) {
@@ -919,7 +932,7 @@ export async function compileJavaScriptPlaceholders(
   visit(sourceFile)
 
   for (const item of sentinelOccurrences) {
-    if (isOffsetInRanges(item.occurrence.start, commentRanges)) continue
+    if (isInComment(item.occurrence.start)) continue
     if (!context.hasValue(item.occurrence.name) || consumed.has(item.occurrence)) continue
     rejectUnsupported(item, 'this JavaScript syntax position')
   }

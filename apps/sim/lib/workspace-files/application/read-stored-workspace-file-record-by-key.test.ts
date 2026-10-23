@@ -1,23 +1,34 @@
 import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  metadata: vi.fn(),
-  workspace: vi.fn(),
-  permission: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: mocks.metadata }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ loadActiveWorkspaceContext: mocks.workspace }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string) => ['read', 'write', 'admin'].includes(permission),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import {
   readStoredWorkspaceFileRecordByKey,
   StoredWorkspaceFileUnavailableError,
 } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
+
+const mocks = {
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  workspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  metadata: uploadsMetadataMockFns.mockGetFileMetadataByKey,
+}
 
 const input = {
   key: 'workspace/workspace-1/upload.png',
@@ -39,7 +50,7 @@ const file = {
   deletedAt: null,
   userId: 'uploader',
 }
-const session = { kind: 'session', userId: 'reader', sessionId: 'session-1' } as const
+const session = createSessionPrincipal({ userId: 'reader' })
 
 function executor(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
   return {
@@ -98,8 +109,8 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
   )
 
   it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+    createPersonalApiKeyPrincipal({ userId: 'reader' }),
+    createWorkspaceApiKeyPrincipal(),
   ])(
     'preserves the $kind authority without substituting the uploader or billing owner',
     async (principal) => {

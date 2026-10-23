@@ -24,15 +24,22 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
+import {
+  getOrCreateOauthRow,
+  hasDecryptableOauthTokens,
+  loadPreregisteredClient,
+  McpOauthRedirectRequired,
+  SimMcpOauthProvider,
+} from '@/lib/mcp/oauth'
 import type { McpOauthCredentials } from '@/lib/mcp/oauth/coordinated-fetch'
-import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
+import { findMissingMcpConfigEnvVars, resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
   getMcpCacheType,
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
+  McpConnectionError,
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
   McpServerCooldownError,
@@ -67,6 +74,19 @@ type ResolvedSecretTraceProvenanceCallback = (provenance: ResolvedSecretTracePro
 interface McpRequestOptions {
   signal?: AbortSignal
   requireComplete?: boolean
+  /**
+   * Discovery the requester did not ask for, such as an untagged server in a broad catalog
+   * query. The server's status, failure count, cooldown and OAuth row are shared by every
+   * member while credentials resolve per requester, so one member's missing credential must
+   * not mark the server failing for the rest. The guarantee is no destructive or health
+   * write: no status, failure count, cooldown or cache eviction, and the OAuth grant is never
+   * cleared, re-registered or restarted (a failed refresh skips the server). Two writes are
+   * allowed: the positive tool cache on success, and a successful token refresh, which keeps
+   * the grant valid for everyone and must persist where the server rotates refresh tokens.
+   * A server the requester cannot authenticate to is skipped, even when another member's
+   * discovery left its tools cached, without connecting.
+   */
+  bestEffort?: boolean
 }
 
 interface McpToolExecutionOptions extends McpRequestOptions {
@@ -164,6 +184,7 @@ type ServerStatusUpdate = { discoveryStartedAt?: Date } & (
 function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['authType']): boolean {
   return (
     error instanceof McpOauthAuthorizationRequiredError ||
+    error instanceof McpOauthRedirectRequired ||
     (authType === 'oauth' && error instanceof UnauthorizedError)
   )
 }
@@ -406,7 +427,8 @@ class McpService {
     resolvedIP: string | null,
     userId?: string,
     resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    preserveGrant = false
   ): Promise<McpClient> {
     const securityPolicy = {
       requireConsent: true,
@@ -441,7 +463,7 @@ class McpService {
         throw new McpOauthAuthorizationRequiredError(config.id, config.name)
       }
       const preregistered = await loadPreregisteredClient(config.id)
-      return new SimMcpOauthProvider({ row, preregistered })
+      return new SimMcpOauthProvider({ row, preregistered, preserveGrant })
     }
     const client = new McpClient({
       config,
@@ -490,6 +512,18 @@ class McpService {
     })
     await client.connect({ signal })
     return client
+  }
+
+  /** An operation owns this unpooled client and must disconnect it in its finalizer. */
+  async openManagedMcpSession(
+    serverId: string,
+    scope: ResourceScope,
+    auth: McpOauthCredentials,
+    signal: AbortSignal
+  ): Promise<Pick<McpClient, 'listTools' | 'callTool' | 'disconnect'>> {
+    const config = await this.getServerConfig(serverId, scope)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.createManagedOauthClient(config, auth, signal)
   }
 
   async discoverManagedMcpTools(
@@ -562,7 +596,8 @@ class McpService {
     workspaceId: string,
     extraHeaders?: Record<string, string>,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    preserveGrant = false
   ): () => Promise<McpClient> {
     return async () => {
       const {
@@ -583,7 +618,8 @@ class McpService {
         resolvedIP,
         userId,
         resolvedSecretTraceProvenance,
-        signal
+        signal,
+        preserveGrant
       )
     }
   }
@@ -594,6 +630,10 @@ class McpService {
    * so the retry re-acquires a fresh one that re-resolves the credential. (OAuth
    * 401s are left to the caller's oauth-pending handling.) `listTools` is
    * idempotent, so the retry is always safe.
+   *
+   * `preserveGrant` connects an OAuth server with a provider that may persist a refreshed
+   * grant but never clears, re-registers or restarts it. Such a client is pooled apart, so
+   * neither kind of caller borrows the other's provider.
    */
   private async fetchServerTools(
     config: McpServerConfig,
@@ -601,14 +641,17 @@ class McpService {
     workspaceId: string,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
     signal?: AbortSignal,
-    requireComplete = false
+    requireComplete = false,
+    preserveGrant = false
   ): Promise<McpTool[]> {
+    const poolKey = this.poolKey(config.id, workspaceId, userId)
     for (let attempt = 0; ; attempt++) {
       signal?.throwIfAborted()
       try {
         return await this.withServerClient(
           {
-            key: this.poolKey(config.id, workspaceId, userId),
+            key:
+              preserveGrant && config.authType === 'oauth' ? `${poolKey}:preserve-grant` : poolKey,
             serverId: config.id,
             allowPool: true,
           },
@@ -618,7 +661,8 @@ class McpService {
             workspaceId,
             undefined,
             onResolvedSecretTraceProvenance,
-            signal
+            signal,
+            preserveGrant
           ),
           (client) => {
             reportRetainedClientProvenance(
@@ -1139,12 +1183,13 @@ class McpService {
         workspaceId,
         refresh,
         createInvocationProvenanceReporter(onResolvedSecretTraceProvenance),
-        options.signal,
-        options.requireComplete
+        options
       )
     }
 
-    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}:partial-ok`
+    const bestEffort = options.bestEffort === true
+    // A best-effort discovery skips the bookkeeping a tracked one owes, so they never share.
+    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}:${bestEffort ? 'best-effort' : 'partial-ok'}`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
 
@@ -1154,8 +1199,9 @@ class McpService {
       workspaceId,
       refresh,
       undefined,
-      undefined,
-      false
+      {
+        bestEffort,
+      }
     ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
     })
@@ -1169,13 +1215,17 @@ class McpService {
     workspaceId: string,
     refresh: McpDiscoveryRefresh,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    signal?: AbortSignal,
-    requireComplete = false
+    { signal, requireComplete = false, bestEffort = false }: McpRequestOptions = {}
   ): Promise<McpTool[]> {
     signal?.throwIfAborted()
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
     const maxRetries = 2
+
+    // Before the cache: another member's cached tools never reach a requester who cannot call them.
+    const requesterConfig = bestEffort
+      ? await this.loadAuthenticatableServerConfig(serverId, userId, workspaceId)
+      : undefined
 
     if (refresh === 'cache-aside' && !requireComplete) {
       try {
@@ -1202,7 +1252,7 @@ class McpService {
           `[${requestId}] Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
         )
 
-        const config = await this.getServerConfig(serverId, workspaceId)
+        const config = requesterConfig ?? (await this.getServerConfig(serverId, workspaceId))
         if (!config) {
           throw new Error(`Server ${serverId} not found or not accessible`)
         }
@@ -1214,22 +1264,26 @@ class McpService {
           workspaceId,
           onResolvedSecretTraceProvenance,
           signal,
-          requireComplete
+          requireComplete,
+          bestEffort
         )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-        await Promise.allSettled([
-          this.cacheAdapter
-            .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
-            .catch((err) =>
-              logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
-            ),
-          this.clearServerFailure(workspaceId, serverId),
-          this.updateServerStatus(serverId, workspaceId, {
-            outcome: 'connected',
-            toolCount: tools.length,
-            discoveryStartedAt,
-          }),
-        ])
+        const cacheWrite = this.cacheAdapter
+          .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
+          .catch((err) => logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err))
+        await Promise.allSettled(
+          bestEffort
+            ? [cacheWrite]
+            : [
+                cacheWrite,
+                this.clearServerFailure(workspaceId, serverId),
+                this.updateServerStatus(serverId, workspaceId, {
+                  outcome: 'connected',
+                  toolCount: tools.length,
+                  discoveryStartedAt,
+                }),
+              ]
+        )
         return tools
       } catch (error) {
         signal?.throwIfAborted()
@@ -1245,6 +1299,7 @@ class McpService {
           signal?.throwIfAborted()
           continue
         }
+        if (bestEffort) throw error
         // Drop positive cache so a follow-up doesn't return stale tools.
         const statusApplied = isOauthAuthorizationError(error, authType)
           ? await this.markServerOauthPending(serverId, workspaceId, discoveryStartedAt)
@@ -1268,6 +1323,28 @@ class McpService {
     }
 
     throw new Error(`Failed to discover tools from server ${serverId} after ${maxRetries} attempts`)
+  }
+
+  /**
+   * The server's config, once it is known `userId` can authenticate to it without trying:
+   * every variable it references resolves for them, and an OAuth server has been authorized.
+   */
+  private async loadAuthenticatableServerConfig(
+    serverId: string,
+    userId: string,
+    workspaceId: string
+  ): Promise<McpServerConfig> {
+    const config = await this.getServerConfig(serverId, workspaceId)
+    if (!config) throw new Error(`Server ${serverId} not found or not accessible`)
+    const missing = await findMissingMcpConfigEnvVars(config, userId, workspaceId)
+    if (missing.length)
+      throw new McpConnectionError(
+        `Missing environment variables for this user: ${missing.join(', ')}`,
+        config.name
+      )
+    if (config.authType === 'oauth' && !(await hasDecryptableOauthTokens(config.id)))
+      throw new McpOauthAuthorizationRequiredError(config.id, config.name)
+    return config
   }
 
   async getServerSummaries(userId: string, workspaceId: string): Promise<McpServerSummary[]> {

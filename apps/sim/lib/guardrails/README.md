@@ -26,7 +26,7 @@ PII detection runs against a **standalone Presidio service** — a combined anal
 `AnalyzerEngine` + `AnonymizerEngine` once and exposes `/analyze`, `/anonymize`, and `/health` on a
 single port. In deployment it is its **own ECS service** (a dedicated task/service, not a sidecar in
 the app task), reached over the network via `PII_URL` and scaled independently of the app. The app
-(both the Next.js server and the trigger.dev runtime) is a thin HTTP client (`validate_pii.ts`) — no
+(both the Next.js server and the trigger.dev runtime) is a thin HTTP client (`validate-pii.ts`) — no
 Python, no local venv.
 
 Locally, build and run it as a container:
@@ -104,10 +104,10 @@ See [Presidio documentation](https://microsoft.github.io/presidio/supported_enti
 
 ## Files
 
-- `validate_json.ts` - JSON validation (TypeScript)
-- `validate_regex.ts` - Regex validation (TypeScript)
-- `validate_hallucination.ts` - Hallucination detection with RAG + LLM scoring (TypeScript)
-- `validate_pii.ts` - PII detection client: calls the Presidio service's /analyze + /anonymize (TypeScript)
+- `validate-json.ts` - JSON validation (TypeScript)
+- `validate-regex.ts` - Regex validation (TypeScript)
+- `validate-hallucination.ts` - Hallucination detection with RAG + LLM scoring (TypeScript)
+- `validate-pii.ts` - PII detection client: calls the Presidio service's /analyze + /anonymize (TypeScript)
 - `pii-entities.ts` - Client-safe PII entity + language catalog (shared by the block and Data Retention)
 - `mask-client.ts` - Internal HTTP client for batch PII masking from the log-redaction persist path
 - `validate.test.ts` - Test suite for JSON and regex validators

@@ -1,4 +1,4 @@
-import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
+import type { RawFileInput } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 

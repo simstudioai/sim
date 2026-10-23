@@ -156,6 +156,18 @@ export const SOURCE_PERMISSION_ERROR =
 export const SOURCE_CONTENT_ERROR =
   'Source content could not be refreshed. The connector will retry at its next scheduled sync.'
 
+/** The per-sync image cap held some new images back; nothing failed. */
+export const IMAGES_DEFERRED_NOTICE =
+  'Some new or changed images were left for the next scheduled sync to keep this sync within its image extraction limit.'
+
+/**
+ * Whether a member's last notice means its listing left documents behind, so the
+ * next listing must be full: a change feed would not offer them again.
+ */
+export function noticeRequiresFullListing(notice: string | null): boolean {
+  return notice === SOURCE_CONTENT_ERROR || notice === IMAGES_DEFERRED_NOTICE
+}
+
 /**
  * Documents whose permission evidence is refreshed per statement. Documents are
  * grouped by identical ACL first — files under one folder overwhelmingly share
@@ -179,9 +191,7 @@ export const LEASE_PAGE_STATEMENT_TIMEOUT_MS = 30_000
  * document trigger that copies it onto every chunk's search projection rows, and
  * each of those rows is re-inserted into the vector index, so one statement costs
  * the chunks of every document in it rather than the documents. Kept small so a
- * page of changed documents cannot outrun the statement timeout; with
- * `knowledge-async-projection` on, the trigger only marks the documents and the bound is the
- * cleanup boundary noted at `pagesByProjectionRows` in `member-observations.ts`. Also the page
+ * page of changed documents cannot outrun the statement timeout. Also the page
  * of the transactions that remove observations and rematerialise the ACLs they
  * decide together, which must commit as one and so cannot be split by rows.
  */

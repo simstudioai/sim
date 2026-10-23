@@ -1,0 +1,28 @@
+---
+title: Linear
+description: Find issues and comment discussions with your Linear account
+---
+
+Linear Search finds issues and their comments using your own account. It uses **Member accounts** and needs Linear's `read` permission.
+
+## Connect and search
+
+An admin adds **Linear** in **Settings → Sources**, then each member connects Linear in **Integrations**. Search an issue key such as `ENG-42`, a distinctive phrase, or a short issue description. Read the result and follow its Linear link.
+
+Linear combines full-text and vector retrieval. Sim includes comments and archived issues, so a discussion can match without the terms appearing in the title. GitHub qualifiers such as `repo:` and `is:pr` do not apply.
+
+## Projects, dates, and pagination
+
+Ask Sim to narrow a native query to a project UUID, rather than a project name or team ID. Date filters use issue modification time. Relevance is the default; newest/oldest sorting also uses modification time. Date-only queries list issues in the requested range. Continue a returned cursor with the same query and account.
+
+## Issue discussions and limits
+
+Reads include description, state, assignee, project, and up to 150 comments, capped at 120,000 discussion characters. Authors, timestamps, direct links, and reply relationships are preserved. More comments or failed pagination produce an incomplete-discussion notice.
+
+Standalone project documents and updates are not searchable through this adapter. For weak results, shorten the phrase, try an issue key, or change project scope. Linear's `searchIssues` operation currently has a 30-request-per-minute quota, alongside other API limits. Quota and access failures are reported explicitly.
+
+## Related docs
+
+- [Linear GraphQL schema](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql)
+- [Filtering](https://linear.app/developers/filtering)
+- [Pagination](https://linear.app/developers/pagination)

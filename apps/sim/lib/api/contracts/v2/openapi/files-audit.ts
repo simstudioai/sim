@@ -1,4 +1,5 @@
 import { v2GetAuditLogContract, v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
+import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import {
   v2DeleteFileVersionContract,
   v2DownloadFileVersionContract,
@@ -63,6 +64,7 @@ import {
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
+import { fileCopyOperation } from '@/lib/workspace-files/application/copy-operation'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
@@ -153,13 +155,42 @@ function auditOperation(
   }
 }
 
+export const unpublishedFileCopyOpenApiRoutes = [
+  defineOpenApiRoute(
+    v2CopyFileItemsContract,
+    filesOperation({
+      applicationOperation: fileCopyOperation,
+      operationId: 'copyFileItems',
+      summary: 'Copy File Items',
+      description: `Copy selected files and folder trees between workspace or Project owners. Source read and destination write access are checked independently. Copies receive new identities and retain source secret provenance. Registration is atomic, with destination names resolved by the existing copy rules. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
+      success: { description: 'New file and folder identities with their destination owner.' },
+    }),
+    {
+      query: v2CopyFileItemsContract.query,
+      body: documentedSchema(
+        v2CopyFileItemsContract.body,
+        'CopyFileItemsRequest',
+        'Copy file items request',
+        'Exact source owner and selected identifiers, plus the destination owner and folder.'
+      ),
+      response: documentedSchema(
+        v2CopyFileItemsContract.response.schema,
+        'V2CopyFileItemsResponse',
+        'Copy file items response',
+        'Created files and folders, without private storage keys.'
+      ),
+    }
+  ),
+]
+
 const declaredRoutes = [
   defineOpenApiRoute(
     v2ListFilesContract,
     filesOperation({
       applicationOperation: fileOperations.list,
       operationId: 'listFiles',
-      summary: 'List Files',
+      summary: 'List files',
       description: `List active workspace files with folder filtering, search, sorting, and cursor pagination. Use \`scope=archived\` to find files available for restoration. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of workspace files.' },
@@ -185,7 +216,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.create,
       operationId: 'createFile',
-      summary: 'Create File',
+      summary: 'Create file',
       description:
         'Create a workspace file from inline UTF-8 or base64 content. Use an upload session for streamed or larger files.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
@@ -208,9 +239,9 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2CreateFileContract.response.schema,
-        'V2FileResponse',
-        'File response',
-        'A single workspace file.',
+        'V2CreatedFileResponse',
+        'Created file response',
+        'A newly created workspace file, with the revision it produced.',
         [{ data: FILE_EXAMPLE }]
       ),
     }
@@ -220,7 +251,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.uploadCreate,
       operationId: 'createFileUpload',
-      summary: 'Create File Upload',
+      summary: 'Create file upload',
       description:
         'Create a resumable upload session and receive either a signed PUT URL or multipart instructions.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
@@ -255,7 +286,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.uploadRead,
       operationId: 'getFileUpload',
-      summary: 'Get File Upload',
+      summary: 'Get file upload',
       description:
         "Get an upload session's state to determine whether an interrupted transfer can resume. Requires the signed upload token and current workspace access.",
       errors: RESOURCE_ERRORS,
@@ -293,7 +324,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.uploadCancel,
       operationId: 'abortFileUpload',
-      summary: 'Abort File Upload',
+      summary: 'Abort file upload',
       description:
         'Abort an incomplete upload session and discard its uploaded data. Completed uploads cannot be aborted.',
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -331,7 +362,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.uploadParts,
       operationId: 'createFileUploadPartUrls',
-      summary: 'Create File Upload Part URLs',
+      summary: 'Create file upload part URLs',
       description: 'Create signed URLs for a bounded set of multipart upload part numbers.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Signed URLs for the requested upload parts.' },
@@ -375,7 +406,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.uploadComplete,
       operationId: 'completeFileUpload',
-      summary: 'Complete File Upload',
+      summary: 'Complete file upload',
       description:
         'Finalize an upload and register its workspace file. Repeating a completed upload returns the existing file.',
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -413,9 +444,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.readContent,
       operationId: 'readFileText',
-      summary: 'Read File Text',
+      summary: 'Read file text',
       description:
-        'Extract text without changing the file. Accepts its ID or canonical path (`files/<folder>/<name>` or `uploads/<name>` for an unlisted chat upload); the response echoes the read path. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.',
+        'Extract text without changing the file. Accepts its ID or canonical path (`files/<folder>/<name>` or `uploads/<name>` for an unlisted chat upload); the response echoes the read path. Use Unzip file to unpack archives or Download file for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),
@@ -445,7 +476,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.listVersions,
       operationId: 'listFileVersions',
-      summary: 'List File Versions',
+      summary: 'List file versions',
       description:
         'List the versions of a file, newest first by default. Each write that changes the bytes records one; identical rewrites do not. Collaborative edits, and repeated workflow writes by one author, fold into a version under ten minutes old and written in the last five. Renames and moves are not versions. Retention removes older versions by age and plan but keeps the newest ten, so numbers can have gaps.',
       errors: RESOURCE_ERRORS,
@@ -478,7 +509,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.readVersion,
       operationId: 'getFileVersion',
-      summary: 'Get File Version',
+      summary: 'Get file version',
       description:
         'Get one version of a file. A version removed by retention, or one that never existed, returns `404`.',
       errors: RESOURCE_ERRORS,
@@ -511,9 +542,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.deleteVersion,
       operationId: 'deleteFileVersion',
-      summary: 'Delete File Version',
+      summary: 'Delete file version',
       description:
-        'Permanently delete one earlier version and its stored content, for example to purge a leaked value from history before retention removes it. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.',
+        'Permanently remove an earlier version from history and schedule deletion of its stored content. Storage cleanup may retry in the background. The current version returns `409`; revert to another version first. A version that does not exist returns `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Deletion confirmation.' },
     }),
@@ -544,9 +575,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.readVersionContent,
       operationId: 'readFileVersionText',
-      summary: 'Read File Version Text',
+      summary: 'Read file version text',
       description:
-        'Extract the text of one version, exactly as Read File Text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.',
+        'Extract the text of one version, exactly as Read file text extracts the current content. Unsupported types return `400`, compiling documents return `409`, and oversized versions return `413`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The extracted text of the version and its extraction-quality flags.',
@@ -578,8 +609,8 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.downloadVersion,
       operationId: 'downloadFileVersion',
-      summary: 'Download File Version',
-      description: `Download the bytes of one version, served exactly as Download File serves the current bytes. Generated documents use compiled artifacts, returning \`409\` while compiling and \`413\` above the rendered-size ceiling. Downloading records an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      summary: 'Download file version',
+      description: `Download the bytes of one version, served exactly as Download file serves the current bytes. Generated documents use compiled artifacts, returning \`409\` while compiling and \`413\` above the rendered-size ceiling. Downloading records an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The version bytes.',
@@ -607,9 +638,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.revertVersion,
       operationId: 'revertFileVersion',
-      summary: 'Revert File Version',
+      summary: 'Revert file version',
       description:
-        'Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MB returns `413`.',
+        'Make the content of a version current again by writing it as a new `revert` version, so the revert can itself be reverted. Open editors receive the change. Reverting to the current version writes nothing and returns `reverted: false`. A concurrent write, or an `expectedCurrentVersion` that is no longer current, returns `409`; a version above 100 MiB returns `413`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The file and its current version after the revert.' },
     }),
@@ -656,7 +687,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.download,
       operationId: 'bulkDownloadFiles',
-      summary: 'Bulk Download Files',
+      summary: 'Bulk download files',
       description: `Stream selected files and recursive folder contents as a ZIP archive. Each selection parameter and the resolved set allow ${MAX_ZIP_DOWNLOAD_FILES} entries; unmatched paths or excess entries return \`400\`. Total bytes are bounded. Downloads record an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
@@ -679,9 +710,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.extractArchive,
       operationId: 'unzipFile',
-      summary: 'Unzip File',
+      summary: 'Unzip file',
       description:
-        'Extract a ZIP archive into a new sibling folder and return counts and the destination path. Use List Files to inspect its contents. Large archives can take minutes; concurrent extraction of the same archive returns `409`. Size or processing-time limits return `413`.',
+        'Extract a ZIP archive into a new sibling folder and return counts and the destination path. Use List files to inspect its contents. Large archives can take minutes; concurrent extraction of the same archive returns `409`. Size or processing-time limits return `413`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Counts and destination folder for the unpacked archive.' },
     }),
@@ -712,7 +743,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.download,
       operationId: 'downloadFile',
-      summary: 'Download File',
+      summary: 'Download file',
       description: `Download current file bytes. Generated documents use compiled artifacts, returning \`409\` while compiling and \`413\` above the rendered-size ceiling. Downloading records an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
@@ -741,9 +772,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.delete,
       operationId: 'deleteFile',
-      summary: 'Delete File',
+      summary: 'Delete file',
       description:
-        'Archive a workspace file, retaining its stored bytes and removing API read access. List Files with `scope=archived` finds it; Restore File recovers it. Archiving an already archived file returns `404`.',
+        'Archive a workspace file, retaining its stored bytes and removing API read access. List files with `scope=archived` finds it; Restore file recovers it. Archiving an already archived file returns `404`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Deletion confirmation.' },
     }),
@@ -773,7 +804,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.rename,
       operationId: 'renameFile',
-      summary: 'Rename File',
+      summary: 'Rename file',
       description: 'Rename a workspace file without changing its containing folder.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The renamed file.' },
@@ -812,7 +843,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.restore,
       operationId: 'restoreFile',
-      summary: 'Restore File',
+      summary: 'Restore file',
       description:
         'Restore a soft-deleted file to its original folder, or the workspace root if that folder was archived. Name collisions add a `_restored` suffix; read `folderPath` and `name` from the response. Already-active files return unchanged, making retries safe. An archived workspace returns `400`; an unresolved name collision returns `409`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
@@ -837,7 +868,7 @@ const declaredRoutes = [
         v2RestoreFileContract.response.schema,
         'V2RestoreFileResponse',
         'Restore file response',
-        'The restored workspace file, at the root and under its post-restore name.',
+        'The restored file, with its resulting folderPath and name.',
         [{ data: { ...FILE_EXAMPLE, name: 'data_restored.csv', folderPath: '/' } }]
       ),
     }
@@ -847,9 +878,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.readMetadata,
       operationId: 'getFile',
-      summary: 'Get File Metadata',
+      summary: 'Get file metadata',
       description:
-        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List File Versions and is the precondition Revert File Version accepts.',
+        'Get file metadata, its public-share configuration, and the version number of its current content. The `share` field is null when the file has never been shared. `currentVersion` identifies the content in List file versions and is the precondition Revert file version accepts.',
       errors: RESOURCE_ERRORS,
       success: { description: 'File metadata and public-share state.' },
     }),
@@ -898,7 +929,7 @@ const declaredRoutes = [
     auditOperation({
       applicationOperation: auditLogOperations.list,
       operationId: 'listAuditLogs',
-      summary: 'List Audit Logs',
+      summary: 'List audit logs',
       description: `List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
       errors: WORKSPACE_ERRORS,
       success: { description: 'A page of audit-log entries.' },
@@ -924,7 +955,7 @@ const declaredRoutes = [
     auditOperation({
       applicationOperation: auditLogOperations.readDetail,
       operationId: 'getAuditLog',
-      summary: 'Get Audit Log',
+      summary: 'Get audit log',
       description: `Get one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The requested audit-log entry.' },
@@ -956,7 +987,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.move,
       operationId: 'moveFileItems',
-      summary: 'Move Files',
+      summary: 'Move files',
       description: 'Move up to 1,000 files to a folder path or the workspace root.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Count of moved files.' },
@@ -990,7 +1021,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.readShare,
       operationId: 'getFileShare',
-      summary: 'Get File Share',
+      summary: 'Get file share',
       description:
         "Get a file's public-share configuration. An unshared file returns `data: null`; a disabled share returns its configuration with `isActive: false`.",
       errors: RESOURCE_ERRORS,
@@ -1023,7 +1054,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.updateShare,
       operationId: 'upsertFileShare',
-      summary: 'Enable or Disable File Share',
+      summary: 'Enable or disable file share',
       description: `Create or update a file's public share. \`isActive\` is required; other fields describe their behavior when access modes change. Enabling a protected mode on a previously unshared file requires its credential in the same request. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated file share.' },
@@ -1067,9 +1098,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.updateContent,
       operationId: 'editFileContent',
-      summary: 'Edit File Content',
+      summary: 'Edit file content',
       description:
-        'Edit part of a UTF-8 file; use Replace File Content to replace it entirely. Search-and-replace requires one exact match unless `replaceAll` is true. Anchored modes match trimmed complete lines; their input descriptions specify boundary handling. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.',
+        'Edit part of a UTF-8 file; use Replace file content to replace it entirely. Search-and-replace requires one exact match unless `replaceAll` is true. Anchored modes match trimmed complete lines; their input descriptions specify boundary handling. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: { description: 'The edited file and its new line count.' },
     }),
@@ -1119,7 +1150,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.searchContent,
       operationId: 'searchFileContent',
-      summary: 'Search File Content',
+      summary: 'Search file content',
       description:
         'Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and reported coverage. Missing matches are inconclusive if `complete` is false or `indexStatus.skippedFiles` or `indexStatus.partialFiles` is nonzero. `truncated` means additional matches exist beyond `maxResults`.',
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Locked'],
@@ -1168,7 +1199,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.updateContent,
       operationId: 'updateFileContent',
-      summary: 'Replace File Content',
+      summary: 'Replace file content',
       description:
         'Replace the complete contents of an existing file from UTF-8 or base64 input. A stale `expectedRevision`, or a write that raced this one, returns `409`; re-read before retrying.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
@@ -1215,9 +1246,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.delete,
       operationId: 'bulkDeleteFiles',
-      summary: 'Delete Files',
+      summary: 'Delete files',
       description:
-        'Archive up to 1,000 workspace files while retaining their stored bytes. Use Restore File to recover each file.',
+        'Archive up to 1,000 workspace files while retaining their stored bytes. Use Restore file to recover each file.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Count of deleted files.' },
     }),
@@ -1249,8 +1280,8 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.listFolders,
       operationId: 'listFilesFolders',
-      summary: 'List Folders',
-      description: `List workspace file folders with parent-path filtering and sorting. Use \`scope=archived\` to find paths accepted by Restore Folder. ${FULL_SET_LIST}`,
+      summary: 'List folders',
+      description: `List workspace file folders with parent-path filtering and sorting. Use \`scope=archived\` to find paths accepted by Restore folder. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Workspace file folders.' },
     }),
@@ -1274,9 +1305,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.restoreFolder,
       operationId: 'restoreFilesFolder',
-      summary: 'Restore Folder',
+      summary: 'Restore folder',
       description:
-        'Restore a folder and the files and subfolders archived with it. Use the path from List Folders with `scope=archived`. A path that is not archived returns `404`.',
+        'Restore a folder and the files and subfolders archived with it. Use the path from List folders with `scope=archived`. A path that is not archived returns `404`.',
       errors: [...RESOURCE_CONFLICT_ERRORS],
       success: { description: 'The restored folder and what it brought back.' },
     }),
@@ -1301,7 +1332,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.createFolder,
       operationId: 'createFilesFolder',
-      summary: 'Create Folder',
+      summary: 'Create folder',
       description: 'Create a folder at the supplied workspace path.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created folder.' },
@@ -1333,7 +1364,7 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.updateFolder,
       operationId: 'relocateFilesFolder',
-      summary: 'Rename or Move Folder',
+      summary: 'Rename or move folder',
       description: 'Rename or move a folder and atomically update all descendant paths.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The relocated folder.' },
@@ -1366,9 +1397,9 @@ const declaredRoutes = [
     filesOperation({
       applicationOperation: fileOperations.deleteFolder,
       operationId: 'deleteFilesFolder',
-      summary: 'Delete Folder',
+      summary: 'Delete folder',
       description:
-        'Archive an empty folder, or set `recursive=true` to archive its files and subfolders. Use Restore Folder to recover the archived contents.',
+        'Archive an empty folder, or set `recursive=true` to archive its files and subfolders. Use Restore folder to recover the archived contents.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Folder deletion confirmation and deleted item counts.' },
     }),

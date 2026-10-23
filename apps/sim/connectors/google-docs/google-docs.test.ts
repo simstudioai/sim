@@ -1,9 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/components/icons', () => ({
-  GoogleDocsIcon: () => null,
-}))
-
+import { describe, expect, it, vi } from 'vitest'
 import { googleDocsConnector } from '@/connectors/google-docs/google-docs'
 
 const ACCESS_TOKEN = 'token-123'
@@ -35,10 +30,6 @@ function stubFetchDocument(docsResponse: Response) {
 }
 
 describe('googleDocsConnector', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   describe('getDocument', () => {
     it.each([{}, { ...DRIVE_FILE, id: 'different-document' }])(
       'rejects malformed Drive metadata instead of replacing retained content',

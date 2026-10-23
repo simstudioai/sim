@@ -66,6 +66,19 @@ describe('toCopyableMarkdown', () => {
     ])
   })
 
+  it('keeps an organization resource owner so the pasted chip still resolves', () => {
+    const message = `See <workspace_resource>${JSON.stringify({
+      workspaceId: 'sales',
+      type: 'table',
+      id: 'table-1',
+      title: 'Accounts',
+    })}</workspace_resource>.`
+
+    const [link] = parseChipLinks(toCopyableMarkdown(message))
+
+    expect(link).toMatchObject({ kind: 'table', id: 'table-1', workspaceId: 'sales' })
+  })
+
   it('copies unresolved file references as plain text', () => {
     const message =
       'Read <workspace_resource>{"type":"file","path":"files/Q1 plan).md","title":"Q1 plan).md"}</workspace_resource>.'

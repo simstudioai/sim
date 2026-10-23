@@ -14,7 +14,10 @@ import {
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
 import { formatInertStringLiteral, formatLiteralForCode } from '@/executor/utils/code-formatting'
-import { buildClonedSubflowId, extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
+import {
+  buildOuterBranchScopedId,
+  extractOuterBranchIndex,
+} from '@/executor/utils/subflow-node-id-codec'
 import {
   type AsyncPathNavigator,
   navigatePath,
@@ -355,7 +358,7 @@ export class BlockResolver implements Resolver {
 
     if (shouldResolveClonedSubflowOutput) {
       const clonedState = context.executionState.getBlockState(
-        buildClonedSubflowId(blockId, mappedBranchIndex)
+        buildOuterBranchScopedId(blockId, mappedBranchIndex)
       )
       if (clonedState !== undefined) {
         return clonedState

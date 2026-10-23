@@ -1,13 +1,17 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
+import { generateId } from '@sim/utils/id'
+import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 import type {
   ShopifyAdjustInventoryParams,
   ShopifyInventoryAdjustmentResponse,
 } from '@/tools/shopify/types'
 import { INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyAdjustInventoryTool: ToolConfig<
-  ShopifyAdjustInventoryParams,
+  ShopifyAdjustInventoryParams & {
+    _context?: { executionId?: string; blockId?: string; invocationId?: string }
+  },
   ShopifyInventoryAdjustmentResponse
 > = {
   id: 'shopify_adjust_inventory',
@@ -18,12 +22,58 @@ export const shopifyAdjustInventoryTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    idempotencyKey: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Unique key for this adjustment; reuse the same key when retrying the same change',
+    },
+    reason: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Inventory reason, e.g. correction, received, damaged, or promotion (default correction)',
+    },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Inventory quantity to adjust: available or on_hand (default available)',
+    },
+    referenceDocumentUri: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'URI identifying the source document for this adjustment',
+    },
+    changeFromQuantity: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Expected current quantity; prevents applying an adjustment to stale stock',
+    },
+    ledgerDocumentUri: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ledger entry URI; required when adjusting on_hand',
+    },
+
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -48,18 +98,9 @@ export const shopifyAdjustInventoryTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
       if (!params.inventoryItemId) {
         throw new Error('Inventory item ID is required')
@@ -71,13 +112,37 @@ export const shopifyAdjustInventoryTool: ToolConfig<
         throw new Error('Delta is required')
       }
 
+      if (!Number.isInteger(params.delta)) throw new Error('Delta must be an integer')
+      if (params.changeFromQuantity != null && !Number.isInteger(params.changeFromQuantity))
+        throw new Error('Expected quantity must be an integer')
+
+      if (params.name && params.name !== 'available' && !params.ledgerDocumentUri?.trim()) {
+        throw new Error('A ledger document URI is required for non-available inventory changes')
+      }
+
+      const context = params._context
+      const idempotencyKey =
+        params.idempotencyKey?.trim() ||
+        (context?.executionId && context.blockId && context.invocationId
+          ? deriveDeliveryKey(
+              {
+                executionId: context.executionId,
+                blockId: context.blockId,
+                invocationId: context.invocationId,
+                toolId: 'shopify_adjust_inventory',
+              },
+              'shopify_adjust_inventory'
+            )
+          : generateId())
+
       return {
         query: `
-          mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
-            inventoryAdjustQuantities(input: $input) {
+          mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+            inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
               inventoryAdjustmentGroup {
                 createdAt
                 reason
+                referenceDocumentUri
                 changes {
                   name
                   delta
@@ -98,16 +163,21 @@ export const shopifyAdjustInventoryTool: ToolConfig<
               }
             }
           }
+
         `,
         variables: {
+          idempotencyKey,
           input: {
-            reason: 'correction',
-            name: 'available',
+            referenceDocumentUri: params.referenceDocumentUri,
+            reason: params.reason || 'correction',
+            name: params.name || 'available',
             changes: [
               {
                 inventoryItemId: params.inventoryItemId.trim(),
                 locationId: params.locationId.trim(),
                 delta: params.delta,
+                changeFromQuantity: params.changeFromQuantity ?? null,
+                ledgerDocumentUri: params.ledgerDocumentUri,
               },
             ],
           },
@@ -119,10 +189,10 @@ export const shopifyAdjustInventoryTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to adjust inventory',
+        error: data.errors?.[0]?.message || 'Failed to adjust inventory',
         output: {},
       }
     }

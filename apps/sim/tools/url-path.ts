@@ -165,11 +165,18 @@ function encodeSegment(segment: string, paramName: string): string {
  *   number or a bigint is stringified, since an LLM can emit a numeric-looking
  *   id as a JSON number; any other non-string kind is rejected by name.
  * @param paramName - The parameter name, used to name the offender in errors.
+ * @param options.allowSeparators - Percent-encode `/` and `\` instead of
+ *   rejecting them, for opaque ids (such as base64) that may legitimately
+ *   contain them. Empty values and dot segments are still rejected.
  * @returns The trimmed, percent-encoded segment, safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, is a dot
- *   segment, contains a path separator, or cannot be encoded.
+ *   segment, contains a path separator (unless allowed), or cannot be encoded.
  */
-export function safeUrlPathSegment(value: string | number | bigint, paramName: string): string {
+export function safeUrlPathSegment(
+  value: string | number | bigint,
+  paramName: string,
+  options?: { allowSeparators?: boolean }
+): string {
   const trimmed = toGuardedString(value, paramName).trim()
 
   if (!trimmed) {
@@ -180,9 +187,35 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
     throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
   }
 
-  if (trimmed.includes('/') || trimmed.includes('\\')) {
+  if (!options?.allowSeparators && (trimmed.includes('/') || trimmed.includes('\\'))) {
     throw new Error(`${paramName} cannot contain a path separator`)
   }
 
   return encodeSegment(trimmed, paramName)
+}
+
+/** Matches a scheme and authority, which end at the first `/`, `\`, `?`, or `#` in a special-scheme URL. */
+const SCHEME_AND_AUTHORITY = /^[a-z][a-z\d+.-]*:[\\/]*[^\\/?#]*/i
+
+/**
+ * Rejects a request URL whose path carries a dot segment the WHATWG parser
+ * would resolve away. Mirrors the parser: boundary C0 controls and spaces,
+ * then tabs and newlines, are stripped, `\` separates segments like `/`, and
+ * `%2e` counts as a dot.
+ *
+ * @throws If the path contains a `.` or `..` segment in any spelling.
+ */
+export function assertNoDotPathSegments(url: string): void {
+  const path = url
+    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '')
+    .replace(/[\t\n\r]/g, '')
+    .replace(SCHEME_AND_AUTHORITY, '')
+    .split(/[?#]/, 1)[0]
+  const hasDotSegment = path.split(/[\\/]/).some((segment) => {
+    const decoded = segment.replace(/%2e/gi, '.')
+    return decoded === '.' || decoded === '..'
+  })
+  if (hasDotSegment) {
+    throw new Error('Tool request URL cannot contain "." or ".." path segments')
+  }
 }

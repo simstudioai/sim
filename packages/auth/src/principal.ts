@@ -4,6 +4,7 @@ export type Principal =
   | OAuthAccessTokenPrincipal
   | WorkspaceApiKeyPrincipal
   | DelegatedPrincipal
+  | ResourceDelegatedPrincipal
   | OrganizationDelegatedPrincipal
   | SystemPrincipal
   | CredentialGroupEnrollmentPrincipal
@@ -12,7 +13,7 @@ export type Principal =
   | SlackAppPrincipal
 
 /** Verified app-wide ingress authority; installation lookup grants no human access. */
-export interface SlackAppPrincipal {
+interface SlackAppPrincipal {
   kind: 'slack_app'
   appId: string
   appRevision: string
@@ -94,7 +95,7 @@ export interface ExternalUserSubject {
 }
 
 /** Email address proven by a deployment's OTP or SSO authentication gate. */
-export interface AuthenticatedEmailSubject {
+interface AuthenticatedEmailSubject {
   kind: 'authenticated_email'
   email: string
 }
@@ -106,7 +107,7 @@ interface ActorlessSystemPrincipal {
   workflowId: string
 }
 
-export interface ChatSystemPrincipal {
+interface ChatSystemPrincipal {
   kind: 'system'
   serviceId: 'chat'
   workspaceId: string
@@ -124,10 +125,7 @@ export interface WebhookSystemPrincipal {
   subject?: ExternalUserSubject
 }
 
-export type SystemPrincipal =
-  | ActorlessSystemPrincipal
-  | ChatSystemPrincipal
-  | WebhookSystemPrincipal
+type SystemPrincipal = ActorlessSystemPrincipal | ChatSystemPrincipal | WebhookSystemPrincipal
 
 interface DelegatedPrincipalBase {
   kind: 'delegated'
@@ -153,7 +151,7 @@ export interface SubjectDelegatedPrincipal extends DelegatedPrincipalBase {
   subjectUserId: string
 }
 
-export interface WorkflowExecutionDelegationContext {
+interface WorkflowExecutionDelegationContext {
   kind: 'workflow_execution'
   workflowId: string
   executionId?: string
@@ -186,6 +184,67 @@ export type BoundWorkflowExecutionDelegatedPrincipal = WorkflowExecutionDelegate
 }
 
 export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDelegatedPrincipal
+
+export type ResourceEntityType = 'workspace' | 'project' | 'organization' | 'user'
+
+/** An owner grant may be narrowed to a single file, but never widened to another owner. */
+interface ResourceEntityScope {
+  kind: 'entity'
+  entityType: ResourceEntityType
+  entityId: string
+  fileId?: string
+}
+
+/** Observing a Project collection grants no authority to address or mutate an individual file. */
+interface ResourceFileCollectionObservationScope {
+  kind: 'file_collection_observation'
+  entityType: 'project'
+  entityId: string
+}
+
+/** One compound copy grant binds the exact requested source selection and destination. */
+export interface ResourceFileCopyScope {
+  kind: 'file_copy'
+  source: {
+    owner: { entityType: 'workspace' | 'project'; entityId: string }
+    fileIds: readonly string[]
+    folderIds: readonly string[]
+  }
+  destination: {
+    owner: { entityType: 'workspace' | 'project'; entityId: string }
+    folderId: string | null
+  }
+}
+
+export type ResourceDelegationScope =
+  | { kind: 'project_discovery' }
+  | ResourceEntityScope
+  | ResourceFileCopyScope
+  | ResourceFileCollectionObservationScope
+
+interface ResourceDelegatedPrincipalBase {
+  kind: 'resource_delegated'
+  subjectUserId: string
+  delegationId: string
+  audience: string
+  issuedAt: Date
+  expiresAt: Date
+}
+
+/** Human authority for entity-owned resources; never a workflow execution principal. */
+export type ResourceDelegatedPrincipal = ResourceDelegatedPrincipalBase &
+  (
+    | {
+        serviceId: 'copilot'
+        scope: ResourceDelegationScope
+        invocation: { kind: 'chat'; chatId: string } | { kind: 'workspace'; workspaceId: string }
+      }
+    | {
+        serviceId: 'realtime'
+        scope: (ResourceEntityScope & { fileId: string }) | ResourceFileCollectionObservationScope
+        invocation: { kind: 'realtime'; connectionId: string }
+      }
+  )
 
 /** Search-only authority delegated by a current organization member. */
 interface OrganizationDelegatedPrincipalBase {
@@ -424,6 +483,8 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
           expiresAt: principal.expiresAt.toISOString(),
         },
       }
+    default:
+      throw new Error('Principal cannot be persisted for workflow execution')
   }
 }
 
@@ -567,6 +628,8 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
           : { resourceScope: parseResourceScope(principal.resourceScope) }),
       }
     }
+    case 'resource_delegated':
+      throw new Error('Resource delegation cannot be persisted for workflow execution')
     case 'credential_group_enrollment':
       throw new Error('Credential Group enrollment principals cannot be persisted for execution')
     default:
@@ -576,6 +639,12 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
 
 export type PrincipalActor =
   | Omit<SlackAppPrincipal, 'receivedAt'>
+  | {
+      kind: 'resource_delegated'
+      serviceId: ResourceDelegatedPrincipal['serviceId']
+      subjectUserId: string
+      delegationId: string
+    }
   | {
       kind: 'organization_delegated'
       serviceId: OrganizationDelegatedPrincipal['serviceId']
@@ -653,6 +722,7 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'personal_api_key':
     case 'oauth_access_token':
       return { kind: 'sim_user', userId: principal.userId }
+    case 'resource_delegated':
     case 'organization_delegated':
       return { kind: 'sim_user', userId: principal.subjectUserId }
     case 'delegated':
@@ -728,6 +798,13 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
         ...(principal.subjectUserId ? { subjectUserId: principal.subjectUserId } : {}),
         delegationId: principal.delegationId,
       }
+    case 'resource_delegated':
+      return {
+        kind: principal.kind,
+        serviceId: principal.serviceId,
+        subjectUserId: principal.subjectUserId,
+        delegationId: principal.delegationId,
+      }
     case 'organization_delegated':
       return {
         kind: principal.kind,
@@ -785,6 +862,7 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
     case 'personal_api_key':
     case 'oauth_access_token':
       return { actor, actorId: actor.userId }
+    case 'resource_delegated':
     case 'organization_delegated':
       return { actor, actorId: actor.subjectUserId }
     case 'delegated':
@@ -831,6 +909,7 @@ export function resolvePrincipalAttribution(
     }
     case 'system':
       throw new Error('System principals do not support user attribution')
+    case 'resource_delegated':
     case 'organization_delegated':
       return { actor, attributedUserId: actor.subjectUserId }
     case 'delegated': {
@@ -847,3 +926,15 @@ export function resolvePrincipalAttribution(
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }
+
+/** User ID every request acts as when `DISABLE_AUTH` is enabled. */
+export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
+
+/** The user record behind {@link ANONYMOUS_USER_ID}, shared by the app and the realtime server. */
+export const ANONYMOUS_USER = {
+  id: ANONYMOUS_USER_ID,
+  name: 'Anonymous',
+  email: 'anonymous@localhost',
+  emailVerified: true,
+  image: null,
+} as const

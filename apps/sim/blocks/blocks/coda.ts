@@ -1,9 +1,6 @@
 import { CodaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { CodaResponse } from '@/tools/coda/types'
 
-/** Canonical credential pair: the credential picker in basic mode, a raw credential id in advanced. */
-const CREDENTIAL_FIELD = ['credential', 'manualCredential']
 const DOC_FIELD = ['docSelector', 'manualDocId']
 const PAGE_FIELD = ['pageSelector', 'manualPageId']
 const TABLE_FIELD = ['tableSelector', 'manualTableId']
@@ -160,13 +157,13 @@ const DATE_WAND = {
   generationType: 'timestamp',
 } as const
 
-export const CodaBlock: BlockConfig<CodaResponse> = {
+export const CodaBlock: BlockConfig = {
   type: 'coda',
   name: 'Coda',
   description: 'Read and write Coda docs, pages, tables, and rows',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Coda (Superhuman Docs) into your workflow with a reusable API-token credential. Create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.',
+    'Use a reusable API-token credential to create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.',
   docsLink: 'https://docs.sim.ai/integrations/coda',
   category: 'tools',
   integrationType: IntegrationType.Documents,

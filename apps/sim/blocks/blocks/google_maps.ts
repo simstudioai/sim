@@ -7,7 +7,7 @@ export const GoogleMapsBlock: BlockConfig = {
   name: 'Google Maps',
   description: 'Geocoding, directions, places, and distance calculations',
   longDescription:
-    'Integrate Google Maps Platform APIs into your workflow. Supports geocoding addresses to coordinates, reverse geocoding, getting directions between locations, calculating distance matrices, searching for places, retrieving place details, elevation data, and timezone information.',
+    'Look up coordinates and places, calculate routes and travel times, retrieve place, elevation, and timezone details, validate addresses, and query supported environmental data.',
   docsLink: 'https://docs.sim.ai/integrations/google_maps',
   category: 'tools',
   integrationType: IntegrationType.Search,

@@ -1,13 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type LangsmithRunType =
-  | 'tool'
-  | 'chain'
-  | 'llm'
-  | 'retriever'
-  | 'embedding'
-  | 'prompt'
-  | 'parser'
+type LangsmithRunType = 'tool' | 'chain' | 'llm' | 'retriever' | 'embedding' | 'prompt' | 'parser'
 
 export interface LangsmithRunPayload {
   id?: string
@@ -104,7 +97,7 @@ export interface LangsmithGetRunResponse extends ToolResponse {
   }
 }
 
-export type LangsmithFeedbackSourceType = 'api' | 'app' | 'model'
+type LangsmithFeedbackSourceType = 'api' | 'app' | 'model'
 
 export interface LangsmithCreateFeedbackParams {
   apiKey: string
@@ -128,10 +121,3 @@ export interface LangsmithCreateFeedbackResponse extends ToolResponse {
     createdAt: string | null
   }
 }
-
-export type LangsmithResponse =
-  | LangsmithCreateRunResponse
-  | LangsmithCreateRunsBatchResponse
-  | LangsmithUpdateRunResponse
-  | LangsmithGetRunResponse
-  | LangsmithCreateFeedbackResponse

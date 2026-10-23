@@ -10,7 +10,7 @@ describe('Plan model defaults', () => {
     })
     expect(resolveMothershipModelSettings({}, advanced)).toEqual({
       effort: 'high',
-      modelSelection: { model: 'gpt-6-astra', fastMode: false },
+      modelSelection: advanced ? { model: 'gpt-6-astra', fastMode: false } : undefined,
     })
   })
 
@@ -25,7 +25,7 @@ describe('Plan model defaults', () => {
       modelSelection: { model: 'gpt-6-astra' as const, fastMode: false },
     }
     expect(resolveMothershipModelSettings(chosen, true, true)).toEqual(chosen)
-    expect(resolveMothershipModelSettings(chosen, false, true).modelSelection.model).toBe(
+    expect(resolveMothershipModelSettings(chosen, false, true).modelSelection?.model).toBe(
       'claude-opus-5-5'
     )
   })

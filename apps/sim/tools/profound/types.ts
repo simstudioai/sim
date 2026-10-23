@@ -37,7 +37,7 @@ interface ProfoundDomainReportParams {
   limit?: number
 }
 
-// --- Organization endpoints ---
+// Organization endpoints
 
 export interface ProfoundListCategoriesParams {
   apiKey: string
@@ -137,7 +137,7 @@ export interface ProfoundListPersonasResponse extends ToolResponse {
   }
 }
 
-// --- Category-specific endpoints ---
+// Category-specific endpoints
 
 export interface ProfoundCategoryTopicsParams {
   apiKey: string
@@ -241,7 +241,7 @@ export interface ProfoundCategoryPersonasResponse extends ToolResponse {
   }
 }
 
-// --- Reports ---
+// Reports
 
 export type ProfoundVisibilityReportParams = ProfoundCategoryReportParams
 export type ProfoundVisibilityReportResponse = ProfoundReportResponse
@@ -261,7 +261,7 @@ export type ProfoundBotsReportResponse = ProfoundReportResponse
 export type ProfoundReferralsReportParams = ProfoundDomainReportParams
 export type ProfoundReferralsReportResponse = ProfoundReportResponse
 
-// --- Prompts ---
+// Prompts
 
 export interface ProfoundPromptAnswersParams {
   apiKey: string
@@ -290,7 +290,7 @@ export interface ProfoundPromptAnswersResponse extends ToolResponse {
   }
 }
 
-// --- Agent Analytics ---
+// Agent Analytics
 
 export interface ProfoundRawLogsParams {
   apiKey: string
@@ -332,7 +332,7 @@ export interface ProfoundBotLogsResponse extends ToolResponse {
   }
 }
 
-// --- Content ---
+// Content
 
 export interface ProfoundListOptimizationsParams {
   apiKey: string
@@ -387,7 +387,7 @@ export interface ProfoundOptimizationAnalysisResponse extends ToolResponse {
   }
 }
 
-// --- Prompt Volumes ---
+// Prompt Volumes
 
 export interface ProfoundPromptVolumeParams {
   apiKey: string

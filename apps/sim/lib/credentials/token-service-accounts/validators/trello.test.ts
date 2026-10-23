@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
   setEnv({ TRELLO_API_KEY: undefined })
@@ -11,16 +12,6 @@ import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-ac
 
 const FIELDS = { apiToken: 'ATTA0a1b2c3d' }
 
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
-
 const mockFetch = vi.fn()
 
 describe('validateTrelloServiceAccount', () => {
@@ -29,13 +20,9 @@ describe('validateTrelloServiceAccount', () => {
     setEnv({ TRELLO_API_KEY: 'sim-api-key' })
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('sends the server API key and the user token as separate query params', async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse(200, { id: 'abc123', fullName: 'Sim Bot', username: 'simbot' })
+      jsonResponse({ id: 'abc123', fullName: 'Sim Bot', username: 'simbot' })
     )
 
     await validateTrelloServiceAccount(FIELDS)
@@ -49,7 +36,7 @@ describe('validateTrelloServiceAccount', () => {
   })
 
   it('throws invalid_credentials on 401 with an invalid token body', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(401, 'invalid token'))
+    mockFetch.mockResolvedValue(jsonResponse('invalid token', 401))
 
     await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',
@@ -59,7 +46,7 @@ describe('validateTrelloServiceAccount', () => {
   })
 
   it('throws provider_unavailable on 401 with an invalid key body', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(401, 'invalid key'))
+    mockFetch.mockResolvedValue(jsonResponse('invalid key', 401))
 
     await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',

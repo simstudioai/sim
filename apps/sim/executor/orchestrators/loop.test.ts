@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { EDGE } from '@/executor/constants'
@@ -9,9 +11,10 @@ import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+const { mockExecuteInIsolatedVM } = vi.hoisted(() => ({
   mockExecuteInIsolatedVM: vi.fn(),
-  mockUploadFile: vi.fn(),
 }))
 const mockLogger =
   vi.mocked(createLogger).mock.results[
@@ -22,11 +25,7 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 function createNode(id: string): DAGNode {
   return {

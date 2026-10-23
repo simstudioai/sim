@@ -44,7 +44,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
     'What cookies Sim sets, why, how long they last, and how to change your choice at any time.',
-  lastUpdated: 'September 17, 2026',
+  lastUpdated: 'October 13, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -92,7 +92,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
         },
         {
           kind: 'paragraph',
-          content: `We also use technologies that behave like cookies without being one. Local storage and session storage keep data in your browser rather than sending it with each request; pixels (also called web beacons or tags) are tiny images or scripts that record that a page or email was opened. Where this policy says "cookies", it means all of these.`,
+          content: `We also use technologies that work like cookies. Local storage and session storage keep data in your browser rather than sending it with each request; pixels (also called web beacons or tags) are tiny images or scripts that record that a page or email was opened. Where this policy says "cookies", it means all of these.`,
         },
       ],
     },
@@ -102,7 +102,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `We group cookies into the three categories the consent banner offers. Necessary cookies are always on because the service cannot run without them. The other two are off until you turn them on.`,
+          content: `We group cookies into the three categories the consent banner offers. Necessary cookies are always on because the service cannot run without them. Analytics and Marketing cookies are off until you allow their category.`,
         },
         {
           kind: 'list',
@@ -117,7 +117,9 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               reach, and where errors happen, so we can improve the product. Measurement only; we do
               not use these to target advertising. Google Analytics loads with analytics storage
               denied and cannot set analytics cookies until this category is allowed; before then,
-              it may send limited cookieless consent and measurement signals.
+              it may send limited cookieless consent and measurement signals. Ahrefs Web Analytics
+              is cookieless; it loads only after this category is allowed and is removed if consent
+              is withdrawn.
             </>,
             <>
               <strong>Marketing</strong> — measuring which campaigns bring builders to Sim and
@@ -195,6 +197,12 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             'Coordinates analytics state for the current browser tab.',
             'Session',
           ],
+          [
+            'sim_attribution_first / sim_attribution_last',
+            'Sim',
+            'Records the campaign or website that first and most recently brought you to sim.ai, so a sign-up or demo request can be credited to it. Holds campaign parameters, which ad network a click came from (never the click ID), the referring site’s domain, the landing page path, and when the visit happened. Expires with your analytics consent if that ends sooner.',
+            '90 days',
+          ],
         ]),
         cookieTable('Marketing', [
           [
@@ -230,6 +238,12 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           ],
           ['personalization_id', 'X (Twitter)', 'Personalizes the ads shown on X.', '13 months'],
           ['muc_ads', 'X (Twitter)', 'Measures ad conversions across X domains.', '13 months'],
+          [
+            'bfcid',
+            'Freebuff',
+            'Stores the click identifier from a Freebuff ad that brought you to sim.ai, so a sign-up can be credited to that ad. Deleted if you withdraw Marketing consent.',
+            '30 days',
+          ],
         ]),
       ],
     },
@@ -266,7 +280,8 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               </ProseLink>
               , <ProseLink href='https://adssettings.google.com'>Google Ads</ProseLink>,{' '}
               <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,
-              and <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
+              and <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>. For Freebuff,{' '}
+              {CHANGE_CHOICES} to withdraw Marketing consent.
             </>
           ),
         },
@@ -288,6 +303,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               <ProseLink href='https://policies.google.com/technologies/cookies'>Google</ProseLink>{' '}
               (Analytics and Ads),{' '}
               <ProseLink href='https://x.com/en/privacy'>X (Twitter)</ProseLink>,{' '}
+              <ProseLink href='https://freebuff.com/privacy-policy'>Freebuff</ProseLink>,{' '}
               <ProseLink href='https://ahrefs.com/legal/privacy-policy'>Ahrefs</ProseLink>,{' '}
               <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>, and{' '}
               <ProseLink href='https://www.cloudflare.com/privacypolicy/'>Cloudflare</ProseLink>.

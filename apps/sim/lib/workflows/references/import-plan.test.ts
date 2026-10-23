@@ -1,10 +1,9 @@
+import { searchReplaceIndexerMock } from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: vi.fn(() => []),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
 import { finalizeBlockToolPositions } from '@/lib/workflows/references/finalize-tool-positions'
 import { buildWorkflowImportPlan } from '@/lib/workflows/references/import-plan'

@@ -1,21 +1,18 @@
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { resolve } = vi.hoisted(() => ({
-  resolve: vi.fn(async (organizationId: string | null | undefined) => ({
-    kind: 'direct',
-    organizationId,
-  })),
-}))
-vi.mock('@/lib/core/network/config.server', () => ({
-  resolveOutboundRoute: resolve,
-  isOutboundRoutingEnabled: () => true,
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 import {
   captureOutboundScope,
   resolveCurrentOutboundRoute,
   runWithOutboundOrganization,
 } from '@/lib/core/network/context.server'
+
+networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(
+  async (organizationId: string | null | undefined) => ({ kind: 'direct', organizationId })
+)
 
 describe('outbound execution context', () => {
   it('restores captured ownership inside a callback invoked by another organization', async () => {

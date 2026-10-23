@@ -4,6 +4,8 @@ import { getRedisClient } from '@/lib/core/config/redis'
 export interface ChatStreamLease {
   key: string
   value: string
+  /** When the lock was taken (ms epoch, read before the write), so its TTL is known to run from then. */
+  acquiredAt?: number
 }
 
 export class StreamControllerSupersededError extends Error {
@@ -25,5 +27,15 @@ export async function assertChatStreamLease(lease: ChatStreamLease): Promise<voi
   const redis = getRedisClient()
   if (!redis || (await redis.get(lease.key)) !== lease.value) {
     throw new StreamControllerSupersededError()
+  }
+}
+
+/** Whether this lease still holds its chat lock; an unreadable lock counts as lost. */
+export async function holdsChatStreamLease(lease: ChatStreamLease): Promise<boolean> {
+  try {
+    await assertChatStreamLease(lease)
+    return true
+  } catch {
+    return false
   }
 }

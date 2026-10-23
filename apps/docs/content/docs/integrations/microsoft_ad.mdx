@@ -1,41 +1,59 @@
 ---
 title: Azure AD
 description: Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)
+integration:
+  type: "microsoft_ad"
+  color: "#0078D4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_ad"
-  color="#0078D4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Azure Active Directory](https://entra.microsoft.com) (now Microsoft Entra ID) is Microsoft's cloud-based identity and access management service. It helps organizations manage users, groups, and access to applications and resources across cloud and on-premises environments.
+Use [Microsoft Entra ID](https://entra.microsoft.com), formerly Azure Active Directory, to manage directory users, groups, memberships, licenses, passwords, sign-in sessions, app roles, and directory roles. Read sign-in and audit logs, registered devices, and conditional access policies; device writes are excluded.
 
-With the Azure AD integration in Sim, you can:
-
-- **Manage users**: List, create, update, and delete user accounts in your directory
-- **Manage groups**: Create and configure security groups and Microsoft 365 groups
-- **Control group membership**: Add and remove members from groups programmatically
-- **Query directory data**: Search and filter users and groups using OData expressions
-- **Automate onboarding/offboarding**: Create new user accounts with initial passwords and enable/disable accounts as part of HR workflows
-
-In Sim, the Azure AD integration enables your agents to programmatically manage your organization's identity infrastructure. This allows for automation scenarios such as provisioning new employees, updating user profiles in bulk, managing team group memberships, and auditing directory data. By connecting Sim with Azure AD, you can streamline identity lifecycle management and ensure your directory stays in sync with your organization's needs.
+Use OData filters to query directory records. Grant the connection the permissions and administrative roles required by each operation before using it for onboarding, offboarding, or access review. Microsoft 365 groups have a 30-day recovery window. Cloud security-group recovery is a [public-cloud preview with tenant restrictions](https://learn.microsoft.com/en-us/entra/identity/users/groups-restore-deleted); confirm eligibility before deleting a group.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects an Azure AD account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-ad` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `User.ReadWrite.All` | Read and write all user profiles |
+| `Group.ReadWrite.All` | Read and write all groups |
+| `GroupMember.ReadWrite.All` | Read and write all group memberships |
+| `LicenseAssignment.Read.All` | Read license assignments and subscribed SKUs |
+| `LicenseAssignment.ReadWrite.All` | Assign and remove user licenses |
+| `UserAuthenticationMethod.ReadWrite.All` | Read and reset authentication methods and passwords for all users |
+| `AuditLog.Read.All` | Read sign-in and directory audit logs |
+| `Application.Read.All` | Read all applications and service principals |
+| `AppRoleAssignment.ReadWrite.All` | Manage app role assignments and permission grants for any app |
+| `RoleManagement.ReadWrite.Directory` | Read and manage directory role assignments |
+| `Device.Read.All` | Read all devices |
+| `Policy.Read.All` | Read conditional access and other policies |
+| `offline_access` | Access account when not using the application |
 
+## Use the block [#usage-instructions]
+
+Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.
 
 ## Actions
 
 ### List Azure AD Users
 
 List users in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -65,9 +83,13 @@ List users in Azure AD (Microsoft Entra ID)
 | `userCount` | number | Number of users returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### Get Azure AD User
 
 Get a user by ID or user principal name from Azure AD
+
+<ReferenceDetails>
 
 #### Input
 
@@ -92,9 +114,13 @@ Get a user by ID or user principal name from Azure AD
 |   ↳ `mobilePhone` | string | Mobile phone number |
 |   ↳ `accountEnabled` | boolean | Whether the account is enabled |
 
+</ReferenceDetails>
+
 ### Create Azure AD User
 
 Create a new user in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -129,9 +155,13 @@ Create a new user in Azure AD (Microsoft Entra ID)
 |   ↳ `businessPhones` | array | Business phone numbers |
 |   ↳ `preferredLanguage` | string | Preferred language |
 
+</ReferenceDetails>
+
 ### Update Azure AD User
 
 Update user properties in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,9 +184,13 @@ Update user properties in Azure AD (Microsoft Entra ID)
 | `updated` | boolean | Whether the update was successful |
 | `userId` | string | ID of the updated user |
 
+</ReferenceDetails>
+
 ### Delete Azure AD User
 
 Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +205,13 @@ Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a tempora
 | `deleted` | boolean | Whether the deletion was successful |
 | `userId` | string | ID of the deleted user |
 
+</ReferenceDetails>
+
 ### List Azure AD Groups
 
 List groups in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -202,9 +240,13 @@ List groups in Azure AD (Microsoft Entra ID)
 | `groupCount` | number | Number of groups returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### Get Azure AD Group
 
 Get a group by ID from Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -228,9 +270,13 @@ Get a group by ID from Azure AD (Microsoft Entra ID)
 |   ↳ `visibility` | string | Group visibility |
 |   ↳ `createdDateTime` | string | Creation date |
 
+</ReferenceDetails>
+
 ### Create Azure AD Group
 
 Create a new group in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -260,9 +306,13 @@ Create a new group in Azure AD (Microsoft Entra ID)
 |   ↳ `visibility` | string | Group visibility |
 |   ↳ `createdDateTime` | string | Creation date |
 
+</ReferenceDetails>
+
 ### Update Azure AD Group
 
 Update group properties in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,9 +331,13 @@ Update group properties in Azure AD (Microsoft Entra ID)
 | `updated` | boolean | Whether the update was successful |
 | `groupId` | string | ID of the updated group |
 
+</ReferenceDetails>
+
 ### Delete Azure AD Group
 
-Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days.
+Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 groups can be restored within 30 days. Cloud security-group recovery is a public-cloud preview with tenant restrictions; confirm eligibility before deleting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -298,9 +352,13 @@ Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security gr
 | `deleted` | boolean | Whether the deletion was successful |
 | `groupId` | string | ID of the deleted group |
 
+</ReferenceDetails>
+
 ### List Azure AD Group Members
 
 List members of a group in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -322,9 +380,13 @@ List members of a group in Azure AD (Microsoft Entra ID)
 | `memberCount` | number | Number of members returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### Add Azure AD Group Member
 
 Add a member to a group in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -341,9 +403,13 @@ Add a member to a group in Azure AD (Microsoft Entra ID)
 | `groupId` | string | Group ID |
 | `memberId` | string | Member ID that was added |
 
+</ReferenceDetails>
+
 ### Remove Azure AD Group Member
 
 Remove a member from a group in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -360,9 +426,13 @@ Remove a member from a group in Azure AD (Microsoft Entra ID)
 | `groupId` | string | Group ID |
 | `memberId` | string | Member ID that was removed |
 
+</ReferenceDetails>
+
 ### Assign Microsoft Entra ID License
 
 Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Removing a license immediately revokes the access it granted to the associated services.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +454,13 @@ Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Remo
 |   ↳ `skuId` | string | SKU ID of the assigned license |
 |   ↳ `disabledPlans` | array | Service plan IDs disabled on this license |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID User Licenses
 
 List the subscription licenses assigned to a user in Microsoft Entra ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -409,9 +483,13 @@ List the subscription licenses assigned to a user in Microsoft Entra ID
 |     ↳ `appliesTo` | string | Whether the plan applies to "User" or "Company" |
 | `licenseCount` | number | Number of licenses returned |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Subscribed SKUs
 
 List the subscription SKUs the tenant owns, including how many license units are prepaid and how many are consumed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -441,9 +519,13 @@ List the subscription SKUs the tenant owns, including how many license units are
 |     ↳ `appliesTo` | string | Whether the plan applies to "User" or "Company" |
 | `skuCount` | number | Number of SKUs returned |
 
+</ReferenceDetails>
+
 ### Revoke Microsoft Entra ID Sign-In Sessions
 
 Invalidate every refresh token and session cookie issued to a user, forcing them to sign in again on all applications and devices. Revocation can take a few minutes to take effect and does not apply to external users.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -458,9 +540,13 @@ Invalidate every refresh token and session cookie issued to a user, forcing them
 | `revoked` | boolean | Whether Microsoft Graph confirmed the sessions were revoked |
 | `userId` | string | ID of the user whose sessions were revoked |
 
+</ReferenceDetails>
+
 ### Set Microsoft Entra ID User Password
 
 Set a specific password on a user by updating their password profile. Cannot be used for federated users. Requires an administrator role in Microsoft Entra ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -479,9 +565,13 @@ Set a specific password on a user by updating their password profile. Cannot be 
 | `userId` | string | ID of the user whose password was set |
 | `forceChangePasswordNextSignIn` | boolean | Whether the user must change the password at their next sign-in |
 
+</ReferenceDetails>
+
 ### Reset Microsoft Entra ID User Password
 
 Reset another user's password through their password authentication method. Leave the new password empty to have Microsoft generate one and return it. The user is prompted to change the password at their next sign-in. Cannot be run against your own account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -499,9 +589,13 @@ Reset another user's password through their password authentication method. Leav
 | `newPassword` | string | The system-generated password, returned only when no new password was supplied in the request. Like every tool output it appears in workflow outputs and run history, and is sent to the model when an agent calls this tool, so prefer supplying your own password when the value must not leave the workflow. |
 | `operationLocation` | string | URL to poll for the status of the long-running password reset operation |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Authentication Methods
 
 List the authentication methods a user has registered, such as passwords, phone numbers, FIDO2 keys, and authenticator apps
+
+<ReferenceDetails>
 
 #### Input
 
@@ -519,9 +613,13 @@ List the authentication methods a user has registered, such as passwords, phone 
 |   ↳ `createdDateTime` | string | When the authentication method was registered |
 | `methodCount` | number | Number of authentication methods returned |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Sign-Ins
 
 List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requires a Microsoft Entra ID P1 or P2 license. Apply a date filter to keep large queries from timing out.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -567,9 +665,13 @@ List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requ
 | `signInCount` | number | Number of sign-ins returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Directory Audits
 
 List directory audit records showing who changed what in Microsoft Entra ID, such as user creation, group membership changes, and role assignments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -606,9 +708,13 @@ List directory audit records showing who changed what in Microsoft Entra ID, suc
 | `auditCount` | number | Number of audit records returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID User App Role Assignments
 
 List the application role assignments granted to a user, including assignments the user inherits from groups they are a direct member of
+
+<ReferenceDetails>
 
 #### Input
 
@@ -635,9 +741,13 @@ List the application role assignments granted to a user, including assignments t
 | `assignmentCount` | number | Number of assignments returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### Grant Microsoft Entra ID App Role To User
 
 Grant a user an application role on a service principal, giving them access to that application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -661,9 +771,13 @@ Grant a user an application role on a service principal, giving them access to t
 |   ↳ `resourceId` | string | ID of the resource service principal that defines the app role |
 |   ↳ `resourceDisplayName` | string | Display name of the resource |
 
+</ReferenceDetails>
+
 ### Revoke Microsoft Entra ID App Role From User
 
 Revoke an application role assignment from a user, removing their access to that application. Takes the assignment's own ID, not the app role ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -680,9 +794,13 @@ Revoke an application role assignment from a user, removing their access to that
 | `userId` | string | ID of the user the assignment belonged to |
 | `appRoleAssignmentId` | string | ID of the removed app role assignment |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Service Principals
 
 List the enterprise applications and service principals in the tenant, including the app roles each one exposes
+
+<ReferenceDetails>
 
 #### Input
 
@@ -716,9 +834,13 @@ List the enterprise applications and service principals in the tenant, including
 | `servicePrincipalCount` | number | Number of service principals returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Application Assignments
 
 List every user, group, and service principal assigned to an application, by reading the app role assignments on its service principal. Recently granted or removed assignments can take time to appear.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -744,9 +866,13 @@ List every user, group, and service principal assigned to an application, by rea
 | `assignmentCount` | number | Number of assignments returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Directory Roles
 
 List the administrator roles that are activated in the tenant, such as Global Administrator and User Administrator. Roles that have never been activated are not returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -764,9 +890,13 @@ List the administrator roles that are activated in the tenant, such as Global Ad
 |   ↳ `roleTemplateId` | string | ID of the directory role template |
 | `roleCount` | number | Number of directory roles returned |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Directory Role Members
 
 List the principals holding an administrator role. Returns up to 1000 members; this endpoint does not support paging.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -785,9 +915,13 @@ List the principals holding an administrator role. Returns up to 1000 members; t
 |   ↳ `odataType` | string | Directory object type |
 | `memberCount` | number | Number of members returned |
 
+</ReferenceDetails>
+
 ### Add Microsoft Entra ID Directory Role Member
 
 Grant a user an administrator role in Microsoft Entra ID. This is a privileged change that expands what the user can do across the tenant.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -804,9 +938,13 @@ Grant a user an administrator role in Microsoft Entra ID. This is a privileged c
 | `directoryRoleId` | string | ID of the directory role |
 | `memberId` | string | ID of the member that was added |
 
+</ReferenceDetails>
+
 ### Remove Microsoft Entra ID Directory Role Member
 
 Revoke an administrator role from a user in Microsoft Entra ID. Removes only the role membership; the user account itself is not deleted.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -823,9 +961,13 @@ Revoke an administrator role from a user in Microsoft Entra ID. Removes only the
 | `directoryRoleId` | string | ID of the directory role |
 | `memberId` | string | ID of the member that was removed |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Devices
 
 List the devices registered in Microsoft Entra ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -858,9 +1000,13 @@ List the devices registered in Microsoft Entra ID
 | `deviceCount` | number | Number of devices returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### Get Microsoft Entra ID Device
 
 Get a registered device by its object ID from Microsoft Entra ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -888,9 +1034,13 @@ Get a registered device by its object ID from Microsoft Entra ID
 |   ↳ `approximateLastSignInDateTime` | string | Approximate time the device last signed in |
 |   ↳ `registrationDateTime` | string | When the device was registered |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID User Devices
 
 List the devices a user has registered or owns. Devices the caller cannot read are returned with only their ID and the remaining fields null.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -923,9 +1073,13 @@ List the devices a user has registered or owns. Devices the caller cannot read a
 | `deviceCount` | number | Number of devices returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### List Microsoft Entra ID Conditional Access Policies
 
 List the conditional access policies configured in the tenant, including their state and the conditions and controls they enforce. Read-only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -952,9 +1106,13 @@ List the conditional access policies configured in the tenant, including their s
 | `policyCount` | number | Number of policies returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
+</ReferenceDetails>
+
 ### Get Microsoft Entra ID Conditional Access Policy
 
 Get a single conditional access policy by ID, including the conditions it matches and the controls it enforces. Read-only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -976,5 +1134,7 @@ Get a single conditional access policy by ID, including the conditions it matche
 |   ↳ `conditions` | json | Conditions that trigger the policy \(users, applications, platforms, locations, risk levels\) |
 |   ↳ `grantControls` | json | Controls enforced when the policy applies, or null when none are configured |
 |   ↳ `sessionControls` | json | Session controls enforced when the policy applies, or null when none are set |
+
+</ReferenceDetails>
 
 

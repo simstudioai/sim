@@ -1,21 +1,85 @@
 ---
 title: Knowledge
-description: Manage knowledge — every subcommand, argument, and flag
+description: Manage knowledge bases, indexed documents, search, tags, and connector syncs.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+Manage knowledge bases, indexed documents, search, tags, and connector syncs.
+
 `sim knowledge` is also spelled `sim kb`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
 
-## Index files the workspace already stores
+## Knowledge bases
+
+### List knowledge bases
 
 ```bash
-sim knowledge from-workspace-files create <knowledgeBaseId> [options]
+sim knowledge list [options]
 ```
 
-Index files the workspace already stores (OAuth login or personal API key required)
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Lifecycle scope: active or archived knowledge bases. Use Restore knowledge base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches. Defaults to "active". Accepted values: `active`, `archived`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--search <value>` | No | Case-insensitive substring match against the resource name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "createdAt". Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listKnowledgeBases](/api-reference/knowledge-bases/listKnowledgeBases).
+
+### Get knowledge base
+
+```bash
+sim knowledge get <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getKnowledgeBase](/api-reference/knowledge-bases/getKnowledgeBase).
+
+### Create knowledge base
+
+```bash
+sim knowledge create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Human-readable knowledge base name. |
+| `--description <value>` | No | Optional knowledge base description. |
+| `--chunking-config <json\|@file>` | No | Chunking configuration; defaults are applied when omitted. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeBase](/api-reference/knowledge-bases/createKnowledgeBase).
+
+### Update knowledge base
+
+```bash
+sim knowledge update <knowledgeBaseId> [options]
+```
 
 **Arguments**
 
@@ -33,159 +97,19 @@ Index files the workspace already stores (OAuth login or personal API key requir
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--name <value>` | No | New knowledge base name. |
+| `--description <value>` | No | New knowledge base description. |
+| `--chunking-config <json\|@file>` | No | New document chunking configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
-## Declare the tag definitions a knowledge base needs
+API request and response schemas: [updateKnowledgeBase](/api-reference/knowledge-bases/updateKnowledgeBase).
+
+### Move a knowledge base to a folder
 
 ```bash
-sim knowledge tags save <knowledgeBaseId> [options]
-```
-
-Declare the tag definitions a knowledge base needs (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--definitions <json\|@file>` | Yes | Tag definitions: [&#123;"tagSlot":"tag1","displayName":"category","fieldType":"text"&#125;] (JSON, or @path / @- to read a file or stdin). |
-
-</CommandTable>
-
-## Create tag
-
-```bash
-sim knowledge tags create <knowledgeBaseId> [options]
-```
-
-Create Tag (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
-| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
-| `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
-
-</CommandTable>
-
-## Delete tag
-
-```bash
-sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
-```
-
-Delete Tag (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `tagId` | Yes | Unique tag definition identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Remove tag definitions no document still uses
-
-```bash
-sim knowledge tags cleanup <knowledgeBaseId> [options]
-```
-
-Remove tag definitions no document still uses (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
-| `--no-unused` | No | Send --unused as false. |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Show which tag slot a create would take for a field type
-
-```bash
-sim knowledge tags next-slot <knowledgeBaseId> [options]
-```
-
-Show which tag slot a create would take for a field type (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--field-type <value>` | Yes | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
-
-</CommandTable>
-
-## List tags
-
-```bash
-sim knowledge tags list <knowledgeBaseId>
+sim knowledge mv <knowledgeBaseId> <folder>
 ```
 
 **Arguments**
@@ -195,270 +119,18 @@ sim knowledge tags list <knowledgeBaseId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
-## Show how many documents and chunks carry each tag
+API request and response schemas: [updateKnowledgeBase](/api-reference/knowledge-bases/updateKnowledgeBase).
+
+### Delete knowledge base
+
+This archives the knowledge base and every document in it; restore with `knowledge restore`.
 
 ```bash
-sim knowledge tags usage <knowledgeBaseId>
-```
-
-Show how many documents and chunks carry each tag (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-## Update tag
-
-```bash
-sim knowledge tags update <knowledgeBaseId> <tagId> [options]
-```
-
-Update Tag (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `tagId` | Yes | Unique tag definition identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--display-name <value>` | No | New tag display name. |
-| `--field-type <value>` | No | New value type for the tag. Accepted values: `text`, `number`, `date`, `boolean`. |
-
-</CommandTable>
-
-## Enable, disable, or delete many chunks at once
-
-```bash
-sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
-```
-
-Enable, disable, or delete many chunks at once (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
-| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Create chunk
-
-```bash
-sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
-```
-
-Create Chunk (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--content <value>` | Yes | Text to embed. It is embedded on write, so the chunk is searchable immediately. |
-| `--enabled` | No | Whether the new chunk participates in search. |
-| `--no-enabled` | No | Send --enabled as false. |
-
-</CommandTable>
-
-## Delete chunk
-
-```bash
-sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
-```
-
-Delete Chunk (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
-| `chunkId` | Yes | Unique chunk identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Get chunk
-
-```bash
-sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
-```
-
-Get Chunk (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
-| `chunkId` | Yes | Unique chunk identifier. |
-
-</CommandTable>
-
-## List chunks
-
-```bash
-sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
-```
-
-List Chunks (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--search <value>` | No | Case-insensitive substring match against chunk content. |
-| `--enabled <value>` | No | Restrict to enabled or disabled chunks. `all` returns both. Accepted values: `true`, `false`, `all`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## Update chunk
-
-```bash
-sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
-```
-
-Update Chunk (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
-| `chunkId` | Yes | Unique chunk identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--content <value>` | No | Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts. |
-| `--enabled` | No | Whether the chunk participates in search. Disabling keeps it indexed. |
-| `--no-enabled` | No | Send --enabled as false. |
-
-</CommandTable>
-
-## Enable or disable every matching document
-
-```bash
-sim knowledge documents batch-update <knowledgeBaseId> [options]
-```
-
-Enable or disable every matching document (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--operation <value>` | Yes | Whether the selected documents become enabled or disabled for search. Accepted values: `enable`, `disable`. |
-| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--select-all` | No | Apply to every document in the knowledge base. |
-| `--enabled-filter <value>` | No | With `selectAll`, restrict the update to documents in this state. Accepted values: `all`, `enabled`, `disabled`. |
-
-</CommandTable>
-
-## Delete document
-
-```bash
-sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
+sim knowledge delete <knowledgeBaseId> [options]
 ```
 
 **Arguments**
@@ -468,7 +140,6 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
 
 </CommandTable>
 
@@ -482,10 +153,12 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 </CommandTable>
 
-## Get document
+API request and response schemas: [deleteKnowledgeBase](/api-reference/knowledge-bases/deleteKnowledgeBase).
+
+### Restore an archived knowledge base
 
 ```bash
-sim knowledge documents get <knowledgeBaseId> <documentId>
+sim knowledge restore <knowledgeBaseId>
 ```
 
 **Arguments**
@@ -495,11 +168,139 @@ sim knowledge documents get <knowledgeBaseId> <documentId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `documentId` | Yes | Unique knowledge document identifier. |
 
 </CommandTable>
 
-## List documents
+API request and response schemas: [restoreKnowledgeBase](/api-reference/knowledge-bases/restoreKnowledgeBase).
+
+## Search
+
+### Search knowledge
+
+```bash
+sim knowledge search [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--query <value>` | No | Text to search for. |
+| `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100. Defaults to 10. |
+| `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
+| `--search-mode <value>` | No | Search algorithm. Accepted values: `vector`, `hybrid`. |
+| `--reranker-enabled` | No | Reorder retrieved chunks with a reranking model before truncating to `topK`. Ignored for tag-only searches. A completed reranking call adds a search unit. If reranking is unavailable, results keep their retrieval order; check `rerankerStatus`. |
+| `--no-reranker-enabled` | No | Send --reranker-enabled as false. |
+| `--reranker-model <value>` | No | Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
+| `--reranker-input-count <value>` | No | How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from. |
+
+</CommandTable>
+
+API request and response schemas: [searchKnowledge](/api-reference/knowledge-bases/searchKnowledge).
+
+## Export and import
+
+### Export a knowledge base as a .simkb.zip bundle
+
+```bash
+sim knowledge export <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base to export |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write the bundle to this path instead of the name the server suggests; pass - to stream it to stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+| `--no-vectors` | No | Leave chunk vectors out of the bundle, so an import re-embeds every chunk. |
+
+</CommandTable>
+
+API request and response schemas: [exportKnowledgeBase](/api-reference/knowledge-bases/exportKnowledgeBase).
+
+### Create a knowledge base from an exported .simkb.zip bundle
+
+```bash
+sim knowledge import <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Bundle archive written by `sim knowledge export` |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Name for the new knowledge base; defaults to the bundle's own name. |
+| `--no-wait` | No | Return once the import is started instead of watching it. |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeImport](/api-reference/knowledge-bases/createKnowledgeImport), [createKnowledgeImportPartUrls](/api-reference/knowledge-bases/createKnowledgeImportPartUrls), [completeKnowledgeImport](/api-reference/knowledge-bases/completeKnowledgeImport), [cancelKnowledgeImport](/api-reference/knowledge-bases/cancelKnowledgeImport), [getKnowledgeImport](/api-reference/knowledge-bases/getKnowledgeImport).
+
+### Get knowledge base import
+
+```bash
+sim knowledge imports get <importId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique knowledge-base import identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getKnowledgeImport](/api-reference/knowledge-bases/getKnowledgeImport).
+
+### Stop a running import
+
+```bash
+sim knowledge imports cancel <importId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique knowledge-base import identifier. |
+
+</CommandTable>
+
+API request and response schemas: [cancelKnowledgeImport](/api-reference/knowledge-bases/cancelKnowledgeImport).
+
+## Documents
+
+### List documents
 
 ```bash
 sim knowledge documents list <knowledgeBaseId> [options]
@@ -523,21 +324,74 @@ sim knowledge documents list <knowledgeBaseId> [options]
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--search <value>` | No | Case-insensitive substring match against the document filename. |
-| `--enabled-filter <value>` | No | Filter by whether documents are enabled for search. Accepted values: `all`, `enabled`, `disabled`. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--enabled-filter <value>` | No | Filter by whether documents are enabled for search. Defaults to "all". Accepted values: `all`, `enabled`, `disabled`. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `filename`. Defaults to "uploadedAt". Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--tag-filters <value>` | No | A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[&#123;"tagName":"category","operator":"eq","value":"billing"&#125;]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored. |
+| `--tag-filters <value>` | No | A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{"tagName":"category","operator":"eq","value":"billing"}]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored. |
 
 </CommandTable>
 
-## Update document
+API request and response schemas: [listKnowledgeDocuments](/api-reference/knowledge-bases/listKnowledgeDocuments).
+
+### Get document
+
+```bash
+sim knowledge documents get <knowledgeBaseId> <documentId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getKnowledgeDocument](/api-reference/knowledge-bases/getKnowledgeDocument).
+
+### Upload a document to a knowledge base
+
+```bash
+sim knowledge documents upload <knowledgeBaseId> <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base to upload into |
+| `path` | Yes | Local file to upload |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Store it under a different name. |
+| `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
+| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
+| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeDocumentUpload](/api-reference/knowledge-bases/createKnowledgeDocumentUpload), [createKnowledgeDocumentUploadPartUrls](/api-reference/knowledge-bases/createKnowledgeDocumentUploadPartUrls), [completeKnowledgeDocumentUpload](/api-reference/knowledge-bases/completeKnowledgeDocumentUpload), [abortKnowledgeDocumentUpload](/api-reference/knowledge-bases/abortKnowledgeDocumentUpload).
+
+### Update document
+
+OAuth login or personal API key required.
 
 ```bash
 sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 ```
-
-Update Document (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -583,10 +437,14 @@ Update Document (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Upload a document to a knowledge base
+API request and response schemas: [updateKnowledgeDocument](/api-reference/knowledge-bases/updateKnowledgeDocument).
+
+### Enable or disable every matching document
+
+OAuth login or personal API key required.
 
 ```bash
-sim knowledge documents upload <knowledgeBaseId> <path> [options]
+sim knowledge documents batch-update <knowledgeBaseId> [options]
 ```
 
 **Arguments**
@@ -595,8 +453,7 @@ sim knowledge documents upload <knowledgeBaseId> <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `knowledgeBaseId` | Yes | Knowledge base to upload into |
-| `path` | Yes | Local file to upload |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -606,18 +463,33 @@ sim knowledge documents upload <knowledgeBaseId> <path> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--name <name>` | No | Store it under a different name. |
-| `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
-| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
-| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
+| `--operation <value>` | Yes | Whether the selected documents become enabled or disabled for search. Accepted values: `enable`, `disable`. |
+| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-all` | No | Apply to every document in the knowledge base. |
+| `--enabled-filter <value>` | No | With `selectAll`, restrict the update to documents in this state. Accepted values: `all`, `enabled`, `disabled`. |
 
 </CommandTable>
 
-## Create knowledge base
+API request and response schemas: [bulkUpdateKnowledgeDocuments](/api-reference/knowledge-bases/bulkUpdateKnowledgeDocuments).
+
+### Delete a document from a knowledge base
+
+This deletes the document and its embeddings.
 
 ```bash
-sim knowledge create [options]
+sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 ```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
 
 **Options**
 
@@ -625,20 +497,531 @@ sim knowledge create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--name <value>` | Yes | Human-readable knowledge base name. |
-| `--description <value>` | No | Optional knowledge base description. |
-| `--chunking-config <json\|@file>` | No | Chunking configuration; defaults are applied when omitted. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## Create knowledge connector
+API request and response schemas: [deleteKnowledgeDocument](/api-reference/knowledge-bases/deleteKnowledgeDocument).
+
+### Index files the workspace already stores
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge from-workspace-files create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file <value...>` | Yes | Workspace file ID or canonical files/&lt;folder&gt;/&lt;name&gt; path (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+API request and response schemas: [addWorkspaceFilesToKnowledgeBase](/api-reference/knowledge-bases/addWorkspaceFilesToKnowledgeBase).
+
+## Chunks
+
+### List chunks
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against chunk content. |
+| `--enabled <value>` | No | Restrict to enabled or disabled chunks. `all` returns both. Defaults to "all". Accepted values: `true`, `false`, `all`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "chunkIndex". Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+API request and response schemas: [listKnowledgeChunks](/api-reference/knowledge-bases/listKnowledgeChunks).
+
+### Get chunk
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getKnowledgeChunk](/api-reference/knowledge-bases/getKnowledgeChunk).
+
+### Create chunk
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Text embedded before the response. Search includes it when the chunk and document are enabled and the document has completed processing. |
+| `--enabled` | No | Whether the new chunk participates in search. Defaults to true. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeChunk](/api-reference/knowledge-bases/createKnowledgeChunk).
+
+### Update chunk
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | No | Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts. |
+| `--enabled` | No | Whether the chunk participates in search. Disabling keeps it indexed. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
+API request and response schemas: [updateKnowledgeChunk](/api-reference/knowledge-bases/updateKnowledgeChunk).
+
+### Enable, disable, or delete many chunks at once
+
+OAuth login or personal API key required.
+
+This applies --operation to every named chunk; with --operation delete it deletes them and their embeddings, which cannot be undone.
+
+```bash
+sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [bulkUpdateKnowledgeChunks](/api-reference/knowledge-bases/bulkUpdateKnowledgeChunks).
+
+### Delete chunk
+
+OAuth login or personal API key required.
+
+This deletes the chunk and its embedding.
+
+```bash
+sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteKnowledgeChunk](/api-reference/knowledge-bases/deleteKnowledgeChunk).
+
+## Tags
+
+### List tags
+
+```bash
+sim knowledge tags list <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+API request and response schemas: [listKnowledgeTags](/api-reference/knowledge-bases/listKnowledgeTags).
+
+### Create tag
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge tags create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
+| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+| `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeTag](/api-reference/knowledge-bases/createKnowledgeTag).
+
+### Declare the tag definitions a knowledge base needs
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge tags save <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--definitions <json\|@file>` | Yes | Tag definitions: [&#123;"tagSlot":"tag1","displayName":"category","fieldType":"text"&#125;] (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+API request and response schemas: [bulkSaveKnowledgeTagDefinitions](/api-reference/knowledge-bases/bulkSaveKnowledgeTagDefinitions).
+
+### Update tag
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge tags update <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | No | New tag display name. |
+| `--field-type <value>` | No | New value type for the tag. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+API request and response schemas: [updateKnowledgeTag](/api-reference/knowledge-bases/updateKnowledgeTag).
+
+### Show how many documents and chunks carry each tag
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge tags usage <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+API request and response schemas: [listKnowledgeTagUsage](/api-reference/knowledge-bases/listKnowledgeTagUsage).
+
+### Show which tag slot a create would take for a field type
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge tags next-slot <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--field-type <value>` | Yes | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+API request and response schemas: [getNextKnowledgeTagSlot](/api-reference/knowledge-bases/getNextKnowledgeTagSlot).
+
+### Delete tag
+
+OAuth login or personal API key required.
+
+This deletes the tag and clears its values on every document and chunk.
+
+```bash
+sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteKnowledgeTag](/api-reference/knowledge-bases/deleteKnowledgeTag).
+
+### Remove tag definitions no document still uses
+
+OAuth login or personal API key required.
+
+This deletes every tag definition no document still uses. Their slots become free for a different field.
+
+```bash
+sim knowledge tags cleanup <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
+| `--no-unused` | No | Send --unused as false. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteKnowledgeTagDefinitions](/api-reference/knowledge-bases/deleteKnowledgeTagDefinitions).
+
+## Connectors
+
+### List knowledge connectors
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge connectors list <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `connectorType`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listKnowledgeConnectors](/api-reference/knowledge-bases/listKnowledgeConnectors).
+
+### Get knowledge connector
+
+OAuth login or personal API key required.
+
+```bash
+sim knowledge connectors get <knowledgeBaseId> <connectorId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+API request and response schemas: [getKnowledgeConnector](/api-reference/knowledge-bases/getKnowledgeConnector).
+
+### Create knowledge connector
+
+OAuth login or personal API key required.
 
 ```bash
 sim knowledge connectors create <knowledgeBaseId> [options]
 ```
-
-Create Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -658,19 +1041,21 @@ Create Knowledge Connector (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--connector-type <value>` | Yes | Registered connector type. |
 | `--credential-id <value>` | No | OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors. |
-| `--api-key <value>` | No | Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `&#123;&#123;SECRET_NAME&#125;&#125;`, which the server resolves; `$SECRET_NAME` is not a reference. |
+| `--api-key <value>` | No | Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference. |
 | `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
-| `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. |
+| `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. Defaults to 1440. |
 
 </CommandTable>
 
-## Delete knowledge connector
+API request and response schemas: [createKnowledgeConnector](/api-reference/knowledge-bases/createKnowledgeConnector).
+
+### Update knowledge connector
+
+OAuth login or personal API key required.
 
 ```bash
-sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
+sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
 ```
-
-Delete Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -689,19 +1074,21 @@ Delete Knowledge Connector (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--delete-documents` | No | Also permanently delete documents produced by this connector. |
-| `--no-delete-documents` | No | Send --delete-documents as false. |
-| `-y, --yes` | Yes | Confirm this operation. |
+| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused. (JSON, or @path / @- to read a file or stdin). |
+| `--sync-interval-minutes <value>` | No | New scheduled synchronization interval in minutes. |
+| `--status <value>` | No | New connector state. Accepted values: `active`, `paused`. |
 
 </CommandTable>
 
-## Get knowledge connector
+API request and response schemas: [updateKnowledgeConnector](/api-reference/knowledge-bases/updateKnowledgeConnector).
+
+### Queue a knowledge connector synchronization
+
+OAuth login or personal API key required.
 
 ```bash
-sim knowledge connectors get <knowledgeBaseId> <connectorId>
+sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
 ```
-
-Get Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -714,13 +1101,26 @@ Get Knowledge Connector (OAuth login or personal API key required)
 
 </CommandTable>
 
-## List knowledge connector documents
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--rehydrate` | No | Re-fetch and re-index every existing connector document. Defaults to false. |
+| `--no-rehydrate` | No | Send --rehydrate as false. |
+
+</CommandTable>
+
+API request and response schemas: [syncKnowledgeConnector](/api-reference/knowledge-bases/syncKnowledgeConnector).
+
+### List knowledge connector documents
+
+OAuth login or personal API key required.
 
 ```bash
 sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
 ```
-
-List Knowledge Connector Documents (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -746,13 +1146,15 @@ List Knowledge Connector Documents (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Update knowledge connector documents
+API request and response schemas: [listKnowledgeConnectorDocuments](/api-reference/knowledge-bases/listKnowledgeConnectorDocuments).
+
+### Update knowledge connector documents
+
+OAuth login or personal API key required.
 
 ```bash
 sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
 ```
-
-Update Knowledge Connector Documents (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -776,43 +1178,17 @@ Update Knowledge Connector Documents (OAuth login or personal API key required)
 
 </CommandTable>
 
-## List knowledge connectors
+API request and response schemas: [updateKnowledgeConnectorDocuments](/api-reference/knowledge-bases/updateKnowledgeConnectorDocuments).
+
+### Delete knowledge connector
+
+OAuth login or personal API key required.
+
+This deletes the connector; --delete-documents also deletes its synchronized documents.
 
 ```bash
-sim knowledge connectors list <knowledgeBaseId> [options]
+sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 ```
-
-List Knowledge Connectors (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `connectorType`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## Queue a knowledge connector synchronization
-
-```bash
-sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
-```
-
-Queue a knowledge connector synchronization (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -831,303 +1207,17 @@ Queue a knowledge connector synchronization (OAuth login or personal API key req
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
-| `--no-rehydrate` | No | Send --rehydrate as false. |
-
-</CommandTable>
-
-## Update knowledge connector
-
-```bash
-sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
-```
-
-Update Knowledge Connector (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
-| `connectorId` | Yes | Connector selected for the operation. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused. (JSON, or @path / @- to read a file or stdin). |
-| `--sync-interval-minutes <value>` | No | New scheduled synchronization interval in minutes. |
-| `--status <value>` | No | New connector state. Accepted values: `active`, `paused`. |
-
-</CommandTable>
-
-## Create a knowledge folder at a path
-
-```bash
-sim knowledge folders create <path>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
-
-</CommandTable>
-
-## Delete folder
-
-```bash
-sim knowledge folders delete <path> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--recursive` | No | Delete the folder and its descendants. |
+| `--delete-documents` | No | Also permanently delete documents produced by this connector. |
+| `--no-delete-documents` | No | Send --delete-documents as false. |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## List knowledge folders
+API request and response schemas: [deleteKnowledgeConnector](/api-reference/knowledge-bases/deleteKnowledgeConnector).
 
-```bash
-sim knowledge folders list [options]
-```
+## Folders
 
-Also available as `sim knowledge folders ls`.
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--parent <value>` | No | Direct parent folder path. |
-| `--search <value>` | No | Case-insensitive substring match against the folder name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-
-</CommandTable>
-
-## Rename or move a knowledge folder
-
-```bash
-sim knowledge folders move <path> <destination>
-```
-
-Also available as `sim knowledge folders mv`.
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
-| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
-
-</CommandTable>
-
-## Delete knowledge base
-
-```bash
-sim knowledge delete <knowledgeBaseId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Get knowledge base
-
-```bash
-sim knowledge get <knowledgeBaseId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-## List knowledge bases
-
-```bash
-sim knowledge list [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--scope <value>` | No | Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches. Accepted values: `active`, `archived`. |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--search <value>` | No | Case-insensitive substring match against the resource name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## Restore an archived knowledge base
-
-```bash
-sim knowledge restore <knowledgeBaseId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-## Search knowledge
-
-```bash
-sim knowledge search [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--query <value>` | No | Text to search for. |
-| `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100. |
-| `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
-| `--search-mode <value>` | No | Search algorithm. Accepted values: `vector`, `hybrid`. |
-| `--reranker-enabled` | No | Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response. |
-| `--no-reranker-enabled` | No | Send --reranker-enabled as false. |
-| `--reranker-model <value>` | No | Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
-| `--reranker-input-count <value>` | No | How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from. |
-
-</CommandTable>
-
-## Update knowledge base
-
-```bash
-sim knowledge update <knowledgeBaseId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | No | New knowledge base name. |
-| `--description <value>` | No | New knowledge base description. |
-| `--chunking-config <json\|@file>` | No | New document chunking configuration. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-
-</CommandTable>
-
-## Move a knowledge base to a folder
-
-```bash
-sim knowledge mv <knowledgeBaseId> <folder>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
-| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
-
-</CommandTable>
-
-## Export a knowledge base as a .simkb.zip bundle
-
-```bash
-sim knowledge export <knowledgeBaseId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Knowledge base to export |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-o, --output-file <path>` | No | Write the bundle to this path instead of the name the server suggests; pass - to stream it to stdout. |
-| `--force` | No | Overwrite --output-file if it already exists. |
-| `--no-vectors` | No | Leave chunk vectors out of the bundle, so an import re-embeds every chunk. |
-
-</CommandTable>
-
-## List knowledge resources and child folders together
+### List knowledge resources and child folders together
 
 ```bash
 sim knowledge ls [path] [options]
@@ -1154,7 +1244,102 @@ sim knowledge ls [path] [options]
 
 </CommandTable>
 
-## Create a knowledge directory at a path
+API request and response schemas: [listKnowledgeBases](/api-reference/knowledge-bases/listKnowledgeBases), [listKnowledgeFolders](/api-reference/knowledge-bases/listKnowledgeFolders).
+
+### List knowledge folders
+
+```bash
+sim knowledge folders list [options]
+```
+
+Also available as `sim knowledge folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listKnowledgeFolders](/api-reference/knowledge-bases/listKnowledgeFolders).
+
+### Create a knowledge folder at a path
+
+```bash
+sim knowledge folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeFolder](/api-reference/knowledge-bases/createKnowledgeFolder).
+
+### Delete folder
+
+This archives the knowledge folder and, when recursive, everything inside it.
+
+```bash
+sim knowledge folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Archive the folder and its descendants. Defaults to "false". |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteKnowledgeFolder](/api-reference/knowledge-bases/deleteKnowledgeFolder).
+
+### Rename or move a knowledge folder
+
+```bash
+sim knowledge folders move <path> <destination>
+```
+
+Also available as `sim knowledge folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+API request and response schemas: [relocateKnowledgeFolder](/api-reference/knowledge-bases/relocateKnowledgeFolder).
+
+### Create a knowledge directory at a path
 
 ```bash
 sim knowledge mkdir <path>
@@ -1169,3 +1354,11 @@ sim knowledge mkdir <path>
 | `path` | Yes | Folder path to create; the leading / is optional |
 
 </CommandTable>
+
+API request and response schemas: [createKnowledgeFolder](/api-reference/knowledge-bases/createKnowledgeFolder).
+
+## Related docs
+
+- [Knowledge Base](/knowledgebase)
+- [Tags and filters](/knowledgebase/tags)
+- [Export and import](/knowledgebase/export-import)

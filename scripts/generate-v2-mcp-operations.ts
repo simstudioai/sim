@@ -12,10 +12,11 @@
  *
  * Operations come from {@link collectOperations} — the same contract discovery
  * the CLI generator uses — so the terminal and MCP expose one operation set
- * under one set of names. An operation is left out only when its transport
- * cannot be expressed as a JSON tool call: a binary response, or a body that
- * must be streamed as multipart. A route built by anything this script does not
- * recognize fails generation rather than being guessed at.
+ * under one set of names. An operation is left out only while its reference is
+ * unpublished, or when its transport cannot be expressed as a JSON tool call: a
+ * binary response, or a body that must be streamed as multipart. A route built by
+ * anything this script does not recognize fails generation rather than being
+ * guessed at.
  *
  * Usage:
  *   bun run scripts/generate-v2-mcp-operations.ts              # write the generated file
@@ -159,9 +160,23 @@ function format(source: string): string {
   return result.stdout
 }
 
+/** `METHOD path` keys of operations whose public reference is not yet published. */
+async function loadUnpublishedOperationKeys(): Promise<Set<string>> {
+  const { unpublishedProjectFileDocumentation } = await import(
+    path.join(APP_ROOT, 'lib/api/contracts/v2/openapi/unpublished-project-files.ts')
+  )
+  return new Set(
+    unpublishedProjectFileDocumentation.routes.map(
+      ({ contract }: { contract: Operation['contract'] }) =>
+        docPathKey(contract.method, contract.path)
+    )
+  )
+}
+
 async function main() {
   const check = process.argv.includes('--check')
-  const docs = loadSummaries(await loadWorkspaceKeyDenialMarkers())
+  const docs = await loadSummaries(await loadWorkspaceKeyDenialMarkers())
+  const unpublished = await loadUnpublishedOperationKeys()
   const readRoute = (relativePath: string) => {
     const file = path.join(APP_ROOT, relativePath)
     return existsSync(file) ? readFileSync(file, 'utf8') : null
@@ -170,7 +185,10 @@ async function main() {
   const operations: McpOperation[] = []
   let excluded = 0
   for (const operation of await collectOperations()) {
-    if (classifyOperation(operation, readRoute) === 'excluded') {
+    if (
+      unpublished.has(docPathKey(operation.contract.method, operation.contract.path)) ||
+      classifyOperation(operation, readRoute) === 'excluded'
+    ) {
       excluded++
       continue
     }
@@ -201,7 +219,7 @@ async function main() {
 
   writeFileSync(OUTPUT, generated)
   console.log(
-    `Wrote ${relative} — ${operations.length} operations (${excluded} excluded: binary or multipart transport).`
+    `Wrote ${relative} — ${operations.length} operations (${excluded} excluded: unpublished, or binary or multipart transport).`
   )
 }
 

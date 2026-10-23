@@ -9,6 +9,7 @@ import {
   MothershipResourceType,
   mergeChatResource,
   mergePendingChatResourceUpdate,
+  normalizeChatResource,
   PERSISTED_RESOURCE_TYPES,
   reorderStoredChatResources,
   sanitizeChatResources,
@@ -165,6 +166,12 @@ describe('mergeChatResource', () => {
     expect(mergeChatResource(stored, { ...stored })).toBe(stored)
   })
 
+  it('keeps the stored entry when the newcomer repeats an equal owner', () => {
+    const owner = { entityType: 'project' as const, entityId: 'project-1' }
+    const file = resource({ type: 'file', id: 'file-1', title: 'Notes', owner })
+    expect(mergeChatResource(file, { ...file, owner: { ...owner } })).toBe(file)
+  })
+
   it('replaces a placeholder title but never a specific one', () => {
     const placeholder = resource({ type: 'table', id: 'tbl-1', title: 'Table' })
     expect(mergeChatResource(placeholder, stored).title).toBe('Invoices')
@@ -267,6 +274,11 @@ describe('reorderStoredChatResources', () => {
     // length comparison would reject every reorder for that chat forever.
     expect(reorderStoredChatResources([table, table, file], [file, table])).toEqual([file, table])
   })
+
+  it('matches a stored unscoped tab to the client tab its chat workspace owns', () => {
+    const owned = { ...file, owner: { entityType: 'workspace' as const, entityId: 'ws' } }
+    expect(reorderStoredChatResources([file, table], [table, owned], 'ws')).toEqual([table, file])
+  })
 })
 
 describe('organization resource identity', () => {
@@ -286,7 +298,7 @@ describe('organization resource identity', () => {
     })
     expect(getChatResourceSelectionId(a)).toBe(a.id)
     expect(mergeChatResource(a, { ...a, path: 'files/new.png' })).toMatchObject({
-      workspaceId: 'a',
+      owner: { entityType: 'workspace', entityId: 'a' },
       workspaceName: 'Design',
     })
   })
@@ -302,3 +314,15 @@ it.each(['', '   ', 'r1'])(
     expect(sanitizeChatResources([named])[0]?.title).toBe('Canonical workflow')
   }
 )
+
+describe('normalizeChatResource', () => {
+  it('adds the workspace owner while keeping the address current browsers read', () => {
+    const resource = { type: 'file' as const, id: 'file', title: 'notes.md', workspaceId: 'ws' }
+    const normalized = normalizeChatResource(resource)
+    expect(normalized).toMatchObject({
+      workspaceId: 'ws',
+      owner: { entityType: 'workspace', entityId: 'ws' },
+    })
+    expect(getChatResourceKey(normalized)).toBe(getChatResourceKey(resource))
+  })
+})

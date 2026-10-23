@@ -4,7 +4,7 @@ interface LiveSearchProviderDefinition {
   modes: readonly ('member' | 'service_account')[]
 }
 
-/** Browser-safe capabilities; branding and setup fields remain in ConnectorMeta. */
+/** Browser-safe capabilities; branding and setup fields live in source-catalog. */
 export const LIVE_SEARCH_PROVIDER_CATALOG = {
   google_drive: {
     origin: 'https://www.googleapis.com',
@@ -15,6 +15,16 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     origin: 'https://gmail.googleapis.com',
     credentialProviderIds: ['google-email', 'gmail'],
     modes: ['member', 'service_account'],
+  },
+  google_meet: {
+    origin: 'https://meet.googleapis.com',
+    credentialProviderIds: ['google-meet'],
+    modes: ['member'],
+  },
+  zoom: {
+    origin: 'https://mcp.zoom.us',
+    credentialProviderIds: ['mcp:zoom'],
+    modes: ['member'],
   },
   google_calendar: {
     origin: 'https://www.googleapis.com',
@@ -45,6 +55,36 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     origin: 'https://gitlab.com',
     credentialProviderIds: ['gitlab'],
     modes: ['service_account'],
+  },
+  linear: {
+    origin: 'https://api.linear.app',
+    credentialProviderIds: ['linear'],
+    modes: ['member'],
+  },
+  lucid: {
+    origin: 'https://mcp.lucid.app',
+    credentialProviderIds: ['mcp:lucid'],
+    modes: ['member'],
+  },
+  hubspot: {
+    origin: 'https://mcp.hubspot.com',
+    credentialProviderIds: ['mcp:hubspot'],
+    modes: ['member'],
+  },
+  fireflies: {
+    origin: 'https://api.fireflies.ai',
+    credentialProviderIds: ['mcp:fireflies'],
+    modes: ['member'],
+  },
+  granola: {
+    origin: 'https://mcp.granola.ai',
+    credentialProviderIds: ['mcp:granola'],
+    modes: ['member'],
+  },
+  notion: {
+    origin: 'https://mcp.notion.com',
+    credentialProviderIds: ['mcp:notion'],
+    modes: ['member'],
   },
   coda: {
     origin: 'https://coda.io',

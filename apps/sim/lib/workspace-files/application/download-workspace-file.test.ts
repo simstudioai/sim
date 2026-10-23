@@ -1,50 +1,72 @@
 import { Readable } from 'node:stream'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import {
+  ContentDeliveryUnobservedError,
+  ContentRefusedError,
+  type ContentSource,
+  observeContentDelivery,
+} from '@/lib/core/application'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import {
+  assertFileReadReceiptCurrent,
+  recheckFileReadReceipt,
+} from '@/lib/workspace-files/read-receipt'
 
 class FakeDocNotReadyError extends Error {}
 
-const mocks = vi.hoisted(() => ({
-  provenance: vi.fn(),
-  downloadStream: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
-  getFile: vi.fn(),
-  loadContext: vi.fn(),
-  recordAudit: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'FILE_DOWNLOADED' },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.fetchServable,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   isDocNotReadyError: (error: unknown) => error instanceof FakeDocNotReadyError,
   docNotReadyMessage: () => 'A document is still being generated.',
 }))
 
-import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+
+const mocks = {
+  provenance: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  byIdentity:
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByIdentity,
+  downloadStream: storageServiceMockFns.mockDownloadFileStream,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const context = {
   fileId: 'file-1',
@@ -95,7 +117,8 @@ const uploadedPdf = {
   storageContext: 'workspace',
 }
 
-const SESSION = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const SESSION = createSessionPrincipal()
+const CHAT = createDelegatedPrincipal({ audience: WORKSPACE_FILES_DELEGATION_AUDIENCE })
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
   return new Response(stream).text()
@@ -117,24 +140,106 @@ describe('workspace file downloads', () => {
     })
   })
 
-  it('observes canonical private provenance before returning while keeping public results unchanged', async () => {
+  it('classifies a Chat download by its canonical provenance before opening storage', async () => {
     const provenance = { status: 'exact', entries: [] }
     mocks.provenance.mockResolvedValue(provenance)
-    const observe = vi.fn(async () => {})
-    const result = await observeWorkspaceFileDelivery(observe, () => downloadStream('file-2'))
-    expect(observe).toHaveBeenCalledWith(provenance)
-    expect(result.secretProvenance).toBeUndefined()
+    mocks.getFile.mockResolvedValue(plainFile)
+    const admit = vi.fn(async (sources: readonly ContentSource[]) => sources.map(() => true))
+    const result = await observeContentDelivery({ admit }, () =>
+      downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: plainFile.id } })
+    )
+    expect(admit).toHaveBeenCalledWith([
+      { kind: 'workspace-file', id: plainFile.id, provenance, view: 'opaque' },
+    ])
+    expect(admit.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.downloadStream.mock.invocationCallOrder[0]
+    )
+    expect(result.contentType).toBe('text/csv')
   })
-  it('does not return content if the private delivery observer refuses', async () => {
+
+  it('refuses a Chat download its gate refuses with a 403, before opening storage', async () => {
     mocks.provenance.mockResolvedValue({ status: 'unknown' })
+    mocks.getFile.mockResolvedValue(plainFile)
     await expect(
-      observeWorkspaceFileDelivery(
-        async () => {
-          throw new Error('no evidence')
-        },
-        () => downloadStream('file-2')
+      observeContentDelivery({ admit: async (sources) => sources.map(() => false) }, () =>
+        downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: plainFile.id } })
       )
-    ).rejects.toThrow('no evidence')
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.downloadStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses raw bytes when final receipt provenance is no longer admitted', async () => {
+    mocks.getFile.mockResolvedValue(plainFile)
+    mocks.provenance.mockResolvedValue({ status: 'exact', entries: [] })
+    vi.mocked(recheckFileReadReceipt).mockResolvedValueOnce({
+      status: 'unknown',
+    })
+    await expect(
+      observeContentDelivery(
+        { admit: async (sources) => sources.map((source) => source.provenance.status === 'exact') },
+        () =>
+          downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: plainFile.id } })
+      )
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.downloadStream).toHaveBeenCalled()
+  })
+
+  it('refuses a Chat download no gate observes', async () => {
+    mocks.getFile.mockResolvedValue(plainFile)
+    await expect(
+      downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: plainFile.id } })
+    ).rejects.toBeInstanceOf(ContentDeliveryUnobservedError)
+    expect(mocks.provenance).not.toHaveBeenCalled()
+    expect(mocks.downloadStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses a rendered document for Chat when a file it embeds is refused', async () => {
+    const embedded = {
+      fileId: 'file-embedded',
+      key: 'workspace/workspace-1/logo.png',
+      context: 'workspace' as const,
+    }
+    mocks.getFile.mockResolvedValue(generatedDoc)
+    mocks.provenance.mockResolvedValue({ status: 'exact', entries: [] })
+    mocks.fetchServable.mockResolvedValue({
+      buffer: Buffer.from('%PDF-compiled'),
+      contentType: 'application/pdf',
+      contributingFiles: [embedded],
+    })
+    mocks.byIdentity.mockResolvedValue(new Map([[embedded.fileId, { status: 'unknown' }]]))
+    await expect(
+      observeContentDelivery(
+        {
+          admit: async (sources) => sources.map((source) => source.provenance.status !== 'unknown'),
+        },
+        () => downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: 'file-3' } })
+      )
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+  })
+
+  it('rejects a session download whose files changed after authorization', async () => {
+    mocks.getFile.mockResolvedValue(generatedDoc)
+    mocks.fetchServable.mockResolvedValue({
+      buffer: Buffer.from('%PDF-compiled'),
+      contentType: 'application/pdf',
+      receipt: {
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        files: [
+          { id: generatedDoc.id, key: generatedDoc.key, revision: 1 },
+          { id: 'file-embedded', key: 'workspace/workspace-1/logo.png', revision: 1 },
+        ],
+      },
+    })
+    vi.mocked(assertFileReadReceiptCurrent).mockRejectedValueOnce(new Error('A file changed'))
+
+    await expect(downloadStream(generatedDoc.id)).rejects.toThrow('A file changed')
+  })
+
+  it('reads no provenance for a session download, which no gate classifies', async () => {
+    mocks.getFile.mockResolvedValue(plainFile)
+    const result = await downloadStream(plainFile.id)
+    expect(await readAll(result.stream)).toBe('pdf')
+    expect(mocks.provenance).not.toHaveBeenCalled()
   })
 
   /** Resolving an artifact costs a full buffer, so it is reserved for generation sources. */
@@ -184,6 +289,7 @@ describe('workspace file downloads', () => {
   })
 })
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)

@@ -12,6 +12,7 @@ export const readWorkspaceContextOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
+  contentDelivery: 'none',
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
 })
@@ -20,6 +21,7 @@ export const readWorkspaceContext = defineAuthorizedChatUseCase({
   operation: readWorkspaceContextOperation,
   organizationOperation: defineOrganizationOperation({
     id: readWorkspaceContextOperation.id,
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['organization_delegated'],
@@ -28,7 +30,6 @@ export const readWorkspaceContext = defineAuthorizedChatUseCase({
   }),
   async resolveContext({
     principal,
-    input,
   }: {
     principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
     input: { workspaceId: string }

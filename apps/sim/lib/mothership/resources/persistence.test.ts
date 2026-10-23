@@ -1,22 +1,15 @@
 import { databaseMock } from '@sim/testing'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { describe, expect, it, vi } from 'vitest'
 import { persistChatResources } from '@/lib/mothership/resources/persistence'
 import { serializeChatResourceWrite } from '@/lib/mothership/resources/store'
-
-function deferred() {
-  let resolve: () => void = () => {}
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
 
 const transaction = databaseMock.db.transaction as ReturnType<typeof vi.fn>
 const TABLE_RESOURCE = { type: 'table' as const, id: 'table-1', title: 'Accounts' }
 
 describe('persistChatResources ordering', () => {
   it('starts writes for the same chat in invocation order', async () => {
-    const first = deferred()
+    const first = createDeferred<void>()
     transaction.mockReturnValueOnce(first.promise).mockResolvedValueOnce(undefined)
 
     const firstWrite = persistChatResources('chat-1', [{ ...TABLE_RESOURCE, viewId: 'view-a' }])
@@ -28,8 +21,8 @@ describe('persistChatResources ordering', () => {
   })
 
   it('does not serialize writes for different chats', async () => {
-    const first = deferred()
-    const second = deferred()
+    const first = createDeferred<void>()
+    const second = createDeferred<void>()
     transaction.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
 
     const firstWrite = persistChatResources('chat-1', [TABLE_RESOURCE])
@@ -41,7 +34,7 @@ describe('persistChatResources ordering', () => {
   })
 
   it('serializes tool writes behind other resource mutations for the same chat', async () => {
-    const apiMutation = deferred()
+    const apiMutation = createDeferred<void>()
     const firstWrite = serializeChatResourceWrite('chat-1', () => apiMutation.promise)
     const secondWrite = persistChatResources('chat-1', [TABLE_RESOURCE])
 

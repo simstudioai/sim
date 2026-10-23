@@ -2,7 +2,6 @@ import { Bug, ClipboardList, Clock, Database, File, Search, Server } from '@sim/
 import { LogfireIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { LogfireResponse } from '@/tools/logfire/types'
 
 const toBoolean = (value: unknown): boolean | undefined => {
   if (value === true || value === 'true') return true
@@ -74,12 +73,12 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`
 
 const SEARCH_FILTER_FIELD = ['query', 'service', 'spanName'] as const
 
-export const LogfireBlock: BlockConfig<LogfireResponse> = {
+export const LogfireBlock: BlockConfig = {
   type: 'logfire',
   name: 'Logfire',
   description: 'Query traces, logs, and metrics in Pydantic Logfire',
   longDescription:
-    'Integrate Pydantic Logfire into workflows. Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.',
+    'Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.',
   docsLink: 'https://docs.sim.ai/integrations/logfire',
   category: 'tools',
   authMode: AuthMode.ApiKey,

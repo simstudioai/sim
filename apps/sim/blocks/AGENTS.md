@@ -1,16 +1,6 @@
 # Blocks Scope
 
-These rules apply to block definitions under `apps/sim/blocks/**`.
-
-- Keep block `type` values and tool mappings aligned with the actual integration tool IDs.
-- Every subblock `id` must be unique within the block, even across different conditions.
-- Use `condition`, `required`, `dependsOn`, and `mode` deliberately to reflect the UX and execution requirements.
-- Use `canonicalParamId` only to link alternative inputs for the same logical parameter; do not reuse it as a subblock `id`.
-- If one field in a canonical group is required, all alternatives in that group must also be required.
-- Put type coercion in `tools.config.params`, never in `tools.config.tool`.
-- When supporting file inputs, follow the basic/advanced pattern and normalize with `normalizeFileInput`.
-- Keep block outputs aligned with what the referenced tools actually return.
-- `{Service}BlockMeta.skills` (curated, one-click-add agent skills shown on the integration detail page) must be grounded in operations the block exposes via `tools.access` and derived from real, popular use cases found online — web-search and source each one; never invent or hallucinate skills.
+Applies to block definitions under `apps/sim/blocks/**`. Block authoring rules (subblock ids, `canonicalParamId`, file inputs, selectors, BlockMeta) are in `.claude/rules/sim-integrations.md` and the `/add-block` skill. This file owns the canvas-sentence contract.
 
 ## Canvas sentences
 
@@ -23,7 +13,7 @@ Post ⟨Ship it 🚀⟩ to ⟨#eng⟩              ← the sentence; ⟨…⟩ a
 
 Declare it under `canvasPresentation.sentences` — `default` for a block with no
 operation dropdown, `byOperation` keyed by the dropdown's **option ids** otherwise.
-A block that declares nothing keeps the row layout, so adoption is incremental.
+Every block declares one — `bun run check:canvas-sentences` fails on any operation without a sentence. A block that declares nothing falls back to the row layout.
 
 Validate with `bun run apps/sim/scripts/check-canvas-sentences.ts --block=<type>`.
 Everything below that is mechanically checkable is enforced there — a sentence
@@ -251,7 +241,7 @@ canvasPresentation: {
         { text: ', up to', field: 'limit', after: 'rows' },
       ],
       get_schema: [
-        { text: 'Read the schema of', field: ['tableSelector', 'manualTableId'], core: true },
+        { text: 'Read schema of', field: ['tableSelector', 'manualTableId'], core: true },
       ],
     },
   },
@@ -269,8 +259,9 @@ shortens to `Query rows from ⟨orders⟩` when only the table is set, and reads
   block's name minus any "(Legacy)" suffix. Do not add `typeLabel` or
   `operationSubBlockId` as part of a sentence change — those alter title
   resolution for workflows that already exist.
-- **Trigger mode has no sentence.** A dual-mode block's card keeps its rows when
-  used as a trigger, so write only for the action side.
+- **Action `sentences` don't apply in trigger mode.** Trigger mode swaps the
+  subblock set, so a dual-mode block's trigger card reads from
+  `triggerSentences` or the derived `Run on <trigger name>` — see "Trigger cards".
 
 ### Context to write from
 

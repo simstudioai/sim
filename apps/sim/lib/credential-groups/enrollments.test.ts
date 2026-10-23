@@ -1,4 +1,18 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { eq, ilike, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,34 +27,22 @@ vi.mock('@/components/emails/credential-groups/render', () => ({
   renderCredentialGroupInvitationEmail: vi.fn(),
 }))
 
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: vi.fn() }))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getOrganizationSubscriptionUsable: vi.fn().mockResolvedValue({ plan: 'enterprise' }),
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn().mockResolvedValue({}),
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
 vi.mock('@/lib/credential-groups/availability', () => ({
   isCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
 }))
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => adapter,
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
-import { getOrganizationSubscriptionUsable } from '@/lib/billing/core/subscription'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   bindCredentialGroupEnrollmentUser,
   completeCredentialGroupEnrollment,
-  createCredentialGroupInvitationLink,
   createCredentialGroupSelfEnrollmentLink,
   deleteCredentialGroupEnrollment,
   getAuthorizedCredentialGroupOAuthContext,
@@ -53,6 +55,13 @@ import {
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+
+const mockGetOrganizationSubscriptionUsable =
+  billingSubscriptionMockFns.mockGetOrganizationSubscriptionUsable
+mockGetOrganizationSubscriptionUsable.mockResolvedValue({ plan: 'enterprise' })
+setEnvFlags({ isCredentialGroupsEnabled: true })
+billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue({})
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue(adapter)
 
 const MAX_CONNECTION_SUMMARIES = (CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3
 
@@ -350,61 +359,6 @@ describe('listCredentialGroupEnrollments', () => {
   })
 })
 
-describe('createCredentialGroupInvitationLink', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-  })
-
-  it('issues a fresh enrollment token without sending email', async () => {
-    const issued = {
-      ...ENROLLMENT,
-      email: 'person@example.com',
-      status: 'invited' as const,
-      sentAt: null,
-      completedAt: null,
-    }
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([
-        {
-          workspaceId: 'workspace-1',
-          workspaceName: 'Workspace',
-          groupId: 'group-1',
-          groupName: 'Group',
-          groupStatus: 'active',
-          options: [{ id: 'option-1', status: 'active' }],
-        },
-      ])
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockResolvedValueOnce([issued])
-
-    const result = await createCredentialGroupInvitationLink(
-      'workspace-1',
-      'group-1',
-      'user-1',
-      ' Person@Example.COM '
-    )
-
-    expect(result.enrollment).toMatchObject({
-      id: ENROLLMENT.id,
-      email: 'person@example.com',
-      status: 'invited',
-      sentAt: null,
-    })
-    expect(new URL(result.invitationLink).pathname).toMatch(
-      /^\/credential-groups\/enroll\/[0-9a-f-]+$/
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        credentialGroupId: 'group-1',
-        email: 'person@example.com',
-        createdBy: 'user-1',
-        sentAt: null,
-      })
-    )
-    expect(sendEmail).not.toHaveBeenCalled()
-  })
-})
-
 describe('verified self enrollment', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -432,14 +386,6 @@ describe('verified self enrollment', () => {
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ createdBy: null, email: ENROLLMENT.email })
     )
-  })
-
-  it('continues to require an account type for external invitations', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([group]).mockResolvedValueOnce([])
-    await expect(
-      createCredentialGroupInvitationLink('workspace-1', 'group-1', 'admin', ENROLLMENT.email)
-    ).rejects.toThrow('Add an account type')
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('refuses a disabled group for self enrollment', async () => {
@@ -787,9 +733,7 @@ describe('organization enrollment bound identity', () => {
   }
   beforeEach(() => {
     resetDbChainMock()
-    vi.clearAllMocks()
-    vi.mocked(getOrganizationSubscriptionUsable).mockResolvedValue({ plan: 'enterprise' } as never)
-    vi.mocked(isFeatureEnabled).mockResolvedValue(true)
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue({ plan: 'enterprise' })
     queueTableRows(schemaMock.credentialGroupEnrollment, [row])
   })
   it('accepts a verified organization member without any workspace', async () => {

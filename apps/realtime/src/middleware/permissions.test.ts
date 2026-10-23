@@ -8,27 +8,13 @@
  */
 
 import { ALL_SOCKET_OPERATIONS, BLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { databaseMock, dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { workflowAuthzMock, workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorize } = vi.hoisted(() => ({
-  mockAuthorize: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorize,
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => [{ workspaceId: 'ws-1', name: 'Test Workflow' }]),
-        })),
-      })),
-    })),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 import {
   checkRolePermission,
@@ -36,6 +22,10 @@ import {
   resolveCurrentWorkflowRole,
   verifyWorkflowAccess,
 } from '@/middleware/permissions'
+
+dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-1', name: 'Test Workflow' }])
+
+const mockAuthorize = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
 describe('checkRolePermission', () => {
   describe('read role', () => {

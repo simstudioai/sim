@@ -2,7 +2,6 @@ import { SnowflakeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalJsonInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_WAREHOUSE_SIZES } from '@/tools/snowflake/types'
 
 const sqlSubmissionOperations = [
@@ -34,6 +33,7 @@ const sqlSubmissionOperations = [
   'list_copy_history',
   'introspect_schema',
   'call_procedure',
+  'cortex_analyst_ask',
 ] as const
 
 const computeOperations = [
@@ -52,6 +52,7 @@ const computeOperations = [
   'list_copy_history',
   'introspect_schema',
   'call_procedure',
+  'cortex_analyst_ask',
 ] as const
 
 const maxRowsOperations = [
@@ -62,7 +63,16 @@ const maxRowsOperations = [
   'get_task_run_output',
   'introspect_schema',
   'call_procedure',
+  'cortex_analyst_ask',
 ] as const
+
+/** Semantic source fields Cortex Analyst Ask accepts, keyed by the source dropdown option. */
+const CORTEX_SEMANTIC_SOURCE_FIELDS = {
+  semantic_view: 'semanticView',
+  semantic_model_file: 'semanticModelFile',
+  semantic_model: 'semanticModel',
+  semantic_models: 'semanticModels',
+} as const
 
 const dataOperations = [
   'insert_rows',
@@ -227,13 +237,13 @@ function resolveCopyOnError(value: unknown, threshold: unknown): string | undefi
   return `SKIP_FILE_${number}${value === 'SKIP_FILE_PERCENT' ? '%' : ''}`
 }
 
-export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
+export const SnowflakeBlock: BlockConfig = {
   type: 'snowflake',
   name: 'Snowflake',
-  description: 'Query data and manage warehouses and tasks in Snowflake',
+  description: 'Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.',
+    'Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures. Ask Cortex Analyst questions in natural language against a semantic view or model to get generated SQL and, optionally, its results, with multi-turn follow-ups.',
   docsLink: 'https://docs.sim.ai/integrations/snowflake',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -355,6 +365,17 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
           { text: 'Call', field: ['procedureSelector', 'procedureNameManual'], core: true },
           { text: ', with', field: 'procedureArguments' },
         ],
+        cortex_analyst_ask: [
+          { text: 'Ask Cortex Analyst', field: 'question', core: true },
+          {
+            text: ', using',
+            field: ['semanticView', 'semanticModelFile', 'semanticModel', 'semanticModels'],
+          },
+        ],
+        cortex_analyst_feedback: [
+          { text: 'Rate Cortex Analyst answer', field: 'requestId', core: true },
+          { text: ' as', field: 'positive' },
+        ],
       },
     },
   },
@@ -414,6 +435,8 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         { label: 'List Copy History', id: 'list_copy_history' },
         { label: 'Introspect Schema', id: 'introspect_schema' },
         { label: 'Call Procedure', id: 'call_procedure' },
+        { label: 'Ask Cortex Analyst', id: 'cortex_analyst_ask' },
+        { label: 'Send Cortex Analyst Feedback', id: 'cortex_analyst_feedback' },
       ],
       value: () => 'execute_sql',
     },
@@ -918,6 +941,151 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       },
     },
     {
+      id: 'question',
+      title: 'Question',
+      type: 'long-input',
+      placeholder: 'Which region had the highest revenue last quarter?',
+      condition: { field: 'operation', value: 'cortex_analyst_ask' },
+      required: { field: 'operation', value: 'cortex_analyst_ask' },
+    },
+    {
+      id: 'semanticSource',
+      title: 'Semantic Source',
+      type: 'dropdown',
+      options: [
+        { label: 'Semantic View', id: 'semantic_view' },
+        { label: 'Semantic Model File (stage)', id: 'semantic_model_file' },
+        { label: 'Semantic Model YAML', id: 'semantic_model' },
+        { label: 'Multiple Semantic Sources', id: 'semantic_models' },
+      ],
+      /* A block written by Copilot or the API seeds this from the source field it filled. */
+      value: (params) =>
+        params?.semanticModelFile
+          ? 'semantic_model_file'
+          : params?.semanticModel
+            ? 'semantic_model'
+            : params?.semanticModels
+              ? 'semantic_models'
+              : 'semantic_view',
+      paramVisibility: 'user-only',
+      condition: { field: 'operation', value: 'cortex_analyst_ask' },
+    },
+    {
+      id: 'semanticView',
+      title: 'Semantic View',
+      type: 'short-input',
+      placeholder: 'MY_DB.MY_SCHEMA.MY_SEMANTIC_VIEW',
+      condition: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_view' },
+      },
+      required: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_view' },
+      },
+    },
+    {
+      id: 'semanticModelFile',
+      title: 'Semantic Model File',
+      type: 'short-input',
+      placeholder: '@MY_DB.MY_SCHEMA.MY_STAGE/semantic_model.yaml',
+      condition: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_model_file' },
+      },
+      required: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_model_file' },
+      },
+    },
+    {
+      id: 'semanticModel',
+      title: 'Semantic Model YAML',
+      type: 'code',
+      placeholder: 'name: revenue\ntables:\n  - name: orders\n    ...',
+      condition: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_model' },
+      },
+      required: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_model' },
+      },
+    },
+    {
+      id: 'semanticModels',
+      title: 'Semantic Sources',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '[{"semantic_view":"MY_DB.MY_SCHEMA.SALES_VIEW"},{"semantic_view":"MY_DB.MY_SCHEMA.SUPPORT_VIEW"}]',
+      condition: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_models' },
+      },
+      required: {
+        field: 'operation',
+        value: 'cortex_analyst_ask',
+        and: { field: 'semanticSource', value: 'semantic_models' },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Cortex Analyst semantic sources. Each item is either {"semantic_view": "DB.SCHEMA.VIEW"} for a semantic view or {"semantic_model_file": "@DB.SCHEMA.STAGE/file.yaml"} for a staged semantic model file. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the semantic views or model files to choose between...',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'history',
+      title: 'Conversation History',
+      type: 'code',
+      language: 'json',
+      placeholder: '<Snowflake.conversation> from a previous Ask Cortex Analyst',
+      condition: { field: 'operation', value: 'cortex_analyst_ask' },
+      mode: 'advanced',
+    },
+    {
+      id: 'executeSql',
+      title: 'Run Generated SQL',
+      type: 'switch',
+      condition: { field: 'operation', value: 'cortex_analyst_ask' },
+    },
+    {
+      id: 'requestId',
+      title: 'Request ID',
+      type: 'short-input',
+      placeholder: 'requestId from Ask Cortex Analyst',
+      condition: { field: 'operation', value: 'cortex_analyst_feedback' },
+      required: { field: 'operation', value: 'cortex_analyst_feedback' },
+    },
+    {
+      id: 'positive',
+      title: 'Rating',
+      type: 'dropdown',
+      options: [
+        { label: 'Positive', id: 'true' },
+        { label: 'Negative', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'cortex_analyst_feedback' },
+      required: { field: 'operation', value: 'cortex_analyst_feedback' },
+    },
+    {
+      id: 'feedbackMessage',
+      title: 'Feedback Comment',
+      type: 'long-input',
+      placeholder: 'Optional comment about the answer',
+      condition: { field: 'operation', value: 'cortex_analyst_feedback' },
+    },
+    {
       id: 'warehouseSelector',
       title: 'Execution Warehouse',
       type: 'project-selector',
@@ -1011,6 +1179,8 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       'snowflake_list_copy_history',
       'snowflake_introspect_schema',
       'snowflake_call_procedure',
+      'snowflake_cortex_analyst_ask',
+      'snowflake_cortex_analyst_feedback',
     ],
     config: {
       tool: (params) => `snowflake_${params.operation}`,
@@ -1080,6 +1250,43 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
               params.procedureArguments,
               'Procedure arguments'
             )
+            break
+          case 'cortex_analyst_ask': {
+            /*
+             * Only the selected source reaches the tool, which requires exactly one. A caller
+             * that never set the dropdown (API, Copilot, or a direct tool call) is matched to
+             * the single source field it filled.
+             */
+            const sourceFields = Object.values(CORTEX_SEMANTIC_SOURCE_FIELDS)
+            const filled = sourceFields.filter((field) => {
+              const value = params[field]
+              return value !== undefined && value !== null && String(value).trim() !== ''
+            })
+            const selected = params.semanticSource
+              ? CORTEX_SEMANTIC_SOURCE_FIELDS[
+                  String(params.semanticSource) as keyof typeof CORTEX_SEMANTIC_SOURCE_FIELDS
+                ]
+              : filled.length === 1
+                ? filled[0]
+                : undefined
+            if (selected) {
+              for (const field of sourceFields) {
+                if (field !== selected) result[field] = undefined
+              }
+            }
+            if (selected === 'semanticModels' || (!selected && filled.includes('semanticModels'))) {
+              result.semanticModels = parseOptionalJsonInput(
+                params.semanticModels,
+                'Semantic sources'
+              )
+            }
+            result.semanticSource = undefined
+            result.history = parseOptionalJsonInput(params.history, 'Conversation history')
+            result.executeSql = optionalBoolean(params.executeSql)
+            break
+          }
+          case 'cortex_analyst_feedback':
+            result.positive = optionalBoolean(params.positive)
         }
 
         return result
@@ -1180,6 +1387,28 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     role: { type: 'string', description: 'Statement execution role' },
     statementTimeoutSeconds: { type: 'number', description: 'Statement timeout in seconds' },
     maxRows: { type: 'number', description: 'Maximum result rows (Sim safety limit: 10000)' },
+    question: { type: 'string', description: 'Question to ask Cortex Analyst' },
+    semanticSource: {
+      type: 'string',
+      description:
+        'Which semantic source Cortex Analyst uses (semantic_view, semantic_model_file, semantic_model, semantic_models)',
+    },
+    semanticView: { type: 'string', description: 'Fully qualified semantic view name' },
+    semanticModelFile: { type: 'string', description: 'Stage path to a semantic model YAML file' },
+    semanticModel: { type: 'string', description: 'Inline semantic model YAML' },
+    semanticModels: {
+      type: 'string',
+      description:
+        'Semantic sources to choose between, as a JSON array of {semantic_view} or {semantic_model_file} objects',
+    },
+    history: {
+      type: 'string',
+      description: 'Earlier Cortex Analyst conversation messages as a JSON array',
+    },
+    executeSql: { type: 'boolean', description: 'Run the SQL Cortex Analyst generates' },
+    requestId: { type: 'string', description: 'Cortex Analyst request ID to rate' },
+    positive: { type: 'boolean', description: 'Whether the Cortex Analyst feedback is positive' },
+    feedbackMessage: { type: 'string', description: 'Cortex Analyst feedback comment' },
   },
   outputs: {
     statementHandle: { type: 'string', description: 'Snowflake statement handle' },
@@ -1195,6 +1424,51 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       description:
         'Completed DML statistics ({rowsInserted, rowsUpdated, rowsDeleted, duplicateRowsUpdated, rowsAffected})',
     },
+    requestId: { type: 'string', description: 'Cortex Analyst request ID, used to send feedback' },
+    text: {
+      type: 'string',
+      description: 'How Cortex Analyst interpreted the question, or why it could not answer',
+    },
+    sql: { type: 'string', description: 'SQL Cortex Analyst generated' },
+    verifiedQuery: {
+      type: 'json',
+      description:
+        'Verified query used to generate the SQL ({name, question, sql, verifiedAt, verifiedBy})',
+    },
+    suggestions: {
+      type: 'json',
+      description: 'Suggested questions returned instead of SQL for an ambiguous question',
+    },
+    warnings: { type: 'json', description: 'Cortex Analyst warnings about the request' },
+    questionCategory: {
+      type: 'string',
+      description: 'How Cortex Analyst categorized the question',
+    },
+    modelNames: {
+      type: 'json',
+      description: 'Models used to generate the Cortex Analyst response',
+    },
+    semanticModelSelection: {
+      type: 'json',
+      description:
+        'Semantic source Cortex Analyst chose when several were given ({index, semanticView, semanticModelFile, inlineSemanticModel})',
+    },
+    cortexSearchRetrieval: {
+      type: 'json',
+      description:
+        'Entities Cortex Analyst resolved with Cortex Search ([{service, query, response_body}])',
+    },
+    conversation: {
+      type: 'json',
+      description:
+        'Full Cortex Analyst conversation ([{role, content}]); pass it as Conversation History for a follow-up',
+    },
+    execution: {
+      type: 'json',
+      description:
+        'Result of running the generated SQL ({statementHandle, status, message, result, dml}) when Run Generated SQL is on. A query still running after 45 seconds returns status RUNNING; fetch its rows with Get Statement',
+    },
+    success: { type: 'boolean', description: 'Whether the Cortex Analyst feedback was recorded' },
   },
 }
 
@@ -1306,6 +1580,36 @@ export const SnowflakeBlockMeta = {
       category: 'engineering',
       tags: ['automation', 'devops'],
     },
+    {
+      icon: SnowflakeIcon,
+      title: 'Snowflake Cortex Analyst Slack analyst',
+      prompt:
+        "Build an agent that answers data questions asked in a Slack channel with Snowflake Cortex Analyst over our semantic view. It keeps each Slack thread's Cortex Analyst conversation in a table so follow-up questions keep their context, starting fresh after a handful of turns, runs the generated SQL, and replies in the thread with the interpretation, a short table of rows, and the SQL.",
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SnowflakeIcon,
+      title: 'Snowflake Cortex Analyst router',
+      prompt:
+        'Create an agent that sends each incoming business question to Snowflake Cortex Analyst with our sales, finance, and support semantic views, lets Cortex Analyst pick the right one, runs the generated SQL, and posts the results and which view answered to Slack, or posts the suggested rephrasings when the question is ambiguous.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SnowflakeIcon,
+      title: 'Snowflake Cortex Analyst KPI digest',
+      prompt:
+        'Build a scheduled workflow that asks Snowflake Cortex Analyst a fixed list of weekly KPI questions against our semantic view, runs each generated SQL, and posts a digest of the results and the SQL behind them to a Slack channel every Monday.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
   ],
   skills: [
     {
@@ -1368,6 +1672,13 @@ export const SnowflakeBlockMeta = {
       description: 'Call a Snowflake stored procedure with explicitly typed arguments.',
       content:
         '# Call a Snowflake Procedure\n\n## Steps\n1. Confirm the fully qualified procedure and argument order.\n2. Assign each argument an explicit Snowflake binding type and string value.\n3. Execute the call and inspect its result.\n\n## Output\nReturn the procedure result and statement handle.',
+    },
+    {
+      name: 'ask-cortex-analyst',
+      description:
+        'Answer a business question with Snowflake Cortex Analyst over a semantic view, then run the SQL and report the result.',
+      content:
+        '# Ask Snowflake Cortex Analyst\n\nAnswer a data question from a governed semantic view.\n\n## Steps\n1. Ask Cortex Analyst the question with the semantic view (or several views to choose between), passing the previous conversation as history for a follow-up.\n2. If it returns suggestions instead of SQL, surface them so the user can pick a clearer question.\n3. Otherwise run the generated SQL and capture the rows; if the run is still RUNNING, fetch the rows with Get Statement.\n4. Note whether a verified query was used.\n5. Start a new conversation after a handful of turns, since the full history is reprocessed on every question.\n\n## Output\nThe interpretation, a compact table of the key rows, the SQL, and the conversation to continue from.',
     },
   ],
 } as const satisfies BlockMeta

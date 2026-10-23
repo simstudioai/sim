@@ -1,14 +1,13 @@
 ---
 title: Microsoft Word
 description: Create, fill, read, edit, and export Word documents
+integration:
+  type: "microsoft_word"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_word"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Word](https://www.microsoft.com/microsoft-365/word) in Sim to create, read, and edit `.docx` files stored in OneDrive or SharePoint, fill templates, and export documents as PDF. Choose **Replace Content** to overwrite a document, **Append Content** to add paragraphs, or **Find and Replace Text** to update matching text. The sections below explain document IDs, supported formatting, and template behavior.
@@ -28,7 +27,7 @@ Every operation identifies a document by its **drive item ID**, not by its file 
 | `**bold**`, `*italic*` | Bold and italic text |
 | Anything else | A plain paragraph |
 
-Unsupported Markdown is left as visible text rather than being dropped, so nothing goes missing silently.
+Unsupported Markdown remains visible as text.
 
 **Replace Content** overwrites the whole document — its previous content and formatting are discarded. To add to a document instead, use **Append Content**, which adds plain paragraphs to the end and leaves everything already there untouched.
 
@@ -52,21 +51,40 @@ Word splits a sentence across several internal runs whenever formatting changes 
 
 ## Permissions
 
-Connecting a Microsoft account grants Sim `Files.Read` and `Files.ReadWrite`, the permissions Microsoft Graph requires to read and write drive items. The same permissions cover SharePoint document libraries the account can already reach — Sim never gains access to anything the signed-in account could not open itself.
+The Microsoft connection requests `Files.Read`, `Files.ReadWrite`, `Files.Read.All`, and `Files.ReadWrite.All`, alongside identity and offline-access scopes. The delegated `.All` scopes cover files in SharePoint libraries the signed-in account can reach; an older connection may need **Reconnect** to grant them. These scopes do not grant access beyond that account's existing file permissions. See the [Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Word account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Microsoft Word into the workflow. Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-word` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Files.Read` | Read your Word documents in OneDrive |
+| `Files.ReadWrite` | Read, create, and edit your Word documents in OneDrive |
+| `Files.Read.All` | Read Word documents you can access, including SharePoint libraries |
+| `Files.ReadWrite.All` | Read, create, and edit Word documents you have access to, including SharePoint libraries |
+| `offline_access` | Access account when not using the application |
 
+## Use the block [#usage-instructions]
+
+Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.
 
 ## Actions
 
 ### Create Microsoft Word Document
 
 Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*. An existing document with the same name is never overwritten — the new one is given a unique name instead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -90,9 +108,13 @@ Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text
 |   ↳ `createdTime` | string | ISO 8601 creation time |
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 
+</ReferenceDetails>
+
 ### Create Microsoft Word Document from Template
 
 Copy an existing Microsoft Word (.docx) template to a new document and fill its placeholders. The template keeps all of its formatting, styles, headers, and footers, and is never modified. An existing document with the same name is never overwritten — the new one is given a unique name instead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +141,13 @@ Copy an existing Microsoft Word (.docx) template to a new document and fill its 
 |   ↳ `createdTime` | string | ISO 8601 creation time |
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 
+</ReferenceDetails>
+
 ### Read Microsoft Word Document
 
 Read the text content of a Microsoft Word (.docx) document stored in OneDrive or SharePoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +170,13 @@ Read the text content of a Microsoft Word (.docx) document stored in OneDrive or
 |   ↳ `createdTime` | string | ISO 8601 creation time |
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 
+</ReferenceDetails>
+
 ### Update Microsoft Word Document
 
 Replace the entire contents of an existing Microsoft Word (.docx) document with new text. The previous content and its formatting are discarded — use Append to add to a document instead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,9 +200,13 @@ Replace the entire contents of an existing Microsoft Word (.docx) document with 
 |   ↳ `createdTime` | string | ISO 8601 creation time |
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 
+</ReferenceDetails>
+
 ### Append to Microsoft Word Document
 
 Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact. Fails rather than overwriting if someone else changed the document while the edit was in flight.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +230,13 @@ Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) do
 |   ↳ `createdTime` | string | ISO 8601 creation time |
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 
+</ReferenceDetails>
+
 ### Replace Text in Microsoft Word Document
 
 Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document. Fails rather than overwriting if someone else changed the document while the edit was in flight.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +262,13 @@ Find and replace text throughout a Microsoft Word (.docx) document, including it
 |   ↳ `createdTime` | string | ISO 8601 creation time |
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 
+</ReferenceDetails>
+
 ### List Microsoft Word Documents
 
 List or search Microsoft Word (.docx) documents in OneDrive or SharePoint. Non-Word items are filtered out of the results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -252,9 +294,13 @@ List or search Microsoft Word (.docx) documents in OneDrive or SharePoint. Non-W
 |   ↳ `modifiedTime` | string | ISO 8601 last modification time |
 | `nextPageToken` | string | Continuation URL for the next page of results, when more remain |
 
+</ReferenceDetails>
+
 ### Export Microsoft Word Document as PDF
 
 Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and return it as a file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -269,5 +315,7 @@ Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and retur
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | file | The converted PDF, stored in execution files |
+
+</ReferenceDetails>
 
 

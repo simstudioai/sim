@@ -17,7 +17,7 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   ForbiddenOperationError,
   forbiddenErrorDetails,
@@ -36,6 +36,7 @@ import {
   buildPersistedUserMessage,
 } from '@/lib/mothership/chat/persisted-message'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import {
   type CopilotEnvironmentContext,
   createCopilotEnvironmentContext,
@@ -264,12 +265,11 @@ export const POST = withRouteHandler(
       // surface uses, and refuse every id that does not resolve with the same
       // response so the refusal carries no information about the id. Omitting
       // the id mints a server-issued conversation instead of trusting one.
-      // The resolved transcript is deliberately not forwarded: continuity is
-      // keyed by `chatId` downstream, exactly as the web send path and the Sim
-      // Chat block do, both of which post a single message with a chat id.
+      // Continuity is keyed by `chatId` downstream, exactly as the web send
+      // path and the Sim Chat block do, both of which post a single message
+      // with a chat id.
       const resolvedChat = await resolveOrCreateChat({
         ...(conversationId ? { chatId: conversationId } : {}),
-        includeTranscript: false,
         userId,
         workspaceId,
         model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
@@ -344,6 +344,8 @@ export const POST = withRouteHandler(
         chatId,
         messageId,
         integrationCatalog: { mcpServerIds: [] },
+        mode: 'agent',
+        entitlements: await computeEntitlements({ principal, workspaceId }),
         ...(effort ? { effort } : {}),
       }
 

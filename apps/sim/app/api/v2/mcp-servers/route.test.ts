@@ -6,37 +6,30 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  list: vi.fn(),
-  create: vi.fn(),
-  capture: vi.fn(),
-}))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  listMcpServersUseCase: { operation: { id: 'mcp_servers.list' }, execute: mocks.list },
-  createMcpServerUseCase: { operation: { id: 'mcp_servers.create' }, execute: mocks.create },
-}))
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/mcp-servers/route'
 
+const mocks = {
+  list: mcpUseCasesMockFns.mockListMcpServersUseCase,
+  create: mcpUseCasesMockFns.mockCreateMcpServerUseCase,
+}
+
 type McpServerRow = typeof mcpServers.$inferSelect
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const PRINCIPAL = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
@@ -72,13 +65,11 @@ const server = {
 } as McpServerRow
 
 function request(method: 'GET' | 'POST', url: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000${url}`, {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000${url}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
@@ -226,6 +217,6 @@ describe('/api/v2/mcp-servers', () => {
       },
       request: expect.anything(),
     })
-    expect(mocks.capture).not.toHaveBeenCalled()
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

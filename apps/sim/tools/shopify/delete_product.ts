@@ -1,5 +1,5 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyDeleteProductParams, ShopifyDeleteResponse } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyDeleteProductTool: ToolConfig<
@@ -14,12 +14,19 @@ export const shopifyDeleteProductTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -32,20 +39,11 @@ export const shopifyDeleteProductTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      if (!params.productId) {
+      if (!params.productId?.trim()) {
         throw new Error('Product ID is required to delete a product')
       }
 
@@ -60,10 +58,11 @@ export const shopifyDeleteProductTool: ToolConfig<
               }
             }
           }
+
         `,
         variables: {
           input: {
-            id: params.productId,
+            id: params.productId.trim(),
           },
         },
       }
@@ -73,10 +72,10 @@ export const shopifyDeleteProductTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to delete product',
+        error: data.errors?.[0]?.message || 'Failed to delete product',
         output: {},
       }
     }

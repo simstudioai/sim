@@ -55,13 +55,13 @@ export function ReplacementControls({
         />
       )}
 
-      <div className='flex items-center justify-between gap-2'>
+      <div className='flex items-center justify-between gap-2 max-md:flex-wrap'>
         <span className='text-[var(--text-muted)] text-xs'>
           {eligibleCount} replaceable match{eligibleCount === 1 ? '' : 'es'}
         </span>
-        <div className='flex gap-1.5'>
+        <div className='flex shrink-0 gap-1.5 max-md:ml-auto'>
           <Button
-            className='h-8 text-xs'
+            className='h-8 text-xs max-md:pointer-coarse:min-h-11'
             variant='default'
             disabled={disabled || isApplying || !canReplaceActive}
             onClick={onReplaceActive}
@@ -69,7 +69,7 @@ export function ReplacementControls({
             Replace
           </Button>
           <Button
-            className='h-8 text-xs'
+            className='h-8 text-xs max-md:pointer-coarse:min-h-11'
             variant='active'
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}

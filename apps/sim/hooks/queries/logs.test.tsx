@@ -1,7 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import {
   focusManager,
   onlineManager,
@@ -11,13 +16,7 @@ import {
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   type LogFilters,
@@ -28,6 +27,8 @@ import {
   useLogsSnapshot,
   useNewLogCount,
 } from '@/hooks/queries/logs'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 function renderHookWithClient<T>(useHook: () => T): {
   result: () => T

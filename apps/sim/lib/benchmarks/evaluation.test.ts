@@ -13,12 +13,12 @@ describe('benchmark reconstruction grading', () => {
   ]
 
   it.each([
-    reconstructed.slice(0, 1),
-    [reconstructed[0], reconstructed[0]],
-    [reconstructed[0], { ...reconstructed[1], id: 'foreign' }],
+    { answers: reconstructed.slice(0, 1) },
+    { answers: [reconstructed[0], reconstructed[0]] },
+    { answers: [reconstructed[0], { ...reconstructed[1], id: 'foreign' }] },
   ])(
     'rejects omitted, duplicate, or foreign answers instead of changing the denominator',
-    (answers) => {
+    ({ answers }) => {
       expect(() => validateReconstruction(blanks, answers)).toThrow()
     }
   )

@@ -11,6 +11,7 @@ import { Button, cn, Popover, PopoverContent, PopoverItem, PopoverTrigger } from
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -191,7 +192,9 @@ export function MessagesInput({
   /**
    * Wand hook for AI-assisted content generation
    */
+  const { workspaceId } = useWorkflowScope()
   const wandHook = useWand({
+    workspaceId,
     wandConfig: config.wandConfig,
     currentValue: getMessagesJson(),
     onStreamStart: () => {
@@ -565,7 +568,6 @@ export function MessagesInput({
 
             const handleEnvSelect = subBlockInput.fieldHelpers.createEnvVarSelectHandler(
               fieldId,
-              message.content,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }
@@ -573,7 +575,6 @@ export function MessagesInput({
 
             const handleTagSelect = subBlockInput.fieldHelpers.createTagSelectHandler(
               fieldId,
-              message.content,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }

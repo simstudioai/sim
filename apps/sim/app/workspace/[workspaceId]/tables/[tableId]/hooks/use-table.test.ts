@@ -1,3 +1,5 @@
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
+import { tableConstantsMock } from '@sim/testing/mocks/table-constants.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Capture useEffect calls so tests can trigger them manually.
@@ -15,15 +17,10 @@ vi.mock('react', () => ({
   useRef: (init: unknown) => ({ current: init }),
 }))
 
-const mockGetQueryData = vi.fn()
+const mockGetQueryData = reactQueryMockFns.mockQueryClient.getQueryData
 const mockFetchNextPage = vi.fn()
-const mockQueryClient = {
-  getQueryData: mockGetQueryData,
-}
 
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: vi.fn(() => mockQueryClient),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/hooks/queries/tables', () => ({
   tableRowsInfiniteOptions: vi.fn(({ tableId, pageSize, filter, sort }) => ({
@@ -62,9 +59,7 @@ vi.mock('@/blocks', () => ({
   getBlock: vi.fn(() => undefined),
 }))
 
-vi.mock('@/lib/table/constants', () => ({
-  TABLE_LIMITS: { MAX_QUERY_LIMIT: 1000 },
-}))
+vi.mock('@/lib/table/constants', () => tableConstantsMock)
 
 import { useTable } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table'
 
@@ -93,7 +88,6 @@ function makeHook(queryOptions = QUERY_OPTIONS) {
 
 beforeEach(() => {
   capturedEffects.length = 0
-  vi.clearAllMocks()
   mockGetQueryData.mockReturnValue(undefined)
   mockFetchNextPage.mockResolvedValue(OK)
 })

@@ -17,7 +17,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { ResponseBlockHandler } from '@/executor/handlers/response/handler'
 import { useWorkspaceOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useOperationAccess } from '@/hooks/use-operation-access'
@@ -397,7 +397,7 @@ export const Dropdown = memo(function Dropdown({
       }
 
       return []
-    } catch (error) {
+    } catch {
       return []
     }
   }

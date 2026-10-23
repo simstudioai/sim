@@ -18,7 +18,7 @@ import {
   assertMultiFileUploadAdmission,
   MultiFileUploadAdmissionError,
 } from '@/lib/uploads/client/admission'
-import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
@@ -28,19 +28,9 @@ interface AddDocumentsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   knowledgeBaseId: string
-  chunkingConfig?: {
-    maxSize: number
-    minSize: number
-    overlap: number
-  }
 }
 
-export function AddDocumentsModal({
-  open,
-  onOpenChange,
-  knowledgeBaseId,
-  chunkingConfig,
-}: AddDocumentsModalProps) {
+export function AddDocumentsModal({ open, onOpenChange, knowledgeBaseId }: AddDocumentsModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [files, setFiles] = useState<File[]>([])

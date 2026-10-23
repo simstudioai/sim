@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -25,7 +26,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
@@ -40,8 +41,8 @@ import {
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
+import { EMBEDDING_CHECKPOINT_CLEANUP_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import * as embeddingCheckpoints from '@/lib/knowledge/documents/embedding-checkpoints'
-import { EMBEDDING_CHECKPOINT_CLEANUP_EVENT } from '@/lib/knowledge/documents/embedding-checkpoints'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { assertDocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
@@ -72,7 +73,7 @@ describe('embedding progress survives a processing slice', () => {
     Object.assign(env, previous)
     if (events.length) await db.delete(outboxEvent).where(inArray(outboxEvent.id, events))
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     await rm(fixtureStorage.root, { recursive: true, force: true })

@@ -154,10 +154,3 @@ export interface GammaListFoldersResponse extends ToolResponse {
     nextCursor: string | null
   }
 }
-
-export type GammaResponse =
-  | GammaGenerateResponse
-  | GammaGenerateFromTemplateResponse
-  | GammaCheckStatusResponse
-  | GammaListThemesResponse
-  | GammaListFoldersResponse

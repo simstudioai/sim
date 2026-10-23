@@ -1,18 +1,17 @@
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 
 /**
- * `@/lib/auth/auth-client` builds a Better Auth client at module scope, which
+ * `@/lib/auth/client` builds a Better Auth client at module scope, which
  * throws when NEXT_PUBLIC_APP_URL is absent from the environment (and under
  * `isolate: false` an earlier file may have imported the graph in a polluted
  * env). This test only exercises the pure `resolveSettingsHref`, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/client', () => authClientMock)
 
-import { resolveSettingsHref, resolveSettingsReturnUrl } from '@/hooks/use-settings-navigation'
+import { resolveSettingsHref } from '@/hooks/use-settings-navigation'
 
 const HOST_CONTEXT: WorkspaceHostContext = {
   workspace: {
@@ -52,19 +51,5 @@ describe('resolveSettingsHref unified settings navigation', () => {
         viewerUserId: 'external-a',
       })
     ).toBe('/workspace/workspace-b/upgrade')
-  })
-})
-
-describe('resolveSettingsReturnUrl', () => {
-  const fallback = '/workspace/workspace-b'
-
-  it('discards a stored url captured in a workspace the user has since left', () => {
-    expect(
-      resolveSettingsReturnUrl({
-        storedUrl: '/workspace/workspace-a/w/workflow-a',
-        workspaceId: 'workspace-b',
-        fallback,
-      })
-    ).toBe(fallback)
   })
 })

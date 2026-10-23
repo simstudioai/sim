@@ -354,7 +354,6 @@ export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationC
     return
   }
 
-  // Check if block is locked or inside a locked container
   const deleteBlock = modifiedState.blocks[block_id]
   const deleteParentId = deleteBlock.data?.parentId as string | undefined
   const deleteParentLocked = deleteParentId ? modifiedState.blocks[deleteParentId]?.locked : false
@@ -370,7 +369,6 @@ export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationC
     return
   }
 
-  // Find all child blocks to remove
   const blocksToRemove = new Set<string>([block_id])
   const findChildren = (parentId: string) => {
     Object.entries(modifiedState.blocks).forEach(([childId, child]: [string, any]) => {
@@ -382,10 +380,8 @@ export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationC
   }
   findChildren(block_id)
 
-  // Remove blocks
   blocksToRemove.forEach((id) => delete modifiedState.blocks[id])
 
-  // Remove edges connected to deleted blocks
   modifiedState.edges = modifiedState.edges.filter(
     (edge: any) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
   )
@@ -408,7 +404,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
   const block = modifiedState.blocks[block_id]
 
-  // Check if block is locked or inside a locked container
   const editParentId = block.data?.parentId as string | undefined
   const editParentLocked = editParentId ? modifiedState.blocks[editParentId]?.locked : false
   if (block.locked || editParentLocked) {
@@ -423,7 +418,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     return
   }
 
-  // Ensure block has essential properties
   if (!block.type) {
     logger.warn(`Block ${block_id} missing type property, skipping edit`, {
       blockKeys: Object.keys(block),
@@ -438,7 +432,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     return
   }
 
-  // Update inputs (convert to subBlocks format)
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
@@ -450,7 +443,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     )
     const explicitInputKeys = new Set<string>()
 
-    // Validate inputs against block configuration
     const validationResult = validateInputsForBlock(
       block.type,
       params.inputs,
@@ -488,7 +480,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
-      // Special handling for tools - normalize and filter disallowed
       if (key === 'tools' && Array.isArray(value)) {
         sanitizedValue = filterDisallowedTools(
           normalizeTools(value),
@@ -498,7 +489,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         )
       }
 
-      // Special handling for responseFormat - normalize to ensure consistent format
       if (key === 'responseFormat' && value) {
         sanitizedValue = normalizeResponseFormat(value)
       }
@@ -529,10 +519,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
     }
 
-    // Update loop/parallel configuration in block.data (strict validation)
     if (block.type === 'loop') {
       block.data = block.data || {}
-      // loopType is always valid
       if (params.inputs.loopType !== undefined) {
         const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
         if (validLoopTypes.includes(params.inputs.loopType)) {
@@ -540,15 +528,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         }
       }
       const effectiveLoopType = params.inputs.loopType ?? block.data.loopType ?? 'for'
-      // iterations only valid for 'for' loopType
       if (params.inputs.iterations !== undefined && effectiveLoopType === 'for') {
         block.data.count = params.inputs.iterations
       }
-      // collection only valid for 'forEach' loopType
       if (params.inputs.collection !== undefined && effectiveLoopType === 'forEach') {
         block.data.collection = params.inputs.collection
       }
-      // condition only valid for 'while' or 'doWhile' loopType
       if (
         params.inputs.condition !== undefined &&
         (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
@@ -561,7 +546,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
     } else if (block.type === 'parallel') {
       block.data = block.data || {}
-      // parallelType is always valid
       if (params.inputs.parallelType !== undefined) {
         const validParallelTypes = ['count', 'collection']
         if (validParallelTypes.includes(params.inputs.parallelType)) {
@@ -569,11 +553,9 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         }
       }
       const effectiveParallelType = params.inputs.parallelType ?? block.data.parallelType ?? 'count'
-      // count only valid for 'count' parallelType
       if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
         block.data.count = params.inputs.count
       }
-      // collection only valid for 'collection' parallelType
       if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
         block.data.collection = params.inputs.collection
       }
@@ -604,12 +586,10 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  // Update basic properties
   if (params?.type !== undefined) {
     // Special container types (loop, parallel) are not in the block registry but are valid
     const isContainerType = params.type === 'loop' || params.type === 'parallel'
 
-    // Validate type before setting (skip validation for container types)
     const blockConfig = getBlock(params.type)
     if (!blockConfig && !isContainerType) {
       logSkippedItem(skippedItems, {
@@ -674,24 +654,21 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  // Handle trigger mode toggle
   if (typeof params?.triggerMode === 'boolean') {
     block.triggerMode = params.triggerMode
 
     if (params.triggerMode === true) {
-      // Remove all incoming edges when enabling trigger mode
       modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.target !== block_id)
     }
   }
 
-  // Handle advanced mode toggle
   if (typeof params?.advancedMode === 'boolean') {
     block.advancedMode = params.advancedMode
   }
 
-  // Handle retry policy. Runs after the trigger-mode branch above so eligibility
-  // sees the block's post-update mode: turning a block into a trigger in the
-  // same operation makes it ineligible, exactly as the editor treats it.
+  // Runs after the trigger-mode branch above so retry eligibility sees the
+  // block's post-update mode: turning a block into a trigger in the same
+  // operation makes it ineligible, exactly as the editor treats it.
   if (params?.retry !== undefined) {
     applyBlockRetry(block, params.retry, {
       operationType: 'edit',
@@ -700,14 +677,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     })
   }
 
-  // Handle nested nodes update (for loops/parallels) using merge strategy.
-  // Existing children that match an incoming node by name are updated in place
+  // Merge strategy: existing children that match an incoming node by name are updated in place
   // (preserving their block ID). New children are created. Children not present
   // in the incoming set are removed.
   if (params?.nestedNodes) {
     mergeNestedNodesForParent(block_id, params.nestedNodes, ctx)
 
-    // Update loop/parallel configuration based on type (strict validation)
     updateLoopOrParallelContainerData(block, params)
   }
 
@@ -727,7 +702,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     })
   }
 
-  // Handle edge removal
   if (params?.removeEdges && Array.isArray(params.removeEdges)) {
     params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'source' }) => {
       modifiedState.edges = modifiedState.edges.filter(
@@ -794,7 +768,6 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
   // Special container types (loop, parallel) are not in the block registry but are valid
   const isContainerType = params.type === 'loop' || params.type === 'parallel'
 
-  // Validate block type before adding (skip validation for container types)
   const addBlockConfig = getBlock(params.type)
   if (!addBlockConfig && !isContainerType) {
     logSkippedItem(skippedItems, {
@@ -807,7 +780,6 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     return
   }
 
-  // Check if block type is allowed by permission group
   if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
     logSkippedItem(skippedItems, {
       type: 'block_not_allowed',
@@ -831,7 +803,6 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     return
   }
 
-  // Check single-instance block constraints (e.g., Response block)
   const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
     modifiedState.blocks,
     params.type
@@ -847,7 +818,6 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     return
   }
 
-  // Create new block with proper structure
   const newBlock = createBlockFromParams(
     block_id,
     params,
@@ -866,7 +836,6 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
   // This ensures children can reference valid parentId
   modifiedState.blocks[block_id] = newBlock
 
-  // Handle nested nodes (for loops/parallels created from scratch)
   if (params.nestedNodes) {
     processNestedNodesForParent(block_id, params.nestedNodes, ctx)
   }
@@ -916,7 +885,6 @@ export function handleInsertIntoSubflowOperation(
     return
   }
 
-  // Check if subflow is locked
   if (subflowBlock.locked) {
     logSkippedItem(skippedItems, {
       type: 'block_locked',
@@ -939,11 +907,9 @@ export function handleInsertIntoSubflowOperation(
     return
   }
 
-  // Check if block already exists (moving into subflow) or is new
   const existingBlock = modifiedState.blocks[block_id]
 
   if (existingBlock) {
-    // Check if existing block is locked
     if (existingBlock.locked) {
       logSkippedItem(skippedItems, {
         type: 'block_locked',
@@ -965,9 +931,7 @@ export function handleInsertIntoSubflowOperation(
     }
     existingBlock.position = { x: 0, y: 0 }
 
-    // Update inputs if provided (with validation)
     if (params.inputs) {
-      // Validate inputs against block configuration
       const validationResult = validateInputsForBlock(
         existingBlock.type,
         params.inputs,
@@ -985,7 +949,6 @@ export function handleInsertIntoSubflowOperation(
         skippedItems,
       })
       Object.entries(validationResult.validInputs).forEach(([key, value]) => {
-        // Skip runtime subblock IDs (webhookId, triggerPath)
         if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
           return
         }
@@ -998,7 +961,6 @@ export function handleInsertIntoSubflowOperation(
 
         sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
-        // Special handling for tools - normalize and filter disallowed
         if (key === 'tools' && Array.isArray(value)) {
           sanitizedValue = filterDisallowedTools(
             normalizeTools(value),
@@ -1008,7 +970,6 @@ export function handleInsertIntoSubflowOperation(
           )
         }
 
-        // Special handling for responseFormat - normalize to ensure consistent format
         if (key === 'responseFormat' && value) {
           sanitizedValue = normalizeResponseFormat(value)
         }
@@ -1038,7 +999,6 @@ export function handleInsertIntoSubflowOperation(
     // Special container types (loop, parallel) are not in the block registry but are valid
     const isContainerType = params.type === 'loop' || params.type === 'parallel'
 
-    // Validate block type before creating (skip validation for container types)
     const insertBlockConfig = getBlock(params.type)
     if (!insertBlockConfig && !isContainerType) {
       logSkippedItem(skippedItems, {
@@ -1051,7 +1011,6 @@ export function handleInsertIntoSubflowOperation(
       return
     }
 
-    // Check if block type is allowed by permission group
     if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
       logSkippedItem(skippedItems, {
         type: 'block_not_allowed',
@@ -1063,7 +1022,6 @@ export function handleInsertIntoSubflowOperation(
       return
     }
 
-    // Create new block as child of subflow
     const newBlock = createBlockFromParams(
       block_id,
       params,
@@ -1086,7 +1044,6 @@ export function handleInsertIntoSubflowOperation(
   // This is particularly important when multiple blocks are being inserted
   // and they have connections to each other
   if (params.connections) {
-    // Remove existing edges from this block first
     modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
     // Re-specifying connections fully replaces this block's outgoing edges, so
@@ -1096,7 +1053,6 @@ export function handleInsertIntoSubflowOperation(
       connBlock.data.pendingConnections = undefined
     }
 
-    // Add to deferred connections list
     deferredConnections.push({
       blockId: block_id,
       connections: params.connections,
@@ -1133,7 +1089,6 @@ export function handleExtractFromSubflowOperation(
     return
   }
 
-  // Check if block is locked
   if (block.locked) {
     logSkippedItem(skippedItems, {
       type: 'block_locked',
@@ -1144,7 +1099,6 @@ export function handleExtractFromSubflowOperation(
     return
   }
 
-  // Check if parent subflow is locked
   const parentSubflow = modifiedState.blocks[subflowId]
   if (parentSubflow?.locked) {
     logSkippedItem(skippedItems, {
@@ -1157,7 +1111,6 @@ export function handleExtractFromSubflowOperation(
     return
   }
 
-  // Verify it's actually a child of this subflow
   if (block.data?.parentId !== subflowId) {
     logger.warn('Block is not a child of specified subflow', {
       block_id,

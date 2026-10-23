@@ -8,7 +8,7 @@ import {
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
-import { STREAM_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { CHAT_RUN_DEADLINE_MS } from '@/lib/mothership/constants'
 
 /**
  * Pure half of organization usage analytics: window resolution, the ledger scope
@@ -429,6 +429,21 @@ function civilKey(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** A bounded year of calendar days, including today's partial day in the viewer's timezone. */
+export function resolveUsageCalendarWindow(
+  timezone: string,
+  now = new Date()
+): Extract<UsageAnalyticsWindow, { kind: 'range' }> {
+  const start = civilDate(localCalendarDate(now, timezone))
+  start.setUTCDate(start.getUTCDate() - 364)
+  return {
+    kind: 'range',
+    from: zonedWallClockToUtc(`${civilKey(start)}T00:00`, timezone),
+    // Include the current instant so today's empty cell survives a request exactly at midnight.
+    to: new Date(now.getTime() + 1),
+  }
+}
+
 /**
  * Mirrors Postgres `date_trunc(bucket, …)`: an ISO week starts Monday, a month on
  * the 1st. The series keys have to land on the same boundaries the SQL emitted or
@@ -510,11 +525,15 @@ export function usageBucketTimestamps(
  * How long after a stretch of time ends before its ledger rows are final.
  *
  * Rows are stamped when inserted, but a cumulative model charge tops up its row's
- * cost in place for as long as its stream runs — which {@link STREAM_TIMEOUT_MS}
- * caps — plus the retry flushes that follow it. Past the cap and this margin a day or
- * hour can no longer change and is treated as settled.
+ * cost in place for as long as its run lasts — which the worker's run deadline
+ * ({@link CHAT_RUN_DEADLINE_MS}) caps — plus the retry flushes that follow it. Past
+ * the cap and this margin a day or hour can no longer change and is treated as settled.
+ *
+ * Without a run deadline a Chat turn can top up its row for longer than that, so a
+ * settled hour's cached aggregate can under-report that turn's later spend. This is
+ * display only: invoices, threshold billing, and the usage gate read live ledger sums.
  */
-export const USAGE_SETTLE_MS = STREAM_TIMEOUT_MS + 2 * 60 * 60 * 1000
+export const USAGE_SETTLE_MS = CHAT_RUN_DEADLINE_MS + 2 * 60 * 60 * 1000
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -706,14 +725,12 @@ export function foldUsageBreakdown(
 /**
  * What a null grouping key means, per dimension.
  *
- * A single "Unattributed" label was wrong in both directions: on Workspaces it means
- * usage that belongs to no workspace, and on Workflows it means usage that never came
- * from a workflow — which is most of an organization's spend, and reading that as an
- * attribution failure is what made the workflow list useless.
+ * Workspace attribution is absent for organization-level usage and is cleared when
+ * a workspace is permanently deleted. The null bucket cannot distinguish the two.
  */
 export const USAGE_NULL_KEY_LABELS: Record<UsageBreakdownDimension, string> = {
   member: 'Unknown member',
-  workspace: 'No workspace',
+  workspace: 'Unassigned usage',
   // Unreachable: the workflow dimension filters null ids out entirely.
   workflow: 'Unknown workflow',
   model: 'Unknown model',

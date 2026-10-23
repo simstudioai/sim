@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -13,7 +14,7 @@ const logger = createLogger('WebhookProvider:GoogleForms')
 export const googleFormsHandler: WebhookProviderHandler = {
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const normalizeAnswers = (src: unknown): Record<string, unknown> => {
       if (!src || typeof src !== 'object') return {}
       const out: Record<string, unknown> = {}

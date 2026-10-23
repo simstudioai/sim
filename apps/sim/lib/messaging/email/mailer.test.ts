@@ -1,5 +1,21 @@
-import { createEnvMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from '@sim/testing/mocks/email-unsubscribe.mock'
+import { resetEnvMock } from '@sim/testing/mocks/env.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
+    RESEND_API_KEY: 'test-api-key',
+    AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
+    AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
+    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+    FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
+  })
+})
 
 const mockSend = vi.fn()
 const mockBatchSend = vi.fn()
@@ -31,10 +47,7 @@ vi.mock('@azure/communication-email', () => {
   }
 })
 
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({
-  isUnsubscribed: vi.fn(),
-  generateUnsubscribeToken: vi.fn(),
-}))
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
 
 vi.mock('@/lib/auth/access-control', () => ({
   getAccessControlConfig: vi.fn().mockResolvedValue({
@@ -47,22 +60,6 @@ vi.mock('@/lib/auth/access-control', () => ({
   isEmailBlockedByAccessControl: vi.fn().mockReturnValue(false),
 }))
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    RESEND_API_KEY: 'test-api-key',
-    AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
-    AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
-    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-    FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
-  })
-)
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
-  getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
-  getBaseDomain: vi.fn().mockReturnValue('test.sim.ai'),
-}))
-
 vi.mock('@/lib/messaging/email/utils', () => ({
   getFromEmailAddress: vi.fn().mockReturnValue('Sim <noreply@sim.ai>'),
   hasEmailHeaderControlChars: vi.fn().mockImplementation((value: string) => /[\r\n]/.test(value)),
@@ -72,7 +69,16 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 
 import { isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { sendEmail } from './mailer'
-import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
+
+const { mockGenerateUnsubscribeToken, mockIsUnsubscribed } = emailUnsubscribeMockFns
+
+urlsMockFns.mockGetEmailDomain.mockReturnValue('sim.ai')
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://test.sim.ai')
+urlsMockFns.mockGetBaseDomain.mockReturnValue('test.sim.ai')
+afterAll(() => {
+  resetUrlsMock()
+  resetEnvMock()
+})
 
 describe('mailer', () => {
   const testEmailOptions = {
@@ -83,8 +89,8 @@ describe('mailer', () => {
 
   beforeEach(() => {
     ;(isEmailBlockedByAccessControl as Mock).mockReturnValue(false)
-    ;(isUnsubscribed as Mock).mockResolvedValue(false)
-    ;(generateUnsubscribeToken as Mock).mockReturnValue('mock-token-123')
+    mockIsUnsubscribed.mockResolvedValue(false)
+    mockGenerateUnsubscribeToken.mockReturnValue('mock-token-123')
 
     mockSend.mockResolvedValue({
       data: { id: 'test-email-id' },
@@ -108,7 +114,7 @@ describe('mailer', () => {
 
   describe('sendEmail', () => {
     it('should skip sending if user has unsubscribed', async () => {
-      ;(isUnsubscribed as Mock).mockResolvedValue(true)
+      mockIsUnsubscribed.mockResolvedValue(true)
 
       const result = await sendEmail({
         ...testEmailOptions,
@@ -160,7 +166,7 @@ describe('mailer', () => {
       expect(result.message).toBe('Email skipped (recipient on access-control ban list)')
       expect(result.data).toEqual({ id: 'skipped-banned' })
       expect(mockSend).not.toHaveBeenCalled()
-      expect(isUnsubscribed).not.toHaveBeenCalled()
+      expect(mockIsUnsubscribed).not.toHaveBeenCalled()
     })
 
     it('should drop only the banned recipients from a multi-recipient send', async () => {

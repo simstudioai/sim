@@ -1,4 +1,6 @@
 import type { DatabricksListJobsParams, DatabricksListJobsResponse } from '@/tools/databricks/types'
+import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJobsResponse> = {
@@ -26,11 +28,17 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
       visibility: 'user-or-llm',
       description: 'Maximum number of jobs to return (range 1-100, default 20)',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Token for the next or previous page; takes precedence over legacy offset',
+    },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Offset for pagination',
+      description: 'Legacy Jobs 2.1 offset; prefer pageToken',
     },
     name: {
       type: 'string',
@@ -48,13 +56,15 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
 
   request: {
     url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      const url = new URL(`https://${host}/api/2.1/jobs/list`)
+      const url = new URL(
+        databricksUrl(
+          params.host,
+          `/api/${params.offset != null && !params.pageToken ? '2.1' : '2.2'}/jobs/list`
+        )
+      )
       if (params.limit) url.searchParams.set('limit', String(params.limit))
-      if (params.offset) url.searchParams.set('offset', String(params.offset))
+      if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
+      else if (params.offset != null) url.searchParams.set('offset', String(params.offset))
       if (params.name) url.searchParams.set('name', params.name)
       if (params.expandTasks) url.searchParams.set('expand_tasks', 'true')
       return url.toString()
@@ -76,10 +86,20 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
     const jobs = (data.jobs ?? []).map(
       (job: {
         job_id?: number
-        settings?: { name?: string; max_concurrent_runs?: number; format?: string }
+        settings?: {
+          name?: string
+          max_concurrent_runs?: number
+          format?: string
+          tasks?: Record<string, unknown>[]
+          job_clusters?: Record<string, unknown>[]
+        }
+        has_more?: boolean
         created_time?: number
         creator_user_name?: string
       }) => ({
+        tasks: job.settings?.tasks ?? [],
+        jobClusters: job.settings?.job_clusters ?? [],
+        hasMore: job.has_more ?? false,
         jobId: job.job_id ?? 0,
         name: job.settings?.name ?? '',
         createdTime: job.created_time ?? 0,
@@ -93,19 +113,28 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
       success: true,
       output: {
         jobs,
-        hasMore: data.has_more ?? false,
+        hasMore: Boolean(data.next_page_token) || (data.has_more ?? false),
         nextPageToken: data.next_page_token ?? null,
+        prevPageToken: data.prev_page_token ?? null,
       },
     }
   },
 
   outputs: {
+    prevPageToken: { type: 'string', nullable: true, description: 'Token for the previous page' },
     jobs: {
       type: 'array',
       description: 'List of jobs in the workspace',
       items: {
         type: 'object',
         properties: {
+          tasks: JOB_TASK_OUTPUT,
+          jobClusters: JOB_CLUSTERS_OUTPUT,
+          hasMore: {
+            type: 'boolean',
+            description: 'Whether tasks or job clusters have additional pages',
+          },
+
           jobId: { type: 'number', description: 'Unique job identifier' },
           name: { type: 'string', description: 'Job name' },
           createdTime: { type: 'number', description: 'Job creation timestamp (epoch ms)' },
@@ -122,7 +151,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
     nextPageToken: {
       type: 'string',
       description: 'Token for fetching the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }

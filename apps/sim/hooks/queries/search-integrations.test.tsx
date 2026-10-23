@@ -1,24 +1,33 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn(), refresh: vi.fn() }))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 
 import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+
+const mockRefresh = nextNavigationMockFns.router.refresh
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 it.each([true, false])(
   'clears document content and refreshes server pages after integration update success=%s',
   async (success) => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    mocks.request.mockReset()
-    mocks.refresh.mockReset()
+    mockRequestJson.mockReset()
+    mockRefresh.mockReset()
     const response = Promise.withResolvers<{ data: { connectorType: string; approved: boolean } }>()
-    mocks.request.mockReturnValue(response.promise)
+    mockRequestJson.mockReturnValue(response.promise)
     const client = new QueryClient()
     const root = createRoot(document.createElement('div'))
     const key = knowledgeKeys.document('kb-direct', 'document-direct')
@@ -57,13 +66,12 @@ it.each([true, false])(
           await rejection
         }
       })
-      expect(mocks.refresh).toHaveBeenCalledTimes(success ? 1 : 0)
+      expect(mockRefresh).toHaveBeenCalledTimes(success ? 1 : 0)
       if (success) expect(client.getQueryData(key)).toBeUndefined()
       else expect(client.getQueryData(key)).toEqual({ content: 'previously authorized content' })
     } finally {
       await act(async () => root.unmount())
       client.clear()
-      vi.unstubAllGlobals()
     }
   }
 )

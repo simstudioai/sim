@@ -1,15 +1,11 @@
 import { tableViews } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
-const { mockSignalTableViewsChanged } = vi.hoisted(() => ({
-  mockSignalTableViewsChanged: vi.fn(),
-}))
-vi.mock('@/lib/table/events', () => ({
-  signalTableViewsChanged: mockSignalTableViewsChanged,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import {
   createTableView,
@@ -19,6 +15,8 @@ import {
   pruneViewConfig,
   updateTableView,
 } from '@/lib/table/views/service'
+
+const mockSignalTableViewsChanged = tableEventsMockFns.mockSignalTableViewsChanged
 
 const columns: ColumnDefinition[] = [
   { id: 'col_a', name: 'Name', type: 'text' },
@@ -168,55 +166,6 @@ describe('getTableView', () => {
 
     expect(view?.config.columnOrder).toEqual(['col_a'])
     expect(view?.config.hiddenColumns).toEqual([])
-  })
-})
-
-describe('view config name/id translation', () => {
-  const columns = [
-    { id: 'col_a', name: 'status', type: 'string' },
-    { id: 'col_b', name: 'due', type: 'date' },
-  ] as never[]
-
-  it('round-trips a config between id and name domains', async () => {
-    const { viewConfigIdsToNames, viewConfigNamesToIds } = await import('@/lib/table/views/service')
-    const stored = {
-      filter: {
-        any: [
-          { field: 'col_a', op: 'eq', value: 'Open' },
-          { all: [{ field: 'col_b', op: 'isNotNull' }] },
-        ],
-      },
-      sort: [{ field: 'col_b', direction: 'desc' }],
-      hiddenColumns: ['col_a'],
-    } as never
-    const named = viewConfigIdsToNames(stored, columns as never)
-    expect(named.filter).toEqual({
-      any: [
-        { field: 'status', op: 'eq', value: 'Open' },
-        { all: [{ field: 'due', op: 'isNotNull' }] },
-      ],
-    })
-    expect(named.sort).toEqual([{ field: 'due', direction: 'desc' }])
-    expect(named.hiddenColumns).toEqual(['status'])
-    expect(viewConfigNamesToIds(named, columns as never)).toEqual(stored)
-  })
-
-  it('passes stale ids through on read but rejects unknown names on write', async () => {
-    const { viewConfigIdsToNames, viewConfigNamesToIds } = await import('@/lib/table/views/service')
-    const withStale = { filter: { all: [{ field: 'col_gone', op: 'isNull' }] } } as never
-    expect(
-      (
-        viewConfigIdsToNames(withStale, columns as never).filter as never as {
-          all: { field: string }[]
-        }
-      ).all[0].field
-    ).toBe('col_gone')
-    expect(() =>
-      viewConfigNamesToIds(
-        { filter: { all: [{ field: 'nope', op: 'isNull' }] } } as never,
-        columns as never
-      )
-    ).toThrow(/Unknown column/)
   })
 })
 

@@ -8,12 +8,7 @@ import {
   knowledgeConnectorParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import {
-  booleanQueryFlagSchema,
-  organizationIdSchema,
-  resourceOwnerSchema,
-  workspaceIdSchema,
-} from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, resourceOwnerSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { CONNECTOR_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -21,9 +16,6 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
-  MAX_SEARCH_SOURCE_PROGRESS_ITEMS,
-  MAX_SEARCH_SOURCE_PROVIDER_TYPES,
-  SEARCH_SOURCE_CANDIDATE_PAGE_SIZE,
   SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
 import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
@@ -341,21 +333,6 @@ export const startKnowledgeConnectorMemberEnrollmentContract = defineRouteContra
   },
 })
 
-/** A source's personal account or mirrored-ACL identity connection for the current viewer. */
-export const workspaceMemberConnectorSchema = z.object({
-  knowledgeBaseId: z.string(),
-  knowledgeBaseName: z.string(),
-  knowledgeBaseIsSearchIndex: z.boolean().optional(),
-  sourceDescription: z.string().max(240).optional(),
-  connectorId: z.string(),
-  connectorType: z.string(),
-  memberSyncStatus: z.enum(MEMBER_SYNC_STATUSES),
-  viewerMembership: viewerConnectorMembershipSchema,
-  /** Documents of this connector the viewer may read right now. */
-  viewerDocumentCount: z.number().int().nonnegative(),
-})
-export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorSchema>
-
 const searchSourceSummaryFields = {
   knowledgeBaseId: knowledgeBaseParamsSchema.shape.id,
   connectorId: knowledgeConnectorParamsSchema.shape.connectorId,
@@ -366,41 +343,15 @@ const searchSourceSummaryFields = {
   availability: z.enum(['available', 'unavailable']),
   enabled: z.boolean(),
   approved: z.boolean().optional(),
-  isSyncing: z.boolean(),
-  lastSyncAt: z.string().datetime().nullable(),
-  hasSyncError: z.boolean(),
-  /**
-   * Whether the viewer can search at least one indexed document from this source. An
-   * existence flag rather than a count: counting means access-checking every visible document.
-   */
-  hasViewerDocuments: z.boolean(),
-  viewerFailedDocumentCount: z.number().int().nonnegative().default(0),
-  viewerEmailVerified: z.boolean(),
-  viewerAccounts: z
-    .array(
-      z.object({
-        credentialId: z.string().min(1).max(128),
-        displayName: z.string(),
-        status: z.enum(['active', 'needs_reauth']).optional(),
-      })
-    )
-    .max(SEARCH_SOURCE_CANDIDATE_PAGE_SIZE),
 }
 
-export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequired', [
-  z.object({
-    ...searchSourceSummaryFields,
-    connectionRequired: z.literal(true),
-    viewerMembership: viewerConnectorMembershipSchema.nullable(),
-  }),
-  z.object({
-    ...searchSourceSummaryFields,
-    connectionRequired: z.literal(false),
-    viewerMembership: z.null(),
-  }),
-])
+export const searchSourceSummarySchema = z.object(searchSourceSummaryFields)
 export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
-export type ViewerSearchSourceAccount = SearchSourceSummary['viewerAccounts'][number]
+export interface ViewerSearchSourceAccount {
+  credentialId: string
+  displayName: string
+  status?: 'active' | 'needs_reauth'
+}
 
 export const searchSourceCursorSchema = z.object({
   createdAt: z.string().datetime(),
@@ -418,7 +369,6 @@ export const listSearchSourcesQuerySchema = resourceOwnerSchema.safeExtend({
     .max(100)
     .optional(),
   search: z.string().trim().max(200).optional(),
-  mine: booleanQueryFlagSchema.optional(),
 })
 export type ListSearchSourcesQuery = z.input<typeof listSearchSourcesQuerySchema>
 
@@ -434,112 +384,6 @@ export const listSearchSourcesContract = defineRouteContract({
   query: listSearchSourcesQuerySchema,
   response: { mode: 'json', schema: successResponseSchema(searchSourcePageSchema) },
 })
-
-export const searchSourceOverviewSchema = z.object({
-  providers: z
-    .array(
-      z.object({
-        connectorType: z.string().min(1).max(100),
-        isSyncing: z.boolean(),
-      })
-    )
-    .max(MAX_SEARCH_SOURCE_PROVIDER_TYPES),
-  hasSearchableDocuments: z.boolean(),
-})
-export type SearchSourceOverview = z.output<typeof searchSourceOverviewSchema>
-
-export const readSearchSourceOverviewContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/knowledge/sim-search/sources/overview',
-  query: resourceOwnerSchema,
-  response: { mode: 'json', schema: successResponseSchema(searchSourceOverviewSchema) },
-})
-
-export const organizationSearchProviderStatusSchema = z.enum([
-  'needs_setup',
-  'waiting_for_connections',
-  'indexing',
-  'needs_attention',
-  'paused',
-  'active',
-])
-export type OrganizationSearchProviderStatus = z.output<
-  typeof organizationSearchProviderStatusSchema
->
-
-export const organizationSearchProviderSummarySchema = z.object({
-  connectorType: z.string().min(1).max(100),
-  approved: z.boolean(),
-  sourceCount: z.number().int().nonnegative(),
-  status: organizationSearchProviderStatusSchema,
-  issue: z
-    .enum([
-      'sync_failed',
-      'account_sync_incomplete',
-      'document_indexing_failed',
-      'permission_sync_incomplete',
-    ])
-    .nullable(),
-  isSyncing: z.boolean(),
-  /** Older servers omit the continuation signal during a rolling deployment. */
-  hasPendingSync: z.boolean().optional(),
-})
-export type OrganizationSearchProviderSummary = z.output<
-  typeof organizationSearchProviderSummarySchema
->
-
-export const organizationSearchOverviewSchema = z.object({
-  providers: z.array(organizationSearchProviderSummarySchema).max(MAX_SEARCH_SOURCE_PROVIDER_TYPES),
-})
-export type OrganizationSearchOverview = z.output<typeof organizationSearchOverviewSchema>
-
-export const readOrganizationSearchOverviewQuerySchema = z.object({
-  organizationId: organizationIdSchema,
-})
-export type ReadOrganizationSearchOverviewQuery = z.input<
-  typeof readOrganizationSearchOverviewQuerySchema
->
-
-export const readOrganizationSearchOverviewContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/knowledge/sim-search/integrations/overview',
-  query: readOrganizationSearchOverviewQuerySchema,
-  response: { mode: 'json', schema: successResponseSchema(organizationSearchOverviewSchema) },
-})
-
-export const searchSourceProgressSchema = z.object({
-  connectorId: knowledgeConnectorParamsSchema.shape.connectorId,
-  isSyncing: z.boolean(),
-  hasSyncError: z.boolean(),
-  hasIndexingError: z.boolean(),
-})
-export type SearchSourceProgress = z.output<typeof searchSourceProgressSchema>
-
-export const readSearchSourceProgressContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/knowledge/sim-search/sources/progress',
-  body: resourceOwnerSchema.safeExtend({
-    connectorIds: z
-      .array(knowledgeConnectorParamsSchema.shape.connectorId.max(255))
-      .min(1)
-      .max(MAX_SEARCH_SOURCE_PROGRESS_ITEMS),
-  }),
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.array(searchSourceProgressSchema).max(MAX_SEARCH_SOURCE_PROGRESS_ITEMS)
-    ),
-  },
-})
-
-export const connectSimSearchConnectorBodySchema = resourceOwnerSchema.safeExtend({
-  connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
-  connectorId: knowledgeConnectorParamsSchema.shape.connectorId.max(255).optional(),
-  /** Settings identify a compatible source, or assert the configuration of a selected source. */
-  sourceConfig: z.record(z.string(), z.string().max(500)).optional(),
-  oauthCompletionId: searchConnectionOAuthQuerySchema.shape.oauthCompletionId,
-})
-export type ConnectSimSearchConnectorBody = z.input<typeof connectSimSearchConnectorBodySchema>
 
 export const prepareSearchSourceBodySchema = resourceOwnerSchema.safeExtend({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
@@ -560,38 +404,6 @@ export const prepareSearchSourceContract = defineRouteContract({
         credentialGroupId: z.string().uuid().optional(),
       }),
     }),
-  },
-})
-
-/**
- * One click on a Sim Search source: the workspace's Sim Search knowledge base
- * and per-member connector exist afterwards, and the caller gets the link that
- * connects their own account.
- */
-export const connectSimSearchConnectorContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/knowledge/sim-search/connect',
-  body: connectSimSearchConnectorBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      data: z.object({
-        knowledgeBaseId: z.string(),
-        connectorId: z.string(),
-        url: z.string().url(),
-      }),
-    }),
-  },
-})
-
-export const listWorkspaceMemberConnectorsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/knowledge/member-connectors',
-  query: z.object({ workspaceId: workspaceIdSchema }),
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.array(workspaceMemberConnectorSchema)),
   },
 })
 

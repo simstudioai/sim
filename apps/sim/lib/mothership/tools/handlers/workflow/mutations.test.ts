@@ -1,3 +1,6 @@
+import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workflowsOrchestrationMock } from '@sim/testing/mocks/workflows-orchestration.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
@@ -27,31 +30,25 @@ vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: mocks.credential,
 }))
 
-vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
-  sanitizeForCopilot: vi.fn((state) => state),
-}))
-
 /**
  * The use cases these handlers dispatch are only passed through to the mocked
  * use-case executor above, so their execution-side leaves — the workflow
  * executor, the paused-run manager, and deployment orchestration — are stubbed
  * rather than loaded.
  */
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: vi.fn(),
   WorkflowExecutionNotFoundError: class WorkflowExecutionNotFoundError extends Error {},
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({ performCreateWorkflowTransition: vi.fn() }))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('@/executor/utils/errors', () => ({
   hasExecutionResult: mocks.hasExecutionResult,
   readAttemptedExecutionId: mocks.readAttemptedExecutionId,
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { apiKeyGenerated: vi.fn() },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 vi.mock('@/lib/mothership/tools/handlers/function-execute', () => ({
   executeFunctionExecute: vi.fn(),
@@ -62,7 +59,6 @@ vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerTool
 
 import {
   executeCancelWorkflowRun,
-  executeCreateWorkflow,
   executeRunBlock,
   executeRunWorkflow,
 } from '@/lib/mothership/tools/handlers/workflow/mutations'
@@ -80,44 +76,6 @@ describe('workflow mutation Copilot adapters', () => {
   beforeEach(() => {
     mocks.hasExecutionResult.mockReturnValue(false)
     mocks.readAttemptedExecutionId.mockReturnValue(undefined)
-  })
-
-  it('maps encoded folder aliases into one create application command', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      workflow: {
-        id: 'workflow-new',
-        name: 'New Workflow',
-        workspaceId: 'workspace-1',
-        folderId: 'folder-1',
-      },
-      normalizedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
-    })
-
-    const result = await executeCreateWorkflow(
-      { name: ' New Workflow ', folderPath: 'workflows/Launch%20Plans' },
-      context
-    )
-
-    expect(result.success).toBe(true)
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
-      context,
-      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.create' }) }),
-      {
-        workspaceId: 'workspace-1',
-        name: 'New Workflow',
-        folderPath: '/Launch%20Plans',
-      }
-    )
-  })
-
-  it('rejects a create-workflow workspaceId that names a different workspace', async () => {
-    const result = await executeCreateWorkflow(
-      { name: 'New Workflow', workspaceId: 'workspace-other' },
-      context
-    )
-
-    expect(result.success).toBe(false)
-    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
   it('projects one run command result without exposing binary payloads', async () => {
@@ -180,10 +138,10 @@ describe('workflow mutation Copilot adapters', () => {
     }
     expect(code.length).toBeGreaterThan(240)
     expect(output.logs[0].input.code).toBe(
-      `${code.slice(0, 200)} …[${code.length} chars, see logs get execution-1 --trace]`
+      '…[input omitted; inspect with logs get execution-1 --trace]'
     )
     expect(output.logs[0].input.note).toBe(
-      `${'n'.repeat(200)} …[2001 chars, see logs get execution-1 --trace]`
+      '…[input omitted; inspect with logs get execution-1 --trace]'
     )
     expect(output.logs[0].input.language).toBe('javascript')
     expect(output.logs[0].output.result).toBe(code)

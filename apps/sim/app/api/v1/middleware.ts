@@ -40,7 +40,7 @@ const rateLimiter = new RateLimiter()
  * `defineV2JsonRoute` and rate-limited through `v2RateLimits`. Add a member only
  * when a route actually passes it to `checkRateLimit` / `authenticateRequest`.
  */
-export type ApiEndpoint =
+type ApiEndpoint =
   | 'logs'
   | 'logs-detail'
   | 'workflows'
@@ -84,7 +84,7 @@ export interface RateLimitResult {
   error?: string
 }
 
-export interface AuthorizedRequest {
+interface AuthorizedRequest {
   requestId: string
   userId: string
   rateLimit: RateLimitResult

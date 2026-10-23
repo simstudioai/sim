@@ -4,17 +4,17 @@ import { CONTROL_BACK_EDGE_HANDLES, EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
-  buildClonedSubflowId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
+  buildOuterBranchScopedId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
   extractBaseBlockId,
   isLoopSentinelNodeId,
   isParallelSentinelNodeId,
   normalizeNodeId,
   stripOuterBranchSuffix,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ParallelExpansion')
@@ -139,7 +139,7 @@ export class ParallelExpander {
       branchIndexOffset
     )
 
-    this.wireSentinelEdges(dag, parallelId, entryNodes, terminalNodes, branchCount)
+    this.wireSentinelEdges(dag, parallelId, entryNodes, terminalNodes)
 
     logger.info('Parallel expanded', {
       parallelId,
@@ -344,7 +344,7 @@ export class ParallelExpander {
         : buildParallelSentinelEndId(blockId)
     }
     if (dag.loopConfigs.has(blockId)) {
-      return side === 'start' ? buildSentinelStartId(blockId) : buildSentinelEndId(blockId)
+      return side === 'start' ? buildLoopSentinelStartId(blockId) : buildLoopSentinelEndId(blockId)
     }
     return buildBranchNodeId(blockId, 0)
   }
@@ -361,15 +361,15 @@ export class ParallelExpander {
     }
 
     const effectiveSubflowId =
-      globalBranchIndex === 0 ? blockId : buildClonedSubflowId(blockId, globalBranchIndex)
+      globalBranchIndex === 0 ? blockId : buildOuterBranchScopedId(blockId, globalBranchIndex)
     if (dag.parallelConfigs.has(blockId)) {
       return side === 'start'
         ? buildParallelSentinelStartId(effectiveSubflowId)
         : buildParallelSentinelEndId(effectiveSubflowId)
     }
     return side === 'start'
-      ? buildSentinelStartId(effectiveSubflowId)
-      : buildSentinelEndId(effectiveSubflowId)
+      ? buildLoopSentinelStartId(effectiveSubflowId)
+      : buildLoopSentinelEndId(effectiveSubflowId)
   }
 
   /**
@@ -405,7 +405,7 @@ export class ParallelExpander {
     outerBranchIndex: number,
     clonedSubflows: ClonedSubflowInfo[]
   ): { startId: string; endId: string; clonedId: string; idMap: Map<string, string> } {
-    const clonedId = buildClonedSubflowId(subflowId, outerBranchIndex)
+    const clonedId = buildOuterBranchScopedId(subflowId, outerBranchIndex)
     const { startId, endId, idMap } = this.cloneSubflowGraph(
       dag,
       subflowId,
@@ -438,16 +438,16 @@ export class ParallelExpander {
     // Map sentinel nodes
     const origStartId = isParallel
       ? buildParallelSentinelStartId(originalId)
-      : buildSentinelStartId(originalId)
+      : buildLoopSentinelStartId(originalId)
     const origEndId = isParallel
       ? buildParallelSentinelEndId(originalId)
-      : buildSentinelEndId(originalId)
+      : buildLoopSentinelEndId(originalId)
     const clonedStartId = isParallel
       ? buildParallelSentinelStartId(clonedId)
-      : buildSentinelStartId(clonedId)
+      : buildLoopSentinelStartId(clonedId)
     const clonedEndId = isParallel
       ? buildParallelSentinelEndId(clonedId)
-      : buildSentinelEndId(clonedId)
+      : buildLoopSentinelEndId(clonedId)
 
     idMap.set(origStartId, clonedStartId)
     idMap.set(origEndId, clonedEndId)
@@ -601,8 +601,7 @@ export class ParallelExpander {
     dag: DAG,
     parallelId: string,
     entryNodes: string[],
-    terminalNodes: string[],
-    branchCount: number
+    terminalNodes: string[]
   ): void {
     const sentinelStartId = buildParallelSentinelStartId(parallelId)
     const sentinelEndId = buildParallelSentinelEndId(parallelId)

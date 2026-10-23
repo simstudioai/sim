@@ -33,7 +33,7 @@ export function SearchSourcePagination({
   return (
     <div className='flex justify-center'>
       <Chip disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
-        {isFetchingNextPage ? 'Loading…' : 'Load more'}
+        {isFetchingNextPage ? 'Loading' : 'Load more'}
       </Chip>
     </div>
   )

@@ -1,4 +1,4 @@
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import {
   MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
   parseWorkflowExecutionTimeoutSeconds,
@@ -176,7 +176,7 @@ export function isTimeoutError(error: unknown): boolean {
   return false
 }
 
-export function getTimeoutErrorMessage(error: unknown, timeoutMs?: number): string {
+export function getTimeoutErrorMessage(timeoutMs?: number): string {
   if (timeoutMs) {
     const timeoutSeconds = Math.floor(timeoutMs / 1000)
     const timeoutMinutes = Math.floor(timeoutSeconds / 60)

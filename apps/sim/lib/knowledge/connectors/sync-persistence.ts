@@ -6,7 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import { and, eq, exists, inArray, isNull, lt, not, or, type SQL, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import {
   EMPTY_ACL,
   validateMirroredDocumentAcl,
@@ -14,7 +14,7 @@ import {
 } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   pagesByProjectionRows,
   rewriteConnectorDocumentAcls,
@@ -28,7 +28,7 @@ import {
   leaseTransaction,
   type SyncWriteLease,
 } from '@/lib/knowledge/connectors/sync-lock'
-import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import {
@@ -345,6 +345,8 @@ async function isKnowledgeBaseActiveInTx(
   return rows.length > 0
 }
 
+type MappedDocumentTags = Partial<Pick<typeof document.$inferSelect, keyof DocumentTags>>
+
 /**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
@@ -354,7 +356,7 @@ export function resolveTagMapping(
   connectorType: string,
   metadata: Record<string, unknown>,
   sourceConfig?: Record<string, unknown>
-): Partial<DocumentTags> | undefined {
+): MappedDocumentTags | undefined {
   const config = CONNECTOR_REGISTRY[connectorType]
   if (!config?.mapTags || !metadata) return undefined
 
@@ -362,7 +364,7 @@ export function resolveTagMapping(
   const mapping = sourceConfig?.tagSlotMapping as Record<string, string> | undefined
   if (!mapping || !semanticTags) return undefined
 
-  const result: Partial<DocumentTags> = {}
+  const result: MappedDocumentTags = {}
   for (const [semanticKey, slot] of Object.entries(mapping)) {
     const value = semanticTags[semanticKey]
     ;(result as Record<string, unknown>)[slot] =
@@ -552,7 +554,7 @@ export async function persistSkippedDocuments(
 }
 
 /** Source-derived fields that can change without the indexed text changing. */
-export type SourceMetadataFields = Partial<DocumentTags> & {
+export type SourceMetadataFields = MappedDocumentTags & {
   sourceUrl: string | null
   sourceModifiedAt: Date | null
 }
@@ -607,6 +609,29 @@ export async function persistHashOnlyUpdates(
         .returning({ id: document.id })
       if (persisted.length === 0) {
         missedExternalIds.push(update.externalId)
+      } else if (update.sourceMetadata) {
+        const tags = Object.fromEntries(
+          ALL_TAG_SLOTS.filter((slot) => update.sourceMetadata?.[slot] !== undefined).map(
+            (slot) => [slot, update.sourceMetadata?.[slot]]
+          )
+        )
+        const changed = ALL_TAG_SLOTS.filter((slot) => tags[slot] !== undefined)
+        if (changed.length > 0) {
+          await tx
+            .update(embedding)
+            .set(tags)
+            .where(
+              and(
+                eq(embedding.documentId, update.existingId),
+                or(
+                  ...changed.map(
+                    (slot) =>
+                      sql`${embedding[slot]} IS DISTINCT FROM ${sql.param(tags[slot], embedding[slot])}`
+                  )
+                )
+              )
+            )
+        }
       }
     }
   })

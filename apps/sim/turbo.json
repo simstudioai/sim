@@ -1,0 +1,189 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "ci:shared": {
+      "dependsOn": ["^ci:runtime"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!app/workspace/**",
+        "!app/(landing)/**",
+        "!app/api/**",
+        "!content/**",
+        "!tools/**",
+        "!providers/**",
+        "!blocks/**",
+        "!connectors/**",
+        "!executor/**",
+        "!serializer/**",
+        "!triggers/**",
+        "!background/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.integration.ts",
+        "!**/*.live.test.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md",
+        "!scripts/test-cli-run-latency-e2e.ts",
+        "!scripts/test-desktop-inbox-e2e.ts",
+        "!scripts/test-file-*-e2e.ts",
+        "!scripts/test-landing-seo-e2e.ts",
+        "!scripts/test-mcp-host-e2e.ts",
+        "!scripts/test-mobile-e2e.ts",
+        "!scripts/test-project-file*-e2e.ts",
+        "!scripts/test-scim-e2e.ts",
+        "!scripts/test-search-*-e2e.ts",
+        "!scripts/test-workflow-stop-after-e2e.ts",
+        "!scripts/test-workflow-version-compare-e2e.ts",
+        "!vitest.*",
+        "!test-results/**"
+      ],
+      "outputs": []
+    },
+    "ci:server": {
+      "dependsOn": ["ci:shared"],
+      "inputs": [
+        "app/api/**",
+        "tools/**",
+        "providers/**",
+        "blocks/**",
+        "connectors/**",
+        "executor/**",
+        "serializer/**",
+        "triggers/**",
+        "background/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.integration.ts",
+        "!**/*.live.test.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md",
+        "!scripts/test-*-e2e.ts",
+        "!vitest.*",
+        "!test-results/**"
+      ],
+      "outputs": []
+    },
+    "ci:ui": {
+      "dependsOn": ["ci:shared"],
+      "inputs": [
+        "app/workspace/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.integration.ts",
+        "!**/*.live.test.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md",
+        "!scripts/test-*-e2e.ts",
+        "!vitest.*",
+        "!test-results/**"
+      ],
+      "outputs": []
+    },
+    "ci:integration": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": [
+        "**/*.integration.ts",
+        "vitest.config.ts",
+        "vitest.integration.setup.ts",
+        "$TURBO_ROOT$/vitest.shared.ts",
+        "$TURBO_ROOT$/vitest.integration-durations.json",
+        "$TURBO_ROOT$/packages/db/**/*.integration.ts",
+        "$TURBO_ROOT$/packages/db/vitest.config.ts",
+        "$TURBO_ROOT$/packages/db/vitest.integration.setup.ts",
+        "$TURBO_ROOT$/apps/realtime/**/*.integration.ts",
+        "$TURBO_ROOT$/apps/realtime/vitest.config.ts",
+        "$TURBO_ROOT$/apps/realtime/vitest.integration.setup.ts"
+      ],
+      "cache": false
+    },
+    "ci:e2e-scim": {
+      "dependsOn": ["ci:server"],
+      "inputs": ["scripts/test-scim-e2e.ts", "scripts/test-workflow-version-compare-e2e.ts"],
+      "cache": false
+    },
+    "ci:e2e-cli": {
+      "dependsOn": ["ci:server", "sim#ci:runtime"],
+      "inputs": [
+        "scripts/test-cli-run-latency-e2e.ts",
+        "scripts/test-mcp-host-e2e.ts",
+        "scripts/test-search-*-e2e.ts"
+      ],
+      "cache": false
+    },
+    "ci:e2e-stop-after": {
+      "dependsOn": ["ci:server"],
+      "inputs": ["scripts/test-workflow-stop-after-e2e.ts"],
+      "cache": false
+    },
+    "ci:e2e-desktop-inbox": {
+      "dependsOn": ["ci:server", "@sim/realtime#ci:runtime"],
+      "inputs": ["scripts/test-desktop-inbox-e2e.ts"],
+      "cache": false
+    },
+    "ci:e2e-project-files": {
+      "dependsOn": ["ci:server", "@sim/realtime#ci:runtime"],
+      "inputs": ["scripts/test-project-file*-e2e.ts", "scripts/test-file-*-e2e.ts"],
+      "cache": false
+    },
+    "ci:e2e-mobile": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": ["scripts/test-mobile-e2e.ts"],
+      "cache": false
+    },
+    "ci:e2e-seo": {
+      "dependsOn": ["ci:server", "ci:ui"],
+      "inputs": ["app/(landing)/**", "content/**", "scripts/test-landing-seo-e2e.ts"],
+      "cache": false
+    },
+    "ci:desktop-live": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/desktop#ci:runtime", "@sim/realtime#ci:runtime"],
+      "inputs": [
+        "$TURBO_ROOT$/apps/desktop/e2e/**",
+        "$TURBO_ROOT$/apps/desktop/playwright.config.ts"
+      ],
+      "cache": false
+    },
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.integration.ts",
+        "!scripts/test-cli-run-latency-e2e.ts",
+        "!scripts/test-desktop-inbox-e2e.ts",
+        "!scripts/test-file-*-e2e.ts",
+        "!scripts/test-landing-seo-e2e.ts",
+        "!scripts/test-mcp-host-e2e.ts",
+        "!scripts/test-mobile-e2e.ts",
+        "!scripts/test-project-file*-e2e.ts",
+        "!scripts/test-scim-e2e.ts",
+        "!scripts/test-search-*-e2e.ts",
+        "!scripts/test-workflow-stop-after-e2e.ts",
+        "!scripts/test-workflow-version-compare-e2e.ts",
+        "$TURBO_ROOT$/vitest.shared.ts",
+        "$TURBO_ROOT$/apps/docs/content/**",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md"
+      ]
+    },
+    "build": {
+      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.integration.ts",
+        "!**/*.live.test.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md",
+        "!scripts/test-*-e2e.ts",
+        "!vitest.*",
+        "!test-results/**",
+        "!ee/README.md",
+        "!ee/access-requests/README.md",
+        "!ee/scim/TESTING.md",
+        "!lib/projects/README.md",
+        "!tools/pitchbook/__fixtures__/README.md"
+      ]
+    }
+  }
+}

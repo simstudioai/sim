@@ -1,8 +1,7 @@
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import {
   fetchOpenPrSnapshot,
@@ -11,6 +10,8 @@ import {
   setPullRequestDraftState,
   validateRepositoryCoordinates,
 } from '@/executor/handlers/pi/cloud/github-pr'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)
@@ -180,10 +181,6 @@ describe('findOpenPrForBranch', () => {
 })
 
 describe('setPullRequestDraftState', () => {
-  beforeEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   function graphQlResponse(data: Record<string, unknown>): Response {
     return new Response(JSON.stringify({ data }), {
       status: 200,

@@ -9,7 +9,7 @@ import {
   workflowsUtilsMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -58,10 +58,6 @@ describe('Schedule PUT API (Reactivate)', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
       workspacePermission: 'write',
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('Authorization', () => {

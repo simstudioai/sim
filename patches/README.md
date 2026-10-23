@@ -40,8 +40,8 @@ not the total elapsed transaction time.
 `apps/sim/lib/billing/core/usage-log.integration.ts` tests real ESM/CommonJS driver
 closure and reconnection, rollback after billing INSERT/UPDATE, and exact retry
 accounting. CI runs it against PostgreSQL 17 and 16. Set `TEST_DATABASE_URL` to a
-disposable local PostgreSQL 15+ database and run it from `apps/sim` with
-`bunx vitest run --mode integration lib/billing/core/usage-log.integration.ts`.
+disposable local PostgreSQL 15+ database and run
+`bun run --cwd apps/sim test --mode integration lib/billing/core/usage-log.integration.ts`.
 
 Remove this patch when the pinned driver includes equivalent transaction-scope
 closure handling. Keep the reconnect regression tests when upgrading.
@@ -65,9 +65,67 @@ reconciliation on failure. `packages/db/scripts/push.integration.ts` exercises
 the installed CLI against PostgreSQL, including multiple column changes, table
 and enum replacement, schema replacement, preservation of the excluded script
 ledger, and database errors. Set `TEST_DATABASE_URL` to a disposable local
-PostgreSQL database and run these tests from `packages/db` with
-`bunx vitest run --mode integration`.
+PostgreSQL database and run these tests with
+`bun run --cwd packages/db test --mode integration`.
 
 Remove the patch when Drizzle provides an explicit noninteractive create/drop
 policy and propagates push failures. Keep Drizzle pinned until the replacement
 passes these regression tests.
+
+# ECharts rich-text tooltip fonts
+
+`echarts@6.1.0` omits the configured font from its rich-text tooltip container
+and the font family from generated name/value tokens. Custom formatter strings
+therefore use the renderer's default font, and built-in tooltips lose the app's
+font family. The patch applies the configured font and line height to the
+container and preserves the family/style on generated tokens, so sizing and
+drawing use the same typography. Authored font overrides still take precedence.
+
+The patch covers the package's ESM source entry point and its full CommonJS and
+ESM bundles. Sim uses the ESM source entry point; the optional common/simple and
+minified distributions are not used or patched. It keeps tooltips in canvas
+rich-text mode, preserving the chart document's untrusted-markup boundary.
+
+`apps/sim/lib/charts/tooltip.test.ts` exercises actual ECharts tooltip rendering,
+font overrides, generated tokens, and box sizing. Remove this patch when an
+upstream release provides equivalent font handling and these tests pass.
+
+# Next.js application Vary preservation
+
+`next@16.4.1` replaces application `Vary` values when the Node App Page handler
+sets its router cache dimensions. The docs proxy's `Vary: Accept` therefore
+vanishes from the final HTML response, allowing downstream caches to confuse
+HTML with negotiated Markdown.
+
+The pinned patch applies the merging semantics of [upstream PR #98104](https://github.com/vercel/next.js/pull/98104)
+at Next's native Node outgoing-header merger, which is used before the bundled
+App Page handler. Both published CommonJS and ESM entry points preserve existing
+Vary fields and add later fields without case-sensitive duplicates. Wildcards
+remain intact, and native header validation still rejects invalid values.
+
+Vary writes become cumulative across Node server responses in both the docs and
+Sim workspaces; explicit header removal, cookie handling, other headers, router
+selection, cache lifetimes, and authentication are unchanged. Edge SSR and direct
+handlers outside Next's Node server are outside this patch's scope.
+
+The `docs content negotiation` CI workflow builds and serves the actual docs,
+then runs `apps/docs/scripts/test-negotiation-e2e.ts`. Its HTTP checks verify
+HTML → Markdown → HTML at one URL, `Vary: Accept` on both representations, and
+preservation of Next's router dimensions. It uploads a JSON report and server
+log. The HTML checks fail with the unpatched dependency even when the proxy
+already sets `Vary: Accept`. `test:headers:e2e` exercises the actual CommonJS and
+ESM mergers over loopback HTTP for string/array fields, mixed casing, wildcards,
+invalid values, other-header replacement, and middleware cookies. Its checks
+fail independently when the merge or validation guard is removed. CI uploads
+both reports.
+
+To repeat against a running production docs server:
+
+```bash
+DOCS_E2E_BASE_URL=http://127.0.0.1:3001 \
+DOCS_NEGOTIATION_REPORT_PATH=/tmp/docs-negotiation.json \
+bun run --cwd apps/docs test:negotiation:e2e
+```
+
+Remove the patch when upgrading to a release with equivalent Vary preservation,
+and retain the HTTP regression check.

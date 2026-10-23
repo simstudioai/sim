@@ -1,6 +1,6 @@
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
-import { sleep } from '../helpers'
 import {
   formatApiErrorDetails,
   requestAllPages,
@@ -10,10 +10,8 @@ import {
 } from './client'
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   // `stubEnv` is not undone by `unstubAllGlobals`, so a SIM_TIMEOUT_SECONDS or
   // SIM_DEBUG set for one test would otherwise configure every test after it.
-  vi.unstubAllEnvs()
 })
 
 function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
@@ -404,6 +402,7 @@ describe('destructive operations are gated', () => {
     'activateWorkflowVersion',
     'applyWorkflowOperations',
     'applyWorkflowVariables',
+    'archiveProjectFileItems',
     'bulkDeleteFiles',
     'bulkDeleteTables',
     'bulkUpdateKnowledgeChunks',
@@ -419,6 +418,22 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'completeProjectFileUpload',
+    'copyFileItems',
+    'createProjectFile',
+    'createProjectFileFolder',
+    'createProjectFileUpload',
+    'exportProjectFileSnapshot',
+    'getProjectFileUploadPartUrls',
+    'moveProjectFileItems',
+    'renameProjectFile',
+    'restoreProjectFile',
+    'restoreProjectFileFolder',
+    'revertProjectFileVersion',
+    'unzipProjectFile',
+    'updateProjectFileContent',
+    'updateProjectFileFolder',
+    'updateProjectFileShare',
     /** These amend access or request history without discarding a resource. */
     'cancelOrganizationAccessRequest',
     'cancelWorkspaceAccessRequest',
@@ -435,6 +450,7 @@ describe('destructive operations are gated', () => {
     'updatePermissionGroup',
     'addPermissionGroupMember',
     'bulkAddPermissionGroupMembers',
+    'addOrganizationDomain',
     'forkWorkspace',
     'getSelector',
     'listSelector',
@@ -454,6 +470,7 @@ describe('destructive operations are gated', () => {
     'chat',
     'completeFileUpload',
     'completeKnowledgeDocumentUpload',
+    'completeKnowledgeImport',
     'completeTableImport',
     'createCredentialConnection',
     'createCustomTool',
@@ -467,6 +484,8 @@ describe('destructive operations are gated', () => {
     'createKnowledgeDocumentUpload',
     'createKnowledgeDocumentUploadPartUrls',
     'createKnowledgeFolder',
+    'createKnowledgeImport',
+    'createKnowledgeImportPartUrls',
     'createKnowledgeTag',
     'createMcpServer',
     'createSandbox',
@@ -520,8 +539,11 @@ describe('destructive operations are gated', () => {
     'bulkSaveKnowledgeTagDefinitions',
     'searchKnowledge',
     'setSecret',
+    'saveSsoProvider',
+    'setPrimarySsoProvider',
     'syncKnowledgeConnector',
     'updateCredential',
+    'updateSsoPolicy',
     'updateCustomTool',
     'updateFileContent',
     'updateKnowledgeBase',
@@ -544,7 +566,9 @@ describe('destructive operations are gated', () => {
     'updateWorkflowVersion',
     'uploadKnowledgeDocument',
     'upsertFileShare',
+    'upsertCredentialMember',
     'upsertTableRow',
+    'verifyOrganizationDomain',
   ])
 
   it('forces every non-GET operation into a destructiveness classification', () => {

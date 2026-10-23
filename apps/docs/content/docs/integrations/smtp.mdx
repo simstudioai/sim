@@ -1,25 +1,20 @@
 ---
 title: SMTP
 description: Send emails via any SMTP mail server
+integration:
+  type: "smtp"
+  color: "#2D3748"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="smtp"
-  color="#2D3748"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 The SMTP block sends email through a mail server using its hostname, port, security protocol, and credentials. Set the sender, recipients, subject, and plain-text or HTML body; add CC, BCC, reply-to, and attachments as needed. Inspect the returned send status and message ID, or the error if sending fails.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Send emails using any SMTP server (Gmail, Outlook, custom servers, etc.). Configure SMTP connection settings and send emails with full control over content, recipients, and attachments.
-
-
+Send email through an SMTP server using its host, port, security protocol, and credentials. Configure recipients, message content, and optional attachments.
 
 ## Actions
 

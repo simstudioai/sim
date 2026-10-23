@@ -29,6 +29,31 @@ export const zapierProfile: CompetitorProfile = {
   },
   oneLiner:
     'Zapier is a cloud-based, proprietary no-code/low-code automation platform built around "Zaps": trigger-action workflows connecting thousands of web apps. It recently added AI features, including Copilot for building, Agents for autonomous multi-step tasks, and an MCP server.',
+  leadAnswer: [
+    "Zapier is a proprietary, cloud-only automation platform built around trigger-action Zaps across 9,000+ apps, with Copilot for natural-language building, a separate Agents product that Zapier is migrating into AI by Zapier, and a hosted MCP server. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Zapier when you need the largest catalog of prebuilt app connectors for trigger-action automations that run entirely on Zapier's cloud. Choose Sim when AI agents are the core of the workflow, or when you need self-hosting, live multiplayer editing, native parallel branches, or a knowledge base with hybrid search that continuously syncs external sources.",
+  ],
+  faqs: [
+    {
+      question: 'How does Sim compare to Zapier for building AI agents?',
+      answer:
+        'Sim builds agents inside the same workflow builder as the rest of the automation, while Zapier runs AI agents in a separate Agents product alongside its trigger-action Zaps. Zapier is migrating Agents into AI by Zapier, which bills in tasks, and has not set a date to turn off Agents. Zapier Agents can reference FAQs, docs, and public links as knowledge, but Zapier does not publicly detail the retrieval implementation or document dedicated evaluation or guardrail tooling. Sim provides agent blocks across 28 LLM provider integrations, a knowledge base with hybrid vector and full-text search plus connectors that continuously sync sources such as Google Drive and Confluence, and Evaluator and Guardrails blocks that score outputs and detect or mask PII. Both products offer a dedicated human approval step that pauses a run mid-workflow.',
+    },
+    {
+      question: 'Is there a Zapier alternative that can be self-hosted?',
+      answer:
+        'Sim can be self-hosted with Docker Compose or Kubernetes (Helm) under its Apache 2.0-licensed core, while Zapier is closed-source SaaS with no self-hosted or on-prem option. Zapier runs on AWS in the United States with no selectable data residency for standard customers. A self-hosted Sim deployment keeps data on your own infrastructure, and Sim Cloud remains available as a managed alternative. Enterprise features such as SSO and audit logs require a Sim Enterprise license in either mode.',
+    },
+    {
+      question: "How does Zapier's task-based billing compare to Sim's credit-based billing?",
+      answer:
+        "Zapier meters every completed action step as a task, with trigger steps free and each MCP tool call costing 2 tasks, so cost tracks execution volume. Bringing your own AI provider key to Zapier covers only AI-powered steps and chatbots, not the app-action tasks themselves. Zapier's Free plan includes 100 tasks per month limited to two-step Zaps, and its Professional plan starts at $19.99/month (annual billing) for 750 tasks. Sim uses credit-based usage billing, where bring-your-own-key calls skip Sim's model and tool usage charge and only the base per-run charge applies; its Free plan grants 1,000 one-time credits (worth $5) at signup, and Pro is $25 per user/month.",
+    },
+    {
+      question: 'Can I publish my own automations as MCP tools with Zapier or Sim?',
+      answer:
+        "Sim can publish any deployed workflow as a tool on an MCP server, while Zapier's MCP server only exposes Zapier's own library of app actions. Zapier MCP lets AI clients call actions from its 9,000+ app connections, and an MCP Client by Zapier integration lets a Zap call external MCP servers, but there is no documented way to publish your own Zap as an MCP endpoint. Sim works as both an MCP client and an MCP server, with private, API-key protected, or public servers and ready-to-paste client config for Codex, Cursor, Claude Code, Claude Desktop, and VS Code.",
+    },
+  ],
   standoutFeatures: [
     {
       title: '9,000+ pre-built app integrations',
@@ -382,11 +407,16 @@ export const zapierProfile: CompetitorProfile = {
       agentReasoningBlocks: {
         value: 'Yes',
         detail:
-          'Zapier Agents is a distinct product for building autonomous, multi-step AI agents, separate from plain trigger-action Zaps, that reason across tasks and act across 9,000+ apps.',
+          'Zapier Agents is a distinct product for building autonomous, multi-step AI agents, separate from plain trigger-action Zaps, that reason across tasks and act across 9,000+ apps. Zapier is migrating Agents into AI by Zapier, which bills in tasks, and has not set a date to turn off Agents.',
         shortValue: 'Dedicated Agents product for multi-step AI tasks',
         confidence: 'estimated',
         sources: [
           { url: 'https://zapier.com/agents', label: 'Zapier Agents overview', asOf: '2026-07-02' },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier',
+            label: 'Migrating from Agents to AI by Zapier',
+            asOf: '2026-10-20',
+          },
         ],
       },
       naturalLanguageBuilding: {

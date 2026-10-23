@@ -3,6 +3,7 @@ import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { omit, toRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -15,6 +16,7 @@ import {
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
+  activateExternalWebhookSubscription,
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   hasWebhookConfigChanged,
@@ -213,7 +215,10 @@ export function buildProviderConfig(
   const triggerConfigValue = getSubBlockValue(block, 'triggerConfig')
   const baseConfig =
     triggerConfigValue && typeof triggerConfigValue === 'object'
-      ? (triggerConfigValue as Record<string, unknown>)
+      ? omit(triggerConfigValue as Record<string, unknown>, [
+          'previousSubscription',
+          'subscriptionActivationPending',
+        ])
       : {}
 
   const providerConfig: Record<string, unknown> = { ...baseConfig }
@@ -721,7 +726,7 @@ export async function resolveWebhookConfigForBlock(input: {
         success: false,
         error: {
           message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
-          status: error instanceof WebhookDeploymentConfigurationError ? 400 : 500,
+          status: webhookConfigFailureStatus(error),
         },
       }
     }
@@ -759,6 +764,20 @@ async function configurePollingIfNeeded(
   }
 
   return null
+}
+
+/**
+ * 400 when the provider rejected the trigger's configuration, so the deploy
+ * fails terminally instead of retrying a create that cannot succeed. Stable
+ * registration reports candidate failures as an `AggregateError`, which is
+ * permanent only when every candidate failed that way.
+ */
+function webhookConfigFailureStatus(error: unknown): number {
+  const failures = error instanceof AggregateError ? error.errors : [error]
+  const permanent =
+    failures.length > 0 &&
+    failures.every((failure) => failure instanceof WebhookDeploymentConfigurationError)
+  return permanent ? 400 : 500
 }
 
 export interface PrepareStableTriggerWebhooksInput {
@@ -845,10 +864,7 @@ export async function prepareStableTriggerWebhooksForDeploy({
       success: false,
       error: {
         message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
-        // Propagate a provider-attached status (e.g. Zoho's 4xx edition/validation
-        // failures) so the deploy outbox fails terminally instead of retrying,
-        // matching the legacy save path's status-aware mapping below.
-        status: (error as { status?: number })?.status ?? 500,
+        status: webhookConfigFailureStatus(error),
       },
     }
   }
@@ -956,7 +972,7 @@ export async function saveTriggerWebhooksForDeploy({
       }
 
       // Check if config changed or if we're forcing recreation (e.g., activating old version)
-      const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
+      const existingConfig = toRecord(existingWh.providerConfig)
       const needsRecreation =
         forceRecreateSubscriptions ||
         existingWh.provider !== provider ||
@@ -978,7 +994,29 @@ export async function saveTriggerWebhooksForDeploy({
           logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
         }
       }
-      // else: config unchanged and not forcing recreation, keep existing webhook
+      if (!needsRecreation && existingConfig.subscriptionActivationPending === true) {
+        try {
+          await activateExternalWebhookSubscription(
+            request,
+            existingWh,
+            workflow,
+            userId,
+            requestId
+          )
+          await db
+            .update(webhook)
+            .set({ providerConfig: { ...existingConfig, subscriptionActivationPending: false } })
+            .where(eq(webhook.id, existingWh.id))
+        } catch (error) {
+          return {
+            success: false,
+            error: {
+              message: getErrorMessage(error, 'Failed to activate webhook subscription'),
+              status: 500,
+            },
+          }
+        }
+      }
     }
   }
 
@@ -1106,17 +1144,15 @@ export async function saveTriggerWebhooksForDeploy({
             (cleanupFailure as Error)?.message ||
             (error as Error)?.message ||
             'Failed to create external subscription',
-          // Propagate a 4xx from the provider handler (e.g. a permanent Zoho
-          // config/permission/invalid-data failure) so the outbox classifies it
-          // as non-retryable; anything else (network, provider 5xx) stays 500 and
-          // retryable. cleanupFailure never overrides the root cause's status.
-          status: (error as { status?: number })?.status ?? 500,
+          // cleanupFailure never overrides the root cause's status.
+          status: webhookConfigFailureStatus(error),
         },
       }
     }
   }
 
   // Phase 2: Insert all DB records in a transaction
+  let recordsCommitted = false
   try {
     await db.transaction(async (tx) => {
       for (const sub of createdSubscriptions) {
@@ -1136,9 +1172,32 @@ export async function saveTriggerWebhooksForDeploy({
       }
     })
 
+    recordsCommitted = true
     await pendingVerificationTracker.clearAll()
 
     for (const sub of createdSubscriptions) {
+      await activateExternalWebhookSubscription(
+        request,
+        {
+          id: sub.webhookId,
+          path: sub.triggerPath,
+          provider: sub.provider,
+          providerConfig: sub.updatedProviderConfig,
+        },
+        workflow,
+        userId,
+        requestId
+      )
+      if (sub.updatedProviderConfig.subscriptionActivationPending === true) {
+        sub.updatedProviderConfig = {
+          ...sub.updatedProviderConfig,
+          subscriptionActivationPending: false,
+        }
+        await db
+          .update(webhook)
+          .set({ providerConfig: sub.updatedProviderConfig })
+          .where(eq(webhook.id, sub.webhookId))
+      }
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
         { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },
@@ -1189,7 +1248,7 @@ export async function saveTriggerWebhooksForDeploy({
     }
   } catch (error: unknown) {
     await pendingVerificationTracker.clearAll()
-    logger.error(`[${requestId}] Failed to insert webhook records`, error)
+    logger.error(`[${requestId}] Failed to save or activate webhook records`, error)
     let cleanupFailure: unknown
     for (const sub of createdSubscriptions) {
       if (sub.externalSubscriptionCreated) {
@@ -1203,21 +1262,29 @@ export async function saveTriggerWebhooksForDeploy({
             },
             workflow,
             requestId,
-            { throwOnError: strictExternalCleanup }
+            {
+              throwOnError:
+                strictExternalCleanup ||
+                Boolean(getProviderHandler(sub.provider).activateSubscription),
+            }
           )
+          if (recordsCommitted) await db.delete(webhook).where(eq(webhook.id, sub.webhookId))
         } catch (cleanupError) {
           cleanupFailure = cleanupError
           logger.warn(
             `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
             cleanupError
           )
-          await persistCreatedWebhookRecordAfterCleanupFailure({
-            workflowId,
-            deploymentVersionId,
-            sub,
-            requestId,
-          })
+          if (!recordsCommitted)
+            await persistCreatedWebhookRecordAfterCleanupFailure({
+              workflowId,
+              deploymentVersionId,
+              sub,
+              requestId,
+            })
         }
+      } else if (recordsCommitted) {
+        await db.delete(webhook).where(eq(webhook.id, sub.webhookId))
       }
     }
     return {

@@ -1,25 +1,37 @@
 ---
 title: TikTok
 description: Access TikTok profiles and videos, and upload inbox drafts
+integration:
+  type: "tiktok"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="tiktok"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [TikTok](https://www.tiktok.com/) to read the authenticated creator's profile and videos, send a video to their inbox as a draft, and track publishing status. The creator reviews and publishes drafts in TikTok; this integration does not publish them unattended. Webhooks can notify workflows about post and authorization changes.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Send uploaded videos to the TikTok inbox as drafts for human review and publishing, then track post status.
+Sim requests these scopes when someone connects a TikTok account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/tiktok` |
+| Environment variables | `TIKTOK_CLIENT_ID`, `TIKTOK_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `user.info.basic` | Read a user's profile info \(open id, avatar, display name\) |
+| `user.info.profile` | Read a user's profile info \(bio, verification status, username\) |
+| `user.info.stats` | Read a user's stats \(follower, following, likes, and video counts\) |
+| `video.upload` | Share content to a creator's account as a draft for further edit and post |
+| `video.list` | Read a user's public TikTok videos |
+
+## Use the block [#usage-instructions]
+
+Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Send uploaded videos to the TikTok inbox as drafts for human review and publishing, then track post status.
 
 ## Actions
 
@@ -155,7 +167,7 @@ Check the status of a video draft upload. Use the publishId returned from Upload
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### TikTok Authorization Removed
 

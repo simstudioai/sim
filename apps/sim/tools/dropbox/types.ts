@@ -31,7 +31,7 @@ interface DropboxDeletedMetadata {
   path_lower?: string
 }
 
-export type DropboxMetadata = DropboxFileMetadata | DropboxFolderMetadata | DropboxDeletedMetadata
+type DropboxMetadata = DropboxFileMetadata | DropboxFolderMetadata | DropboxDeletedMetadata
 
 interface DropboxSharedLinkMetadata {
   url: string
@@ -202,17 +202,6 @@ export interface DropboxSearchResponse extends ToolResponse {
   }
 }
 
-interface DropboxGetTemporaryLinkParams extends DropboxBaseParams {
-  path: string
-}
-
-interface DropboxGetTemporaryLinkResponse extends ToolResponse {
-  output: {
-    metadata?: DropboxFileMetadata
-    link?: string
-  }
-}
-
 export interface DropboxListSharedLinksParams extends DropboxBaseParams {
   path?: string
   directOnly?: boolean
@@ -262,19 +251,3 @@ export interface DropboxRestoreResponse extends ToolResponse {
     metadata?: DropboxFileMetadata
   }
 }
-
-export type DropboxResponse =
-  | DropboxUploadResponse
-  | DropboxDownloadResponse
-  | DropboxListFolderResponse
-  | DropboxCreateFolderResponse
-  | DropboxDeleteResponse
-  | DropboxCopyResponse
-  | DropboxMoveResponse
-  | DropboxGetMetadataResponse
-  | DropboxCreateSharedLinkResponse
-  | DropboxSearchResponse
-  | DropboxGetTemporaryLinkResponse
-  | DropboxListSharedLinksResponse
-  | DropboxListRevisionsResponse
-  | DropboxRestoreResponse

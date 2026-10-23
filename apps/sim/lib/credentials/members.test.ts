@@ -1,14 +1,8 @@
 import { dbChainMockFns, drizzleOrmMock, resetDbChainMock, schemaMock } from '@sim/testing'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUsersWithPermissions } = vi.hoisted(() => ({
-  mockGetUsersWithPermissions: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: vi.fn(),
-  getUsersWithPermissions: mockGetUsersWithPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { listCredentialMembershipsForUser } from '@/lib/credentials/members'
 

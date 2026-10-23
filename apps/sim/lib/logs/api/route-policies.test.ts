@@ -1,21 +1,19 @@
-import { resetEnvMock } from '@sim/testing'
+import { authMockFns, resetEnvMock } from '@sim/testing'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBindDelegation, mockGetSession } = vi.hoisted(() => ({
-  mockBindDelegation: vi.fn(),
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
-  InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 vi.unmock('@/lib/auth/internal')
 
 import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import { internalLogsSessionOrExecutorAuth } from '@/lib/logs/api/route-policies'
+
+const mockGetSession = authMockFns.mockGetSession
+const mockBindDelegation = authInternalDelegationMockFns.mockBindInternalExecutorDelegation
 
 afterAll(resetEnvMock)
 

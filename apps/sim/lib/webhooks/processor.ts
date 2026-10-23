@@ -5,11 +5,12 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
+import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import {
   ADMISSION_ERROR_DESCRIPTOR,
   classifyTransientAdmissionFailure,
@@ -33,6 +34,7 @@ import {
   matchesPendingWebhookVerificationProbe,
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
+import { recordPollAdmissionRefusal } from '@/lib/webhooks/polling/admission-refusals'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { normalizeWebhookRegistrationPath } from '@/lib/webhooks/registration-identity'
@@ -46,7 +48,18 @@ const logger = createLogger('WebhookProcessor')
 
 type WebhookRecord = typeof webhook.$inferSelect
 type WorkflowRecord = typeof workflow.$inferSelect
-type WebhookTarget = { webhook: WebhookRecord; workflow: WorkflowRecord }
+type WebhookTarget = {
+  webhook: WebhookRecord
+  workflow: WorkflowRecord
+  /** Whether the webhook's trigger block exists in the workflow's active deployment. */
+  triggerBlockDeployed: boolean
+}
+
+/**
+ * Answers {@link blockExistsInDeployment} from the active deployment a lookup
+ * already joins, so delivery does not read it a second time.
+ */
+const triggerBlockDeployedColumn = sql<boolean>`coalesce(json_typeof(${workflowDeploymentVersion.state} -> 'blocks' -> ${webhook.blockId}) = 'object', false)`
 type ResolvedWebhookRecord = Omit<WebhookRecord, 'provider' | 'providerConfig'> & {
   provider: string
   providerConfig: Record<string, unknown>
@@ -67,11 +80,15 @@ export interface WebhookProcessorOptions {
   triggerTimestampMs?: number
   /** Provider-authenticated external actor. Never derived from workflow input. */
   subject?: ExternalUserSubject
+  /** The lookup's answer for this webhook's trigger block; read fresh when absent. */
+  triggerBlockDeployed?: boolean
 }
 
 export interface WebhookPreprocessingResult {
   error: NextResponse | null
   transientAdmissionFailure?: TransientAdmissionFailure
+  /** Set when the refusal holds until billing or account state changes; see `lib/core/admission/rejection`. */
+  admissionRejectionCode?: string
   actorUserId?: string
   billingAttribution?: BillingAttributionSnapshot
   executionId?: string
@@ -363,6 +380,7 @@ export async function findAllWebhooksForPath(
     .select({
       webhook: webhook,
       workflow: workflow,
+      triggerBlockDeployed: triggerBlockDeployedColumn,
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -393,7 +411,7 @@ export async function findAllWebhooksForPath(
   }
 
   if (results.length === 0) {
-    logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
+    logger.debug(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
     return results
   }
 
@@ -467,6 +485,7 @@ export async function findWebhooksByRoutingKey(
     .select({
       webhook: webhook,
       workflow: workflow,
+      triggerBlockDeployed: triggerBlockDeployedColumn,
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -622,15 +641,18 @@ export async function checkWebhookPreprocessing(
       workspaceId: foundWorkflow.workspaceId ?? undefined,
       workflowRecord: foundWorkflow,
       executionType: 'async',
+      throttleErrorLogs: true,
     })
 
     if (!preprocessResult.success) {
       const error = preprocessResult.error
       const transientAdmissionFailure = classifyTransientAdmissionFailure(error)
+      const admissionRejectionCode = getDeterministicAdmissionRejectionCode(error)
       logger.warn(`[${requestId}] Webhook preprocessing failed`, {
         provider: foundWebhook.provider,
         error: error.message,
         statusCode: error.statusCode,
+        ...(error.code ? { code: error.code } : {}),
       })
 
       return {
@@ -639,6 +661,7 @@ export async function checkWebhookPreprocessing(
             ? formatGenericTransientAdmissionResponse(error.message, transientAdmissionFailure)
             : formatProviderErrorResponse(foundWebhook, error.message, error.statusCode),
         ...(transientAdmissionFailure ? { transientAdmissionFailure } : {}),
+        ...(admissionRejectionCode ? { admissionRejectionCode } : {}),
       }
     }
 
@@ -669,6 +692,7 @@ export interface WebhookDispatchResult {
     | 'event-mismatch'
     | 'filtered'
     | 'preprocessing'
+    | 'admission-rejected'
     | 'block-missing'
     | 'queue-failed'
 }
@@ -896,14 +920,19 @@ export async function dispatchResolvedWebhookTarget(
   }
 
   if (webhookRecord.blockId) {
-    const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
+    const blockExists =
+      options.triggerBlockDeployed ??
+      (await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId))
     if (!blockExists) {
       const verificationResponse = handlePreDeploymentVerification(webhookRecord, options.requestId)
       return {
         outcome: 'ignored',
         response:
           verificationResponse ??
-          new NextResponse('Trigger block not found in deployment', { status: 404 }),
+          new NextResponse('Trigger block not found in deployment', {
+            status: 404,
+            headers: { 'x-slack-no-retry': '1' },
+          }),
         reason: 'block-missing',
       }
     }
@@ -915,6 +944,16 @@ export async function dispatchResolvedWebhookTarget(
     options.requestId
   )
   if (preprocessResult.error) {
+    if (
+      preprocessResult.admissionRejectionCode &&
+      getProviderHandler(webhookRecord.provider).acknowledgeAdmissionRejections
+    ) {
+      return {
+        outcome: 'ignored',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'admission-rejected',
+      }
+    }
     return {
       outcome: 'failed',
       response: preprocessResult.error,
@@ -1007,6 +1046,11 @@ export async function processPolledWebhookEvent(
         statusCode,
         error: errorMessage,
       })
+      const { admissionRejectionCode } = preprocessResult
+      if (admissionRejectionCode) {
+        if (foundWorkflow.workspaceId) await recordPollAdmissionRefusal(foundWorkflow.workspaceId)
+        return { success: false, error: errorMessage, statusCode, code: admissionRejectionCode }
+      }
       return {
         success: false,
         error: errorMessage,

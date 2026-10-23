@@ -147,7 +147,7 @@ async function promptForSecret(reason: string, action: string): Promise<boolean>
         ? await showShellDialog(parent, options)
         : await showShellDialog(options)
     return response === 1
-  } catch (error) {
+  } catch {
     // Fail closed: if the confirmation cannot be shown, nothing is revealed.
     logger.warn('Could not present the credential confirmation')
     return false

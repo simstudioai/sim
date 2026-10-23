@@ -1,9 +1,10 @@
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, gt, sql } from 'drizzle-orm'
+import { and, eq, gt } from 'drizzle-orm'
 import { createApiKey } from '@/lib/api-key/auth'
 import { decryptApiKey, hashApiKey } from '@/lib/api-key/crypto'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   traceMothershipQuery,
   traceMothershipTransaction,
@@ -36,7 +37,7 @@ export async function mintDelegationToken(params: {
     return await traceMothershipTransaction('delegation', async (tx) => {
       const name = delegationName(params.userId)
       await traceMothershipQuery('advisory_lock', 'api_key', () =>
-        tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${name}, 0))`)
+        acquireAdvisoryXactLock(tx, 'mothership_delegation', name)
       )
       const [existing] = await traceMothershipQuery('SELECT', 'api_key', () =>
         tx

@@ -1,4 +1,4 @@
-import { ensureFileNameExtension } from '@/lib/uploads/utils/file-utils'
+import { ensureFileNameExtension } from '@/lib/uploads/utils/file'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Characters that are illegal in file names on common desktop platforms. */

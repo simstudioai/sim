@@ -57,7 +57,7 @@ export const kalshiGetTradesTool: ToolConfig<KalshiGetTradesParams, KalshiGetTra
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_trades')
+      handleKalshiError(data, 'get_trades')
     }
 
     const trades = data.trades || []
@@ -120,7 +120,7 @@ export const kalshiGetTradesV2Tool: ToolConfig<KalshiGetTradesV2Params, KalshiGe
     id: 'kalshi_get_trades_v2',
     name: 'Get Trades from Kalshi V2',
     description:
-      'Retrieve recent trades with additional filtering options (V2 - includes trade_id and count_fp)',
+      'Retrieve recent trades with additional filtering options with trade identifiers and fixed-point counts',
     version: '2.0.0',
 
     params: {
@@ -179,7 +179,7 @@ export const kalshiGetTradesV2Tool: ToolConfig<KalshiGetTradesV2Params, KalshiGe
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'get_trades_v2')
+        handleKalshiError(data, 'get_trades_v2')
       }
 
       const trades = (data.trades || []).map((t: Record<string, unknown>) => ({

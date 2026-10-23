@@ -2,8 +2,11 @@ import { sha256Hex } from '@sim/security/hash'
 import {
   applySourceEdits,
   CodePlaceholderCompileError,
+  CodePlaceholderInvariantError,
   createCodePlaceholderCompilationContext,
-  isOffsetInRanges,
+  createOffsetRangeLookup,
+  occurrencesWithin,
+  partitionPoint,
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
@@ -30,21 +33,14 @@ function isIdentifierCharacter(character: string | undefined): boolean {
   return character !== undefined && /[A-Za-z0-9_]/.test(character)
 }
 
-function findLastPythonKeyword(
-  value: string,
-  keyword: string,
-  isIgnored: (index: number) => boolean = () => false
-): number {
-  let index = value.lastIndexOf(keyword)
-  while (index >= 0) {
-    const before = value[index - 1]
-    const after = value[index + keyword.length]
-    if (!isIdentifierCharacter(before) && !isIdentifierCharacter(after) && !isIgnored(index)) {
-      return index
-    }
-    index = value.lastIndexOf(keyword, index - 1)
-  }
-  return -1
+/** The token wholly containing `occurrence`, found by bisection over ordered, disjoint tokens. */
+function findContainingToken(
+  tokens: readonly PythonStringToken[],
+  occurrence: CodePlaceholderOccurrence
+): PythonStringToken | undefined {
+  const token =
+    tokens[partitionPoint(tokens, (candidate) => candidate.start <= occurrence.start) - 1]
+  return token && occurrence.end <= token.end ? token : undefined
 }
 
 function readPythonStringStart(
@@ -243,25 +239,27 @@ function createSentinel(code: string): string {
     const sentinel = `__sim_placeholder_${digest}__`
     if (!code.includes(sentinel)) return sentinel
   }
-  throw new CodePlaceholderCompileError('Unable to allocate a collision-free Python marker')
+  throw new CodePlaceholderInvariantError('Unable to allocate a collision-free Python marker')
 }
 
+/** `comments` are ordered and disjoint; the scan starts at the first that can overlap the gap. */
 function pythonTriviaGap(
   code: string,
   start: number,
   end: number,
-  comments: ReadonlyArray<[number, number]>
+  comments: ReadonlyArray<[number, number]>,
+  firstComment: number
 ): string {
-  let gap = code.slice(start, end)
-  for (const [commentStart, commentEnd] of comments) {
-    const overlapStart = Math.max(start, commentStart)
-    const overlapEnd = Math.min(end, commentEnd)
+  let gap = ''
+  let cursor = start
+  for (let index = firstComment; index < comments.length && comments[index][0] < end; index++) {
+    const overlapStart = Math.max(cursor, comments[index][0])
+    const overlapEnd = Math.min(end, comments[index][1])
     if (overlapStart >= overlapEnd) continue
-    const relativeStart = overlapStart - start
-    const relativeEnd = overlapEnd - start
-    gap = `${gap.slice(0, relativeStart)}${' '.repeat(relativeEnd - relativeStart)}${gap.slice(relativeEnd)}`
+    gap += `${code.slice(cursor, overlapStart)}${' '.repeat(overlapEnd - overlapStart)}`
+    cursor = overlapEnd
   }
-  return gap
+  return gap + code.slice(cursor, end)
 }
 
 function groupAdjacentStrings(
@@ -270,10 +268,17 @@ function groupAdjacentStrings(
   comments: ReadonlyArray<[number, number]>
 ): PythonStringToken[][] {
   const groups: PythonStringToken[][] = []
+  let firstComment = 0
   for (const token of strings) {
     const current = groups.at(-1)
     const previous = current?.at(-1)
-    const gap = previous ? pythonTriviaGap(code, previous.end, token.start, comments) : ''
+    let gap = ''
+    if (previous) {
+      while (firstComment < comments.length && comments[firstComment][1] <= previous.end) {
+        firstComment += 1
+      }
+      gap = pythonTriviaGap(code, previous.end, token.start, comments, firstComment)
+    }
     const sameLogicalExpression =
       !/[\r\n]/.test(gap) ||
       (previous !== undefined && previous.bracketDepth > 0 && token.bracketDepth > 0) ||
@@ -296,18 +301,28 @@ type FStringPosition =
   | 'comment'
   | 'debug'
 
+interface FStringExpressionState {
+  depth: number
+  parentheses: number
+  brackets: number
+}
+
+/**
+ * Whether a debug `=` follows `start` before its replacement field closes.
+ *
+ * `decided` holds answers for later placeholders in the same token. Reaching one of them in
+ * exactly the state its own scan started from means the rest of this scan would repeat that
+ * one, so its answer is reused: a field holding many placeholders is scanned once, not once each.
+ */
 function hasFStringDebugMarker(
   code: string,
   token: PythonStringToken,
   start: number,
-  initialDepth: number,
-  initialParentheses: number,
-  initialBrackets: number
+  initial: FStringExpressionState,
+  decided: ReadonlyMap<number, FStringExpressionState & { debug: boolean }>
 ): boolean {
   const contentEnd = token.end - token.quoteLength
-  let depth = initialDepth
-  let parentheses = initialParentheses
-  let brackets = initialBrackets
+  let { depth, parentheses, brackets } = initial
   let nestedString: { delimiter: string } | null = null
   let comment = false
 
@@ -337,6 +352,15 @@ function hasFStringDebugMarker(
       continue
     }
     if (code.startsWith('{{', index)) {
+      const later = decided.get(index)
+      if (
+        later &&
+        later.depth === depth &&
+        later.parentheses === parentheses &&
+        later.brackets === brackets
+      ) {
+        return later.debug
+      }
       const placeholderEnd = code.indexOf('}}', index + 2)
       if (placeholderEnd !== -1) {
         index = placeholderEnd + 1
@@ -369,12 +393,16 @@ function hasFStringDebugMarker(
   return false
 }
 
-function getFStringPosition(
+/**
+ * Classifies every placeholder offset (ascending) inside one string token in a single pass.
+ * Re-scanning the token from its start for each placeholder is quadratic in user code.
+ */
+function getFStringPositions(
   code: string,
   token: PythonStringToken,
-  absoluteOffset: number
-): FStringPosition {
-  if (!/f/i.test(token.prefix)) return 'literal'
+  offsets: readonly number[]
+): FStringPosition[] {
+  if (!/f/i.test(token.prefix)) return offsets.map(() => 'literal')
   const quoteLength = token.quoteLength
   const contentStart = token.start + token.prefix.length + quoteLength
   const contentEnd = token.end - quoteLength
@@ -385,7 +413,24 @@ function getFStringPosition(
   let inConversion = false
   let nestedString: { delimiter: string } | null = null
   let comment = false
-  for (let index = contentStart; index < contentEnd && index < absoluteOffset; index += 1) {
+  const positions: FStringPosition[] = []
+  const expressionStates = new Map<number, FStringExpressionState>()
+  const recordPositionsThrough = (index: number) => {
+    while (positions.length < offsets.length && offsets[positions.length] <= index) {
+      if (comment) positions.push('comment')
+      else if (nestedString) positions.push('nested-string')
+      else if (depth === 0) positions.push('literal')
+      else if (inFormatSpec && depth === 1) positions.push('format')
+      else if (inConversion) positions.push('conversion')
+      else {
+        expressionStates.set(positions.length, { depth, parentheses, brackets })
+        positions.push('expression')
+      }
+    }
+  }
+  for (let index = contentStart; index < contentEnd; index += 1) {
+    recordPositionsThrough(index)
+    if (positions.length === offsets.length) break
     const character = code[index]
     if (comment) {
       if (character === '\n' || character === '\r') comment = false
@@ -460,15 +505,15 @@ function getFStringPosition(
       }
     }
   }
-  if (comment) return 'comment'
-  if (nestedString) return 'nested-string'
-  if (depth === 0) return 'literal'
-  if (inFormatSpec && depth === 1) return 'format'
-  if (inConversion) return 'conversion'
-  if (hasFStringDebugMarker(code, token, absoluteOffset, depth, parentheses, brackets)) {
-    return 'debug'
+  recordPositionsThrough(Number.POSITIVE_INFINITY)
+
+  const decided = new Map<number, FStringExpressionState & { debug: boolean }>()
+  for (const [position, state] of [...expressionStates].reverse()) {
+    const debug = hasFStringDebugMarker(code, token, offsets[position], state, decided)
+    if (debug) positions[position] = 'debug'
+    decided.set(offsets[position], { ...state, debug })
   }
-  return 'expression'
+  return positions
 }
 
 function buildSimultaneousInterpolation(
@@ -496,72 +541,358 @@ function pythonRuntimeValue(bindingName: string): string {
 
 type PythonBarePlaceholderPosition = 'value' | 'attribute' | 'unsupported-name'
 
-function classifyPythonBarePlaceholder(
+const ASSIGNMENT_OPERATOR = /^(?:=(?!=)|:=|\+=|-=|\*=|\/=|\/\/=|%=|@=|&=|\|=|\^=|>>=|<<=|\*\*=)/
+const NAME_POSITION_KEYWORDS = [
+  'def',
+  'class',
+  'import',
+  'from',
+  'as',
+  'global',
+  'nonlocal',
+  'del',
+  'for',
+  'lambda',
+] as const
+
+function isWhitespace(character: string | undefined): boolean {
+  return character !== undefined && /\s/.test(character)
+}
+
+interface PythonKeywordHead {
+  start: number
+  /** End of the whitespace run that follows the keyword. */
+  whitespaceEnd: number
+  /** First carriage return at or after `whitespaceEnd`, or `Infinity`. */
+  carriageReturnAfter: number
+}
+
+interface PythonSourceIndex {
+  newlines: number[]
+  carriageReturns: number[]
+  openParens: number[]
+  closeParens: number[]
+  commas: number[]
+  equals: number[]
+  colons: number[]
+  /** `(` offsets that close a `def name(` head. */
+  defParens: number[]
+  forHeads: PythonKeywordHead[]
+  delHeads: PythonKeywordHead[]
+  /** `in` tokens with whitespace on both sides. */
+  inTokens: number[]
+  /** `lambda` and `if` offsets not adjoining an identifier character. */
+  lambdas: number[]
+  ifs: number[]
+}
+
+function firstAtOrAfter(offsets: readonly number[], offset: number): number {
+  return partitionPoint(offsets, (candidate) => candidate < offset)
+}
+
+function hasOffsetIn(offsets: readonly number[], start: number, end: number): boolean {
+  const index = firstAtOrAfter(offsets, start)
+  return index < offsets.length && offsets[index] < end
+}
+
+/** The last offset in `[start, end)`, or `start - 1` when there is none. */
+function lastOffsetIn(offsets: readonly number[], start: number, end: number): number {
+  const offset = offsets[firstAtOrAfter(offsets, end) - 1]
+  return offset !== undefined && offset >= start ? offset : start - 1
+}
+
+function nextOffset(offsets: readonly number[], offset: number, fallback: number): number {
+  return offsets[firstAtOrAfter(offsets, offset)] ?? fallback
+}
+
+function lineStartOf(newlines: readonly number[], offset: number): number {
+  return lastOffsetIn(newlines, 0, offset) + 1
+}
+
+function standaloneKeywordOffsets(code: string, keyword: string): number[] {
+  const offsets: number[] = []
+  for (let index = code.indexOf(keyword); index !== -1; index = code.indexOf(keyword, index + 1)) {
+    if (
+      !isIdentifierCharacter(code[index - 1]) &&
+      !isIdentifierCharacter(code[index + keyword.length])
+    ) {
+      offsets.push(index)
+    }
+  }
+  return offsets
+}
+
+function keywordHeads(
   code: string,
-  occurrence: CodePlaceholderOccurrence,
-  ignoredRanges: ReadonlyArray<[number, number]> = []
-): PythonBarePlaceholderPosition {
-  const immediatelyPrevious = code[occurrence.start - 1]
-  const immediatelyNext = code[occurrence.end]
-  let previousIndex = occurrence.start - 1
-  while (previousIndex >= 0 && /[ \t\f]/.test(code[previousIndex])) previousIndex -= 1
-  const previous = code[previousIndex]
-  const attribute = previous === '.'
-  if (isIdentifierCharacter(immediatelyPrevious) || isIdentifierCharacter(immediatelyNext)) {
-    return 'unsupported-name'
+  keyword: string,
+  carriageReturns: number[]
+): PythonKeywordHead[] {
+  const heads: PythonKeywordHead[] = []
+  for (let index = code.indexOf(keyword); index !== -1; index = code.indexOf(keyword, index + 1)) {
+    if (index > 0 && !isWhitespace(code[index - 1])) continue
+    let whitespaceEnd = index + keyword.length
+    if (!isWhitespace(code[whitespaceEnd])) continue
+    while (isWhitespace(code[whitespaceEnd])) whitespaceEnd += 1
+    heads.push({
+      start: index,
+      whitespaceEnd,
+      carriageReturnAfter: nextOffset(carriageReturns, whitespaceEnd, Number.POSITIVE_INFINITY),
+    })
+  }
+  return heads
+}
+
+/** Whether the `(` at `paren` closes `def name(`, scanning back no further than `lineStart`. */
+function closesDefHead(code: string, paren: number, lineStart: number): boolean {
+  let index = paren - 1
+  while (index >= lineStart && isWhitespace(code[index])) index -= 1
+  const identifierEnd = index + 1
+  while (index >= lineStart && isIdentifierCharacter(code[index])) index -= 1
+  const identifierStart = index + 1
+  if (identifierStart === identifierEnd || !/[A-Za-z_]/.test(code[identifierStart])) return false
+  if (index < lineStart || !isWhitespace(code[index])) return false
+  while (index >= lineStart && isWhitespace(code[index])) index -= 1
+  const defStart = index - 2
+  if (defStart < lineStart || !code.startsWith('def', defStart)) return false
+  return defStart === lineStart || isWhitespace(code[defStart - 1])
+}
+
+function indexPythonSource(code: string): PythonSourceIndex {
+  const newlines: number[] = []
+  const carriageReturns: number[] = []
+  const openParens: number[] = []
+  const closeParens: number[] = []
+  const commas: number[] = []
+  const equals: number[] = []
+  const colons: number[] = []
+  for (let index = 0; index < code.length; index += 1) {
+    const character = code[index]
+    if (character === '\n') newlines.push(index)
+    else if (character === '\r') carriageReturns.push(index)
+    else if (character === '(') openParens.push(index)
+    else if (character === ')') closeParens.push(index)
+    else if (character === ',') commas.push(index)
+    else if (character === '=') equals.push(index)
+    else if (character === ':') colons.push(index)
+  }
+  return {
+    newlines,
+    carriageReturns,
+    openParens,
+    closeParens,
+    commas,
+    equals,
+    colons,
+    defParens: openParens.filter((paren) =>
+      closesDefHead(code, paren, lineStartOf(newlines, paren))
+    ),
+    forHeads: keywordHeads(code, 'for', carriageReturns),
+    delHeads: keywordHeads(code, 'del', carriageReturns),
+    inTokens: standaloneKeywordOffsets(code, 'in').filter(
+      (offset) => isWhitespace(code[offset - 1]) && isWhitespace(code[offset + 2])
+    ),
+    lambdas: standaloneKeywordOffsets(code, 'lambda'),
+    ifs: standaloneKeywordOffsets(code, 'if'),
+  }
+}
+
+/**
+ * The first head starting at or after `lineStart` whose text up to `end` has no carriage
+ * return past its whitespace. Heads are disjoint, so `carriageReturnAfter` only grows along
+ * the list and the qualifying heads form a suffix.
+ */
+function firstHeadClearOfCarriageReturn(
+  heads: readonly PythonKeywordHead[],
+  lineStart: number,
+  end: number
+): PythonKeywordHead | undefined {
+  return heads[
+    Math.max(
+      partitionPoint(heads, (head) => head.start < lineStart),
+      partitionPoint(heads, (head) => head.carriageReturnAfter < end)
+    )
+  ]
+}
+
+/**
+ * Classifies a bare placeholder by the Python construct around it on its line, answering each
+ * rule from one sorted offset index of the file instead of a regex over the line prefix.
+ * `isIgnored` must be a pure membership test over the whole file: keyword lookbacks memoize
+ * their walk per predicate and may probe offsets on earlier lines.
+ */
+function createPythonBarePlaceholderClassifier(code: string) {
+  let sourceIndex: PythonSourceIndex | undefined
+  const caseClauses = new Map<
+    number,
+    { keywordStart: number; prefixStart: number; carriageReturnAfter: number } | null
+  >()
+  const keywordMemos = new WeakMap<
+    (offset: number) => boolean,
+    { lambda: Map<number, number>; if: Map<number, number> }
+  >()
+
+  /** The last keyword offset at or before `maxStart` that `isIgnored` does not exclude, or -1. */
+  const lastUnignored = (
+    offsets: readonly number[],
+    memo: Map<number, number>,
+    isIgnored: (offset: number) => boolean,
+    maxStart: number
+  ): number => {
+    const visited: number[] = []
+    let found = -1
+    for (
+      let index = partitionPoint(offsets, (offset) => offset <= maxStart) - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const known = memo.get(index)
+      if (known !== undefined) {
+        found = known
+        break
+      }
+      visited.push(index)
+      if (!isIgnored(offsets[index])) {
+        found = index
+        break
+      }
+    }
+    for (const index of visited) memo.set(index, found)
+    return found < 0 ? -1 : offsets[found]
   }
 
-  const lineStart = code.lastIndexOf('\n', occurrence.start - 1) + 1
-  const nextNewline = code.indexOf('\n', occurrence.end)
-  const lineEnd = nextNewline === -1 ? code.length : nextNewline
-  const before = code.slice(lineStart, occurrence.start)
-  const after = code.slice(occurrence.end, lineEnd)
-  const isIgnoredBeforeOffset = (offset: number): boolean =>
-    isOffsetInRanges(lineStart + offset, ignoredRanges)
-  const parameterSegment = before.slice(
-    Math.max(before.lastIndexOf('('), before.lastIndexOf(',')) + 1
-  )
-  const inFunctionParameterName =
-    /(?:^|\s)(?:async\s+)?def\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*$/.test(before) &&
-    !/[=:]/.test(parameterSegment)
-  const lambdaStart = findLastPythonKeyword(before, 'lambda', isIgnoredBeforeOffset)
-  const inLambdaParameterName =
-    lambdaStart >= 0 &&
-    before.indexOf(':', lambdaStart) === -1 &&
-    !before
-      .slice(Math.max(lambdaStart + 'lambda'.length, before.lastIndexOf(',') + 1))
-      .includes('=')
-  const forMatch = /(?:^|\s)(?:async\s+)?for\s+([^\r\n]*)$/.exec(before)
-  const inForTarget = forMatch !== null && !/(?:^|\s)in\s/.test(forMatch[1])
-  const followedByAssignment =
-    /^\s*(?:=(?!=)|:=|\+=|-=|\*=|\/=|\/\/=|%=|@=|&=|\|=|\^=|>>=|<<=|\*\*=)/.test(after)
-  const caseClause = /^\s*case\s+([^\r\n]*)$/.exec(before)
-  const casePrefix = caseClause?.[1] ?? ''
-  const caseStartsWithAssignment =
-    /^(?:=(?!=)|:=|\+=|-=|\*=|\/=|\/\/=|%=|@=|&=|\|=|\^=|>>=|<<=|\*\*=)/.test(casePrefix)
-  const casePrefixOffset = before.length - casePrefix.length
-  const inCasePattern =
-    caseClause !== null &&
-    !caseStartsWithAssignment &&
-    findLastPythonKeyword(casePrefix, 'if', (offset) =>
-      isIgnoredBeforeOffset(casePrefixOffset + offset)
-    ) === -1 &&
-    after.includes(':')
-  if (
-    /(?:^|\s)(?:async\s+)?(?:def|class|import|from|as|global|nonlocal|del)\s*$/.test(before) ||
-    /(?:^|\s)(?:async\s+)?for\s*$/.test(before) ||
-    /(?:^|\s)(?:as|lambda)\s*$/.test(before) ||
-    inFunctionParameterName ||
-    inLambdaParameterName ||
-    inForTarget ||
-    inCasePattern ||
-    followedByAssignment ||
-    (attribute && /(?:^|\s)del\s+[^\r\n]*\.\s*$/.test(before))
-  ) {
-    return 'unsupported-name'
+  const caseClauseAt = (source: PythonSourceIndex, lineStart: number) => {
+    let clause = caseClauses.get(lineStart)
+    if (clause === undefined) {
+      let keywordStart = lineStart
+      while (isWhitespace(code[keywordStart])) keywordStart += 1
+      clause = null
+      if (code.startsWith('case', keywordStart) && isWhitespace(code[keywordStart + 4])) {
+        let prefixStart = keywordStart + 4
+        while (isWhitespace(code[prefixStart])) prefixStart += 1
+        clause = {
+          keywordStart,
+          prefixStart,
+          carriageReturnAfter: nextOffset(
+            source.carriageReturns,
+            prefixStart,
+            Number.POSITIVE_INFINITY
+          ),
+        }
+      }
+      caseClauses.set(lineStart, clause)
+    }
+    return clause
   }
-  if (attribute) return 'attribute'
-  return 'value'
+
+  return (
+    occurrence: CodePlaceholderOccurrence,
+    isIgnored: (offset: number) => boolean
+  ): PythonBarePlaceholderPosition => {
+    const { start, end } = occurrence
+    const immediatelyPrevious = code[start - 1]
+    const immediatelyNext = code[end]
+    let previousIndex = start - 1
+    while (previousIndex >= 0 && /[ \t\f]/.test(code[previousIndex])) previousIndex -= 1
+    const attribute = code[previousIndex] === '.'
+    if (isIdentifierCharacter(immediatelyPrevious) || isIdentifierCharacter(immediatelyNext)) {
+      return 'unsupported-name'
+    }
+
+    const source = (sourceIndex ??= indexPythonSource(code))
+    let memo = keywordMemos.get(isIgnored)
+    if (!memo) {
+      memo = { lambda: new Map(), if: new Map() }
+      keywordMemos.set(isIgnored, memo)
+    }
+    const lineStart = lineStartOf(source.newlines, start)
+    const lineEnd = nextOffset(source.newlines, end, code.length)
+
+    let trailingWhitespace = start
+    while (trailingWhitespace > lineStart && isWhitespace(code[trailingWhitespace - 1])) {
+      trailingWhitespace -= 1
+    }
+    const endsWithKeyword = (keyword: string) => {
+      const keywordStart = trailingWhitespace - keyword.length
+      return (
+        keywordStart >= lineStart &&
+        code.startsWith(keyword, keywordStart) &&
+        (keywordStart === lineStart || isWhitespace(code[keywordStart - 1]))
+      )
+    }
+
+    const defParen = lastOffsetIn(source.defParens, lineStart, start)
+    const parameterStart =
+      Math.max(
+        lastOffsetIn(source.openParens, lineStart, start),
+        lastOffsetIn(source.commas, lineStart, start)
+      ) + 1
+    const inFunctionParameterName =
+      defParen >= lineStart &&
+      !hasOffsetIn(source.closeParens, defParen + 1, start) &&
+      !hasOffsetIn(source.equals, parameterStart, start) &&
+      !hasOffsetIn(source.colons, parameterStart, start)
+
+    const lambdaStart = lastUnignored(
+      source.lambdas,
+      memo.lambda,
+      isIgnored,
+      start - 'lambda'.length
+    )
+    const inLambdaParameterName =
+      lambdaStart >= lineStart &&
+      !hasOffsetIn(source.colons, lambdaStart, start) &&
+      !hasOffsetIn(
+        source.equals,
+        Math.max(lambdaStart + 'lambda'.length, lastOffsetIn(source.commas, lineStart, start) + 1),
+        start
+      )
+
+    const forHead = firstHeadClearOfCarriageReturn(source.forHeads, lineStart, start)
+    const inForTarget =
+      forHead !== undefined &&
+      forHead.start <= start - 4 &&
+      !hasOffsetIn(source.inTokens, forHead.whitespaceEnd, start - 2)
+
+    let assignmentStart = end
+    while (assignmentStart < lineEnd && isWhitespace(code[assignmentStart])) assignmentStart += 1
+    const followedByAssignment = ASSIGNMENT_OPERATOR.test(
+      code.slice(assignmentStart, Math.min(lineEnd, assignmentStart + 3))
+    )
+
+    const caseClause = caseClauseAt(source, lineStart)
+    const inCaseClause =
+      caseClause !== null &&
+      caseClause.keywordStart + 4 < start &&
+      caseClause.carriageReturnAfter >= start
+    const inCasePattern =
+      inCaseClause &&
+      !ASSIGNMENT_OPERATOR.test(
+        code.slice(caseClause.prefixStart, Math.min(start, caseClause.prefixStart + 3))
+      ) &&
+      lastUnignored(source.ifs, memo.if, isIgnored, start - 'if'.length) < caseClause.prefixStart &&
+      hasOffsetIn(source.colons, end, lineEnd)
+
+    const deletesAttribute = () => {
+      const dot = trailingWhitespace - 1
+      if (dot < lineStart || code[dot] !== '.') return false
+      const delHead = firstHeadClearOfCarriageReturn(source.delHeads, lineStart, dot)
+      return delHead !== undefined && delHead.start <= dot - 4
+    }
+
+    if (
+      NAME_POSITION_KEYWORDS.some(endsWithKeyword) ||
+      inFunctionParameterName ||
+      inLambdaParameterName ||
+      inForTarget ||
+      inCasePattern ||
+      followedByAssignment ||
+      (attribute && deletesAttribute())
+    ) {
+      return 'unsupported-name'
+    }
+    if (attribute) return 'attribute'
+    return 'value'
+  }
 }
 
 /**
@@ -598,10 +929,10 @@ function recordPythonDirectEnvironmentReads(
   if (matches.length === 0) return
 
   const lexed = lex()
-  const ignoredRanges: Array<[number, number]> = [
+  const isIgnored = createOffsetRangeLookup([
     ...lexed.comments,
     ...lexed.strings.map((token): [number, number] => [token.start, token.end]),
-  ]
+  ])
 
   /**
    * A write or `del` target is reported like any other access, deliberately.
@@ -617,7 +948,7 @@ function recordPythonDirectEnvironmentReads(
    * per node, with no text to misread.
    */
   for (const candidate of matches) {
-    if (isOffsetInRanges(candidate.index, ignoredRanges)) continue
+    if (isIgnored(candidate.index)) continue
     /**
      * `other.environmentVariables['K']` reads a different object that merely shares the name,
      * so it is not the mounted binding at all. This is the receiver check the JavaScript side
@@ -633,7 +964,7 @@ function recordPythonDirectEnvironmentReads(
      */
     let previous = candidate.index - 1
     while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
-    if (code[previous] === '.' && !isOffsetInRanges(previous, ignoredRanges)) continue
+    if (code[previous] === '.' && !isIgnored(previous)) continue
     const name = candidate[2] ?? candidate[4]
     if (name) context.recordDirectEnvironmentRead(name, candidate.index)
   }
@@ -649,6 +980,7 @@ export async function compilePythonPlaceholders(
   }
 
   const lexed = lexPython(input.code)
+  const classifyBarePlaceholder = createPythonBarePlaceholderClassifier(input.code)
   recordPythonDirectEnvironmentReads(input.code, () => lexed, context)
   const edits: SourceEdit[] = []
   const consumed = new Set<CodePlaceholderOccurrence>()
@@ -664,9 +996,7 @@ export async function compilePythonPlaceholders(
   for (const group of groupAdjacentStrings(input.code, lexed.strings, lexed.comments)) {
     const start = group[0].start
     const end = group.at(-1)?.end ?? start
-    const items = context.occurrences.filter(
-      (occurrence) => occurrence.start >= start && occurrence.end <= end
-    )
+    const items = occurrencesWithin(context.occurrences, start, end)
     if (items.length === 0) continue
 
     let groupSource = input.code.slice(start, end)
@@ -678,33 +1008,42 @@ export async function compilePythonPlaceholders(
       group.flatMap((token) => lexNestedFStringStrings(input.code, token)),
       []
     )
+    const nestedTokens = nestedStringGroups.flat()
+    const nestedGroupByToken = new Map(
+      nestedStringGroups.flatMap((nestedGroup) =>
+        nestedGroup.map((nestedToken) => [nestedToken, nestedGroup] as const)
+      )
+    )
+    const isInNestedString = createOffsetRangeLookup(
+      nestedTokens.map(({ start: nestedStart, end: nestedEnd }) => [nestedStart, nestedEnd])
+    )
+    const classifyOccurrences = (tokens: readonly PythonStringToken[]) => {
+      const positions = new Map<CodePlaceholderOccurrence, FStringPosition>()
+      for (const token of tokens) {
+        const tokenItems = occurrencesWithin(items, token.start, token.end)
+        const tokenPositions = getFStringPositions(
+          input.code,
+          token,
+          tokenItems.map((occurrence) => occurrence.start)
+        )
+        tokenItems.forEach((occurrence, index) => positions.set(occurrence, tokenPositions[index]))
+      }
+      return positions
+    }
+    const fStringPositions = classifyOccurrences(group)
+    const nestedFStringPositions = classifyOccurrences(nestedTokens)
     const nestedReplacements = new Map<
       PythonStringToken[],
       Array<{ occurrence: CodePlaceholderOccurrence; accessor: string }>
     >()
     for (const occurrence of items) {
-      const token = group.find(
-        (candidate) => occurrence.start >= candidate.start && occurrence.end <= candidate.end
-      )
-      if (!token) continue
-      const fStringPosition = getFStringPosition(input.code, token, occurrence.start)
-      if (fStringPosition === 'comment') continue
+      const fStringPosition = fStringPositions.get(occurrence)
+      if (!fStringPosition || fStringPosition === 'comment') continue
       if (!context.hasValue(occurrence.name)) continue
       if (fStringPosition === 'nested-string') {
-        const nestedGroup = nestedStringGroups.find((candidate) =>
-          candidate.some(
-            (nestedToken) =>
-              occurrence.start >= nestedToken.start && occurrence.end <= nestedToken.end
-          )
-        )
-        const nestedToken = nestedGroup?.find(
-          (candidate) => occurrence.start >= candidate.start && occurrence.end <= candidate.end
-        )
-        if (
-          nestedGroup &&
-          nestedToken &&
-          getFStringPosition(input.code, nestedToken, occurrence.start) === 'literal'
-        ) {
+        const nestedToken = findContainingToken(nestedTokens, occurrence)
+        const nestedGroup = nestedToken && nestedGroupByToken.get(nestedToken)
+        if (nestedGroup && nestedFStringPositions.get(occurrence) === 'literal') {
           const resolved = context.resolve(occurrence)
           if (!resolved) continue
           const pending = nestedReplacements.get(nestedGroup) ?? []
@@ -738,16 +1077,7 @@ export async function compilePythonPlaceholders(
       if (fStringPosition === 'expression' || fStringPosition === 'format') {
         if (
           fStringPosition === 'expression' &&
-          classifyPythonBarePlaceholder(
-            input.code,
-            occurrence,
-            nestedStringGroups
-              .flat()
-              .map(
-                ({ start: nestedStart, end: nestedEnd }) =>
-                  [nestedStart, nestedEnd] as [number, number]
-              )
-          ) === 'unsupported-name'
+          classifyBarePlaceholder(occurrence, isInNestedString) === 'unsupported-name'
         ) {
           if (input.analysisOnly) {
             context.resolveValue(occurrence)
@@ -815,18 +1145,16 @@ export async function compilePythonPlaceholders(
     })
   }
 
+  const isInComment = createOffsetRangeLookup(lexed.comments)
+  const isInStringOrComment = createOffsetRangeLookup([
+    ...lexed.strings.map(({ start, end }) => [start, end] as [number, number]),
+    ...lexed.comments,
+  ])
   for (const occurrence of context.occurrences) {
-    if (consumed.has(occurrence) || isOffsetInRanges(occurrence.start, lexed.comments)) continue
-    if (
-      lexed.strings.some((token) => occurrence.start >= token.start && occurrence.end <= token.end)
-    ) {
-      continue
-    }
+    if (consumed.has(occurrence) || isInComment(occurrence.start)) continue
+    if (findContainingToken(lexed.strings, occurrence)) continue
     if (!context.hasValue(occurrence.name)) continue
-    const position = classifyPythonBarePlaceholder(input.code, occurrence, [
-      ...lexed.strings.map(({ start, end }) => [start, end] as [number, number]),
-      ...lexed.comments,
-    ])
+    const position = classifyBarePlaceholder(occurrence, isInStringOrComment)
     if (position === 'unsupported-name') {
       if (input.analysisOnly) {
         context.resolveValue(occurrence)

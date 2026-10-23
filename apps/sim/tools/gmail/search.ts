@@ -163,7 +163,7 @@ interface GmailSearchV2Response {
 export const gmailSearchV2Tool: ToolConfig<GmailSearchParams, GmailSearchV2Response> = {
   id: 'gmail_search_v2',
   name: 'Gmail Search',
-  description: 'Search emails in Gmail. Returns API-aligned fields only.',
+  description: 'Search emails in Gmail.',
   version: '2.0.0',
   oauth: gmailSearchTool.oauth,
   params: gmailSearchTool.params,

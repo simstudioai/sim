@@ -1,9 +1,13 @@
 ---
-title: Environment Variables
-description: Configuration reference for Sim
+title: Environment variables
+description: Deployment configuration, feature prerequisites, and limits
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
+
+Configure variables in the env files or secret strategy for your deployment. Restart source processes or recreate containers/pods after changes; a running process does not reread credentials.
+
+Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service definitions, overriding values in `.env`. Use `POSTGRES_*` and `NEXT_PUBLIC_APP_URL` there. Helm constructs the database URL from its database values. See [Docker](/platform/self-hosting/docker) and [Kubernetes secret strategies](/platform/self-hosting/kubernetes#secret-stores).
 
 ## Required
 
@@ -16,28 +20,28 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `INTERNAL_API_SECRET` | Internal API secret, at least 32 characters: `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
 
-`openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — a value of any other shape throws the first time Sim encrypts or decrypts, not at startup. The rest are secrets of no fixed shape and only need 32 characters or more. The Sim app never checks — it runs its env schema with validation skipped — but the realtime service validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and refuses to start if either is shorter.
+`openssl rand -hex 32` prints 64 hex characters. Encryption keys require that format. The app skips its env schema validation; individual consumers can reject invalid values when first used. Realtime validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and rejects values shorter than 32 characters.
 
 <Callout type="error">
-  `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
+  Retain `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` across upgrades and restores. There is no supported in-place key rotation procedure; losing a key makes values encrypted with it unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
 </Callout>
 
-## Strongly recommended
+## Feature prerequisites and coordination [#strongly-recommended]
 
 | Variable | Description |
 |----------|-------------|
-| `API_ENCRYPTION_KEY` | Encrypts user-generated Sim API keys at rest, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. **When unset, API keys are stored in plain text** — the app logs a warning each time it encrypts or decrypts one and keeps working |
-| `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets. See [Background Jobs](/platform/self-hosting/background-jobs) |
-| `REDIS_URL` | Redis connection string. Optional on a single replica; **required** past one app or realtime replica — see [Redis](/platform/self-hosting/redis) |
+| `API_ENCRYPTION_KEY` | Encrypts stored Sim API-key material; use exactly 64 hex characters (`openssl rand -hex 32`). When unset, legacy API keys can be stored in plain text; the key getter logs a warning when called |
+| `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets. See [Background jobs](/platform/self-hosting/background-jobs) |
+| `REDIS_URL` | Redis connection string. Required for cross-replica events and features with no fallback, such as CLI pairing approval. Some single-process storage paths can fall back to PostgreSQL or local state; see [Redis](/platform/self-hosting/redis) |
 | `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws the first time it opens a Redis connection |
-| `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL — defaults to the page origin; set only if realtime is on a separate host |
+| `NEXT_PUBLIC_SOCKET_URL` | Public WebSocket URL. Proxied deployments default to the page origin; a localhost page uses port 3002. Set it for a separate realtime host. |
 | `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
 | `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
-| `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Optional — falls back to the public base URL. Deliberately ignored inside the Trigger.dev worker runtime, where a cluster-internal address resolves to the worker itself |
-| `SIM_MCP_URL` | Public URL of the [Sim MCP server](/mcp) when you serve it on its own host, e.g. `https://mcp.example.com/mcp`. Point that host at the app; Sim serves only the MCP endpoint and its OAuth metadata there, and stops serving `/api/mcp` on the app host so clients use one URL. Optional — defaults to `<NEXT_PUBLIC_APP_URL>/api/mcp` |
+| `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Defaults to the public base URL. The Trigger.dev worker ignores it and uses the public app URL. |
+| `SIM_MCP_URL` | Public URL of the [Sim MCP server](/mcp/overview) when you serve it on its own host, e.g. `https://mcp.example.com/mcp`. Point that host at the app; Sim serves only the MCP endpoint and its OAuth metadata there, and stops serving `/api/mcp` on the app host so clients use one URL. Optional — defaults to `<NEXT_PUBLIC_APP_URL>/api/mcp` |
 | `DATABASE_REPLICA_URL` | Read-replica connection string for log listing, audit logs, and dashboard aggregations. Falls back to the primary when unset |
 
-## AI Providers
+## AI providers
 
 | Variable | Provider |
 |----------|----------|
@@ -56,20 +60,14 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `OLLAMA_URL` | Ollama (default: `http://localhost:11434`) |
 | `VERTEX_PROJECT` / `VERTEX_LOCATION` | Google Vertex AI — GCP project ID and region (region defaults to `us-central1`) |
 
+Knowledge bases use an embedding model independent of the chat model. See [Knowledge bases](#knowledge-bases) for supported providers, local Ollama, and vector widths.
+
+For provider-key rotation, configure `_1`, `_2`, and `_3` keys, such as `OPENAI_API_KEY_1` and `OPENAI_API_KEY_2`. OpenAI, Anthropic, Gemini, xAI, Kimi, Z.ai, Cohere, and Fireworks support numbered keys.
+
+For Ollama on the Docker host, use `OLLAMA_URL=http://host.docker.internal:11434` and ensure its server is reachable from the container.
+
 <Callout type="warn">
-  **Knowledge bases need an embedding model, selected with `KB_EMBEDDING_MODEL`.** Hosted: `text-embedding-3-small` (default) and `text-embedding-3-large` on OpenAI or Azure OpenAI, and `gemini-embedding-001` on Gemini. Local: any embedding model on your own Ollama, named `ollama/<model>` (for example `ollama/nomic-embed-text`) with `OLLAMA_URL` set. Ollama serves embeddings only through this variable — embeddings never route through the configured chat model, so vLLM and LM Studio do not substitute.
-</Callout>
-
-<Callout type="info">
-  For load balancing, add multiple keys with `_1`, `_2`, `_3` suffixes (e.g., `OPENAI_API_KEY_1`, `OPENAI_API_KEY_2`). Works with OpenAI, Anthropic, Gemini, xAI, Kimi, Z.ai, Cohere, and Fireworks.
-</Callout>
-
-<Callout type="info">
-  In Docker, use `OLLAMA_URL=http://host.docker.internal:11434` for host-machine Ollama.
-</Callout>
-
-<Callout type="info">
-  **Agent tool-call depth.** An Agent block ends its run after 20 model round trips of tool calling. Raise the ceiling with `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`). Every extra iteration is another model call, so raise it deliberately.
+  **Agent tool-call depth.** An Agent block keeps calling tools until the model answers, with no round-trip limit by default. With billing disabled there is also no execution timeout unless `EXECUTION_TIMEOUT_FREE` (sync) or `EXECUTION_TIMEOUT_ASYNC_FREE` (async) is set, so a looping agent keeps making paid model calls. Set `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`) to cap the model round trips per block, or set those timeouts to bound the whole run.
 </Callout>
 
 ### Catalog visibility
@@ -92,7 +90,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 |----------|-------------|
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key |
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL |
-| `AZURE_OPENAI_API_VERSION` | API version (e.g., `2024-02-15-preview`) |
+| `AZURE_OPENAI_API_VERSION` | API version supported by your Azure model/deployment; check the [API lifecycle](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle) |
 | `KB_OPENAI_MODEL_NAME` | Azure deployment name serving the knowledge base embedding model. Optional — defaults to the model id, which is only correct when the deployment is named after the model |
 
 ### Azure Anthropic
@@ -121,21 +119,51 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `LITELLM_BASE_URL` | LiteLLM proxy base URL |
 | `LITELLM_API_KEY` | Optional bearer token for LiteLLM |
 
-## Login Providers
+## Knowledge bases
+
+| Variable | Description |
+|----------|-------------|
+| `KB_IMAGE_EXTRACTION_MODEL` | Gemini model that reads Confluence image attachments into searchable text. Defaults to `gemini-3.8-flash`; a value that is not a Gemini 3 or later model in the catalog falls back to the default. Needs `GEMINI_API_KEY` (or a workspace Gemini key); without one, image attachments are left out of syncs |
+| `KB_IMAGE_EXTRACTIONS_PER_SYNC` | New or changed images one connector sync run sends for reading, at least `1`. Defaults to `500`; the rest wait for the next sync, which reports as partial. With member accounts, each continuation run can read up to this many |
+| `KB_CONFIG_VISION_REQUESTS_PER_MINUTE` | Image reads per minute per Gemini key, shared by every sync on the deployment. Defaults to `300`; lower it to match a key with a smaller Gemini quota |
+| `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; use `ollama/<model>` for a model on your own Ollama. An unrecognised hosted model id falls back to the default, but an `ollama/` id is taken at face value — if that model is not on the server, knowledge-base creation fails rather than falling back |
+| `EMBEDDING_OUTPUT_DIMS` | Stored vector width: `384`, `768`, `1024`, `1536`, or `3072`. Hosted models default to `1536` when supported, otherwise their largest storable width. Invalid hosted widths fall back with a warning; Ollama can infer its actual width when unset |
+| `OPENROUTER_API_KEY` | Fallback route for the OpenAI embedding models — used when it is set and `OPENAI_API_KEY` is not the chosen path |
+| `COHERE_API_KEY` | Enables the Knowledge block reranker |
+
+`KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS` apply to new knowledge bases. Existing bases retain their recorded model and width, and bases with different settings cannot be searched together.
+
+For hosted models, Sim checks catalog-supported widths and falls back to the model's default on invalid configuration. For Ollama, leave `EMBEDDING_OUTPUT_DIMS` unset to infer the model's width; creation fails if Sim cannot establish a supported width. If you set it explicitly, a mismatch can fail document processing. Example pairings:
+
+| `EMBEDDING_OUTPUT_DIMS` | Works with |
+|----------|-------------|
+| `384` | `ollama/all-minilm` |
+| `768` | `ollama/nomic-embed-text`, `ollama/embeddinggemma`, `text-embedding-3-small`, `gemini-embedding-001` |
+| `1024` | `ollama/mxbai-embed-large`, `ollama/bge-m3`, `text-embedding-3-small`, `text-embedding-3-large` |
+| `1536` | `text-embedding-3-small`, `text-embedding-3-large`, `gemini-embedding-001` |
+| `3072` | `text-embedding-3-large`, `gemini-embedding-001` |
+
+For Compose or a source checkout, run `bunx sim-setup add knowledge-embeddings` to choose OpenAI, Azure OpenAI, OpenRouter, Gemini, or Ollama and write its configuration. The three OpenAI-family transports share model/width choices. `bunx sim-setup config` reports the family selected by `KB_EMBEDDING_MODEL`. For Helm, set the variables through chart values or your secret strategy. Run Ollama yourself; the setup command configures a connection, not an Ollama installation.
+
+The Embeddings block reads the same `OLLAMA_URL`. It lists the models on that server that report an
+embedding capability, with the width each one emits where Ollama reports it, so a workflow can embed
+locally without an API key. Ollama only began reporting capabilities in 0.5 — against an older
+server nothing can be filtered, so the list includes chat models and labels none of them with a
+width. Check what you pick there, or upgrade Ollama.
+
+## Login providers
 
 Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).
 
-## Integration Credentials
+## Integration credentials
 
-<Callout type="warn">
-  OAuth integrations require a provider application and its credentials on a self-hosted deployment. API-key integrations use the keys supplied in their blocks. The full table, redirect-URI format, and setup steps are in [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
-</Callout>
+OAuth integrations require a provider application and its credentials on a self-hosted deployment. API-key integrations use the keys supplied in their blocks. The full table, redirect-URI format, and setup steps are in [Integrations and OAuth](/platform/self-hosting/integrations-oauth).
 
-## Access Control
+## Access control
 
 Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATION`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication).
 
-## Code Execution
+## Code execution
 
 | Variable | Description |
 |----------|-------------|
@@ -146,108 +174,32 @@ Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATIO
 | `E2B_FUNCTION_TEMPLATE_GENERATION` | Monotonic release generation printed by the same build. Required for E2B |
 | `DAYTONA_FUNCTION_SNAPSHOT_ID` | Immutable snapshot **ID** (not a name) for the Function base image. Required for Daytona |
 | `E2B_PI_TEMPLATE_ID` / `DAYTONA_PI_SNAPSHOT_ID` | The image Pi runs on. Separate from the Function base — configuring the provider and Function image alone leaves Pi failing closed |
-| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandboxes on a self-hosted deployment, bypassing the hosted-plan requirement. Neither is sufficient on its own — a provider key **and** an immutable Function base must also be configured. Set the `NEXT_PUBLIC_` twin only after the server side works; it enables nothing by itself — it reveals the Function block's Sandbox selector, and on a Compose install or source checkout `npx sim-setup doctor` confirms it agrees with the selected provider's readiness |
+| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandbox entitlement through deployment configuration where supported; see the [enterprise guide](/platform/enterprise/self-hosted) for billing-mode requirements. Neither is sufficient on its own — a provider key **and** an immutable Function base must also be configured. Set the `NEXT_PUBLIC_` twin only after the server side works; it enables nothing by itself — it reveals the Function block's Sandbox selector, and on a Compose install or source checkout `bunx sim-setup doctor` confirms it agrees with the selected provider's readiness |
 | `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
 | `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
 | `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
 | `IVM_MAX_BROKER_RESULT_JSON_CHARS` | Max result payload size |
 
-Without a remote provider, user code runs in an in-process V8 isolate inside the app container. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and [Security](/platform/self-hosting/security) for the isolation comparison.
+Plain JavaScript without imports runs in isolated-vm within Node child workers in the app container. Python, Shell, imported JavaScript, sandbox/file-path execution, and Pi require the corresponding remote provider and image configuration. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and [Security](/platform/self-hosting/security) for the isolation comparison.
 
-## Networking & Limits
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `API_MAX_JSON_BODY_BYTES` | 50 MB | Max JSON body on contract-validated API routes |
-| `CHAT_MAX_REQUEST_BYTES` | 220 MB | Max body on the public deployed-chat endpoint |
-| `WEBHOOK_MAX_REQUEST_BYTES` | 10 MB | Max body on public webhook receiver endpoints |
-| `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev workflow task concurrency |
-| `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev webhook task concurrency |
-| `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled executions per app instance |
-| `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Trigger.dev resume task concurrency |
-| `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
-| `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
-| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
-
-A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
-
-Your reverse proxy's body-size limit must be at least as large as the app limits above. See [Networking](/platform/self-hosting/networking).
-
-## Observability
+## Chat and PII [#chat--pii]
 
 | Variable | Description |
 |----------|-------------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Auth headers, `key=value` comma-separated |
-| `OTEL_TRACES_SAMPLER_ARG` | Trace sampling ratio |
-| `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
-| `TELEMETRY_SAMPLING_RATIO` | Application-level sampling ratio |
-| `TELEMETRY_ENDPOINT` | Where anonymous telemetry is sent. Defaults to `https://telemetry.simstudio.ai/v1/traces` — point it at your own collector to keep traces internal |
-| `NEXT_TELEMETRY_DISABLED` | Set to `1` to disable anonymous telemetry entirely |
-| `GRAFANA_OTLP_ENDPOINT` / `GRAFANA_OTLP_HEADERS` / `GRAFANA_DEPLOYMENT_ENVIRONMENT` | Grafana Cloud OTLP export |
-
-See [Observability](/platform/self-hosting/observability).
-
-## Knowledge Bases
-
-| Variable | Description |
-|----------|-------------|
-| `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; use `ollama/<model>` for a model on your own Ollama. An unrecognised hosted model id falls back to the default, but an `ollama/` id is taken at face value — if that model is not on the server, knowledge-base creation fails rather than falling back |
-| `EMBEDDING_OUTPUT_DIMS` | Vector width new knowledge bases are stored at: `384`, `768`, `1024`, `1536` (default), or `3072`. It must be a width the chosen model can emit; anything else falls back to `1536` with a warning |
-| `OPENROUTER_API_KEY` | Fallback route for the OpenAI embedding models — used when it is set and `OPENAI_API_KEY` is not the chosen path |
-| `COHERE_API_KEY` | Enables the Knowledge block reranker |
-
-Both variables apply at creation time and are recorded on the knowledge base, so changing either
-affects new knowledge bases only. Existing ones keep the model and width they were built with, and
-knowledge bases with different settings cannot be searched together.
-
-Matching the width to the model is yours to get right for a hosted provider: Sim knows only the
-widths each one documents, so a width that model cannot emit falls back to `1536` with a warning.
-For Ollama it is checked — leave `EMBEDDING_OUTPUT_DIMS` unset and Sim reads the model's width from
-your server, refusing to create the knowledge base if it cannot; set it explicitly and a mismatch
-surfaces as a failed document instead. Common pairings:
-
-| `EMBEDDING_OUTPUT_DIMS` | Works with |
-|----------|-------------|
-| `384` | `ollama/all-minilm` |
-| `768` | `ollama/nomic-embed-text`, `ollama/embeddinggemma`, `text-embedding-3-small`, `gemini-embedding-001` |
-| `1024` | `ollama/mxbai-embed-large`, `ollama/bge-m3`, `text-embedding-3-small`, `text-embedding-3-large` |
-| `1536` | `text-embedding-3-small`, `text-embedding-3-large`, `gemini-embedding-001` |
-| `3072` | `text-embedding-3-large`, `gemini-embedding-001` |
-
-On a Compose install or source checkout, `sim-setup add knowledge-embeddings` walks through all of
-this — pick OpenAI, Azure OpenAI, OpenRouter, Gemini, or Ollama and it writes the variables that
-family needs. The three OpenAI-family transports share the same model and width prompts.
-`sim-setup config` then reports the one family your `KB_EMBEDDING_MODEL` actually selects, rather
-than every provider you happen to hold a key for. Helm releases set these values through your own
-chart values instead, and an Ollama server is yours to run either way — `sim-setup` configures Sim
-to reach one, never installs it.
-
-The Embeddings block reads the same `OLLAMA_URL`. It lists the models on that server that report an
-embedding capability, with the width each one emits where Ollama reports it, so a workflow can embed
-locally without an API key. Ollama only began reporting capabilities in 0.5 — against an older
-server nothing can be filtered, so the list includes chat models and labels none of them with a
-width. Check what you pick there, or upgrade Ollama.
-
-## Chat & PII
-
-| Variable | Description |
-|----------|-------------|
-| `COPILOT_API_KEY` | API key for Chat. Without it the Sim Chat block, scheduled prompt jobs, and Inbox cannot run |
-| `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `npx sim-setup` sets it for you if you skip the chat key |
-| `PII_URL` | Base URL of the Presidio service backing PII detection and redaction. The Helm chart wires it to its own `pii` Service when `pii.enabled`; on Compose point it at the PII service on your network. The default `http://localhost:5001` exists only in local development, and leaving it makes redaction fail |
+| `COPILOT_API_KEY` | API key for the default Sim service. Required for Chat, the Sim Chat workflow block, and Inbox operations that use that service |
+| `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list or editor Chat panel. Chat is shown when unset; `bunx sim-setup` sets it for you if you skip the chat key |
+| `PII_URL` | Base URL of the Presidio service backing PII detection and redaction. The Helm chart wires it to its own `pii` Service when `pii.enabled`; on Compose point it at the PII service on your network. Local development and the Helm fallback use `http://localhost:5001`; that address works only when the service is reachable there. Point production at a running service to use redaction |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations and organization provisioning |
 
-Tracked memory, table rows, knowledge content, and workspace files require valid secret provenance before entering a model or a trusted runtime. Records with a null provenance tracking marker retain legacy compatibility.
+## Enterprise features
 
-## Enterprise Features
-
-Enterprise features are unlocked by configuration rather than billing on self-hosted deployments. One switch turns on the full set; per-feature flags below it override the switch either way.
+On standard billing-disabled self-hosted deployments, configuration enables enterprise features. Per-feature flags override the suite switch. Billing-enabled deployments also have plan/entitlement gates; see [Self-hosted enterprise features](/platform/enterprise/self-hosted).
 
 | Variable | Description |
 |----------|-------------|
 | `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
 | `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `SSO_SKIP_DOMAIN_VERIFICATION` | Skip the DNS challenge when an administrator clicks Verify on a domain. Off by default; self-hosted only. Trusts administrator claims for SSO and SCIM across the instance. See [Verified domains](/platform/enterprise/verified-domains#skip-dns-verification) |
 | `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
@@ -255,9 +207,9 @@ Enterprise features are unlocked by configuration rather than billing on self-ho
 
 Most enterprise features read their settings from the organization that owns a workspace, so enabling the flags alone is not enough — the deployment also needs an organization model. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the per-feature flags, both organization patterns, and the Admin API.
 
-## File Storage
+## File storage
 
-By default Sim writes uploads to local disk. For production, point it at AWS S3, Azure Blob, or Google Cloud Storage. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
+By default Sim writes uploads to local disk. Neither stock production Compose nor the default Helm chart mounts the upload directory, so configure cloud storage or a persistent local layout before retaining files. See [Object storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
 
 | Variable | Description |
 |----------|-------------|
@@ -272,13 +224,34 @@ By default Sim writes uploads to local disk. For production, point it at AWS S3,
 | `GCS_PROJECT_ID` | GCP project ID. Omit to infer from credentials/ADC |
 | `GCS_CREDENTIALS_JSON` | Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, `GOOGLE_APPLICATION_CREDENTIALS`) |
 
-## Email Providers
+## Email providers
 
 Configure at least one. Every configured provider stays active and is tried in order — **Resend → AWS SES → SMTP → Azure Communication Services → Gmail** — falling through only on failure. With none configured, mail is silently not sent. The variables for each provider, plus setup, verification, and troubleshooting, are in [Email](/platform/self-hosting/email).
 
+## Networking and execution limits [#networking--limits]
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_MAX_JSON_BODY_BYTES` | 50 MiB | Configured JSON body cap; contract-validated routes clamp it to 10 MiB, or a lower route cap |
+| `CHAT_MAX_REQUEST_BYTES` | 220 MiB | Configured body cap on the public deployed-chat endpoint; the Next.js proxy buffer also applies |
+| `WEBHOOK_MAX_REQUEST_BYTES` | 10 MiB | Max body on public webhook receiver endpoints |
+| `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev workflow task concurrency |
+| `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev webhook task concurrency |
+| `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Deployment-wide active scheduled executions in the default database-backed mode; Trigger.dev uses a separate task queue |
+| `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Trigger.dev resume task concurrency |
+| `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
+| `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
+| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
+
+A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
+
+Most `/api` routes also pass through Next.js Proxy, which buffers only the first 10 MiB with the current app configuration. Raising these variables or an external proxy limit does not raise that buffer. See [Request size limits](/platform/self-hosting/networking#request-size-limits) for the layers to configure.
+
 ## Limits
 
-Self-hosted deployments (billing disabled) run without plan limits: no rate limits, no execution timeouts, no table or storage caps, and no retention-based data deletion. Each limit can be opted back in individually by explicitly setting its variable.
+With `BILLING_ENABLED` disabled, hosted-plan execution rates/timeouts and table/storage quotas are not enforced unless you set their free-tier variables. Independent protocol, body-size, concurrency, and security rate limits still apply. Billing-enabled deployments enforce their plan limits. Keep `BILLING_ENABLED` and `NEXT_PUBLIC_BILLING_ENABLED` consistent so enforcement and the UI agree.
+
+Retention cleanup is separately opt-in through `DATA_RETENTION_ENABLED` or the enterprise suite. A configured retention policy still applies without billing; see [Data retention](/platform/enterprise/data-retention).
 
 | Variable | Opts in | Suggested value |
 |----------|---------|-----------------|
@@ -289,19 +262,15 @@ Self-hosted deployments (billing disabled) run without plan limits: no rate limi
 | `EXECUTION_TIMEOUT_ASYNC_FREE` | Async execution timeout (seconds) | `5400` |
 | `FREE_TABLES_LIMIT` | Max user tables per workspace | `5` |
 | `FREE_TABLE_ROWS_LIMIT` | Max rows per user table | `50000` |
-| `FREE_STORAGE_LIMIT_GB` | File storage quota (GB) | `5` |
+| `FREE_STORAGE_LIMIT_GB` | File storage quota (GiB) | `5` |
 
-<Callout type="info">
-  Without billing, every account resolves to the free tier, so only the free-tier variables apply. Setting one variable enforces only that limit — the rest stay unlimited.
-</Callout>
+Without billing, accounts resolve to the free tier for these counters. Each explicit free-tier variable enables only its corresponding limit.
 
-<Callout type="warn">
-  Neither deployment presets these. The Helm chart previously did, which enforced hosted-plan caps on self-hosted installs; chart 1.5.0 removed the presets so Compose and Kubernetes behave identically.
-</Callout>
+Current stock Compose and Helm configuration do not preset these free-tier caps. Charts before 1.5.0 did; inherited values can still reach upgraded pods.
 
-### Removing a limit you already inherited
+### Remove an inherited limit [#removing-a-limit-you-already-inherited]
 
-If a limit is still enforced after upgrading — most often a `FREE_TABLES_LIMIT` or `FREE_TABLE_ROWS_LIMIT` carried forward from a chart older than 1.5.0, or copied into your own values file — the variable is still reaching the pod. On Helm, remove it by overriding it with `null`:
+If a limit remains after upgrading, inspect the pod's configuration for inherited values, such as `FREE_TABLES_LIMIT` or `FREE_TABLE_ROWS_LIMIT` from a chart older than 1.5.0 or your own values file. On Helm, remove the key by overriding it with `null`:
 
 ```yaml
 app:
@@ -315,16 +284,32 @@ Setting the variable to an empty string does **not** remove it: the chart reads 
 Null the variable in every layer that sets it. If it appears in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry lets the `envDefaults` value apply again and the limit stays in force. With External Secrets, also drop the key from `externalSecrets.remoteRefs.app`, which keeps syncing it independently. Confirm what the pod will actually receive before rolling out:
 
 ```bash
-helm template sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+helm template sim oci://ghcr.io/simstudioai/charts/sim --version 1.11.8 -f values.yaml | grep -A1 FREE_TABLE   # expect no output
 ```
 
 `null` deletion has no effect under `helm upgrade --reuse-values` — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm 3.14+). If you deploy with Argo CD, put the `null` in `valueFiles` or the `values` string rather than `valuesObject`, which strips nulls. On Docker Compose, delete the line from your `.env` file.
 
+## Observability
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Auth headers, `key=value` comma-separated |
+| `OTEL_TRACES_SAMPLER_ARG` | Trace sampling ratio |
+| `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
+| `TELEMETRY_SAMPLING_RATIO` | Application-level sampling ratio |
+| `TELEMETRY_ENDPOINT` | Full URL browser telemetry events are posted to, as-is (they never carry `OTEL_EXPORTER_OTLP_HEADERS`). Server traces use it only when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset. Defaults to `https://telemetry.simstudio.ai/v1/traces`, which receives traces only: server logs and metrics are exported only to a collector you configure. `NEXT_TELEMETRY_DISABLED=1` (the Docker and Helm default) turns all of it off |
+| `NEXT_TELEMETRY_DISABLED` | Set to `1` to disable anonymous telemetry entirely |
+| `GRAFANA_OTLP_ENDPOINT` / `GRAFANA_OTLP_HEADERS` / `GRAFANA_DEPLOYMENT_ENVIRONMENT` | Grafana Cloud OTLP export |
+
+See [Observability](/platform/self-hosting/observability).
+
 ## Example .env
 
-```bash
-# Core
-DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+```text
+# App/source-checkout example: replace placeholders before use.
+# Production Compose derives its DSN from POSTGRES_* instead.
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/simstudio?sslmode=require
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 BETTER_AUTH_URL=https://sim.yourdomain.com
 
@@ -349,4 +334,10 @@ FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
 ALLOWED_LOGIN_DOMAINS=yourdomain.com
 ```
 
-See `apps/sim/.env.example` for all options.
+This is an app/source-checkout example, not a replacement for the [Compose setup](/platform/self-hosting/docker#production-setup) or [Helm values](/platform/self-hosting/kubernetes). See `apps/sim/.env.example` for additional options.
+
+## Related docs
+
+- [Authentication](/platform/self-hosting/authentication)
+- [Verify your install](/platform/self-hosting/verify)
+- [Security](/platform/self-hosting/security)

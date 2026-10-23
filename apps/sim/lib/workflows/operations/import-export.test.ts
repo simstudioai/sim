@@ -1,3 +1,7 @@
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
@@ -15,9 +19,7 @@ vi.mock('@/blocks/registry-maps', async () => {
   )
 })
 
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: vi.fn().mockResolvedValue({}),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
@@ -26,6 +28,8 @@ import {
   persistImportedWorkflow,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
+
+apiClientRequestMockFns.mockRequestJson.mockResolvedValue({})
 
 function createLegacyState() {
   return {

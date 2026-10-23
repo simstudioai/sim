@@ -9,8 +9,6 @@ import type { ColorModifier } from '../utils/color'
 import { applyColorModifiers, hslToRgb, presetColorToHex, rgbToHex } from '../utils/color'
 import type { RenderContext } from './render-context'
 
-// Color Resolution
-
 /**
  * Build a cache key for a color node based on its tag, value, and modifiers.
  */
@@ -65,7 +63,6 @@ function resolveSchemeColor(schemeName: string, ctx: RenderContext): string {
     if (mapped) mappedName = mapped
   }
 
-  // Look up in theme color scheme
   const hex = ctx.theme.colorScheme.get(mappedName)
   if (hex) return hex
 
@@ -82,7 +79,6 @@ export function resolveColor(
   colorNode: SafeXmlNode,
   ctx: RenderContext
 ): { color: string; alpha: number } {
-  // Check cache
   const cacheKey = buildColorCacheKey(colorNode)
   const cached = ctx.colorCache.get(cacheKey)
   if (cached) return cached
@@ -203,8 +199,6 @@ function resolveColorWithPlaceholder(
   return resolveColorUncached(colorNode, ctx, placeholderColorNode)
 }
 
-// Fill Resolution
-
 /**
  * Resolve a fill from shape properties (spPr) into a CSS background value.
  *
@@ -214,14 +208,12 @@ function resolveColorWithPlaceholder(
  *   - '' for blipFill (handled by ImageRenderer) or no fill found (inherit)
  */
 export function resolveFill(spPr: SafeXmlNode, ctx: RenderContext): string {
-  // solidFill
   const solidFill = spPr.child('solidFill')
   if (solidFill.exists()) {
     const { color, alpha } = resolveColor(solidFill, ctx)
     return toCssColor(color, alpha)
   }
 
-  // gradFill
   const gradFill = spPr.child('gradFill')
   if (gradFill.exists()) {
     return resolveGradient(gradFill, ctx)
@@ -249,7 +241,6 @@ export function resolveFill(spPr: SafeXmlNode, ctx: RenderContext): string {
     return ''
   }
 
-  // noFill
   const noFill = spPr.child('noFill')
   if (noFill.exists()) {
     return 'transparent'
@@ -258,8 +249,6 @@ export function resolveFill(spPr: SafeXmlNode, ctx: RenderContext): string {
   // No fill found — inherit
   return ''
 }
-
-// Pattern Fill Resolution
 
 /**
  * Resolve `<a:pattFill>` into a CSS background value using repeating gradients.
@@ -270,7 +259,6 @@ export function resolveFill(spPr: SafeXmlNode, ctx: RenderContext): string {
 function resolvePatternFill(pattFill: SafeXmlNode, ctx: RenderContext): string {
   const preset = pattFill.attr('prst') ?? 'solid'
 
-  // Foreground and background colors
   let fg = '#000000'
   let bg = '#ffffff'
 
@@ -297,7 +285,6 @@ function resolvePatternFill(pattFill: SafeXmlNode, ctx: RenderContext): string {
     `${g1} 0 0/${s}px ${s}px, ${g2} 0 0/${s}px ${s}px, ${bg}`
 
   switch (preset) {
-    // Solid fills
     case 'solid':
     case 'solidDmnd':
       return fg
@@ -319,7 +306,6 @@ function resolvePatternFill(pattFill: SafeXmlNode, ctx: RenderContext): string {
     case 'pct90':
       return pat(`radial-gradient(${fg} 2.5px, transparent 2.5px)`)
 
-    // Horizontal lines
     case 'horz':
     case 'ltHorz':
     case 'narHorz':
@@ -328,7 +314,6 @@ function resolvePatternFill(pattFill: SafeXmlNode, ctx: RenderContext): string {
         `repeating-linear-gradient(0deg, ${fg} 0px, ${fg} 1px, transparent 1px, transparent ${s}px)`
       )
 
-    // Vertical lines
     case 'vert':
     case 'ltVert':
     case 'narVert':
@@ -427,7 +412,6 @@ function resolveGradient(
   ctx: RenderContext,
   placeholderColorNode?: SafeXmlNode
 ): string {
-  // Parse gradient stops
   const gsLst = gradFill.child('gsLst')
   const stops: { position: number; color: string }[] = []
 
@@ -442,12 +426,10 @@ function resolveGradient(
     return ''
   }
 
-  // Sort stops by position
   stops.sort((a, b) => a.position - b.position)
 
   const stopsStr = stops.map((s) => `${s.color} ${s.position.toFixed(1)}%`).join(', ')
 
-  // Determine gradient type
   const lin = gradFill.child('lin')
   if (lin.exists()) {
     const angle = angleToDeg(lin.numAttr('ang') ?? 0)
@@ -494,8 +476,6 @@ function resolveGradient(
   return `linear-gradient(180deg, ${stopsStr})`
 }
 
-// Line Style Resolution
-
 /**
  * Resolve a line (outline) node into CSS-compatible properties.
  *
@@ -513,7 +493,6 @@ export function resolveLineStyle(
   const widthEmu = ln.numAttr('w') ?? 0
   let width = emuToPx(widthEmu)
 
-  // Color from solidFill child
   let color = 'transparent'
   const solidFill = ln.child('solidFill')
   if (solidFill.exists()) {
@@ -564,7 +543,6 @@ export function resolveLineStyle(
     }
   }
 
-  // Dash pattern
   let dash = 'solid'
   let dashKind = 'solid'
   const prstDash = ln.child('prstDash')
@@ -614,8 +592,6 @@ function ooxmlDashToCss(val: string): string {
       return 'solid'
   }
 }
-
-// Gradient Fill Resolution (structured data for SVG use)
 
 export interface GradientFillData {
   type: 'linear' | 'radial'
@@ -742,8 +718,6 @@ export function resolveThemeFillReference(
 
   return { fillCss: resolveColorToCss(fillRef, ctx), gradientFillData: null }
 }
-
-// Gradient Stroke Resolution
 
 export interface GradientStrokeData {
   stops: Array<{ position: number; color: string }>

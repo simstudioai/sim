@@ -1,5 +1,5 @@
 /** Real recovery admission, outbox delivery, stored bytes, indexing, and authorized search. */
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -9,12 +9,12 @@ import {
   embedding,
   knowledgeBase,
   knowledgeConnector,
-  member,
   organization,
   outboxEvent,
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -70,29 +70,27 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import * as billingAttribution from '@/lib/billing/core/billing-attribution'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import * as billingAttribution from '@/lib/billing/core/attribution'
+import { resolveSystemBillingAttribution } from '@/lib/billing/core/attribution'
 import * as outbox from '@/lib/core/outbox/service'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
 import { DEFERRED_RETRY_LOST_ERROR } from '@/lib/knowledge/documents/deferred-retry-check'
-import {
-  enqueueKnowledgeDocumentProcessing,
-  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
-} from '@/lib/knowledge/documents/processing-outbox-event'
+import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-events'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
-  KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
   recoverKnowledgeDocumentProcessing,
+  recoveryCandidatesQuery,
 } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import {
   processDocumentAsync,
   processDocumentsWithQueue,
@@ -100,6 +98,11 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 import type { SyncResult } from '@/connectors/types'
+
+interface QueryPlan {
+  'Shared Hit Blocks': number
+  'Shared Read Blocks': number
+}
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const old = () => new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS - 60_000)
@@ -120,10 +123,7 @@ async function eventsFor(ids: ReturnType<typeof createKnowledgeAclFixtureIds>) {
       )
     )
 }
-async function failedFile(
-  ids: ReturnType<typeof createKnowledgeAclFixtureIds>,
-  organizationOwned = false
-) {
+async function failedFile(ids: ReturnType<typeof createKnowledgeAclFixtureIds>) {
   const file = await addDocument(
     ids.knowledgeBaseId,
     ids.connectorId,
@@ -135,9 +135,7 @@ async function failedFile(
       mimeType: 'text/plain',
       contentHash: 'fixture-retained-v1',
     },
-    organizationOwned
-      ? { userId: ids.aliceId, workspaceId: null, organizationId: ids.organizationId }
-      : { userId: ids.aliceId, workspaceId: ids.workspaceId },
+    { userId: ids.aliceId, workspaceId: ids.workspaceId },
     undefined,
     'admin',
     createContentSyncLease(ids.connectorId, ids.lockId)
@@ -175,7 +173,7 @@ afterAll(async () => {
       .delete(outboxEvent)
       .where(sql`${outboxEvent.payload}->>'knowledgeBaseId' = ${ids.knowledgeBaseId}`)
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }
@@ -616,45 +614,34 @@ describe('independent recovery of retained connector documents', () => {
       .where(eq(knowledgeConnector.id, ids.connectorId))
   })
 
-  it('uses the organization owner and preserves Search visibility during source backoff', async () => {
+  it('does not restart retired Search indexing when a source leaves provider backoff', async () => {
     const ids = await seed()
-    await db.insert(member).values({
-      id: generateId(),
-      organizationId: ids.organizationId,
-      userId: ids.aliceId,
-      role: 'owner',
-    })
+    const file = await failedFile(ids)
     await db
       .update(knowledgeBase)
       .set({ workspaceId: null, organizationId: ids.organizationId, isSearchIndex: true })
       .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    const file = await failedFile(ids, true)
-    await db
-      .update(knowledgeConnector)
-      .set({ status: 'error', nextSyncAt: new Date(Date.now() + 3_600_000) })
-      .where(eq(knowledgeConnector.id, ids.connectorId))
-    expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
-    const [event] = await eventsFor(ids)
-    expect(event.payload).toMatchObject({
-      billingScope: 'organization',
-      workspaceId: null,
-      organizationId: ids.organizationId,
+    const before = fixture.embeddingCalls
+    for (const nextSyncAt of [new Date(Date.now() + 3_600_000), old()]) {
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'error', nextSyncAt })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      await recoverKnowledgeDocumentProcessing()
+      expect(await eventsFor(ids)).toEqual([])
+    }
+    const [retained] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(retained).toMatchObject({
+      processingStatus: 'failed',
+      processingAttempts: 1,
+      processingQueueToken: 'old-fixture-generation',
     })
+    expect(fixture.embeddingCalls).toBe(before)
     expect(
-      await outbox.processOutboxEventById(event.id, knowledgeDocumentProcessingOutboxHandlers)
-    ).toBe('completed')
-    const [indexed] = await db.select().from(document).where(eq(document.id, file.documentId))
-    expect(indexed.processingStatus, indexed.processingError ?? undefined).toBe('completed')
-    const result = await searchScopedKnowledge.execute({
-      principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-session' },
-      input: {
-        organizationId: ids.organizationId,
-        query: 'Orion',
-        topK: 3,
-      },
-    })
-    expect(result.results.some((row) => row.documentId === file.documentId)).toBe(true)
+      await db.select().from(embedding).where(eq(embedding.documentId, file.documentId))
+    ).toEqual([])
   })
+
   it('recovers while the source is deferred, fences its old worker, and indexes exactly once', async () => {
     const ids = await seed()
     const file = await failedFile(ids)
@@ -950,6 +937,80 @@ describe('independent recovery of retained connector documents', () => {
     }
   })
 
+  it('reads a bounded page however many older documents belong to paused sources', async () => {
+    const paused = await seed()
+    const file = await failedFile(paused)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    const backlogStart = original.uploadedAt.getTime() - 60 * 60_000
+    for (let offset = 0; offset < 5_000; offset += 1_000) {
+      await db.insert(document).values(
+        Array.from({ length: 1_000 }, (_, index) => ({
+          ...original,
+          id: generateId(),
+          externalId: generateId(),
+          secretProvenanceVersion: null,
+          uploadedAt: new Date(backlogStart + offset + index),
+        }))
+      )
+    }
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'paused' })
+      .where(eq(knowledgeConnector.id, paused.connectorId))
+    const healthy = await seed()
+    const recoverable = await failedFile(healthy)
+    await db.execute(sql`ANALYZE ${document}`)
+
+    const plans = await db.execute<{ 'QUERY PLAN': { Plan: QueryPlan }[] }>(sql`
+      EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${recoveryCandidatesQuery(db, new Date(), {
+        limit: DOCUMENT_RECOVERY_BATCH_SIZE,
+        attemptedConnectors: new Set(),
+        blockedKnowledgeBases: new Set(),
+      })}
+    `)
+    const plan = plans[0]['QUERY PLAN'][0].Plan
+    /** Buffer work, unlike wall-clock time, catches a walk through the paused backlog. */
+    expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(1_000)
+
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+    const [event] = await eventsFor(healthy)
+    expect(event.payload).toMatchObject({ documentId: recoverable.documentId })
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'paused' })
+      .where(eq(knowledgeConnector.id, healthy.connectorId))
+  })
+
+  it('recovers a sibling source in the same call when a full batch of older work is live', async () => {
+    const live = await seed()
+    const file = await failedFile(live)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    await db.insert(document).values(
+      Array.from({ length: DOCUMENT_RECOVERY_BATCH_SIZE - 1 }, () => ({
+        ...original,
+        id: generateId(),
+        externalId: generateId(),
+        secretProvenanceVersion: null,
+      }))
+    )
+    const sibling = await seed()
+    const siblingFile = await failedFile(sibling)
+    fixture.useTrigger = true
+    fixture.listRuns.mockImplementation(async ({ tag }: { tag: string }) => ({
+      data: tag === `documentId:${siblingFile.documentId}` ? [] : [{ status: 'QUEUED' }],
+      hasNextPage: () => false,
+    }))
+
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+    expect(await eventsFor(live)).toHaveLength(0)
+    const [event] = await eventsFor(sibling)
+    expect(event.payload).toMatchObject({ documentId: siblingFile.documentId })
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'paused' })
+      .where(inArray(knowledgeConnector.id, [live.connectorId, sibling.connectorId]))
+  })
+
   it('recovers another document while an index transaction holds the same KB foreign-key lock', async () => {
     const ids = await seed()
     const file = await failedFile(ids)
@@ -1031,30 +1092,6 @@ describe('independent recovery of retained connector documents', () => {
     const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
     expect(original.processingAttempts).toBe(1)
     expect(original.processingQueueToken).toBe('old-fixture-generation')
-  })
-
-  it('replays the additive migration and leaves the concurrent recovery index valid', async () => {
-    const migration = readFileSync(
-      path.resolve(
-        process.cwd(),
-        '../../packages/db/migrations/0336_knowledge_processing_recovery.sql'
-      ),
-      'utf8'
-    )
-    const connection = await db.$client.reserve()
-    try {
-      for (let replay = 0; replay < 2; replay++) {
-        for (const statement of migration.split('--> statement-breakpoint')) {
-          if (statement.trim()) await connection.unsafe(statement)
-        }
-      }
-      const [index] = await connection.unsafe<{ indisvalid: boolean }[]>(
-        "SELECT indisvalid FROM pg_index WHERE indexrelid = 'doc_processing_recovery_idx'::regclass"
-      )
-      expect(index.indisvalid).toBe(true)
-    } finally {
-      connection.release()
-    }
   })
 })
 

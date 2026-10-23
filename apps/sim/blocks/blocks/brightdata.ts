@@ -1,15 +1,14 @@
 import { BrightDataIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { BrightDataResponse } from '@/tools/brightdata/types'
 
-export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
+export const BrightDataBlock: BlockConfig = {
   type: 'brightdata',
   name: 'Bright Data',
   description: 'Scrape websites, search engines, and extract structured data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.',
+    'Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.',
   docsLink: 'https://docs.sim.ai/integrations/brightdata',
   category: 'tools',
   integrationType: IntegrationType.Search,

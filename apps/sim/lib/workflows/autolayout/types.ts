@@ -49,11 +49,6 @@ export interface BoundingBox {
   height: number
 }
 
-interface LayerInfo {
-  layer: number
-  order: number
-}
-
 export interface GraphNode {
   id: string
   block: BlockState
@@ -62,9 +57,4 @@ export interface GraphNode {
   outgoing: Set<string>
   layer: number
   position: Position
-}
-
-interface AdjustmentOptions extends LayoutOptions {
-  preservePositions?: boolean
-  minimalShift?: boolean
 }

@@ -1,8 +1,9 @@
 import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { COMPUTER_USE_TOOL_TIMEOUT_MS } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
+import { isTerminalToolName, resolveRunWaitMs } from '@sim/terminal-protocol'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionEnvelope,
@@ -10,12 +11,19 @@ import type {
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
   type CompleteAsyncToolCallInput,
-  completeAsyncToolCall,
+  completePendingAsyncToolCall,
+  getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
+import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
-import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
+  PERMISSION_WAIT_TIMEOUT_MS,
+  TOOL_WATCHDOG_DEFAULT_MS,
+  TOOL_WATCHDOG_LONG_RUNNING_MS,
+} from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1EventType,
@@ -55,10 +63,14 @@ import {
   requireToolCallError,
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
+import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
 import {
-  sealClientToolCompletion,
-  sealClientToolContext,
-} from '@/lib/mothership/request/tools/client-completion-seal.server'
+  capToToolDeadline,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  toDeadlineDate,
+  toolStartWindowClosed,
+} from '@/lib/mothership/request/tools/deadline'
+import { desktopToolNotStarted } from '@/lib/mothership/request/tools/desktop-wait'
 import {
   type ToolExecutionLifetime,
   withToolExecutionLifetime,
@@ -67,13 +79,14 @@ import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
+  measureWithheldContent,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import { toolStatusOutput } from '@/lib/mothership/request/tools/status-output'
 import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
 } from '@/lib/mothership/request/tools/tables'
-import { toolStatusOutput } from '@/lib/mothership/request/tools/tool-status-output'
 import { applyCreateWorkflowOutputToContext } from '@/lib/mothership/request/tools/workflow-context'
 import {
   type ExecutionContext,
@@ -84,6 +97,11 @@ import {
   type ToolCallState,
 } from '@/lib/mothership/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/mothership/tool-executor'
+import {
+  isBackgroundDesktopToolCall,
+  isDesktopToolCall,
+  isLocalReadToolCall,
+} from '@/lib/mothership/tools/desktop-tools'
 import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
 import { isMcpTool } from '@/executor/constants'
 
@@ -238,24 +256,63 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
     : TOOL_WATCHDOG_DEFAULT_MS
 }
 
+type PendingToolCall = Pick<ToolCallState, 'name' | 'status'> &
+  Partial<Pick<ToolCallState, 'params' | 'execName' | 'deadlineAt'>>
+
 /**
- * How long the resume gate may wait on one pending tool call. Permission
- * prompts receive the long-running budget. Native calls share the renderer's
- * budget so authorization and native queueing leave the full resume grace for result delivery.
+ * How long the resume gate may wait on one pending tool call, from now: its own budget below,
+ * ended by the call's deadline when the worker named one.
  */
 export function pendingToolWaitBudgetMs(
-  toolCall:
-    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
-    | undefined
+  toolCall: PendingToolCall | undefined,
+  desktopDeviceId?: string | null
 ): number {
-  if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
+  return capToToolDeadline(
+    ownPendingToolWaitBudgetMs(toolCall, desktopDeviceId),
+    toolCall?.deadlineAt,
+    Date.now()
+  )
+}
+
+/**
+ * Permission prompts wait as long as the permission wait itself. Browser calls share the
+ * renderer's budget so authorization and native queueing cannot outlive the resume gate. A
+ * desktop call on a device-bound run gets the full client budget: its wait fails it once the
+ * device is offline, its pickup window closes or its lease lapses, and otherwise it runs as long
+ * as the device renews it.
+ */
+function ownPendingToolWaitBudgetMs(
+  toolCall: PendingToolCall | undefined,
+  desktopDeviceId?: string | null
+): number {
+  if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
   const executableName = toolCall?.execName ?? toolCall?.name
+  if (
+    desktopDeviceId &&
+    executableName &&
+    isBackgroundDesktopToolCall(executableName, toolCall?.params)
+  )
+    return CLIENT_TOOL_RESULT_TIMEOUT_MS
   if (executableName === 'computer') return COMPUTER_USE_TOOL_TIMEOUT_MS
   if (executableName && isCurrentBrowserToolName(executableName)) {
     return browserToolRendererTimeoutMs(executableName, toolCall?.params)
   }
+  if (
+    executableName &&
+    isTerminalToolName(executableName) &&
+    toolCall?.params?.operation === 'run'
+  ) {
+    const runWaitMs = resolveRunWaitMs(toRecord(toolCall.params.args).waitSeconds)
+    return Math.max(TOOL_WATCHDOG_DEFAULT_MS, runWaitMs + TERMINAL_RUN_REPORT_HEADROOM_MS)
+  }
   return toolWatchdogTimeoutMs(executableName)
 }
+
+/**
+ * Past a `terminal_run`'s wait window the desktop still captures the output and reports it. The
+ * desktop holds a run for up to its requested wait, so the resume gate must not call it hung first.
+ */
+const TERMINAL_RUN_REPORT_HEADROOM_MS = 30_000
 
 /**
  * Bare timeout/abort messages (AbortSignal.timeout's "The operation timed out.",
@@ -320,7 +377,15 @@ async function executeToolWithWatchdog(
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
   const executableName = toolCall.execName ?? toolCall.name
-  const timeoutMs = toolWatchdogTimeoutMs(executableName)
+  const now = Date.now()
+  // Admission or approval can leave too little time to finish; the handler then never starts.
+  if (toolStartWindowClosed(toolCall.deadlineAt, now))
+    throw new Error(TOOL_DEADLINE_BEFORE_START_MESSAGE)
+  const timeoutMs = capToToolDeadline(
+    toolWatchdogTimeoutMs(executableName),
+    toolCall.deadlineAt,
+    now
+  )
   const controller = new AbortController()
   lifetime.signal.throwIfAborted()
   const signal = AbortSignal.any([
@@ -348,6 +413,9 @@ async function executeToolWithWatchdog(
             chatId: toolContext.chatId,
             workspaceId: toolContext.workspaceId,
             organizationId: toolContext.organizationId,
+            resourceAdmitted:
+              toolContext.requestMode !== 'assistant' && hasCopilotResourceAdmission(toolContext),
+            mothershipBaseURL: toolContext.mothershipBaseURL,
           },
           signal,
           onEvent,
@@ -383,8 +451,16 @@ async function executeToolWithWatchdog(
   }
 }
 
-const HUNG_TOOL_MESSAGE =
-  'Tool execution hung and was abandoned so the conversation could continue. Its outcome is unknown; do not retry it automatically.'
+const TOOL_RESULT_LOST_MESSAGE =
+  'This tool started, but its result never came back, so it was abandoned to let the conversation continue. Its outcome is unknown: it may already have taken effect, so inspect the current state before repeating it, and do not retry it automatically.'
+const DESKTOP_TOOL_RESULT_LOST_MESSAGE =
+  'The Sim desktop app started this action, but its result never came back (the chat view closed or the app stopped responding). Its outcome is unknown: it may already have taken effect, so inspect the current state before repeating it, and do not retry it automatically.'
+/**
+ * A local read the server cannot see picked up (one an older desktop reads without claiming) may
+ * never have started; either way, reading changed nothing.
+ */
+const DESKTOP_LOCAL_READ_RESULT_MISSING_MESSAGE =
+  'No result came back from the Sim desktop app for this read: it may never have started (this chat may not be open there), or its result was lost. Reading changes nothing on the user’s computer. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 const UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE =
   'The tool result could not be restored before the conversation resumed. Its outcome is unknown; do not retry it automatically.'
 
@@ -392,81 +468,121 @@ const UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE =
  * Settles an abandoned tool with a fixed server-owned failure. Client waiters consume the same
  * sealed transport as ordinary client completions; no abandoned tool content is certified.
  * Execution ownership remains held while retained work cleans up.
+ *
+ * Without an explicit `failureMessage` the model learns which of two things happened: a desktop
+ * call nothing claimed never started (`notStarted`), and anything else started (or could not be
+ * seen starting) and lost its result (`outcomeUnknown`, `doNotRetry`).
  */
 export async function failPendingToolCall(
   toolCallId: string,
   context: StreamingContext,
   execContext: ExecutionContext,
-  failureMessage: string = HUNG_TOOL_MESSAGE
+  failureMessage?: string
 ): Promise<void> {
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall || toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
 
-  const failure = { error: failureMessage, outcomeUnknown: true, doNotRetry: true }
-  let durableData: unknown = failure
-  let completed = false
-  let lostSettlementRace = false
-  try {
-    if (context.runId && execContext.resolvedSecretTraceRegistry) {
-      const binding = { toolCallId, runId: context.runId, userId: execContext.userId }
-      const [completion, provenance] = await Promise.all([
-        sealClientToolCompletion({ ...binding, message: failureMessage, data: failure }),
-        sealClientToolContext({
-          ...binding,
-          registry: execContext.resolvedSecretTraceRegistry,
-          /** The fixed failure contains no output or arguments from the abandoned tool. */
-          toolInput: undefined,
-        }),
-      ])
-      durableData = { ...completion, ...provenance }
-    }
-    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
-
-    completed = Boolean(
-      await completeAsyncToolCall({
-        toolCallId,
-        status: MothershipStreamV1AsyncToolRecordStatus.failed,
-        result: durableData,
-        error: failureMessage,
-      })
-    )
-    if (!completed) {
-      if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
-      lostSettlementRace = true
-    }
-  } catch (error) {
-    logger.warn('Failed to persist force-failed async tool status', {
-      toolCallId,
-      error: toError(error).message,
+  const desktopCall = isDesktopToolCall(toolCall.execName ?? toolCall.name, toolCall.params)
+  if (failureMessage === undefined && desktopCall) {
+    const settled = await settleAbandonedToolCall(toolCall, context, execContext, {
+      ...desktopToolNotStarted(context.desktopDeviceId ? 'not_responding' : 'chat_not_open'),
+      unclaimedOnly: true,
     })
-    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
+    if (settled) return
   }
+  const message =
+    failureMessage ??
+    (desktopCall ? await desktopResultLostMessage(toolCall) : TOOL_RESULT_LOST_MESSAGE)
+  await settleAbandonedToolCall(toolCall, context, execContext, {
+    message,
+    data: { error: message, outcomeUnknown: true, doNotRetry: true },
+    unclaimedOnly: false,
+    resultLost: failureMessage === undefined,
+  })
+}
+
+/**
+ * Fails a call with `message` only while nothing has claimed it, so it provably never started.
+ * Reports whether that applied.
+ */
+export async function failUnstartedToolCall(
+  toolCallId: string,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  message: string
+): Promise<boolean> {
+  const toolCall = context.toolCalls.get(toolCallId)
+  if (!toolCall || toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return false
+  return settleAbandonedToolCall(toolCall, context, execContext, {
+    message,
+    data: { error: message, notStarted: true },
+    unclaimedOnly: true,
+  })
+}
+
+/**
+ * What a desktop call that lost its result tells the model. Only a local read can be in flight
+ * without a claim (an older desktop reads without claiming), and such a read may never have
+ * started; anything the desktop claimed did start.
+ */
+async function desktopResultLostMessage(toolCall: ToolCallState): Promise<string> {
+  if (!isLocalReadToolCall(toolCall.execName ?? toolCall.name, toolCall.params))
+    return DESKTOP_TOOL_RESULT_LOST_MESSAGE
+  const stored = await getAsyncToolCall(toolCall.id).catch(() => null)
+  return stored?.claimedBy
+    ? DESKTOP_TOOL_RESULT_LOST_MESSAGE
+    : DESKTOP_LOCAL_READ_RESULT_MISSING_MESSAGE
+}
+
+/**
+ * Settles one abandoned tool locally once its durable failure is decided. With `unclaimedOnly`
+ * it applies only while the call is still unclaimed and reports whether it did.
+ */
+async function settleAbandonedToolCall(
+  toolCall: ToolCallState,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  failure: {
+    message: string
+    data: Record<string, unknown>
+    unclaimedOnly: boolean
+    resultLost?: boolean
+  }
+): Promise<boolean> {
+  const settledLocally = () =>
+    Boolean(toolCall.endTime || isTerminalToolCallStatus(toolCall.status))
+  const settlement = await settleToolCallFailure({
+    toolCallId: toolCall.id,
+    runId: context.runId,
+    userId: execContext.userId,
+    registry: execContext.resolvedSecretTraceRegistry,
+    message: failure.message,
+    data: failure.data,
+    unclaimedOnly: failure.unclaimedOnly,
+    settledLocally,
+  })
+  if (settlement === 'superseded') return true
+  if (failure.unclaimedOnly && settlement !== 'settled') return false
+  if (settlement !== 'settled' && settledLocally()) return true
 
   /** A durable winner whose waiter is still hung must not become a fabricated local success. */
+  const lostSettlementRace = settlement === 'lost'
   const message =
-    lostSettlementRace && failureMessage === HUNG_TOOL_MESSAGE
-      ? UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE
-      : failureMessage
+    lostSettlementRace && failure.resultLost ? UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE : failure.message
   setTerminalToolCallState(toolCall, {
     status: MothershipStreamV1ToolOutcome.error,
-    output: { ...failure, error: message },
+    output: { ...failure.data, error: message },
     error: message,
   })
   logger.error('Tool call failed', {
-    toolCallId,
+    toolCallId: toolCall.id,
     toolName: toolCall.name,
-    persisted: completed,
+    persisted: settlement === 'settled',
     lostSettlementRace,
+    notStarted: failure.unclaimedOnly,
   })
-  markToolResultSeen(context, toolCallId)
-  if (completed) {
-    publishTerminalToolConfirmation({
-      toolCallId,
-      status: MothershipStreamV1ToolOutcome.error,
-      message: failureMessage,
-      data: durableData,
-    })
-  }
+  markToolResultSeen(context, toolCall.id)
+  return true
 }
 
 function cancelledCompletion(message: string): AsyncCompletionSignal {
@@ -590,13 +706,15 @@ export async function executeToolAndReport(
           toolCall.id,
           context,
           execContext,
-          admissionFailure ? message : HUNG_TOOL_MESSAGE
+          admissionFailure ? message : undefined
         )
         return terminalCompletionFromToolCall(toolCall)
       }
     }
   )
 }
+
+type CancelledSpanDetail = { cancelReason: string; error?: string | undefined }
 
 async function executeToolAndReportInner(
   toolCall: ToolCallState,
@@ -630,24 +748,43 @@ async function executeToolAndReportInner(
   }
 
   toolCall.status = 'executing'
-  await upsertAsyncToolCall({
+  const record = await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: toolCall.id,
     ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
     args: toolCall.params,
+    executionDeadlineAt: toDeadlineDate(toolCall.deadlineAt),
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     throw new Error('Tool could not start because its execution record is unavailable')
   })
+  /** A re-run after a takeover gets what remains of the call's first deadline, never a fresh one. */
+  if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
   if (context.runId) {
     const claim = await lifetime.claim(context.runId, execContext.userId)
-    if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
-    if (claim.outcome === 'existing') {
+    if (claim.outcome === 'closed') {
+      /** A call another controller already started keeps its own result, observed below. */
+      const stopped = await settleCancelledIfUnstarted('Run stopped before tool admission')
+      if (stopped) return stopped
+    }
+    // Settled as never run instead of claimed, so a crash before the handler refuses to start
+    // cannot leave it recovered as an unknown outcome. Losing that settlement leaves another writer's.
+    if (
+      claim.outcome === 'too_late' &&
+      (await failUnstartedToolCall(
+        toolCall.id,
+        context,
+        execContext,
+        TOOL_DEADLINE_BEFORE_START_MESSAGE
+      ))
+    )
+      return terminalCompletionFromToolCall(toolCall)
+    if (claim.outcome !== 'claimed') {
       /** The winning controller owns execution; this promise observes its durable result. */
       const completion = await waitForToolConfirmation(
         toolCall.id,
-        pendingToolWaitBudgetMs(toolCall),
+        pendingToolWaitBudgetMs(toolCall, context.desktopDeviceId),
         options?.abortSignal ?? execContext.abortSignal,
         {
           executionScope: { runId: context.runId, userId: execContext.userId },
@@ -709,21 +846,39 @@ async function executeToolAndReportInner(
   // never evaluated (and the span does not exist yet there anyway).
   async function settleCancelled(
     message: string,
-    span?: { cancelReason: string; error?: string | undefined }
+    span?: CancelledSpanDetail
   ): Promise<AsyncCompletionSignal> {
     markToolCallCancelled(message)
     const cancellationResult = toolCall.result
     markToolResultSeen(context, toolCall.id)
-    await lifetime.complete({
+    await lifetime.complete(cancellationRecord(message))
+    if (toolCall.result !== cancellationResult) {
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    return publishCancellation(message, span)
+  }
+
+  /** Cancels the call only while nothing has started it; otherwise reports nothing settled. */
+  async function settleCancelledIfUnstarted(
+    message: string
+  ): Promise<AsyncCompletionSignal | undefined> {
+    if (!(await completePendingAsyncToolCall(cancellationRecord(message)))) return undefined
+    markToolCallCancelled(message)
+    markToolResultSeen(context, toolCall.id)
+    return publishCancellation(message)
+  }
+
+  function cancellationRecord(message: string): CompleteAsyncToolCallInput {
+    return {
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
       result: { cancelled: true },
       error: message,
-    })
-    if (toolCall.result !== cancellationResult) {
-      return terminalCompletionFromToolCall(toolCall)
     }
+  }
+
+  function publishCancellation(message: string, span?: CancelledSpanDetail): AsyncCompletionSignal {
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
@@ -906,6 +1061,7 @@ async function executeToolAndReportInner(
         toolName: toolCall.name,
         runtimeSucceeded: result.success,
         ...describeWithholdingCause(projection.cause),
+        ...measureWithheldContent(result),
       })
     }
 
@@ -1025,7 +1181,10 @@ async function executeToolAndReportInner(
           execContext.chatId,
           options?.onEvent,
           () => abortRequested(context, execContext, options),
-          toolCall.targetWorkspaceId ?? execContext.workspaceId,
+          {
+            organizationId: execContext.organizationId,
+            workspaceId: toolCall.targetWorkspaceId ?? execContext.workspaceId,
+          },
           execContext.userId
         )
       }

@@ -1,16 +1,29 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ organizationLock: vi.fn(), groupLock: vi.fn(), regime: vi.fn() }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.organizationLock,
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.groupLock }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: mocks.regime,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
+
+const mocks = {
+  groupLock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock,
+  organizationLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  regime: permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive,
+}
 
 beforeEach(() => {
   resetDbChainMock()

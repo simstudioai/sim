@@ -20,7 +20,7 @@ import { validateSeatAvailability } from '@/lib/billing/validation/seat-manageme
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   DirectGrantContextChangedError,
   type DirectGrantOutcome,
@@ -356,7 +356,7 @@ async function validateLockedWorkspaceInvitationContext({
   inviteeEmail,
   validateLockedWorkspace,
 }: {
-  tx: DbOrTx
+  tx: DbTransaction
   context: WorkspaceInvitationContext
   workspaceIds: string[]
   organizationId: string | null

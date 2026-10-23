@@ -38,11 +38,19 @@
     "/api/v2/tables": {
       "get": {
         "operationId": "listTables",
-        "summary": "List Tables",
+        "summary": "List tables",
         "description": "List active tables with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find tables available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -94,10 +102,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -187,11 +195,19 @@
       },
       "post": {
         "operationId": "createTable",
-        "summary": "Create Table",
+        "summary": "Create table",
         "description": "Create a table with a typed column schema and optional folder placement.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace, table metadata, folder placement, and typed columns.",
@@ -199,6 +215,29 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Customers",
+                    "description": "Customer accounts and lifecycle state.",
+                    "schema": {
+                      "columns": [
+                        {
+                          "name": "email",
+                          "type": "string",
+                          "unique": true
+                        },
+                        {
+                          "name": "status",
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  }
+                }
               }
             }
           }
@@ -261,11 +300,19 @@
     "/api/v2/tables/{tableId}": {
       "get": {
         "operationId": "getTable",
-        "summary": "Get Table",
+        "summary": "Get table",
         "description": "Get a table with its metadata, column schema, locks, and current job. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -340,11 +387,19 @@
       },
       "delete": {
         "operationId": "deleteTable",
-        "summary": "Delete Table",
-        "description": "Archive a table while retaining its rows. Use List Tables with `scope=archived` to find it and Restore Table to recover it.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete table",
+        "description": "Archive a table while retaining its rows. Use List tables with `scope=archived` to find it and Restore table to recover it.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -419,11 +474,19 @@
       },
       "patch": {
         "operationId": "updateTable",
-        "summary": "Update Table",
+        "summary": "Update table",
         "description": "Rename a table, edit its description, or move it to a folder. Fields are saved independently: a failed request may leave partial changes. `error.details.applied` lists saved fields; retry only the remaining fields. If absent, nothing changed. Lock flags are read-only. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -444,6 +507,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTableRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "EnterpriseCustomers",
+                    "folderPath": "/Sales"
+                  }
+                }
               }
             }
           }
@@ -506,11 +579,19 @@
     "/api/v2/tables/{tableId}/columns": {
       "post": {
         "operationId": "addTableColumn",
-        "summary": "Add Column",
+        "summary": "Add column",
         "description": "Add a typed column and return the complete resulting table schema.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.columns.add",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -531,6 +612,18 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AddTableColumnRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "column": {
+                      "name": "plan",
+                      "type": "string"
+                    }
+                  }
+                }
               }
             }
           }
@@ -591,11 +684,19 @@
       },
       "patch": {
         "operationId": "updateTableColumn",
-        "summary": "Update Column",
+        "summary": "Update column",
         "description": "Update a column by name and return the complete schema. Renames update rows, views, and workflow-group references keyed by column ID. Workflow Table blocks keep their authored `filter`, `order`, and `data` JSON unchanged. Bound blocks still referencing the old name appear in `unmigrated`; edit them with Apply Workflow Operations to prevent failures on their next run.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.columns.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -616,6 +717,18 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTableColumnRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "columnName": "plan",
+                    "updates": {
+                      "name": "subscriptionPlan"
+                    }
+                  }
+                }
               }
             }
           }
@@ -638,6 +751,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2UpdateTableColumnResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "columns": [
+                          {
+                            "id": "col_name",
+                            "name": "name",
+                            "type": "string",
+                            "required": true,
+                            "unique": false
+                          },
+                          {
+                            "id": "col_plan",
+                            "name": "subscriptionPlan",
+                            "type": "string",
+                            "required": false,
+                            "unique": false
+                          }
+                        ],
+                        "unmigrated": [
+                          {
+                            "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                            "workflowName": "Weekly digest",
+                            "blockId": "blk_9c1d3f5a7e2b4068a0c2e4f6b8d0f193",
+                            "blockName": "Query plans",
+                            "fields": ["filter"]
+                          }
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -676,11 +823,19 @@
       },
       "delete": {
         "operationId": "deleteTableColumn",
-        "summary": "Delete Column",
+        "summary": "Delete column",
         "description": "Delete a column by name while preserving at least one table column.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.columns.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -701,6 +856,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DeleteTableColumnRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "columnName": "legacyStatus"
+                  }
+                }
               }
             }
           }
@@ -763,11 +927,19 @@
     "/api/v2/tables/{tableId}/rows": {
       "get": {
         "operationId": "listTableRows",
-        "summary": "List Rows",
-        "description": "List rows in default order with cursor pagination. Pages default to a 5 MB limit and may contain fewer rows than requested; continue until `nextCursor` is null. Use Query Rows for filtering and sorting. `includeRunState=true` adds per-group run outcomes and reduces the row limit.\n\nOAuth scope: `api:read`.",
+        "summary": "List rows",
+        "description": "List rows in default order with cursor pagination. Pages default to a 5 MiB limit and may contain fewer rows than requested; continue until `nextCursor` is null. Use Query rows for filtering and sorting. `includeRunState=true` adds per-group run outcomes and reduces the row limit.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -820,9 +992,9 @@
             "name": "includeRunState",
             "in": "query",
             "required": false,
-            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.",
+            "description": "Include per-workflow-group run outcomes on every row. Off by default. Caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state.",
             "schema": {
-              "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.",
+              "description": "Include per-workflow-group run outcomes on every row. Off by default. Caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state.",
               "type": "boolean"
             }
           }
@@ -861,6 +1033,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -874,11 +1049,19 @@
       },
       "post": {
         "operationId": "createTableRows",
-        "summary": "Create Rows",
+        "summary": "Create rows",
         "description": "Insert one row with a data object or insert a bounded batch with a rows array. Cell keys are column names.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -899,6 +1082,18 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "data": {
+                      "email": "jane@example.com",
+                      "status": "active"
+                    }
+                  }
+                }
               }
             }
           }
@@ -959,11 +1154,19 @@
       },
       "patch": {
         "operationId": "updateTableRows",
-        "summary": "Update Rows by Filter",
+        "summary": "Update rows by filter",
         "description": "Apply the same partial data patch to every row matching a non-empty predicate.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.update_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -984,6 +1187,26 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "filter": {
+                      "all": [
+                        {
+                          "field": "status",
+                          "op": "eq",
+                          "value": "trial"
+                        }
+                      ]
+                    },
+                    "data": {
+                      "status": "active"
+                    }
+                  }
+                }
               }
             }
           }
@@ -1044,11 +1267,19 @@
       },
       "delete": {
         "operationId": "deleteTableRows",
-        "summary": "Delete Rows",
+        "summary": "Delete rows",
         "description": "Delete rows by a non-empty predicate or an explicit bounded list of row identifiers.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.delete_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1069,6 +1300,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DeleteTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "rowIds": ["row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"]
+                  }
+                }
               }
             }
           }
@@ -1131,11 +1371,19 @@
     "/api/v2/tables/{tableId}/rows/{rowId}": {
       "get": {
         "operationId": "getTableRow",
-        "summary": "Get Row",
+        "summary": "Get row",
         "description": "Get one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1174,9 +1422,9 @@
             "name": "includeRunState",
             "in": "query",
             "required": false,
-            "description": "Include per-workflow-group run state on the returned row. Off by default.",
+            "description": "Include per-workflow-group run outcomes on the row. Off by default. Run state above 2 MiB returns `413`; omit this option to read the row without run state.",
             "schema": {
-              "description": "Include per-workflow-group run state on the returned row. Off by default.",
+              "description": "Include per-workflow-group run outcomes on the row. Off by default. Run state above 2 MiB returns `413`; omit this option to read the row without run state.",
               "type": "boolean"
             }
           }
@@ -1215,6 +1463,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1228,11 +1479,19 @@
       },
       "patch": {
         "operationId": "updateTableRow",
-        "summary": "Update Row",
+        "summary": "Update row",
         "description": "Merge a partial data patch into one row by identifier.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1264,6 +1523,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTableRowRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "data": {
+                      "status": "active"
+                    }
+                  }
+                }
               }
             }
           }
@@ -1324,11 +1594,19 @@
       },
       "delete": {
         "operationId": "deleteTableRow",
-        "summary": "Delete Row",
+        "summary": "Delete row",
         "description": "Delete one row by identifier.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1416,11 +1694,19 @@
     "/api/v2/tables/{tableId}/rows/upsert": {
       "post": {
         "operationId": "upsertTableRow",
-        "summary": "Upsert Row",
-        "description": "Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update Row for a partial patch.\n\nOAuth scope: `api:write`.",
+        "summary": "Upsert row",
+        "description": "Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update row for a partial patch.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.upsert",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1441,6 +1727,19 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpsertTableRowRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "data": {
+                      "email": "jane@example.com",
+                      "status": "active"
+                    },
+                    "conflictTarget": "email"
+                  }
+                }
               }
             }
           }
@@ -1503,11 +1802,19 @@
     "/api/v2/tables/{tableId}/query": {
       "post": {
         "operationId": "queryTableRows",
-        "summary": "Query Rows",
-        "description": "Query rows with typed predicates, sorting, and cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB limit; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and reduces the row limit. Counts are read separately and can differ from paged results if rows change.\n\nOAuth scope: `api:read`.",
+        "summary": "Query rows",
+        "description": "Query rows with typed predicates, sorting, and cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MiB limit; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and reduces the row limit. Counts are read separately and can differ from paged results if rows change.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.query",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1528,6 +1835,53 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/QueryTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "limit": 100
+                  }
+                },
+                "example2": {
+                  "summary": "Request example 2",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "predicate": {
+                      "field": "status",
+                      "op": "eq",
+                      "value": "active"
+                    },
+                    "sort": [
+                      {
+                        "field": "createdAt",
+                        "direction": "desc"
+                      }
+                    ],
+                    "limit": 100
+                  }
+                },
+                "example3": {
+                  "summary": "Request example 3",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "predicate": {
+                      "all": [
+                        {
+                          "field": "status",
+                          "op": "eq",
+                          "value": "active"
+                        },
+                        {
+                          "field": "score",
+                          "op": "gte",
+                          "value": 80
+                        }
+                      ]
+                    }
+                  }
+                }
               }
             }
           }
@@ -1587,11 +1941,19 @@
     "/api/v2/tables/{tableId}/query/count": {
       "post": {
         "operationId": "countTableRows",
-        "summary": "Count Rows",
+        "summary": "Count rows",
         "description": "Count rows matching a typed predicate, or omit the predicate to count all rows. The count is read separately from row pages and can change between requests. Oversized predicates return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.query",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1612,6 +1974,19 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CountTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "predicate": {
+                      "field": "status",
+                      "op": "eq",
+                      "value": "active"
+                    }
+                  }
+                }
               }
             }
           }
@@ -1671,11 +2046,19 @@
     "/api/v2/tables/{tableId}/views": {
       "get": {
         "operationId": "listTableViews",
-        "summary": "List Views",
-        "description": "List saved table views, omitting references to removed columns. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "summary": "List views",
+        "description": "List saved table views, omitting references to removed columns. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.views.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1747,11 +2130,19 @@
       },
       "post": {
         "operationId": "createTableView",
-        "summary": "Create View",
+        "summary": "Create view",
         "description": "Save a filter, sort, and column layout as a named presentation of a table.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.views.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1772,6 +2163,32 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableViewRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Active customers",
+                    "config": {
+                      "filter": {
+                        "all": [
+                          {
+                            "field": "status",
+                            "op": "eq",
+                            "value": "active"
+                          }
+                        ]
+                      },
+                      "sort": [
+                        {
+                          "field": "createdAt",
+                          "direction": "desc"
+                        }
+                      ]
+                    }
+                  }
+                }
               }
             }
           }
@@ -1831,11 +2248,19 @@
     "/api/v2/tables/{tableId}/views/{viewId}": {
       "get": {
         "operationId": "getTableView",
-        "summary": "Get View",
+        "summary": "Get view",
         "description": "Get one saved table view by identifier.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.views.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1918,11 +2343,19 @@
       },
       "patch": {
         "operationId": "updateTableView",
-        "summary": "Update View",
+        "summary": "Update view",
         "description": "Rename a view, replace or shallow-merge its configuration, or promote it to the table default.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.views.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1954,6 +2387,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTableViewRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Priority customers",
+                    "isDefault": true
+                  }
+                }
               }
             }
           }
@@ -2011,11 +2454,19 @@
       },
       "delete": {
         "operationId": "deleteTableView",
-        "summary": "Delete View",
+        "summary": "Delete view",
         "description": "Delete a saved presentation without changing any table rows.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.views.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2100,11 +2551,19 @@
     "/api/v2/tables/{tableId}/groups": {
       "get": {
         "operationId": "listTableWorkflowGroups",
-        "summary": "List Workflow Groups",
-        "description": "List the workflow and enrichment groups that can be dispatched for a table. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "summary": "List workflow groups",
+        "description": "List the workflow and enrichment groups that can be dispatched for a table. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.groups.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2176,11 +2635,19 @@
       },
       "post": {
         "operationId": "addTableWorkflowGroup",
-        "summary": "Add Workflow Group",
+        "summary": "Add workflow group",
         "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.groups.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2201,6 +2668,31 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AddTableWorkflowGroupRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "group": {
+                      "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                      "name": "Enrich company",
+                      "outputs": [
+                        {
+                          "blockId": "block_lookup",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ]
+                    },
+                    "outputColumns": [
+                      {
+                        "name": "revenue",
+                        "type": "number"
+                      }
+                    ]
+                  }
+                }
               }
             }
           }
@@ -2261,11 +2753,19 @@
       },
       "patch": {
         "operationId": "updateTableWorkflowGroup",
-        "summary": "Update Workflow Group",
+        "summary": "Update workflow group",
         "description": "Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.groups.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2286,6 +2786,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTableWorkflowGroupRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "name": "Company profile enrichment"
+                  }
+                }
               }
             }
           }
@@ -2349,11 +2859,19 @@
       },
       "delete": {
         "operationId": "deleteTableWorkflowGroup",
-        "summary": "Delete Workflow Group",
+        "summary": "Delete workflow group",
         "description": "Delete a workflow group and every table column populated by that group.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.groups.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2374,6 +2892,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DeleteTableWorkflowGroupRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"
+                  }
+                }
               }
             }
           }
@@ -2436,11 +2963,19 @@
     "/api/v2/tables/{tableId}/dispatches": {
       "post": {
         "operationId": "createTableDispatch",
-        "summary": "Create Run Dispatch",
-        "description": "Start workflow or enrichment groups across all rows or selected rows. Poll Get Run Dispatch until `complete` or `canceled`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`. Use Cancel Run Dispatch to stop further scheduling.\n\nOAuth scope: `api:write`.",
+        "summary": "Create run dispatch",
+        "description": "Start workflow or enrichment groups across all rows or selected rows. Poll Get run dispatch until `complete` or `canceled`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`. Use Cancel run dispatch to stop further scheduling.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.start",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2461,6 +2996,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableDispatchRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "groupIds": ["grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"]
+                  }
+                }
               }
             }
           }
@@ -2518,11 +3062,19 @@
       },
       "get": {
         "operationId": "listTableDispatches",
-        "summary": "List Run Dispatches",
+        "summary": "List run dispatches",
         "description": "List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2596,11 +3148,19 @@
     "/api/v2/tables/{tableId}/rows/{rowId}/enrichment/{groupId}": {
       "post": {
         "operationId": "runRowEnrichment",
-        "summary": "Run Enrichment For One Row",
-        "description": "Start one workflow or enrichment group for a table row. Poll Get Run Dispatch using the returned `dispatchId`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`.\n\nOAuth scope: `api:write`.",
+        "summary": "Run enrichment for one row",
+        "description": "Start one workflow or enrichment group for a table row. Poll Get run dispatch using the returned `dispatchId`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.start",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2643,6 +3203,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RunRowEnrichmentRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  }
+                }
               }
             }
           }
@@ -2700,11 +3268,19 @@
       },
       "get": {
         "operationId": "getRowEnrichment",
-        "summary": "Get Row Group Run",
-        "description": "Read a workflow or enrichment group’s outcome for one row: `runState` (as exposed by `includeRunState`), output cells keyed by column name, and enrichment providers in cascade order with status, hosted-key cost, duration, and the matching provider. Existing rows always answer: `runState: null` means never run; `cascade: null` means no breakdown recorded. Missing tables, rows, or groups return `404`.\n\nOAuth scope: `api:read`.",
+        "summary": "Get row group run",
+        "description": "Read one row’s workflow or enrichment-group outcome: run state, output cells keyed by column name, and providers in cascade order with status, hosted-key cost, duration, and the matching provider. `runState: null` means never run; `cascade: null` means no breakdown was recorded. Missing tables, rows, or groups return `404`. Run state above 2 MiB returns `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2785,6 +3361,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2800,11 +3379,19 @@
     "/api/v2/tables/{tableId}/rows/search": {
       "post": {
         "operationId": "searchTableRows",
-        "summary": "Search Rows",
-        "description": "Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; `ordinal` matches the view used by Query Rows. Results are unpaginated and capped at 1000. If `truncated` is true, narrow the search or predicate.\n\nOAuth scope: `api:read`.",
+        "summary": "Search rows",
+        "description": "Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; `ordinal` matches the view used by Query rows. Results are unpaginated and capped at 1000. If `truncated` is true, narrow the search or predicate.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.search",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2825,6 +3412,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SearchTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "q": "acme",
+                    "predicate": {
+                      "all": [
+                        {
+                          "field": "status",
+                          "op": "eq",
+                          "value": "active"
+                        }
+                      ]
+                    }
+                  }
+                }
               }
             }
           }
@@ -2884,11 +3489,19 @@
     "/api/v2/tables/imports": {
       "post": {
         "operationId": "createTableImport",
-        "summary": "Create Table Import",
+        "summary": "Create table import",
         "description": "Create a CSV import. Upload sources receive signed transfer instructions; workspace-file sources start processing directly.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace, CSV source, target table, optional mapping, and timezone.",
@@ -2896,6 +3509,26 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableImportRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "source": {
+                      "type": "upload",
+                      "name": "customers.csv",
+                      "contentType": "text/csv",
+                      "size": 2048
+                    },
+                    "target": {
+                      "type": "new",
+                      "name": "ImportedCustomers",
+                      "folderPath": "/Imports"
+                    },
+                    "timezone": "America/Los_Angeles"
+                  }
+                }
               }
             }
           }
@@ -2961,11 +3594,19 @@
     "/api/v2/tables/imports/{importId}": {
       "get": {
         "operationId": "getTableImport",
-        "summary": "Get Table Import",
+        "summary": "Get table import",
         "description": "Get an import's progress and status. During `uploading`, the signed upload token is required; omitting it returns `404`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.imports.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3049,11 +3690,19 @@
       },
       "delete": {
         "operationId": "cancelTableImport",
-        "summary": "Cancel Table Import",
+        "summary": "Cancel table import",
         "description": "Cancel an upload or processing import. Committed row batches remain. Non-cancelable states, including `expired`, return `409`; unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3142,11 +3791,19 @@
     "/api/v2/tables/imports/{importId}/parts": {
       "post": {
         "operationId": "createTableImportPartUrls",
-        "summary": "Create Table Import Part URLs",
+        "summary": "Create table import part URLs",
         "description": "Create signed URLs for multipart upload parts. Requires the `uploading` state; other states return `409`. Unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.create_parts",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3190,6 +3847,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableImportPartUrlsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "partNumbers": [1, 2, 3]
+                  }
+                }
               }
             }
           }
@@ -3252,11 +3917,19 @@
     "/api/v2/tables/imports/{importId}/complete": {
       "post": {
         "operationId": "completeTableImportUpload",
-        "summary": "Complete Table Import Upload",
+        "summary": "Complete table import upload",
         "description": "Verify or assemble uploaded CSV bytes and start processing under the same import ID. Requires an import awaiting upload completion; other states return `409`. Unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.imports.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3348,11 +4021,19 @@
     "/api/v2/tables/{tableId}/exports": {
       "post": {
         "operationId": "createTableExport",
-        "summary": "Create Table Export",
+        "summary": "Create table export",
         "description": "Create a CSV or JSON export. Exports of small tables finish during the request; larger exports run asynchronously.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.exports.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3373,6 +4054,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableExportRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "format": "csv"
+                  }
+                }
               }
             }
           }
@@ -3435,11 +4125,19 @@
     "/api/v2/tables/{tableId}/exports/{exportId}": {
       "get": {
         "operationId": "getTableExport",
-        "summary": "Get Table Export",
+        "summary": "Get table export",
         "description": "Get a table export's progress and status.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.exports.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3523,11 +4221,19 @@
       },
       "delete": {
         "operationId": "cancelTableExport",
-        "summary": "Cancel Table Export",
+        "summary": "Cancel table export",
         "description": "Cancel an export that is still in progress.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.exports.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3616,11 +4322,19 @@
     "/api/v2/tables/{tableId}/exports/{exportId}/download": {
       "get": {
         "operationId": "downloadTableExport",
-        "summary": "Download Table Export",
+        "summary": "Download table export",
         "description": "Get a short-lived signed download URL for a completed export. Other states return `409`; an unavailable export file returns `404`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.exports.download",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3709,11 +4423,19 @@
     "/api/v2/tables/{tableId}/cancel-runs": {
       "post": {
         "operationId": "cancelTableRuns",
-        "summary": "Cancel Column Runs",
+        "summary": "Cancel column runs",
         "description": "Stop in-flight and pending workflow or enrichment cell runs across the table or one selected row.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3729,11 +4451,21 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace scope, cancellation scope, and optional predicate or producer groups.",
+          "description": "Workspace scope, row or all-table cancellation, and optional row predicate or exclusions.",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CancelTableRunsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "scope": "row",
+                    "rowId": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"
+                  }
+                }
               }
             }
           }
@@ -3793,11 +4525,19 @@
     "/api/v2/tables/folders": {
       "get": {
         "operationId": "listTablesFolders",
-        "summary": "List Folders",
-        "description": "List table folders, optionally limiting results to direct children of a parent path. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "summary": "List folders",
+        "description": "List table folders, optionally limiting results to direct children of a parent path. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3837,10 +4577,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -3908,11 +4648,19 @@
       },
       "post": {
         "operationId": "createTablesFolder",
-        "summary": "Create Folder",
+        "summary": "Create folder",
         "description": "Create one table-folder leaf whose parent path already exists.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope and canonical folder path to create.",
@@ -3920,6 +4668,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTableFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Sales/Enterprise"
+                  }
+                }
               }
             }
           }
@@ -3980,11 +4737,19 @@
       },
       "patch": {
         "operationId": "relocateTablesFolder",
-        "summary": "Rename or Move Folder",
+        "summary": "Rename or move folder",
         "description": "Rename or move a table folder and update all descendant paths.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.folders.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope, current canonical path, and destination path.",
@@ -3992,6 +4757,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RelocateTableFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Sales/Enterprise",
+                    "destinationPath": "/Revenue/Enterprise"
+                  }
+                }
               }
             }
           }
@@ -4052,11 +4827,19 @@
       },
       "delete": {
         "operationId": "deleteTablesFolder",
-        "summary": "Delete Folder",
-        "description": "Archive an empty folder, or set `recursive=true` to archive its tables and subfolders. Use Restore Folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete folder",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its tables and subfolders. Use Restore folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4084,9 +4867,9 @@
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "description": "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
             "schema": {
-              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "description": "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
               "enum": [
                 "true",
                 "1",
@@ -4164,11 +4947,19 @@
     "/api/v2/tables/folders/restore": {
       "post": {
         "operationId": "restoreTablesFolder",
-        "summary": "Restore Folder",
-        "description": "Restore an archived table folder, its descendants, and tables using its former path. An archived parent moves it to the root; name conflicts may change the returned `path`. Non-archived paths return `404`. Save the path from Delete Folder, because List Folders does not include archived table folders.\n\nOAuth scope: `api:write`.",
+        "summary": "Restore folder",
+        "description": "Restore an archived table folder, its descendants, and tables using its former path. An archived parent moves it to the root; name conflicts may change the returned `path`. Non-archived paths return `404`. Save the path from Delete folder, because List folders does not include archived table folders.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.folders.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope and the canonical path the archived folder held.",
@@ -4176,6 +4967,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RestoreTableFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Sales/Enterprise"
+                  }
+                }
               }
             }
           }
@@ -4238,11 +5038,19 @@
     "/api/v2/tables/{tableId}/restore": {
       "post": {
         "operationId": "restoreTable",
-        "summary": "Restore Table",
-        "description": "Restore a table and its archived rows, views, and workflow groups. Active tables return unchanged without a new audit event. Name conflicts may change the returned `name`. Find archived tables with List Tables and `scope=archived`.\n\nOAuth scope: `api:write`.",
+        "summary": "Restore table",
+        "description": "Restore a table and its archived rows, views, and workflow groups. Active tables return unchanged without a new audit event. Name conflicts may change the returned `name`. Find archived tables with List tables and `scope=archived`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4263,6 +5071,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RestoreTableRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  }
+                }
               }
             }
           }
@@ -4325,11 +5141,19 @@
     "/api/v2/tables/{tableId}/rows/bulk-update": {
       "post": {
         "operationId": "bulkUpdateTableRows",
-        "summary": "Bulk Update Rows",
-        "description": "Apply separate partial patches to up to 1,000 rows, preserving omitted columns. A row outside the table rejects the entire request with `400` and lists missing IDs. Use Update Rows by Filter to apply one patch to every matching row.\n\nOAuth scope: `api:write`.",
+        "summary": "Bulk update rows",
+        "description": "Apply separate partial patches to up to 1,000 rows, preserving omitted columns. A row outside the table rejects the entire request with `400` and lists missing IDs. Use Update rows by filter to apply one patch to every matching row.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.rows.update_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4350,6 +5174,28 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkUpdateTableRowsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "updates": [
+                      {
+                        "rowId": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93",
+                        "data": {
+                          "status": "active"
+                        }
+                      },
+                      {
+                        "rowId": "row_2b4d6f8a0c1e3759b8d0f2a4c6e80193",
+                        "data": {
+                          "status": "churned"
+                        }
+                      }
+                    ]
+                  }
+                }
               }
             }
           }
@@ -4412,11 +5258,19 @@
     "/api/v2/tables/{tableId}/dispatches/{dispatchId}": {
       "get": {
         "operationId": "getTableDispatch",
-        "summary": "Get Run Dispatch",
+        "summary": "Get run dispatch",
         "description": "Get a dispatch's current state. Poll until `complete` or `canceled`; use row reads with `includeRunState` for per-cell outcomes.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4500,11 +5354,19 @@
       },
       "delete": {
         "operationId": "cancelTableDispatch",
-        "summary": "Cancel Run Dispatch",
-        "description": "Stop a dispatch from scheduling more cells. Already queued or running cells continue; use Cancel Column Runs to stop them. Completed or canceled dispatches return unchanged.\n\nOAuth scope: `api:write`.",
+        "summary": "Cancel run dispatch",
+        "description": "Stop a dispatch from scheduling more cells. Already queued or running cells continue; use Cancel column runs to stop them. Completed or canceled dispatches return unchanged.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4590,11 +5452,19 @@
     "/api/v2/tables/move": {
       "post": {
         "operationId": "moveTables",
-        "summary": "Move Tables and Folders",
+        "summary": "Move tables and folders",
         "description": "Move up to 100 tables and folders to one destination. Items succeed or fail independently: covered tables are `skipped`, missing items are `notFound`, and lock or cycle failures include reasons in `failed`. An invalid destination rejects the request before any move.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.bulk_move",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope, the tables and folder paths to move, and the destination folder path.",
@@ -4602,6 +5472,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkMoveTablesRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "tableIds": ["tbl_7c9e6679742540de944be07fc1f90ae7"],
+                    "folderPaths": ["/Sales/Enterprise"],
+                    "targetFolderPath": "/Revenue"
+                  }
+                }
               }
             }
           }
@@ -4661,11 +5542,19 @@
     "/api/v2/tables/bulk-delete": {
       "post": {
         "operationId": "bulkDeleteTables",
-        "summary": "Bulk Delete Tables and Folders",
-        "description": "Archive up to 100 selected tables and folders, including folder contents. Items succeed or fail independently, with `skipped`, `notFound`, and `failed` outcomes. `deletedItems` includes all descendants. Use Restore Table or Restore Folder to recover archived items.\n\nOAuth scope: `api:write`.",
+        "summary": "Bulk delete tables and folders",
+        "description": "Archive up to 100 selected tables and folders, including folder contents. Items succeed or fail independently, with `skipped`, `notFound`, and `failed` outcomes. `deletedItems` includes all descendants. Use Restore table or Restore folder to recover archived items.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.bulk_delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope, and the tables and folder paths to delete.",
@@ -4673,6 +5562,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkDeleteTablesRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "tableIds": ["tbl_7c9e6679742540de944be07fc1f90ae7"],
+                    "folderPaths": ["/Sales/Archive"]
+                  }
+                }
               }
             }
           }
@@ -4695,6 +5594,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2BulkDeleteTablesResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "deleted": [
+                          {
+                            "kind": "table",
+                            "id": "tbl_7c9e6679742540de944be07fc1f90ae7",
+                            "name": "Leads"
+                          },
+                          {
+                            "kind": "folder",
+                            "id": "/Sales/Archive",
+                            "name": "/Sales/Archive"
+                          }
+                        ],
+                        "skipped": [],
+                        "notFound": [],
+                        "failed": [],
+                        "deletedItems": {
+                          "tables": 1,
+                          "folders": 1
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -4739,13 +5666,23 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+        "description": "Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {
@@ -4877,7 +5814,7 @@
             "example": {
               "error": {
                 "code": "CONFLICT",
-                "message": "A table named \"Orders\" already exists in this workspace"
+                "message": "The request conflicts with current table state"
               }
             }
           }
@@ -4925,7 +5862,7 @@
             "example": {
               "error": {
                 "code": "LOCKED",
-                "message": "This table is insert-locked: new rows cannot be added.",
+                "message": "A table lock prevents this operation.",
                 "details": {
                   "lock": "insert"
                 }
@@ -4975,7 +5912,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -5021,6 +5958,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -5360,7 +6300,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6209,7 +7149,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6815,7 +7755,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6859,7 +7799,7 @@
             }
           },
           "limit": {
-            "description": "Maximum rows to return; zero requests an unbounded result.",
+            "description": "Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.",
             "type": "integer",
             "minimum": 0,
             "maximum": 1000
@@ -6871,7 +7811,7 @@
           },
           "includeRunState": {
             "default": false,
-            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.",
+            "description": "Include per-workflow-group run outcomes on every row. Off by default. Incompatible with `limit: 0`; caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state.",
             "type": "boolean"
           }
         },
@@ -7089,7 +8029,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],
@@ -7554,7 +8494,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],
@@ -9573,7 +10513,7 @@
         "required": ["workspaceId", "scope"],
         "additionalProperties": false,
         "title": "Cancel table runs request",
-        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups."
+        "description": "Workspace scope, row or all-table cancellation, and optional row predicate or exclusions."
       },
       "V2Folder": {
         "type": "object",
@@ -9629,7 +10569,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],
@@ -10312,7 +11252,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],

@@ -7,7 +7,7 @@ import {
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorAtlassianCloudId } from '@/lib/selectors/server/providers/atlassian'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
+import { fetchProviderJson } from '@/lib/selectors/server/providers/http'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,

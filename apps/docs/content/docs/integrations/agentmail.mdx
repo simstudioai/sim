@@ -1,31 +1,29 @@
 ---
 title: AgentMail
 description: Manage email inboxes, threads, and messages with AgentMail
+integration:
+  type: "agentmail"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="agentmail"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [AgentMail](https://agentmail.to/) connects Sim workflows to email inboxes using an API key. Create inboxes, send and read messages, reply to or forward conversations, manage drafts, and apply labels to threads and messages. For review-before-send workflows, create a draft, update it with the reviewed content, then send it.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.
-
-
+Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires an API key.
 
 ## Actions
 
 ### Create Draft
 
 Create a new email draft in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,9 +60,13 @@ Create a new email draft in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Create Inbox
 
 Create a new email inbox with AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -85,9 +87,13 @@ Create a new email inbox with AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Delete Draft
 
 Delete an email draft in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +109,13 @@ Delete an email draft in AgentMail
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the draft was successfully deleted |
 
+</ReferenceDetails>
+
 ### Delete Inbox
 
 Delete an email inbox in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +130,13 @@ Delete an email inbox in AgentMail
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the inbox was successfully deleted |
 
+</ReferenceDetails>
+
 ### Delete Thread
 
 Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,9 +153,13 @@ Delete an email thread in AgentMail (moves to trash, or permanently deletes if a
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the thread was successfully deleted |
 
+</ReferenceDetails>
+
 ### Forward Message
 
 Forward an email message to new recipients in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +182,13 @@ Forward an email message to new recipients in AgentMail
 | `messageId` | string | ID of the forwarded message |
 | `threadId` | string | ID of the thread |
 
+</ReferenceDetails>
+
 ### Get Draft
 
 Get details of a specific email draft in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +218,13 @@ Get details of a specific email draft in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Get Inbox
 
 Get details of a specific email inbox in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -217,9 +243,13 @@ Get details of a specific email inbox in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Get Message
 
 Get details of a specific email message in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -246,9 +276,13 @@ Get details of a specific email message in AgentMail
 | `timestamp` | string | Time the message was sent or drafted |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Get Thread
 
 Get details of a specific email thread including messages in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -284,9 +318,13 @@ Get details of a specific email thread including messages in AgentMail
 |   ↳ `timestamp` | string | Time the message was sent or drafted |
 |   ↳ `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### List Drafts
 
 List email drafts in an inbox in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -316,9 +354,13 @@ List email drafts in an inbox in AgentMail
 | `count` | number | Total number of drafts |
 | `nextPageToken` | string | Token for retrieving the next page |
 
+</ReferenceDetails>
+
 ### List Inboxes
 
 List all email inboxes in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -341,9 +383,13 @@ List all email inboxes in AgentMail
 | `count` | number | Total number of inboxes |
 | `nextPageToken` | string | Token for retrieving the next page |
 
+</ReferenceDetails>
+
 ### List Messages
 
 List messages in an inbox in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +415,13 @@ List messages in an inbox in AgentMail
 | `count` | number | Total number of messages |
 | `nextPageToken` | string | Token for retrieving the next page |
 
+</ReferenceDetails>
+
 ### List Threads
 
 List email threads in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -401,9 +451,13 @@ List email threads in AgentMail
 | `count` | number | Total number of threads |
 | `nextPageToken` | string | Token for retrieving the next page |
 
+</ReferenceDetails>
+
 ### Reply to Message
 
 Reply to an existing email message in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -426,9 +480,13 @@ Reply to an existing email message in AgentMail
 | `messageId` | string | ID of the sent reply message |
 | `threadId` | string | ID of the thread |
 
+</ReferenceDetails>
+
 ### Send Draft
 
 Send an existing email draft in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -445,9 +503,13 @@ Send an existing email draft in AgentMail
 | `messageId` | string | ID of the sent message |
 | `threadId` | string | ID of the thread |
 
+</ReferenceDetails>
+
 ### Send Message
 
 Send an email message from an AgentMail inbox
+
+<ReferenceDetails>
 
 #### Input
 
@@ -471,9 +533,13 @@ Send an email message from an AgentMail inbox
 | `subject` | string | Email subject line |
 | `to` | string | Recipient email address |
 
+</ReferenceDetails>
+
 ### Update Draft
 
 Update an existing email draft in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -510,9 +576,13 @@ Update an existing email draft in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Update Inbox
 
 Update the display name of an email inbox in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -532,9 +602,13 @@ Update the display name of an email inbox in AgentMail
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last updated timestamp |
 
+</ReferenceDetails>
+
 ### Update Message
 
 Add or remove labels on an email message in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -553,9 +627,13 @@ Add or remove labels on an email message in AgentMail
 | `messageId` | string | Unique identifier for the message |
 | `labels` | array | Current labels on the message |
 
+</ReferenceDetails>
+
 ### Update Thread Labels
 
 Add or remove labels on an email thread in AgentMail
+
+<ReferenceDetails>
 
 #### Input
 
@@ -573,5 +651,7 @@ Add or remove labels on an email thread in AgentMail
 | --------- | ---- | ----------- |
 | `threadId` | string | Unique identifier for the thread |
 | `labels` | array | Current labels on the thread |
+
+</ReferenceDetails>
 
 

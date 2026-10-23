@@ -1,20 +1,22 @@
 ---
 title: Modal
 description: Call deployed Modal functions and endpoints
+integration:
+  type: "modal"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
-  type="modal"
-  color="#000000"
-/>
+{/* MANUAL-CONTENT-START:intro */}
+Use [Modal](https://modal.com/) to call a deployed Web Function or Server over HTTPS, generate chat completions from a model served on a Modal Endpoint, or list available models.
 
-## Usage Instructions
-
-Integrate Modal into your workflow to reach the serverless compute you already run there. Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.
+Create a proxy auth token in the Modal workspace settings and provide its token ID and secret. The endpoint or function must already be deployed; the block invokes it rather than provisioning compute.
+{/* MANUAL-CONTENT-END */}
 
 
+## Use the block [#usage-instructions]
+
+Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.
 
 ## Actions
 

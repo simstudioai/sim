@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface IdentityCenterConnectionConfig {
+interface IdentityCenterConnectionConfig {
   region: string
   accessKeyId: string
   secretAccessKey: string
@@ -97,11 +97,6 @@ export interface IdentityCenterGetGroupParams extends IdentityCenterConnectionCo
 
 export interface IdentityCenterDescribeAccountParams extends IdentityCenterConnectionConfig {
   accountId: string
-}
-
-export interface IdentityCenterBaseResponse extends ToolResponse {
-  output: { message: string }
-  error?: string
 }
 
 export interface IdentityCenterListInstancesResponse extends ToolResponse {

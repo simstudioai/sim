@@ -23,6 +23,7 @@ const SANDBOX_BUNDLE_FILES = {
   pptxgenjs: 'pptxgenjs.cjs',
   docx: 'docx.cjs',
   'pdf-lib': 'pdf-lib.cjs',
+  'vitest-expect': 'vitest-expect.cjs',
 }
 const bundleSourceCache = new Map()
 const activeIsolates = new Map()
@@ -600,6 +601,34 @@ async function executeCode(request, executionId) {
  * executes user code, then runs `finalize` (must return a Uint8Array). The
  * resulting bytes are returned as base64 in `bytesBase64`.
  */
+/**
+ * Evaluates task user code as an ES module that may import only the task's own modules
+ * (`userModule.modules`: specifier -> source). Failures throw, so `executeTask`'s catch
+ * classifies them exactly as it does a script's (user error, timeout, cancellation, OOM).
+ */
+async function evaluateUserModule(isolate, context, code, userModule, timeoutMs, releaseables) {
+  const provided = new Map()
+  for (const [specifier, source] of Object.entries(userModule.modules)) {
+    const providedModule = await isolate.compileModule(source, {
+      filename: `sandbox/modules/${specifier}.js`,
+    })
+    releaseables.push(providedModule)
+    await providedModule.instantiate(context, (dependency) => {
+      throw new Error(`Sandbox module "${specifier}" cannot import "${dependency}"`)
+    })
+    provided.set(specifier, providedModule)
+  }
+  const importable = [...provided.keys()].map((specifier) => `"${specifier}"`).join(' and ')
+  const entry = await isolate.compileModule(code, { filename: userModule.filename })
+  releaseables.push(entry)
+  await entry.instantiate(context, (specifier) => {
+    const match = provided.get(specifier)
+    if (!match) throw new Error(`Cannot import "${specifier}": only ${importable} can be imported`)
+    return match
+  })
+  await entry.evaluate({ timeout: timeoutMs, promise: true })
+}
+
 async function executeTask(request, executionId) {
   const { code, timeoutMs, task } = request
   const stdoutChunks = []
@@ -922,6 +951,11 @@ async function executeTask(request, executionId) {
         // Capture the bridge reference in a closure so hardening can unset the
         // global without breaking already-installed brokers.
         const __ref = globalThis.__brokerRef;
+        const __brokerErrors = new WeakMap();
+        const __rememberBrokerError = __brokerErrors.set.bind(__brokerErrors);
+        Object.defineProperty(globalThis, '__readBrokerErrorId', {
+          value: __brokerErrors.get.bind(__brokerErrors), writable: false, configurable: false
+        });
         globalThis.__brokers = globalThis.__brokers || {};
         for (const name of ${brokerNamesJson}) {
           globalThis.__brokers[name] = async (args) => {
@@ -934,7 +968,9 @@ async function executeTask(request, executionId) {
             let response;
             try { response = JSON.parse(responseJson); } catch { throw new Error('Invalid broker response'); }
             if (typeof response.error === 'string') {
-              throw new Error(response.error || 'Broker call failed');
+              const error = new Error(response.error || 'Broker call failed');
+              __rememberBrokerError(error, response.brokerErrorId);
+              throw error;
             }
             return response.resultJson === undefined || response.resultJson === null
               ? null
@@ -981,8 +1017,13 @@ async function executeTask(request, executionId) {
     timings.harden = Date.now() - tPhase
     tPhase = Date.now()
 
-    const wrappedUserCode = `
-      (async () => {
+    let userResult
+    if (task.userModule) {
+      await evaluateUserModule(isolate, context, code, task.userModule, timeoutMs, releaseables)
+      userResult = { success: true }
+    } else {
+      const wrappedUserCode = `
+      (async () => { const __readBrokerErrorId = globalThis.__readBrokerErrorId;
         try {
           await (async () => {
             ${code}
@@ -995,32 +1036,40 @@ async function executeTask(request, executionId) {
               message: error && error.message ? error.message : String(error),
               name: error && error.name ? error.name : 'Error',
               stack: error && error.stack ? error.stack : '',
+              brokerErrorId: __readBrokerErrorId(error),
             },
           });
         }
       })()
     `
-    const userScript = await isolate.compileScript(wrappedUserCode, {
-      filename: 'user-function.js',
-    })
-    releaseables.push(userScript)
-    const userResultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
+      const userScript = await isolate.compileScript(wrappedUserCode, {
+        filename: 'user-function.js',
+      })
+      releaseables.push(userScript)
+      const userResultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
+      try {
+        userResult = JSON.parse(userResultJson)
+      } catch {
+        userResult = {
+          success: false,
+          errorInfo: { message: 'Invalid user result', name: 'Error' },
+        }
+      }
+    }
     timings.userCode = Date.now() - tPhase
     tPhase = Date.now()
-
-    let userResult
-    try {
-      userResult = JSON.parse(userResultJson)
-    } catch {
-      userResult = { success: false, errorInfo: { message: 'Invalid user result', name: 'Error' } }
-    }
 
     if (!userResult.success) {
       timings.total = Date.now() - tStart
       return {
         result: null,
         stdout: stdoutChunks.join(''),
-        error: convertToCompatibleError(userResult.errorInfo, code),
+        error: {
+          ...convertToCompatibleError(userResult.errorInfo, code),
+          ...(Number.isSafeInteger(userResult.errorInfo.brokerErrorId)
+            ? { brokerErrorId: userResult.errorInfo.brokerErrorId }
+            : {}),
+        },
         timings,
       }
     }
@@ -1197,7 +1246,13 @@ process.on('message', async (msg) => {
       if (pending) {
         clearTimeout(pending.timeout)
         pendingBrokerCalls.delete(msg.brokerId)
-        pending.resolve(JSON.stringify({ error: msg.error, resultJson: msg.resultJson }))
+        pending.resolve(
+          JSON.stringify({
+            error: msg.error,
+            resultJson: msg.resultJson,
+            ...(typeof msg.error === 'string' ? { brokerErrorId: msg.brokerId } : {}),
+          })
+        )
       }
     }
   } catch (err) {

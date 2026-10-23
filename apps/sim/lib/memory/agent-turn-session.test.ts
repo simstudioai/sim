@@ -1,37 +1,49 @@
 import { createExecutionContext } from '@sim/testing'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { piiRedactionMock, piiRedactionMockFns } from '@sim/testing/mocks/pii-redaction.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { isRecordLike } from '@sim/utils/object'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const { open, save, flag, redact, storeArtifact, readArtifact, executeTool } = vi.hoisted(() => ({
+const { open, save, storeArtifact, readArtifact } = vi.hoisted(() => ({
   open: vi.fn(),
   save: vi.fn(),
-  flag: vi.fn(),
-  redact: vi.fn(),
   storeArtifact: vi.fn(),
   readArtifact: vi.fn(),
-  executeTool: vi.fn(),
 }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: flag }))
-vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'ab'.repeat(32) } }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/memory/application/agent-turns', () => ({
   openAgentMemoryTurnUseCase: { execute: open },
   saveAgentMemoryTurnUseCase: { execute: save },
   storeAgentMemoryArtifactUseCase: { execute: storeArtifact },
   readAgentMemoryArtifactUseCase: { execute: readArtifact },
 }))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: vi.fn(async () => ({})),
-}))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: redact }))
-vi.mock('@/tools', () => ({ executeTool }))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
+vi.mock('@/tools', () => toolsMock)
 
 import { openAgentTurnSession } from '@/lib/memory/agent-turn-session'
 import { decryptMemoryCheckpoint, encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
 import { createJournalArtifactFixture } from '@/lib/memory/journal.test-helpers'
+
+const executeTool = toolsMockFns.mockExecuteTool
+const flag = featureFlagsMockFns.mockIsFeatureEnabled
+const redact = piiRedactionMockFns.mockRedactObjectStrings as Mock<
+  (value: unknown) => Promise<unknown>
+>
+executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({})
+
 import type { AgentTurnJournalState } from '@/lib/memory/turn-journal'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getNativeConversationMessage } from '@/providers/conversation-metadata'
+
+setEnv({ ENCRYPTION_KEY: 'ab'.repeat(32) })
 
 function input(order = 1) {
   const ctx: ExecutionContext = {

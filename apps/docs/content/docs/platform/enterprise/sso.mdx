@@ -1,464 +1,363 @@
 ---
-title: Single Sign-On (SSO)
-description: Configure SAML 2.0 or OIDC-based single sign-on for your organization
+title: Single sign-on (SSO)
+description: Configure SAML or OpenID Connect sign-in for your organization
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { FAQ } from '@/components/ui/faq'
-import { Image } from '@/components/ui/image'
+import { TabsList, TabsTrigger } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
-Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0, and an organization can use more than one identity provider at a time.
+Single sign-on (SSO) lets members authenticate through your organization's identity provider. Sim supports OpenID Connect (OIDC) and SAML 2.0, with multiple providers per organization.
 
----
+SSO authenticates accounts. First-sign-in provisioning can add organization membership, but workspace access is granted separately. Use [directory provisioning](/platform/enterprise/scim) to manage members and group-based access from your directory.
 
 ## Before you start
 
-<Callout type="warn">
-  [Verify your email domain](/platform/enterprise/verified-domains) first. SSO cannot be saved until the domain shows as **Verified**, and DNS changes take time to propagate.
+- On Sim Cloud, use an Enterprise organization and an organization owner or admin account.
+- On self-hosted deployments, enable the [SSO flags](#self-hosted-setup) and create an organization.
+- [Verify the email domain](/platform/enterprise/verified-domains) before saving its provider.
+- Choose a **Provider ID** before configuring the identity provider. It is globally unique across Sim organizations, appears in callback URLs, and cannot be changed after saving. Use an organization-specific ID such as `acme-okta`.
 
-  The verified domain is what authorizes your identity provider. Removing it later immediately disables SSO sign-in for everyone on that domain until it is verified again.
+<Callout type="warn">
+  Domain verification authorizes your identity provider to sign in accounts on that domain. Removing the verified domain in Sim stops new SSO sign-ins through its providers until verification is restored. It does not end existing sessions.
 </Callout>
 
-Decide your **Provider ID** before configuring your identity provider. It becomes part of the callback URL you register there, and it is **fixed once saved** — changing it later means deleting the provider and setting it up again.
+## Configure a provider
 
----
+Open **Settings → Organization → Single sign-on**. The page has these tabs:
 
-## Setup
-
-### 1. Open SSO settings
-
-Go to **Settings → Organization → Single sign-on**. The page has three tabs:
-
-| Tab | Manage |
+| Tab | Configure |
 | --- | --- |
-| **Sign-in** | OIDC or SAML configuration, callback URLs, and first-sign-in membership |
-| **Domains** | DNS verification shared by SSO and SCIM |
+| **Sign-in** | Identity providers, callback URLs, first-sign-in membership, and allowed sign-in methods |
+| **Domains** | Domain ownership shared by SSO and SCIM |
 | **Provisioning** | SCIM connection, tokens, rules, group mappings, and activity |
 
-Use **Domains** to verify ownership, then return to **Sign-in** to configure your provider. Switching tabs preserves an unsaved sign-in draft while you stay on this page; use **Save** or **Update** to commit it. The selected tab and provider are included in the URL, so they can be bookmarked or shared. On self-hosted deployments, Provisioning appears when SCIM is enabled.
+On self-hosted deployments, **Provisioning** appears when SCIM is enabled. Switching tabs preserves an unsaved sign-in draft while you remain on this page. Select **Save** or **Update** to commit changes. The selected tab and provider are in the URL, so you can bookmark or share them.
 
-An organization can run several identity providers at once: Okta for `eng.acme.com` and Microsoft Entra ID for `acme.com`, for example. **Sign-in** lists them; select **Add identity provider** for another, or a row to view, edit, or delete one. Sim routes each sign-in by the email domain. When a domain has more than one provider, the one marked **Primary** is used, which is how you [switch identity providers](#switching-identity-providers) without downtime.
+Under **Sign-in**, select **Add identity provider**, or select an existing provider to view it. Use **Domains** to verify ownership first.
 
-### 2. Choose a protocol
+### Choose a protocol
 
-| Protocol | Use when |
-|----------|----------|
-| **OIDC** | Your IdP supports OpenID Connect — Okta, Microsoft Entra ID, Auth0, Google Workspace |
-| **SAML 2.0** | Your IdP is SAML-only — ADFS, Shibboleth, or older enterprise IdPs |
+Use OIDC when your provider supports OpenID Connect, or SAML 2.0 for a SAML connection. The provider guides below cover Okta, Microsoft Entra ID, Google Workspace, and AD FS.
 
-### 3. Fill in the form
+### Enter the required fields
 
-<Image src="/static/enterprise/sso-form.png" alt="Sign-in tab showing the OIDC configuration form with advanced options collapsed" width={832} height={1095} className="mx-auto h-auto w-full max-w-md" />
+| Field | Value |
+| --- | --- |
+| **Provider ID** | Letters, numbers, and dashes only. Choose a globally unique ID, such as `acme-okta`. Sim rejects an ID already used by another organization. |
+| **Issuer URL** | Your identity provider's HTTPS issuer URL |
+| **Domain** | The verified email domain served by this connection, such as `acme.com` |
+| **On first SSO sign-in** | **Automatic** adds new organization members; **Invite only** authenticates without adding membership. See [membership behavior](#membership-and-account-linking). |
 
-**Fields required for both protocols:**
+For OIDC, also enter **Client ID** and **Client secret**. Sim discovers authorization, token, UserInfo, and JWKS endpoints from `{issuer}/.well-known/openid-configuration`. Under **Advanced options**, you can set **Scopes** (default `openid,profile,email`) and override authorization, token, or JWKS endpoints if discovery does not supply usable values.
 
-| Field | What to enter |
-|-------|--------------|
-| **Provider ID** | A short slug identifying this connection. Letters, numbers, and dashes only. It must be **unique across every Sim organization**, so include something specific to you, such as `azure-ad-acme`. If the ID is taken, Sim asks you to choose another. |
-| **Issuer URL** | The identity provider's issuer URL. Must be HTTPS. |
-| **Domain** | Your organization's email domain, e.g. `company.com`. Users with this domain will be routed through SSO at sign-in. |
-| **First sign-in → On first SSO sign-in** | **Automatic** adds a user authenticated through this verified SSO connection to the organization as a Member and consumes a billed seat. Team seat counts grow with membership; fixed-seat plans require available capacity. **Invite only** authenticates the user without creating organization membership. Neither mode grants workspace access automatically. |
+For SAML, also enter **Entry point URL**, the provider's SSO service URL, and **Identity provider certificate**, its Base64 X.509 certificate. Under **Advanced options**, you can configure Audience, Callback URL override, signed-assertion requirements, NameID format, and IdP metadata XML. Metadata does not replace the required certificate.
 
-**OIDC additional fields:**
+**Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
 
-| Field | What to enter |
-|-------|--------------|
-| **Client ID** | The application client ID from your IdP. |
-| **Client secret** | The client secret from your IdP. |
-| **Scopes** | Under **Advanced options**. Comma-separated OIDC scopes; default: `openid,profile,email`. |
+### Register the callback URL
 
-<Callout type="info">
-  For OIDC, Sim automatically fetches endpoints (`authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`) from your issuer's `/.well-known/openid-configuration` discovery document. You only need to provide the issuer URL.
-</Callout>
+Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML, then register it in your identity provider:
 
-**SAML additional fields:**
+| Protocol | Callback format |
+| --- | --- |
+| OIDC | `https://<your-sim-domain>/api/auth/sso/callback/{provider-id}` |
+| SAML | `https://<your-sim-domain>/api/auth/sso/saml2/callback/{provider-id}` |
 
-| Field | What to enter |
-|-------|--------------|
-| **Entry point URL** | The IdP's SSO service URL where Sim sends authentication requests. |
-| **Identity provider certificate** | The Base-64 encoded X.509 certificate from your IdP for verifying assertions. |
+Sim Cloud uses `www.sim.ai`; self-hosted deployments use their public domain. Use your chosen **Provider ID** in both systems. For SAML, register the **SP Entity ID** as the provider's audience/Entity ID. If you set a **Callback URL override**, Sim's copyable ACS URL uses that override.
 
-### 4. Copy the callback URL
+## Provider guides
 
-Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML. This is the endpoint that receives your identity provider's authentication response. Register it in your IdP before saving. On Sim Cloud, `<your-sim-domain>` is `www.sim.ai`; self-hosted deployments use their own domain. If you set a SAML **Callback URL override** under Advanced options, the copyable ACS URL uses that override.
+<Tabs updateAnchor defaultValue="okta">
+<TabsList>
+  <TabsTrigger value="okta" aria-controls="okta">Okta (OIDC)</TabsTrigger>
+  <TabsTrigger value="microsoft-entra-id-with-oidc" aria-controls="microsoft-entra-id-with-oidc">Microsoft Entra ID (OIDC)</TabsTrigger>
+  <TabsTrigger value="microsoft-entra-id-with-saml" aria-controls="microsoft-entra-id-with-saml">Microsoft Entra ID (SAML)</TabsTrigger>
+  <TabsTrigger value="google-workspace" aria-controls="google-workspace">Google Workspace (OIDC)</TabsTrigger>
+  <TabsTrigger value="ad-fs" aria-controls="ad-fs">AD FS (SAML)</TabsTrigger>
+</TabsList>
+<Tab value="okta" id="okta">
 
-**OIDC providers** (Okta, Microsoft Entra ID, Google Workspace, Auth0):
+1. In the Okta Admin Console, open **Applications and Resources → Applications → Create App Integration**. These steps use **Classic experience**; select **OIDC - OpenID Connect**, then **Web Application**.
+2. Set **Sign-in redirect URI** to your chosen Sim callback:
+   ```
+   https://<your-sim-domain>/api/auth/sso/callback/acme-okta
+   ```
+3. Under **Assignments**, grant access to the people or groups who should sign in.
+4. Copy **Client ID** and **Client Secret** from **General**.
+5. Copy your Okta organization domain from the Admin Console account menu, for example `dev-1234567.okta.com`. Do not use its `-admin` hostname.
+
+| Sim field | Value |
+| --- | --- |
+| **Provider type** | OIDC |
+| **Provider ID** | `acme-okta` |
+| **Issuer URL** | `https://dev-1234567.okta.com` |
+| **Domain** | `acme.com` |
+| **Client ID** | From the Okta app |
+| **Client secret** | From the Okta app |
+
+Use the organization issuer for ordinary sign-in. A custom authorization server requires API Access Management and uses `https://<your-okta-domain>/oauth2/<authorization-server-id>`. The `default` custom server is included in the Integrator Free Plan but not every production organization. See [Okta authorization servers](https://developer.okta.com/docs/concepts/auth-servers/) and [Find your Okta domain](https://developer.okta.com/docs/guides/find-your-domain/main/).
+
+To launch Sim from an Okta dashboard tile, set **Login initiated by** to **Either Okta or App**, show the icon, and choose the flow that redirects to the app to initiate OIDC login. Set **Initiate login URI** to the saved provider's **Initiate login URL** from Sim:
+
 ```
-https://<your-sim-domain>/api/auth/sso/callback/{provider-id}
+https://<your-sim-domain>/sso/launch/acme-okta
 ```
 
-**SAML providers** (ADFS, Shibboleth):
-```
-https://<your-sim-domain>/api/auth/sso/saml2/callback/{provider-id}
-```
-
-### 5. Save and test
-
-Click **Save**. To test, sign out and use the **Sign in with SSO** button on the login page. Enter an email address at your configured domain — Sim will redirect you to your identity provider.
-
----
-
-## Editing and advanced configuration
-
-For a saved connection, open **Sign-in**, select the provider, and select **Edit**. The Provider ID remains fixed. **Delete** removes that sign-in path only: accounts and memberships it admitted stay. If you delete the primary provider and the domain has another verified provider, that one becomes primary; otherwise people at the domain sign in another way until a provider serves it again. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
-
-**Advanced options** contains OIDC scopes and optional authorization, token, and JWKS endpoint overrides. For SAML, it contains Audience, Callback URL override, signed-assertion requirements, NameID format, and optional IdP metadata XML. **Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
-
-SCIM settings save immediately in the **Provisioning** tab. Its **Disable just-in-time provisioning** rule overrides Automatic first-sign-in membership while the connection is active and entitled. Existing members can still sign in. See [directory provisioning](/platform/enterprise/scim#provisioning-and-sso-together).
-
-Follow the [Okta](/platform/enterprise/scim/okta) or [Microsoft Entra](/platform/enterprise/scim/entra) provisioning walkthrough to connect a SCIM app and verify synchronization separately from sign-in.
-
-## Switching identity providers
-
-To move a domain from one identity provider to another, for example from Microsoft Entra ID to Okta, set up the new provider next to the current one and switch when it works. Nobody loses access along the way.
-
-1. **Add the new provider** under **Sign-in** with the same verified domain. It is saved alongside the current provider, which stays **Primary**, so sign-in does not change yet.
-2. **Test it.** Open the new provider and copy its **Test sign-in link**. Anyone at the domain who opens the link signs in through the new provider; everyone else still uses the current one.
-3. **Make it primary.** Select **Make primary** on the new provider. From their next sign-in, everyone at the domain goes through it. People already signed in stay signed in.
-4. **Remove the old provider** once you are confident, or keep it to switch back with **Make primary**.
-
-The first time someone signs in through the new provider, Sim links it to their existing account by email address, so their workspaces and membership carry over. This requires the new provider to send the same email addresses as the old one.
-
----
-
-## Provider Guides
-
-<Tabs items={['Okta', 'Microsoft Entra ID', 'Microsoft Entra ID (SAML)', 'Google Workspace', 'ADFS']}>
-
-<Tab value="Okta">
-
-### Okta (OIDC)
-
-**In Okta** ([official docs](https://help.okta.com/en-us/content/topics/apps/apps_app_integration_wizard_oidc.htm)):
-
-1. Go to **Applications → Create App Integration**
-2. Select **OIDC - OpenID Connect**, then **Web Application**
-3. Set the **Sign-in redirect URI** to your Sim callback URL:
-   ```
-   https://<your-sim-domain>/api/auth/sso/callback/okta
-   ```
-4. Under **Assignments**, grant access to the relevant users or groups
-5. Copy the **Client ID** and **Client Secret** from the app's **General** tab
-6. To open Sim from the Okta dashboard, set **Login initiated by** to **Either Okta or App**, show the app icon to users, choose **Redirect to app to initiate login (OIDC Compliant)**, and set **Initiate login URI** to the provider's **Initiate login URL** from Sim:
-   ```
-   https://<your-sim-domain>/sso/launch/okta
-   ```
-7. Copy your Okta organization domain from the account menu in the Admin Console, e.g. `dev-1234567.okta.com`. The Admin Console's `-admin` hostname is a different URL. See [Find your Okta domain](https://developer.okta.com/docs/guides/find-your-domain/main/).
-
-**In Sim:**
-
-| Field | Value |
-|-------|-------|
-| Provider Type | OIDC |
-| Provider ID | `okta` |
-| Issuer URL | `https://dev-1234567.okta.com` |
-| Domain | `company.com` |
-| Client ID | From Okta app |
-| Client Secret | From Okta app |
-
-For ordinary OIDC sign-in, use your Okta organization issuer as shown. A custom authorization server requires API Access Management; its issuer is `https://<your-okta-domain>/oauth2/<authorization-server-id>`. The `default` custom server is included in Okta's Integrator Free Plan but is not available in every production organization. See [Okta's authorization server guide](https://developer.okta.com/docs/concepts/auth-servers/).
+See [Okta OIDC setup](https://help.okta.com/en-us/content/topics/apps/apps_app_integration_wizard_oidc.htm). For SCIM, the creation experience matters: Classic OIDC apps need a separate provisioning integration, while the newer Okta Integration Wizard can support SCIM on OIDC. See [Okta provisioning](/platform/enterprise/scim/okta).
 
 </Tab>
+<Tab value="microsoft-entra-id-with-oidc" id="microsoft-entra-id-with-oidc">
 
-<Tab value="Microsoft Entra ID">
-
-### Microsoft Entra ID (OIDC)
-
-**In Azure** ([official docs](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)):
-
-1. Go to **Microsoft Entra ID → App registrations → New registration**
-2. Under **Redirect URI**, select **Web** and enter your Sim callback URL, using the Provider ID you chose:
+1. Open **Microsoft Entra ID → App registrations → New registration**.
+2. Under **Redirect URI**, select **Web** and enter:
    ```
-   https://<your-sim-domain>/api/auth/sso/callback/azure-ad-acme
+   https://<your-sim-domain>/api/auth/sso/callback/acme-entra
    ```
-3. After registration, go to **Certificates & secrets → New client secret** and copy the value immediately — it won't be shown again
-4. Go to **Overview** and copy the **Application (client) ID** and **Directory (tenant) ID**
-5. Keep `email` in Sim's OIDC scopes. On Entra's v2.0 endpoint, this scope requests the email claim; alternatively, add **email** under **Token configuration → Add optional claim → ID**. Confirm the account supplies an email in your verified domain: a user principal name is not necessarily that email, and the claim is not guaranteed for every account. See [Microsoft's ID token claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference)
-6. If **Enterprise applications → Sim → Properties → Assignment required** is **Yes**, assign the users or groups who should sign in. Microsoft rejects unassigned users before they reach Sim
+3. Open **Certificates & secrets → New client secret**. Copy the secret value immediately; it is shown once.
+4. From **Overview**, copy **Application (client) ID** and **Directory (tenant) ID**.
+5. Keep `email` in Sim's OIDC scopes. You can also request **email** under **Token configuration → Add optional claim → ID**. Confirm that the account supplies an email in your verified domain: a user principal name is not necessarily that address, and the email claim is not guaranteed for every account.
+6. If **Enterprise applications → your app → Properties → Assignment required** is **Yes**, assign the people or groups who should sign in. Entra rejects unassigned accounts before they reach Sim.
 
-**In Sim:**
+| Sim field | Value |
+| --- | --- |
+| **Provider type** | OIDC |
+| **Provider ID** | `acme-entra` |
+| **Issuer URL** | `https://login.microsoftonline.com/{tenant-id}/v2.0` |
+| **Domain** | `acme.com` |
+| **Client ID** | Application (client) ID |
+| **Client secret** | Secret value |
 
-| Field | Value |
-|-------|-------|
-| Provider Type | OIDC |
-| Provider ID | `azure-ad-acme` (must be globally unique) |
-| Issuer URL | `https://login.microsoftonline.com/{tenant-id}/v2.0` |
-| Domain | `company.com` |
-| Client ID | Application (client) ID |
-| Client Secret | Secret value |
+See [Microsoft app registration](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) and [ID token claims](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference).
 
 </Tab>
+<Tab value="microsoft-entra-id-with-saml" id="microsoft-entra-id-with-saml">
 
-<Tab value="Microsoft Entra ID (SAML)">
+1. Open **Enterprise applications → New application → Create your own application**. Choose **Integrate any other application you don't find in the gallery**.
+2. Open **Single sign-on** and select **SAML**.
+3. In **Basic SAML Configuration**, set **Identifier (Entity ID)** to Sim's **SP Entity ID**, and **Reply URL (Assertion Consumer Service URL)** to Sim's **ACS URL (Reply URL)**.
+4. Under **Attributes & Claims**, retain the standard schema claim URIs for email, name, and name identifier, or configure matching **Attribute mapping** in Sim.
+5. Under **SAML Certificates**, download **Certificate (Base64)** for Sim's required certificate field. You can also download **Federation Metadata XML** for **IdP metadata XML** under Advanced options; it does not replace the certificate.
+6. From the application's **Set up** panel, copy **Login URL** and **Microsoft Entra Identifier**.
+7. Under **Users and groups**, assign the people who should sign in. Entra rejects unassigned accounts before they reach Sim.
 
-### Microsoft Entra ID (SAML 2.0)
-
-Use this when your tenant is configured for SAML rather than OIDC. Both are supported; OIDC is simpler if you have the choice.
-
-**In Azure** ([official docs](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/add-application-portal-setup-sso)):
-
-1. Go to **Enterprise applications → New application → Create your own application**, choose **Integrate any other application you don't find in the gallery**
-2. Open **Single sign-on** and select **SAML**
-3. Edit **Basic SAML Configuration** and set both values from Sim's SSO settings page:
-   - **Identifier (Entity ID)** — the **SP Entity ID** field
-   - **Reply URL (Assertion Consumer Service URL)** — the **ACS URL (Reply URL)** field
-4. Under **Attributes & Claims**, confirm the default claims are present. Sim reads the standard schema claim URIs for email, name, and name identifier
-5. Under **SAML Certificates**, download **Certificate (Base64)**. Its contents go in Sim's required **Identity provider certificate** field. You can optionally also download **Federation Metadata XML** and paste it into Sim's **IdP metadata XML** field under **Advanced options** — it does not replace the certificate
-6. From the **Set up** panel for your application, copy the **Login URL** and the **Microsoft Entra Identifier**
-7. Under **Users and groups**, assign the people who should be able to sign in — Microsoft rejects unassigned users before they reach Sim
-
-**In Sim:**
-
-| Field | Value |
-|-------|-------|
-| Provider Type | SAML |
-| Provider ID | `azure-ad-acme` (must be globally unique) |
-| Issuer URL | **Microsoft Entra Identifier**, e.g. `https://sts.windows.net/{tenant-id}/` |
-| Domain | `company.com` |
-| Entry point URL | **Login URL** from Entra |
-| Identity provider certificate | Contents of the Base64 certificate |
-
-<Callout type="info">
-  The **Identifier (Entity ID)** you set in Entra is what Sim validates the assertion's audience against. If it does not match the **SP Entity ID** shown in Sim exactly, sign-in fails with an audience mismatch.
-</Callout>
-
-</Tab>
-
-<Tab value="Google Workspace">
-
-### Google Workspace (OIDC)
-
-**In Google Cloud Console** ([official docs](https://developers.google.com/identity/openid-connect/openid-connect)):
-
-1. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
-2. Set the application type to **Web application**
-3. Add your Sim callback URL to **Authorized redirect URIs**:
-   ```
-   https://<your-sim-domain>/api/auth/sso/callback/google-workspace
-   ```
-4. Copy the **Client ID** and **Client Secret**
-
-**In Sim:**
-
-| Field | Value |
-|-------|-------|
-| Provider Type | OIDC |
-| Provider ID | `google-workspace` |
-| Issuer URL | `https://accounts.google.com` |
-| Domain | `company.com` |
-| Client ID | From Google Cloud Console |
-| Client Secret | From Google Cloud Console |
-
-<Callout type="info">
-  To restrict sign-in to your Google Workspace domain, configure the OAuth consent screen and ensure your app is set to **Internal** (Workspace users only) under **User type**. Setting the app to Internal limits access to users within your Google Workspace organization.
-</Callout>
-
-</Tab>
-
-<Tab value="ADFS">
-
-### ADFS (SAML 2.0)
-
-**In ADFS** ([official docs](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-relying-party-trust)):
-
-1. Open **AD FS Management → Relying Party Trusts → Add Relying Party Trust**
-2. Choose **Claims aware**, then **Enter data about the relying party manually**
-3. Set the **Relying party identifier** (Entity ID) to the **SP Entity ID** shown in Sim's SSO settings. SAML compares the assertion's audience against it, so it must match exactly:
-   ```
-   https://www.sim.ai
-   ```
-4. Add an endpoint: **SAML Assertion Consumer Service** (HTTP POST) with the URL:
-   ```
-   https://<your-sim-domain>/api/auth/sso/saml2/callback/adfs
-   ```
-5. Export the **Token-signing certificate** from **Certificates**: right-click → **View Certificate → Details → Copy to File**, choose **Base-64 encoded X.509 (.CER)**. Paste the file's text into **Identity provider certificate**, including the certificate header and footer.
-6. Note the **ADFS Federation Service endpoint URL** (e.g. `https://adfs.company.com/adfs/ls`)
-
-**In Sim:**
-
-| Field | Value |
-|-------|-------|
-| Provider Type | SAML |
-| Provider ID | `adfs` |
-| Issuer URL | `https://adfs.company.com/adfs/services/trust` (the ADFS Federation Service identifier) |
-| Domain | `company.com` |
-| Entry point URL | `https://adfs.company.com/adfs/ls` |
-| Identity provider certificate | Contents of the exported Base64 certificate |
-
-<Callout type="info">
-  The **Issuer URL** is the identity provider's own identifier, found in ADFS under **Service → Federation Service Properties → Federation Service identifier**. It is not Sim's URL — Sim's identifier is the **SP Entity ID** shown in the SSO settings, which you register in ADFS as the relying party identifier.
-
-  Sim requires this field to use `https`. ADFS often defaults its Federation Service identifier to an `http://` URI; if yours does, change it to `https` in ADFS so both sides agree.
-</Callout>
-
-</Tab>
-
-</Tabs>
-
----
-
-## How sign-in works after setup
-
-Once SSO is configured, users with your domain (`company.com`) can sign in through your identity provider:
-
-1. User goes to `sim.ai` and clicks **Sign in with SSO**
-2. They enter their work email (e.g. `alice@company.com`)
-3. Sim looks up the provider that serves `company.com` and redirects them to it
-4. After authenticating, they are returned to Sim
-5. If **First sign-in** is **Automatic**, Sim adds them to the organization as a Member, growing a Team seat count or validating available fixed-seat capacity
-6. They land in an accessible workspace, or see a clear no-access state until an admin grants workspace access
-
-People can also open Sim straight from an OIDC identity provider's app dashboard, such as the Okta tile. Open **Sign-in**, select the provider, and copy its **Initiate login URL** from **Identity provider**. Set it as the app's initiate login URI in your identity provider. Sim starts sign-in through that provider without asking for an email, and only when the provider's domain is verified and the request comes from its own issuer. People who are already signed in go straight to Sim.
-
-With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
+| Sim field | Value |
+| --- | --- |
+| **Provider type** | SAML |
+| **Provider ID** | `acme-entra-saml` |
+| **Issuer URL** | Microsoft Entra Identifier, such as `https://sts.windows.net/{tenant-id}/` |
+| **Domain** | `acme.com` |
+| **Entry point URL** | Login URL |
+| **Identity provider certificate** | Contents of Certificate (Base64) |
 
 <Callout type="warn">
-  Start SAML sign-in from Sim's **Sign in with SSO** flow. Sim rejects unsolicited SAML assertions, so an IdP-initiated SAML test from an app portal can fail even when the configuration is correct.
+  The Entity ID registered in Entra must match Sim's **SP Entity ID** exactly. Sim validates the assertion's audience against it; a mismatch prevents sign-in.
 </Callout>
 
-SSO provisioning creates internal organization members but does not grant workspace access. To grant workspace access from your identity provider, use [directory provisioning](/platform/enterprise/scim) and map a pushed group to a workspace. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats. Existing invitations and external access take precedence over automatic provisioning so their intended role and workspace grants are preserved.
+See [Microsoft SAML setup](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/add-application-portal-setup-sso).
+
+</Tab>
+<Tab value="google-workspace" id="google-workspace">
+
+1. In Google Cloud Console, configure **Google Auth platform → Audience** as **Internal** if sign-in should be restricted to your Google Workspace organization. Branding and consent settings live under **Google Auth platform → Branding**.
+2. Open **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID** and choose **Web application**.
+3. Add this **Authorized redirect URI**:
+   ```
+   https://<your-sim-domain>/api/auth/sso/callback/acme-google
+   ```
+4. Copy **Client ID** and **Client Secret**.
+
+| Sim field | Value |
+| --- | --- |
+| **Provider type** | OIDC |
+| **Provider ID** | `acme-google` |
+| **Issuer URL** | `https://accounts.google.com` |
+| **Domain** | `acme.com` |
+| **Client ID** | From Google Cloud Console |
+| **Client secret** | From Google Cloud Console |
+
+**Internal** restricts the OAuth app to your Workspace organization; Sim's verified **Domain** selects the email domain this SSO connection serves. See [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect) and [OAuth consent setup](https://developers.google.com/workspace/guides/configure-oauth-consent).
+
+</Tab>
+<Tab value="ad-fs" id="ad-fs">
+
+1. Open **AD FS Management → Relying Party Trusts → Add Relying Party Trust**.
+2. Choose **Claims aware**, then **Enter data about the relying party manually**.
+3. Set **Relying party identifier** to Sim's **SP Entity ID**. Sim Cloud normally shows `https://www.sim.ai`; copy the value from your own deployment.
+4. Add a **SAML Assertion Consumer Service** endpoint with HTTP POST binding:
+   ```
+   https://<your-sim-domain>/api/auth/sso/saml2/callback/acme-adfs
+   ```
+5. Under **Certificates**, export the **Token-signing certificate** using **View Certificate → Details → Copy to File → Base-64 encoded X.509 (.CER)**. Paste the text, including its header and footer, into Sim.
+6. Copy the **Federation Service identifier** from **Service → Federation Service Properties**, and the SSO endpoint, such as `https://adfs.acme.com/adfs/ls`.
+
+| Sim field | Value |
+| --- | --- |
+| **Provider type** | SAML |
+| **Provider ID** | `acme-adfs` |
+| **Issuer URL** | Federation Service identifier, such as `https://adfs.acme.com/adfs/services/trust` |
+| **Domain** | `acme.com` |
+| **Entry point URL** | `https://adfs.acme.com/adfs/ls` |
+| **Identity provider certificate** | Contents of the exported Base64 certificate |
+
+<Callout type="warn">
+  **Issuer URL** identifies AD FS; **SP Entity ID** identifies Sim. Sim's form requires an HTTPS issuer. AD FS may use an `http://` Federation Service identifier: work with your AD FS administrator to resolve that mismatch before changing an existing federation's identifier.
+</Callout>
+
+See [Microsoft relying-party setup](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-relying-party-trust).
+
+</Tab>
+</Tabs>
+
+## Save and verify sign-in
+
+Select **Save** for a new provider. Sign out, select **Sign in with SSO** on your deployment's login page, and enter an email in the verified domain. Sim selects the domain's provider, redirects to it, and returns the authenticated account to Sim.
+
+If multiple providers serve the domain, ordinary sign-in uses the one marked **Primary**. Other providers can be reached through their **Test sign-in link**.
+
+<Callout type="warn">
+  Start SAML testing from Sim's **Sign in with SSO** flow. Sim rejects unsolicited SAML assertions, so a test started from an identity-provider app portal can fail even with a correct configuration.
+</Callout>
+
+An OIDC dashboard can use the saved provider's **Initiate login URL**. Sim starts that provider's sign-in without asking for an email when the domain is verified and the launch includes a matching issuer. An already signed-in account goes directly to Sim.
+
+## Membership and account linking
+
+Under **First sign-in → On first SSO sign-in**, choose:
+
+| Mode | Organization membership |
+| --- | --- |
+| **Automatic** | Adds a new account as a **Member** without an organization invitation. Team seat counts grow with membership; fixed-seat plans require available capacity. IdP role claims do not select the organization role. |
+| **Invite only** | Authenticates the account without creating membership. Existing membership and workspace access remain available; grant new access separately. |
+
+Neither mode grants workspace access. After sign-in, members enter a workspace they can access or see a no-access state until an administrator grants access. For directory-managed workspace grants, push a group through [SCIM](/platform/enterprise/scim) and map it to a workspace.
+
+Pending invitations and existing external workspace access take precedence over automatic membership, preserving their intended roles and grants. External workspace members access a specific workspace without joining the organization or consuming its seats.
+
+When a new SSO identity asserts the email of an existing Sim account, Sim links it automatically. The provider's verified domain authorizes that linking for OIDC and SAML without requiring an `email_verified` claim. Sim matches the asserted email; it does not resolve aliases or different user principal names to an existing address. Send the same email when switching providers to preserve the account and its access.
+
+An active, entitled SCIM connection can override **Automatic** with **Disable just-in-time provisioning**. Existing members, including invited members, can still sign in. See [Provisioning and SSO together](/platform/enterprise/scim#provisioning-and-sso-together).
 
 ## Require single sign-on
 
-By default members can sign in with a password, an email code, or your identity provider. To make single sign-on the only way in, open **Settings → Organization → Single sign-on → Sign-in** and set **Allowed sign-in methods** to **Single sign-on**. It becomes available once the organization has an identity provider on a verified domain.
+In **Sign-in**, set **Allowed sign-in methods** to **Single sign-on**. This option becomes available when the organization has an identity provider on a verified domain.
 
-- The requirement is checked when a session is created, so turning it on signs nobody out. Members keep working and meet the requirement at their next sign-in. To end current sessions too, use **Sign out all members** under **Settings → Organization → Security**.
-- Organization owners keep every sign-in method. If the identity provider breaks, an owner can still sign in with a password — setting one through **Forgot password** if they only ever signed in through the identity provider — and turn the requirement back off.
-- If the last identity provider is deleted or its domain verification lapses, the requirement stops being enforced instead of locking the organization out, and you can switch back to any method at any time.
-- Desktop app handoff from an already signed-in browser keeps working, because that session derives from one the requirement already admitted.
-- A member who tries a password, an email code, or a social sign-in such as Google or GitHub sees a message telling them to sign in through their identity provider.
+- The requirement applies when a session is created. Turning it on leaves current sessions active; members meet it at their next sign-in. Use **Settings → Organization → Security → Sign out all members** to revoke current member sessions too.
+- Members who try password, email-code, or social sign-in see a message directing them to the identity provider.
+- Organization owners retain the deployment's other enabled sign-in methods for recovery. An owner who has only used SSO can set a password through **Forgot password** and turn off the requirement if the provider fails.
+- The requirement stops enforcing if no sign-in provider remains on a verified domain, or the organization loses SSO entitlement. It can be switched back to other methods at any time.
+- Desktop handoff from an already authenticated browser remains available because it derives from an admitted session.
 
-<Callout type="info">
-  Turning the requirement off restores password and email sign-in immediately for everyone.
-</Callout>
+Turning the requirement off permits the deployment's other configured sign-in methods again. Enabling an SSO provider alone does not disable them.
 
----
+### Offboard a member
 
-<FAQ items={[
-  {
-    question: "Which SSO providers are supported?",
-    answer: "Any identity provider that supports OIDC or SAML 2.0. This includes Okta, Microsoft Entra ID (Azure AD), Google Workspace, Auth0, OneLogin, JumpCloud, Ping Identity, ADFS, Shibboleth, and more."
-  },
-  {
-    question: "What is the Domain field used for?",
-    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to the provider that serves it and redirects them there. If a domain has more than one provider, Sim uses the one marked Primary."
-  },
-  {
-    question: "Can we use more than one identity provider?",
-    answer: "Yes. Different domains can use different providers, for example Okta for eng.acme.com and Microsoft Entra ID for acme.com. A domain can also have several providers while you move between them: sign-in uses its primary provider, and the others are reachable through a test sign-in link. SCIM provisioning stays organization-wide and works alongside any number of providers."
-  },
-  {
-    question: "Do I need to provide OIDC endpoints manually?",
-    answer: "No. For OIDC providers, Sim automatically fetches the authorization, token, and JWKS endpoints from the discovery document at {issuer}/.well-known/openid-configuration. You only need to provide the issuer URL."
-  },
-  {
-    question: "What happens when a user signs in with SSO for the first time?",
-    answer: "Sim creates or links their account. If first-sign-in provisioning is Automatic and a seat is available, Sim adds them to your organization as a Member; no manual organization invite is needed. Workspace access is always granted separately. If provisioning is Invite only, or the user already has a pending invitation or external workspace access, Sim preserves that flow instead of creating membership automatically."
-  },
-  {
-    question: "Does disabling someone in the identity provider remove their Sim access?",
-    answer: "When [directory provisioning](/platform/enterprise/scim) sends a deactivation, Sim blocks sign-in and personal API keys while preserving ownership. Shared workspace keys keep working. With SSO alone, disabling the IdP account only blocks future SSO authentication; remove the member in Sim as part of offboarding."
-  },
-  {
-    question: "Can I still use email/password login after enabling SSO?",
-    answer: "Yes, unless you require single sign-on. Enabling SSO does not disable password login on its own; set Allowed sign-in methods to Single sign-on to refuse password, email-code, and social sign-in for members. Organization owners keep password sign-in as a way back in if the identity provider breaks, and can set a password through Forgot password if they never had one."
-  },
-  {
-    question: "A user already has an account with the same email — what happens when they sign in with SSO?",
-    answer: "Sim links the SSO identity to that account automatically. Linking is authorized by your verified domain: because you proved ownership of the domain before configuring SSO, Sim treats your identity provider as authoritative for email addresses on it. This works for OIDC and SAML without requiring an email_verified claim. Matching uses the address sent as email; Sim does not resolve different aliases or user principal names to an existing account. If the asserted address differs from the existing account, Sim treats it as a separate account."
-  },
-  {
-    question: "Who can configure SSO on Sim Cloud?",
-    answer: "Organization owners and admins can configure SSO. You must be on the Enterprise plan."
-  },
-  {
-    question: "What is the Callback URL?",
-    answer: "The Callback URL (also called Redirect URI or ACS URL) is the endpoint in Sim that receives the authentication response from your identity provider. Use your own deployment's domain — on Sim Cloud that is www.sim.ai. For OIDC providers it follows the format: https://<your-sim-domain>/api/auth/sso/callback/{provider-id}. For SAML providers it is: https://<your-sim-domain>/api/auth/sso/saml2/callback/{provider-id}. You must register this URL in your identity provider before SSO will work."
-  },
-  {
-    question: "How do I update or replace an existing SSO configuration?",
-    answer: "Open Settings → Organization → Single sign-on → Sign-in, select the provider, and select Edit. Change the fields and select Update. The Provider ID cannot be changed; replacing it means deleting the provider and adding a new one."
-  }
-]} />
+Disabling an account in the identity provider stops future SSO authentication. SSO alone does not revoke current Sim sessions or other sign-in methods. Remove the member in Sim as part of offboarding, or use [SCIM deactivation](/platform/enterprise/scim#what-it-does) to suspend access. SCIM suspension stops sign-in and personal API keys while preserving ownership; shared workspace keys continue working.
 
----
+## Edit or replace a provider
+
+Select a saved provider under **Sign-in**, then select **Edit**. Its **Provider ID** stays fixed. Select **Update** to save, or **Discard** to abandon edits.
+
+Saved OIDC secrets appear masked, with a suffix when available. **Replace** enters a new secret; **Keep saved** cancels replacement. SCIM settings in **Provisioning** save immediately and have no page-level Save action.
+
+Deleting a provider removes its sign-in path, while accounts and memberships remain. If another verified provider serves the same domain, it becomes primary when the deleted provider was primary. Otherwise accounts must use another allowed sign-in method until a provider serves the domain again.
+
+### Switching identity providers
+
+Configure and test a new provider before switching a domain:
+
+1. Add it with the same verified domain. The current provider remains **Primary**.
+2. Open the new provider and copy **Test sign-in link**. Test accounts use that provider; ordinary sign-in still uses the current primary.
+3. Confirm the new provider asserts the same account emails, then select **Make primary**. New sign-ins use it; existing sessions remain active.
+4. Keep the old provider to switch back with **Make primary**, or delete it after verification.
+
+Different domains can also use different providers, such as Okta for `eng.acme.com` and Entra for `acme.com`. SCIM remains organization-wide alongside these providers.
 
 ## Self-hosted setup
 
-Self-hosted deployments use environment variables instead of the billing/plan check.
-
-### Environment variables
+For a deployment with billing disabled, enable SSO and its browser twin:
 
 ```bash
-# Required
 SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 
-# Optional: directory provisioning (SCIM), configured from Single sign-on → Provisioning
-SCIM_ENABLED=true
-NEXT_PUBLIC_SCIM_ENABLED=true
-
-# Required if you want users auto-added to your organization on first SSO sign-in
+# Organization membership on first SSO sign-in
 ORGANIZATIONS_ENABLED=true
 NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
 
-# Optional: comma-separated provider IDs to trust for automatic account linking.
-# This applies to non-SSO providers only — SSO linking is authorized by the
-# verified domain on the provider itself, not by this list.
-SSO_TRUSTED_PROVIDER_IDS=custom-oidc,partner-saml
+# Optional directory provisioning tab
+SCIM_ENABLED=true
+NEXT_PUBLIC_SCIM_ENABLED=true
 ```
 
-<Callout type="info">
-  When someone signs in with SSO and an account with the same email already exists
-  (for example, they previously signed up with email/password), Sim links the SSO
-  identity to that account automatically. That linking is authorized by the verified
-  domain attached to the provider, so it works for both OIDC and SAML and does not
-  depend on your IdP asserting `email_verified`.
-</Callout>
+The enterprise master pair also enables these features. See [Self-hosted enterprise](/platform/enterprise/self-hosted) for organization setup.
 
-You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
+`SSO_TRUSTED_PROVIDER_IDS` is an optional comma-separated list for non-SSO provider account linking. It does not authorize SSO linking; SSO trust comes from the provider's verified domain.
+
+Restricted networks can use the server-only `SSO_SKIP_DOMAIN_VERIFICATION=true` setting. Add the domain and select **Verify** before saving SSO. See [DNS requirements](/platform/enterprise/verified-domains#restricted-networks) and [bypass trust consequences](/platform/enterprise/verified-domains#skip-dns-verification).
 
 ### Script-based registration
 
-Use this when you need to register an SSO provider without going through the UI — for example, during initial deployment or CI/CD automation.
+Deployment operators can register directly against the database from the repository root. Provide `DATABASE_URL` or `POSTGRES_URL`, an existing account's `SSO_USER_EMAIL`, and `SSO_ORGANIZATION_ID` to bind the provider to the organization. Without the organization ID, the provider is user-scoped and does not add organization membership at first sign-in.
+
+<Callout type="warn">
+  Direct registration replaces the stored configuration for the same **Provider ID** and records its organization domain as verified without the DNS challenge. Run it only with operator authority and the intended organization ID. This bypasses the ordinary Settings verification flow.
+</Callout>
+
+OIDC example:
 
 ```bash
-# OIDC example (Okta)
+DATABASE_URL=... \
 SSO_ENABLED=true \
-NEXT_PUBLIC_APP_URL=https://your-instance.com \
+NEXT_PUBLIC_APP_URL=https://sim.example.com \
 SSO_PROVIDER_TYPE=oidc \
-SSO_PROVIDER_ID=okta \
+SSO_PROVIDER_ID=acme-okta \
 SSO_ISSUER=https://dev-1234567.okta.com \
-SSO_DOMAIN=company.com \
-SSO_USER_EMAIL=admin@company.com \
+SSO_DOMAIN=acme.com \
+SSO_USER_EMAIL=admin@acme.com \
+SSO_ORGANIZATION_ID=org_123 \
 SSO_OIDC_CLIENT_ID=your-client-id \
 SSO_OIDC_CLIENT_SECRET=your-client-secret \
 bun run packages/db/scripts/register-sso-provider.ts
 ```
 
+SAML example:
+
 ```bash
-# SAML example (ADFS)
+DATABASE_URL=... \
 SSO_ENABLED=true \
-NEXT_PUBLIC_APP_URL=https://your-instance.com \
+NEXT_PUBLIC_APP_URL=https://sim.example.com \
 SSO_PROVIDER_TYPE=saml \
-SSO_PROVIDER_ID=adfs \
-SSO_ISSUER=https://adfs.company.com/adfs/services/trust \
-SSO_SAML_AUDIENCE=https://your-instance.com \
-SSO_DOMAIN=company.com \
-SSO_USER_EMAIL=admin@company.com \
-SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \
+SSO_PROVIDER_ID=acme-adfs \
+SSO_ISSUER=https://adfs.acme.com/adfs/services/trust \
+SSO_SAML_AUDIENCE=https://sim.example.com \
+SSO_DOMAIN=acme.com \
+SSO_USER_EMAIL=admin@acme.com \
+SSO_ORGANIZATION_ID=org_123 \
+SSO_SAML_ENTRY_POINT=https://adfs.acme.com/adfs/ls \
 SSO_SAML_CERT="-----BEGIN CERTIFICATE-----
 ...
 -----END CERTIFICATE-----" \
 bun run packages/db/scripts/register-sso-provider.ts
 ```
 
-The script outputs the callback URL to configure in your IdP once it completes.
+The script prints the callback URL to register in the identity provider. These commands configure the database; persist the SSO feature flags in the running application's environment separately.
 
-To remove a provider:
+To remove one provider:
 
 ```bash
-SSO_USER_EMAIL=admin@company.com \
+DATABASE_URL=... \
+SSO_USER_EMAIL=admin@acme.com \
+SSO_PROVIDER_ID=acme-okta \
 bun run packages/db/scripts/deregister-sso-provider.ts
 ```
+
+Omitting `SSO_PROVIDER_ID` removes **all providers owned by that account**.
+
+## Related docs
+
+- [Verified domains](/platform/enterprise/verified-domains)
+- [Directory provisioning](/platform/enterprise/scim)
+- [Okta provisioning](/platform/enterprise/scim/okta)
+- [Microsoft Entra provisioning](/platform/enterprise/scim/entra)
+- [Session policies](/platform/enterprise/session-policies)

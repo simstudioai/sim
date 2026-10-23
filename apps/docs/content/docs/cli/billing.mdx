@@ -1,19 +1,21 @@
 ---
 title: Billing
-description: Manage billing — every subcommand, argument, and flag
+description: Read billing status, credit usage, and storage usage.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+Read billing status, credit usage, and storage usage.
 
-## Show billing status and current-period credit usage
+These commands accept the [global options](/cli/commands#global-options).
+
+## Show billing status, credits spent, and storage used
+
+Credits and storage require an OAuth login or personal API key.
 
 ```bash
 sim billing status [options]
 ```
-
-Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)
 
 **Options**
 
@@ -25,13 +27,15 @@ Show billing status and current-period credit usage (credits and storage require
 
 </CommandTable>
 
+API request and response schemas: [getBillingStatus](/api-reference/billing/getBillingStatus).
+
 ## List credit usage events
+
+An OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed.
 
 ```bash
 sim billing logs [options]
 ```
-
-List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)
 
 **Options**
 
@@ -39,8 +43,8 @@ List credit usage events (an OAuth login or personal API key reports only your e
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--source <value>` | No | Filter by usage source; sim-chat combines Copilot and workspace chat. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
-| `--period <value>` | No | Billing period. Accepted values: `1d`, `7d`, `30d`, `all`, `custom`. |
+| `--source <value>` | No | Filter by usage source; sim-chat combines Sim agent and workspace Chat usage. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
+| `--period <value>` | No | Billing period. Defaults to "30d". Accepted values: `1d`, `7d`, `30d`, `all`, `custom`. |
 | `--start-date <value>` | No | Custom period start (ISO 8601). |
 | `--end-date <value>` | No | Custom period end (ISO 8601). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
@@ -48,3 +52,10 @@ List credit usage events (an OAuth login or personal API key reports only your e
 | `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>
+
+API request and response schemas: [listBillingLogs](/api-reference/billing/listBillingLogs).
+
+## Related docs
+
+- [Costs](/platform/costs)
+- [Authentication](/cli/authentication)

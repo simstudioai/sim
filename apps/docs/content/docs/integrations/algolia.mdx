@@ -1,31 +1,29 @@
 ---
 title: Algolia
 description: Search and manage Algolia indices
+integration:
+  type: "algolia"
+  color: "#003DFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="algolia"
-  color="#003DFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Algolia](https://www.algolia.com/) in Sim to search indices, add or update records, run batch operations, and manage index settings. The actions below also cover browsing records, deleting by filter, copying or moving indices, and checking task status.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.
-
-
+Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.
 
 ## Actions
 
 ### Algolia Search
 
 Search an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +70,13 @@ Search an Algolia index
 | `facets_stats` | object | Statistics \(min, max, avg, sum\) for numeric facets |
 | `exhaustive` | object | Exhaustiveness flags for facetsCount, facetValues, nbHits, rulesMatch, and typo |
 
+</ReferenceDetails>
+
 ### Algolia Add Record
 
 Add or replace a record in an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +97,13 @@ Add or replace a record in an Algolia index
 | `createdAt` | string | Timestamp when the record was created \(only present when objectID is auto-generated\) |
 | `updatedAt` | string | Timestamp when the record was updated \(only present when replacing an existing record\) |
 
+</ReferenceDetails>
+
 ### Algolia Get Record
 
 Get a record by objectID from an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +122,13 @@ Get a record by objectID from an Algolia index
 | `objectID` | string | The objectID of the retrieved record |
 | `record` | object | The record data \(all attributes\) |
 
+</ReferenceDetails>
+
 ### Algolia Get Records
 
 Retrieve multiple records by objectID from one or more Algolia indices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +146,13 @@ Retrieve multiple records by objectID from one or more Algolia indices
 | `results` | array | Array of retrieved records \(null entries for records not found\) |
 |   ↳ `objectID` | string | Unique identifier of the record |
 
+</ReferenceDetails>
+
 ### Algolia Partial Update Record
 
 Partially update a record in an Algolia index without replacing it entirely
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +173,13 @@ Partially update a record in an Algolia index without replacing it entirely
 | `objectID` | string | The objectID of the updated record |
 | `updatedAt` | string | Timestamp when the record was updated |
 
+</ReferenceDetails>
+
 ### Algolia Delete Record
 
 Delete a record by objectID from an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +197,13 @@ Delete a record by objectID from an Algolia index
 | `taskID` | number | Algolia task ID for tracking the deletion |
 | `deletedAt` | string | Timestamp when the record was deleted |
 
+</ReferenceDetails>
+
 ### Algolia Browse Records
 
 Browse and iterate over all records in an Algolia index using cursor pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +235,13 @@ Browse and iterate over all records in an Algolia index using cursor pagination
 | `hitsPerPage` | number | Number of hits per page \(1-1000, default 1000 for browse\) |
 | `processingTimeMS` | number | Server-side processing time in milliseconds |
 
+</ReferenceDetails>
+
 ### Algolia Batch Operations
 
 Perform batch add, update, partial update, or delete operations on records in an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +259,13 @@ Perform batch add, update, partial update, or delete operations on records in an
 | `taskID` | number | Algolia task ID for tracking the batch operation |
 | `objectIDs` | array | Array of object IDs affected by the batch operation |
 
+</ReferenceDetails>
+
 ### Algolia List Indices
 
 List all indices in an Algolia application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -265,9 +295,13 @@ List all indices in an Algolia application
 |   ↳ `virtual` | boolean | Whether the index is a virtual replica |
 | `nbPages` | number | Total number of pages of indices |
 
+</ReferenceDetails>
+
 ### Algolia Get Settings
 
 Retrieve the settings of an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -292,9 +326,13 @@ Retrieve the settings of an Algolia index
 | `highlightPostTag` | string | HTML tag inserted after highlighted parts |
 | `paginationLimitedTo` | number | Maximum number of hits accessible via pagination |
 
+</ReferenceDetails>
+
 ### Algolia Update Settings
 
 Update the settings of an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -313,9 +351,13 @@ Update the settings of an Algolia index
 | `taskID` | number | Algolia task ID for tracking the settings update |
 | `updatedAt` | string | Timestamp when the settings were updated |
 
+</ReferenceDetails>
+
 ### Algolia Delete Index
 
 Delete an entire Algolia index and all its records
+
+<ReferenceDetails>
 
 #### Input
 
@@ -332,9 +374,13 @@ Delete an entire Algolia index and all its records
 | `taskID` | number | Algolia task ID for tracking the index deletion |
 | `deletedAt` | string | Timestamp when the index was deleted |
 
+</ReferenceDetails>
+
 ### Algolia Copy/Move Index
 
 Copy or move an Algolia index to a new destination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +400,13 @@ Copy or move an Algolia index to a new destination
 | `taskID` | number | Algolia task ID for tracking the copy/move operation |
 | `updatedAt` | string | Timestamp when the operation was performed |
 
+</ReferenceDetails>
+
 ### Algolia Clear Records
 
 Clear all records from an Algolia index while keeping settings, synonyms, and rules
+
+<ReferenceDetails>
 
 #### Input
 
@@ -373,9 +423,13 @@ Clear all records from an Algolia index while keeping settings, synonyms, and ru
 | `taskID` | number | Algolia task ID for tracking the clear operation |
 | `updatedAt` | string | Timestamp when the records were cleared |
 
+</ReferenceDetails>
+
 ### Algolia Delete By Filter
 
 Delete all records matching a filter from an Algolia index
+
+<ReferenceDetails>
 
 #### Input
 
@@ -400,9 +454,13 @@ Delete all records matching a filter from an Algolia index
 | `taskID` | number | Algolia task ID for tracking the delete-by-filter operation |
 | `updatedAt` | string | Timestamp when the operation was performed |
 
+</ReferenceDetails>
+
 ### Algolia Get Task Status
 
 Check whether an Algolia indexing task has finished publishing
+
+<ReferenceDetails>
 
 #### Input
 
@@ -418,5 +476,7 @@ Check whether an Algolia indexing task has finished publishing
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | string | Task status: "published" once the operation has been applied, "notPublished" while still pending |
+
+</ReferenceDetails>
 
 

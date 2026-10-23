@@ -1,5 +1,4 @@
 import { db } from '@sim/db'
-import { DEFER_KNOWLEDGE_PROJECTION } from '@sim/db/knowledge-projection'
 import {
   document,
   documentSecretProvenance,
@@ -12,6 +11,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import {
@@ -36,7 +36,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkIngestionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
@@ -53,7 +53,6 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -73,6 +72,7 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   knowledgeAccessCondition,
   knowledgeMetadataCandidateAccessCondition,
@@ -82,9 +82,21 @@ import {
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
+import { imageExtractionPolicyFor } from '@/lib/knowledge/connectors/image-admission'
+import {
+  connectorIndexingCondition,
+  requiresConnectorIndexing,
+} from '@/lib/knowledge/connectors/indexing-policy'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
+import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
+import { createEmbeddingCheckpoints } from '@/lib/knowledge/documents/embedding-checkpoints'
+import {
+  failStaleDocumentProcessingClaim,
+  recordUndispatchedDocumentFailure,
+} from '@/lib/knowledge/documents/processing-claim'
+import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import {
   assertDocumentChunkCountWithinLimit,
   getOcrRequestRejection,
@@ -94,17 +106,7 @@ import {
   PermanentDocumentProcessingError,
   toPermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
-import {
-  processDocument,
-  type SourceFileAccess,
-} from '@/lib/knowledge/documents/document-processor'
-import { createEmbeddingCheckpoints } from '@/lib/knowledge/documents/embedding-checkpoints'
-import {
-  failStaleDocumentProcessingClaim,
-  recordUndispatchedDocumentFailure,
-} from '@/lib/knowledge/documents/processing-claim'
-import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+} from '@/lib/knowledge/documents/processing-error'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import {
   enqueueDeferredRetryCheck,
@@ -139,11 +141,11 @@ import {
   skippedDocumentCondition,
 } from '@/lib/knowledge/documents/processing-status'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
+import { processDocument, type SourceFileAccess } from '@/lib/knowledge/documents/processor'
 import {
   enqueueKnowledgeStorageCleanup,
   getKnowledgeBaseStorageKey,
   isKnowledgeBaseOwnedStorageKey,
-  type KnowledgeStorageCleanupDocument,
 } from '@/lib/knowledge/documents/storage-cleanup'
 import { claimKnowledgeUploadForAttachment } from '@/lib/knowledge/documents/storage-upload'
 import {
@@ -159,6 +161,7 @@ import {
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
+import type { VisionExtractionUsage } from '@/lib/knowledge/documents/vision-checkpoints'
 import {
   getEmbeddingModelInfo,
   MAX_KB_EMBEDDING_DIMENSIONS,
@@ -166,7 +169,6 @@ import {
 } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
@@ -193,7 +195,7 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { type FileMetadataRecord, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'
@@ -213,7 +215,7 @@ const logger = createLogger('DocumentService')
  * and a machine-readable name would only invite a client to read resource
  * existence into it.
  */
-export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
+class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {
     super('forbidden', 'Document file is not owned by this knowledge base')
     this.name = 'KnowledgeBaseFileOwnershipError'
@@ -232,12 +234,13 @@ class SupersededProcessingOutput extends Error {
   }
 }
 
-/** The document's knowledge base has not been deleted. */
+/** The document's knowledge base is active and its backend still accepts indexed content. */
 function knowledgeBaseIsActive() {
   return sql`EXISTS (
     SELECT 1 FROM ${knowledgeBase}
     WHERE ${knowledgeBase.id} = ${document.knowledgeBaseId}
       AND ${knowledgeBase.deletedAt} IS NULL
+      AND ${connectorIndexingCondition() ?? sql`true`}
   )`
 }
 
@@ -376,6 +379,21 @@ const LARGE_DOC_CONFIG = {
 }
 
 const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
+
+/** How long a timed-out or cancelled pass waits for its aborted work to report billed spend. */
+const ABORTED_PROCESSING_DRAIN_MS = 5_000
+
+/** Waits for `work` to settle, but no longer than `ms`; never rejects. */
+async function settledWithin(work: Promise<unknown>, ms: number): Promise<void> {
+  const settled = new AbortController()
+  await Promise.race([
+    work.then(
+      () => settled.abort(),
+      () => settled.abort()
+    ),
+    interruptibleSleep(ms, settled.signal),
+  ])
+}
 
 async function withTimeout<T>(
   run: (signal: AbortSignal) => Promise<T>,
@@ -661,20 +679,29 @@ const KNOWLEDGE_DOCUMENT_TAG_FIELDS = new Set<KnowledgeDocumentMetadataField>([
   'boolean3',
 ])
 
+function countUnrecordedFileSources(
+  provenances: ReadonlyMap<string, WorkspaceFileSecretProvenance>
+): number {
+  let recordCount = 0
+  for (const provenance of provenances.values()) {
+    if (provenance.status === 'unrecorded') recordCount += 1
+  }
+  return recordCount
+}
+
 function durableSecretProvenanceFromWorkspaceFile(
   provenance: WorkspaceFileSecretProvenance,
   binding: FileMetadataRecord
 ): DurableSecretProvenance {
-  /**
-   * `unrecorded` is a more specific `unknown`, and this boundary has not opted into the workspace
-   * file surface's policy, so it keeps refusing exactly as it did.
-   */
-  if (provenance.status !== 'exact') return { status: 'unknown' }
+  if (provenance.status === 'unknown') return provenance
+  const sourceUserId = binding.userId
+  if (!sourceUserId || binding.projectId != null) return { status: 'unknown' }
+  if (provenance.status === 'unrecorded') return EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
   return {
     status: 'exact',
     entries: provenance.entries.map((entry) => ({
       ...entry,
-      sourceUserId: binding.userId,
+      sourceUserId,
       ...(binding.workspaceId ? { sourceWorkspaceId: binding.workspaceId } : {}),
     })),
   }
@@ -1189,6 +1216,19 @@ export async function processDocumentsWithQueue(
   }
 
   const requested = uniqueDocuments.length
+  const [indexingTarget] = await db
+    .select({ isSearchIndex: knowledgeBase.isSearchIndex })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
+  if (indexingTarget && !requiresConnectorIndexing(indexingTarget.isSearchIndex)) {
+    return {
+      requested,
+      accepted: 0,
+      failed: requested,
+      failedDocumentIds: uniqueDocuments.map((doc) => doc.documentId),
+    }
+  }
   const queuedAt = new Date()
   const documentIds = uniqueDocuments.map((doc) => doc.documentId)
   const {
@@ -1402,6 +1442,44 @@ export interface DocumentProcessingExecutionContext {
   readonly deadlineAt?: number
 }
 
+/**
+ * Chunks a knowledge-base bundle already holds for a document. A pass given one
+ * indexes these chunks instead of parsing the document's file, and stores
+ * `vectors` instead of calling the embedding provider when the bundle was
+ * embedded with this base's model.
+ */
+export interface PreparedDocumentIndex {
+  readonly chunks: readonly {
+    readonly text: string
+    readonly startOffset: number
+    readonly endOffset: number
+    readonly enabled: boolean
+  }[]
+  /** One per chunk, in this base's embedding dimension. */
+  readonly vectors?: readonly number[][]
+  /** Characters in the document's source text; chunks overlap, so their lengths do not sum to it. */
+  readonly characterCount: number
+}
+
+/**
+ * The processor's result shape for chunks that were never parsed here. Token
+ * counts are left to the pass, which estimates every chunk against this
+ * base's model whichever way the chunks arrived.
+ */
+function preparedProcessingResult(prepared: PreparedDocumentIndex) {
+  return {
+    chunks: prepared.chunks.map((chunk) => ({
+      text: chunk.text,
+      metadata: { startIndex: chunk.startOffset, endIndex: chunk.endOffset },
+    })),
+    metadata: {
+      chunkCount: prepared.chunks.length,
+      tokenCount: null,
+      characterCount: prepared.characterCount,
+    },
+  }
+}
+
 export interface DocumentProcessingAttemptContext extends DocumentProcessingExecutionContext {
   /** True only when this invocation follows a successful queue-budget charge. */
   readonly chargedAtDispatch: boolean
@@ -1428,6 +1506,8 @@ export interface DocumentProcessingAttemptContext extends DocumentProcessingExec
   readonly scheduleDatabaseRetry?: (error: unknown) => Date | null
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
+  /** Index these chunks instead of parsing the document's file. */
+  readonly preparedIndex?: PreparedDocumentIndex
 }
 
 /**
@@ -1594,7 +1674,7 @@ export async function processDocumentAsync(
     fileSize: number
     mimeType: string
   },
-  processingOptions: ProcessingOptions = {},
+  _processingOptions: ProcessingOptions = {},
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
   indexingPassId?: string,
   attemptContext?: DocumentProcessingAttemptContext
@@ -1612,6 +1692,7 @@ export async function processDocumentAsync(
 
     const contextRows = await db
       .select({
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         chunkingConfig: knowledgeBase.chunkingConfig,
@@ -1619,6 +1700,7 @@ export async function processDocumentAsync(
         embeddingDimension: knowledgeBase.embeddingDimension,
         uploadedBy: document.uploadedBy,
         connectorId: document.connectorId,
+        connectorType: knowledgeConnector.connectorType,
         filename: document.filename,
         fileUrl: document.fileUrl,
         fileSize: document.fileSize,
@@ -1643,6 +1725,7 @@ export async function processDocumentAsync(
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
+      .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
       .where(
         and(
           eq(document.id, documentId),
@@ -1656,6 +1739,37 @@ export async function processDocumentAsync(
       )
       .limit(1)
 
+    if (contextRows[0] && !requiresConnectorIndexing(contextRows[0].isSearchIndex)) {
+      /**
+       * A generation queued before its KB went dormant (e.g. legacy index adoption) gives back its
+       * stamp and charged attempt, as `clearDocumentsQueued` does; the token stays as the owner.
+       */
+      if (attemptContext?.processingQueueToken || attemptContext?.processingQueuedAt) {
+        await db
+          .update(document)
+          .set({
+            processingQueuedAt: null,
+            ...(attemptContext.chargedAtDispatch
+              ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+              : {}),
+          })
+          .where(
+            and(
+              eq(document.id, documentId),
+              eq(document.processingStatus, 'pending'),
+              /**
+               * Only the exact stamp this payload was queued with: a duplicate of an already
+               * withdrawn generation, or a newer stamp under a reused token, is left alone.
+               */
+              attemptContext.processingQueuedAt
+                ? eq(document.processingQueuedAt, attemptContext.processingQueuedAt)
+                : isNotNull(document.processingQueuedAt),
+              ...queueGenerationConditions(attemptContext)
+            )
+          )
+      }
+      return { outcome: 'skipped', reason: 'unavailable' }
+    }
     if (contextRows.length === 0) {
       logger.warn(
         `[${documentId}] Skipping document processing: document or knowledge base ${knowledgeBaseId} no longer exists`
@@ -1809,6 +1923,7 @@ export async function processDocumentAsync(
         )
       }
       let billableEmbeddingTokens = 0
+      const visionCharges: Promise<void>[] = []
       let embeddingModelName = kbEmbeddingModel
       let embeddingPricingId = kbEmbeddingModel
 
@@ -1825,40 +1940,96 @@ export async function processDocumentAsync(
         currentSourceFileProvenance
       )
 
+      /** One indexing charge on the document's billing context; callers decide when to charge. */
+      const recordIndexingUsage = async (entry: {
+        description: string
+        cost: number
+        sourceReference: string
+        inputTokens: number
+        outputTokens: number
+      }) => {
+        await recordUsage({
+          userId: documentActorUserId,
+          workspaceId: ctx.workspaceId ?? undefined,
+          ...toBillingContext(billingAttribution),
+          entries: [
+            {
+              category: 'model',
+              source: 'knowledge-base',
+              description: entry.description,
+              cost: entry.cost,
+              sourceReference: entry.sourceReference,
+              metadata: { inputTokens: entry.inputTokens, outputTokens: entry.outputTokens },
+            },
+          ],
+        })
+        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+      }
+
+      /** Recorded as soon as reported, since Gemini bills replies that then fail the pass. */
+      const recordVisionUsage = async (visionUsage: VisionExtractionUsage) => {
+        if (visionUsage.cost <= 0) return
+        try {
+          await recordIndexingUsage({
+            description: visionUsage.model,
+            cost: visionUsage.cost,
+            sourceReference: ['knowledge-document-vision', documentId, visionUsage.chargeId].join(
+              ':'
+            ),
+            inputTokens: visionUsage.inputTokens,
+            outputTokens: visionUsage.outputTokens,
+          })
+        } catch (billingError) {
+          logger.error(`[${documentId}] Failed to record image extraction usage`, {
+            error: billingError,
+          })
+        }
+      }
+
       let processingCommitted = false
       const processingDeadlineAt = Math.min(
         startTime + TIMEOUTS.OVERALL_PROCESSING - 15_000,
         (attemptContext?.deadlineAt ?? Number.POSITIVE_INFINITY) - 15_000
       )
+      let processing: Promise<unknown> = Promise.resolve()
       await withTimeout(
         (signal) =>
-          runWithKnowledgeModelInputProvenance(
+          (processing = runWithKnowledgeModelInputProvenance(
             documentSecretContext.registry,
             async () => {
-              await assertKnowledgeEmbeddingCapacity({
-                ...kbEmbedding,
-                workspaceId: ctx.workspaceId,
-                signal,
-              })
-              const processed = await processDocument(
-                persistedDocData.fileUrl,
-                persistedDocData.filename,
-                persistedDocData.mimeType,
-                kbConfig.maxSize,
-                kbConfig.overlap,
-                kbConfig.minSize,
-                {
-                  ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
+              const prepared = attemptContext?.preparedIndex
+              if (!prepared?.vectors) {
+                await assertKnowledgeEmbeddingCapacity({
+                  ...kbEmbedding,
+                  workspaceId: ctx.workspaceId,
                   signal,
-                  processingDeadlineAt,
-                  ...(indexingPassId
-                    ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
-                    : {}),
-                },
-                ctx.workspaceId,
-                rawConfig?.strategy,
-                rawConfig?.strategyOptions
-              )
+                })
+              }
+              const processed = prepared
+                ? preparedProcessingResult(prepared)
+                : await processDocument(
+                    persistedDocData.fileUrl,
+                    persistedDocData.filename,
+                    persistedDocData.mimeType,
+                    kbConfig.maxSize,
+                    kbConfig.overlap,
+                    kbConfig.minSize,
+                    {
+                      ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
+                      signal,
+                      processingDeadlineAt,
+                      imageExtraction: imageExtractionPolicyFor(ctx.connectorType),
+                      onVisionUsage: (usage) => {
+                        visionCharges.push(recordVisionUsage(usage))
+                      },
+                      ...(indexingPassId
+                        ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
+                        : {}),
+                    },
+                    ctx.workspaceId,
+                    rawConfig?.strategy,
+                    rawConfig?.strategyOptions
+                  )
 
               signal.throwIfAborted()
               assertDocumentChunkCountWithinLimit(processed.chunks.length)
@@ -1890,7 +2061,9 @@ export async function processDocumentAsync(
                 ? sha256Hex(JSON.stringify(chunkTexts.map((text) => sha256Hex(text))))
                 : undefined
 
-              if (chunkTexts.length > 0) {
+              if (prepared?.vectors) {
+                embeddings.push(...prepared.vectors)
+              } else if (chunkTexts.length > 0) {
                 const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
                 const totalBatches = Math.ceil(chunkTexts.length / batchSize)
 
@@ -1941,7 +2114,6 @@ export async function processDocumentAsync(
                   `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
                 )
               }
-              const documentTags = ctx
 
               logger.info(
                 `[${documentId}] Embeddings generated, creating embedding records with tags`
@@ -1957,40 +2129,6 @@ export async function processDocumentAsync(
                     : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
                   : undefined
               )
-              const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-                id: generateId(),
-                knowledgeBaseId,
-                documentId,
-                chunkIndex,
-                chunkHash: sha256Hex(chunk.text),
-                content: chunk.text,
-                secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
-                contentLength: chunk.text.length,
-                tokenCount: chunkTokenCounts[chunkIndex],
-                ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
-                embeddingModel: kbEmbeddingModel,
-                startOffset: chunk.metadata.startIndex,
-                endOffset: chunk.metadata.endIndex,
-                tag1: documentTags.tag1,
-                tag2: documentTags.tag2,
-                tag3: documentTags.tag3,
-                tag4: documentTags.tag4,
-                tag5: documentTags.tag5,
-                tag6: documentTags.tag6,
-                tag7: documentTags.tag7,
-                number1: documentTags.number1,
-                number2: documentTags.number2,
-                number3: documentTags.number3,
-                number4: documentTags.number4,
-                number5: documentTags.number5,
-                date1: documentTags.date1,
-                date2: documentTags.date2,
-                boolean1: documentTags.boolean1,
-                boolean2: documentTags.boolean2,
-                boolean3: documentTags.boolean3,
-                createdAt: now,
-                updatedAt: now,
-              }))
 
               signal.throwIfAborted()
               /**
@@ -2011,17 +2149,9 @@ export async function processDocumentAsync(
                 )
                 .limit(1)
               if (!sourceActive) return
-              /**
-               * While `knowledge-async-projection` is on, the chunks are committed with a mark on
-               * their document and no search projection rows; the knowledge projector writes those
-               * after the commit. Read before the transaction opens.
-               */
-              const deferProjection = await isFeatureEnabled('knowledge-async-projection')
               processingCommitted = await db
                 .transaction(async (tx) => {
                   signal.throwIfAborted()
-                  if (deferProjection)
-                    await tx.execute(sql.raw(`SELECT ${DEFER_KNOWLEDGE_PROJECTION}`))
                   /**
                    * Reads only the document row. Connector activity is checked by
                    * the completion write at the end instead: reading
@@ -2032,7 +2162,26 @@ export async function processDocumentAsync(
                    * through the embedding foreign key and projection triggers.
                    */
                   const activeDocument = await tx
-                    .select({ id: document.id })
+                    .select({
+                      id: document.id,
+                      tag1: document.tag1,
+                      tag2: document.tag2,
+                      tag3: document.tag3,
+                      tag4: document.tag4,
+                      tag5: document.tag5,
+                      tag6: document.tag6,
+                      tag7: document.tag7,
+                      number1: document.number1,
+                      number2: document.number2,
+                      number3: document.number3,
+                      number4: document.number4,
+                      number5: document.number5,
+                      date1: document.date1,
+                      date2: document.date2,
+                      boolean1: document.boolean1,
+                      boolean2: document.boolean2,
+                      boolean3: document.boolean3,
+                    })
                     .from(document)
                     .where(
                       and(
@@ -2052,9 +2201,49 @@ export async function processDocumentAsync(
                     return false
                   }
 
-                  if (embeddingRecords.length > 0) {
-                    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+                  const documentTags = activeDocument[0]
+                  const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
+                    id: generateId(),
+                    knowledgeBaseId,
+                    documentId,
+                    chunkIndex,
+                    chunkHash: sha256Hex(chunk.text),
+                    content: chunk.text,
+                    secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
+                    contentLength: chunk.text.length,
+                    tokenCount: chunkTokenCounts[chunkIndex],
+                    ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
+                    embeddingModel: kbEmbeddingModel,
+                    startOffset: chunk.metadata.startIndex,
+                    endOffset: chunk.metadata.endIndex,
+                    enabled: prepared?.chunks[chunkIndex].enabled ?? true,
+                    tag1: documentTags.tag1,
+                    tag2: documentTags.tag2,
+                    tag3: documentTags.tag3,
+                    tag4: documentTags.tag4,
+                    tag5: documentTags.tag5,
+                    tag6: documentTags.tag6,
+                    tag7: documentTags.tag7,
+                    number1: documentTags.number1,
+                    number2: documentTags.number2,
+                    number3: documentTags.number3,
+                    number4: documentTags.number4,
+                    number5: documentTags.number5,
+                    date1: documentTags.date1,
+                    date2: documentTags.date2,
+                    boolean1: documentTags.boolean1,
+                    boolean2: documentTags.boolean2,
+                    boolean3: documentTags.boolean3,
+                    createdAt: now,
+                    updatedAt: now,
+                  }))
 
+                  /**
+                   * A pass that indexes nothing (a decorative image) still replaces what an
+                   * earlier pass indexed, or the document would stay searchable by stale text.
+                   */
+                  await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+                  if (embeddingRecords.length > 0) {
                     const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
                     const batches: (typeof embeddingRecords)[] = []
                     for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
@@ -2108,7 +2297,9 @@ export async function processDocumentAsync(
                     .update(document)
                     .set({
                       chunkCount: processed.metadata.chunkCount,
-                      tokenCount: processed.metadata.tokenCount,
+                      tokenCount:
+                        processed.metadata.tokenCount ??
+                        chunkTokenCounts.reduce((sum, count) => sum + count, 0),
                       characterCount: processed.metadata.characterCount,
                       processingStatus: 'completed',
                       processingCompletedAt: now,
@@ -2147,18 +2338,19 @@ export async function processDocumentAsync(
                 documentSecretContext.provenance.status === 'exact' &&
                 documentSecretContext.provenance.entries.length === 0,
             }
-          ),
+          )),
         Math.max(1, processingDeadlineAt - Date.now()),
         'Document processing',
         attemptContext?.signal
-      )
+      ).finally(async () => {
+        await settledWithin(processing, ABORTED_PROCESSING_DRAIN_MS)
+        await Promise.all(visionCharges)
+      })
 
       if (!processingCommitted) {
         logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
         return { outcome: 'skipped', reason: 'superseded' }
       }
-      /** The commit marked the document in either mode; a pass writes or verifies its rows. */
-      await requestKnowledgeProjection()
 
       const processingTime = Date.now() - startTime
       logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
@@ -2202,22 +2394,13 @@ export async function processDocumentAsync(
               documentId,
               indexingPassId ?? `model:${embeddingPricingId}`,
             ].join(':')
-            await recordUsage({
-              userId: documentActorUserId,
-              workspaceId: ctx.workspaceId ?? undefined,
-              ...toBillingContext(billingAttribution),
-              entries: [
-                {
-                  category: 'model',
-                  source: 'knowledge-base',
-                  description: embeddingModelName,
-                  cost,
-                  sourceReference: usageSourceReference,
-                  metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
-                },
-              ],
+            await recordIndexingUsage({
+              description: embeddingModelName,
+              cost,
+              sourceReference: usageSourceReference,
+              inputTokens: billableEmbeddingTokens,
+              outputTokens: 0,
             })
-            await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
           } else {
             logger.warn(
               `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -2228,6 +2411,7 @@ export async function processDocumentAsync(
           logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
         }
       }
+
       return { outcome: 'indexed' }
     })
   } catch (error) {
@@ -2434,6 +2618,7 @@ async function resolveDocumentStorageAdmission(
 ): Promise<DocumentStorageAdmission> {
   const [kb] = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       userId: knowledgeBase.userId,
@@ -2445,6 +2630,9 @@ async function resolveDocumentStorageAdmission(
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
+  if (!requiresConnectorIndexing(kb.isSearchIndex)) {
+    throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+  }
   if (kb.organizationId)
     throw new OrchestrationError(
       'validation',
@@ -2495,14 +2683,23 @@ export async function createDocumentRecords(
   const resolvedDocuments = await resolveServerKnownDocumentSizes(documents)
   const totalBytes = resolvedDocuments.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
   const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, totalBytes)
-  const { returnData, storageNotification } = await db.transaction(async (tx) => {
+  const { returnData, storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    /**
+     * `FOR NO KEY UPDATE` still serializes this insert with other document writes,
+     * KB moves, and archive, but not with the `FOR KEY SHARE` that each embedding
+     * insert takes through its foreign key, so uploads never queue behind a
+     * long-running indexing transaction in the same knowledge base.
+     */
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -2513,6 +2710,9 @@ export async function createDocumentRecords(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (kb[0].workspaceId !== admission.workspaceId) {
@@ -2540,7 +2740,7 @@ export async function createDocumentRecords(
       tx,
       trackedBindings
     )
-    for (const [documentIndex, docData] of resolvedDocuments.entries()) {
+    for (const docData of resolvedDocuments) {
       const currentSize = getServerKnownDocumentSize(
         docData.fileUrl,
         docData.fileSize,
@@ -2686,9 +2886,20 @@ export async function createDocumentRecords(
         .where(eq(knowledgeBase.id, knowledgeBaseId))
     }
 
-    return { returnData, storageNotification }
+    return {
+      returnData,
+      storageNotification,
+      unrecordedCount: countUnrecordedFileSources(boundFileProvenanceById),
+    }
   })
 
+  if (unrecordedCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: admission.workspaceId,
+      recordCount: unrecordedCount,
+    })
+  }
   if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
       storageNotification.context,
@@ -2718,6 +2929,7 @@ export async function getDocuments(
     knowledgeBaseId: string
     filename: string
     fileUrl: string
+    contentHash: string | null
     fileSize: number
     mimeType: string
     chunkCount: number
@@ -2825,6 +3037,7 @@ export async function getDocuments(
         knowledgeBaseId: document.knowledgeBaseId,
         filename: document.filename,
         fileUrl: document.fileUrl,
+        contentHash: document.contentHash,
         fileSize: document.fileSize,
         mimeType: document.mimeType,
         chunkCount: document.chunkCount,
@@ -2941,6 +3154,7 @@ export async function getDocuments(
       knowledgeBaseId: doc.knowledgeBaseId,
       filename: doc.filename,
       fileUrl: doc.fileUrl,
+      contentHash: doc.contentHash,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType,
       chunkCount: doc.chunkCount,
@@ -3073,6 +3287,8 @@ export async function createSingleDocument(
   options?: {
     expectedWorkspaceId?: string
     uploadedArtifact?: { cleanupEventId: string; metadataId: string; contentUpdatedAt: Date }
+    /** Whether the document starts out searchable; defaults to `true`. */
+    enabled?: boolean
     processing?: {
       processingOptions: ProcessingOptions
       billingAttribution: BillingAttributionSnapshot
@@ -3154,23 +3370,26 @@ export async function createSingleDocument(
     tokenCount: 0,
     characterCount: 0,
     processingStatus: 'pending' as const,
-    enabled: true,
+    enabled: options?.enabled ?? true,
     uploadedAt: now,
     uploadedBy,
     ...processedTags,
   }
 
-  const storageNotification = await db.transaction(async (tx) => {
+  const { storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
     if (options?.uploadedArtifact) {
       await claimKnowledgeUploadForAttachment(tx, options.uploadedArtifact.cleanupEventId)
     }
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -3181,6 +3400,9 @@ export async function createSingleDocument(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (
@@ -3288,9 +3510,19 @@ export async function createSingleDocument(
       })
     }
 
-    return storageNotification
+    return {
+      storageNotification,
+      unrecordedCount: countUnrecordedFileSources(boundFileProvenanceById),
+    }
   })
 
+  if (unrecordedCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: admission.workspaceId,
+      recordCount: unrecordedCount,
+    })
+  }
   if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
       storageNotification.context,
@@ -3849,25 +4081,6 @@ export async function updateDocument(
     boolean2: boolean | null
     boolean3: boolean | null
   }> = {}
-  const ALL_TAG_SLOTS = [
-    'tag1',
-    'tag2',
-    'tag3',
-    'tag4',
-    'tag5',
-    'tag6',
-    'tag7',
-    'number1',
-    'number2',
-    'number3',
-    'number4',
-    'number5',
-    'date1',
-    'date2',
-    'boolean1',
-    'boolean2',
-    'boolean3',
-  ] as const
   type TagSlot = (typeof ALL_TAG_SLOTS)[number]
 
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
@@ -3914,6 +4127,14 @@ export async function updateDocument(
   })
 
   const doc = await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(document)
+      .where(eq(document.id, documentId))
+      .limit(1)
+      .for('update')
+    if (!current) return undefined
+
     const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
@@ -3931,14 +4152,6 @@ export async function updateDocument(
         .set(embeddingUpdateData)
         .where(eq(embedding.documentId, documentId))
     }
-
-    const [current] = await tx
-      .select()
-      .from(document)
-      .where(eq(document.id, documentId))
-      .limit(1)
-      .for('update')
-    if (!current) return undefined
 
     const [sidecar] =
       current.secretProvenanceVersion === 1
@@ -4016,14 +4229,6 @@ export async function updateDocument(
     boolean3: doc.boolean3,
     deletedAt: doc.deletedAt,
   }
-}
-
-/** Persists standalone cleanup intents; document mutations supply their own transaction. */
-export async function deleteDocumentStorageFiles(
-  documentsToDelete: readonly KnowledgeStorageCleanupDocument[],
-  requestId: string
-): Promise<void> {
-  await enqueueKnowledgeStorageCleanup(db, documentsToDelete, requestId)
 }
 
 async function excludeConnectorDocuments(
@@ -4263,6 +4468,9 @@ async function hardDeleteDocumentBatch(
      * Lock every parent KB in stable ID order before deleting document rows.
      * Normal inserts and KB moves take the same parent lock first, so the
      * workspace snapshots used for accounting cannot change mid-delete.
+     * `no key update` lets embedding inserts keep taking their foreign-key
+     * `KEY SHARE` lock, so a delete neither waits on indexing elsewhere in the
+     * KB nor deadlocks against an indexing pass on one of its own documents.
      */
     const knowledgeBaseIds = [
       ...new Set(documentsToDelete.map((doc) => doc.knowledgeBaseId)),
@@ -4282,7 +4490,7 @@ async function hardDeleteDocumentBatch(
         )
       )
       .orderBy(asc(knowledgeBase.id))
-      .for('update')
+      .for('no key update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)
@@ -4330,29 +4538,24 @@ async function hardDeleteDocumentBatch(
      * embedding delete and the document delete are scoped to this re-verified
      * ID set rather than the stale `existingIds`.
      */
-    const stillTargetedIds =
-      scopedConnectorId || scopedKnowledgeBaseId || accessCondition
-        ? (
-            await tx
-              .select({ id: document.id })
-              .from(document)
-              .where(
-                and(
-                  inArray(document.id, existingIds),
-                  scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
-                  scopedKnowledgeBaseId
-                    ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId)
-                    : undefined,
-                  requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
-                  requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-                  requireVisibleDocument ? isNull(document.deletedAt) : undefined,
-                  accessCondition
-                )
-              )
-              .orderBy(asc(document.id))
-              .for('update')
-          ).map((d) => d.id)
-        : existingIds
+    const stillTargetedIds = (
+      await tx
+        .select({ id: document.id })
+        .from(document)
+        .where(
+          and(
+            inArray(document.id, existingIds),
+            scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+            scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
+            requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+            requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+            requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+            accessCondition
+          )
+        )
+        .orderBy(asc(document.id))
+        .for('update')
+    ).map((d) => d.id)
 
     await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx

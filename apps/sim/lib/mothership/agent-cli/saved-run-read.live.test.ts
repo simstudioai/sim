@@ -28,6 +28,7 @@ import { db } from '@sim/db'
 import {
   auditLog,
   copilotAsyncToolCalls,
+  copilotAsyncToolCallsPersistSeq,
   copilotChats,
   copilotMessages,
   copilotRequestStops,
@@ -66,12 +67,23 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import { NextRequest } from 'next/server'
 import { PDFDocument } from 'pdf-lib'
 import type { EmbeddedCliIdentity } from 'sim/embed'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest'
 import { v2LogDetailSchema } from '@/lib/api/contracts/v2/logs'
 import {
   v2ExecuteWorkflowDataSchema,
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
+import { observeContentDelivery } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -85,7 +97,7 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { resolveCopilotWorkspaceFileReference } from '@/lib/mothership/application/execute-file-use-case'
 import {
   areStreamToolExecutionsSettled,
-  claimSimToolExecution,
+  claimToolExecution,
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
   completeAsyncToolCall,
@@ -117,6 +129,7 @@ import {
   resolveActiveResourceContext,
 } from '@/lib/mothership/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
@@ -359,8 +372,8 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
 vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
   PauseResumeManager: { processQueuedResumes: async () => {} },
 }))
-vi.mock('@/lib/public-shares/share-manager', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/public-shares/share-manager')>()),
+vi.mock('@/lib/public-shares/manager', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/public-shares/manager')>()),
   getShareForResource: async () => null,
 }))
 vi.mock('@/lib/execution/remote-sandbox', async (importOriginal) => ({
@@ -453,7 +466,7 @@ vi.mock('@/lib/realtime/notify', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/realtime/notify')>()),
   mergeEditIntoLiveFileDoc: async () => {},
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanup: async () => {},
   processWorkspaceFileStorageCleanupNow: async () => {},
 }))
@@ -612,7 +625,10 @@ async function readRun(runId: string, ...flags: string[]) {
   )
 }
 
-const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
+let postExecution: MockInstance<typeof LoggingSession.prototype.setPostExecutionPromise>
+beforeEach(() => {
+  postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
+})
 const schemaName = fixture.schemaName
 let controlServer: ReturnType<typeof createServer>
 let controlEndpoint = ''
@@ -1158,6 +1174,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
     beforeAll(async () => {
       fixture.directory = await mkdtemp(join(tmpdir(), 'mship-run-logs-'))
       await db.execute(sql`CREATE SCHEMA ${sql.identifier(schemaName)}`)
+      const persistSequenceName = copilotAsyncToolCallsPersistSeq.seqName
+      if (!persistSequenceName) throw new Error('Tool-call persistence sequence has no name')
+      const persistSequence = sql`${sql.identifier(schemaName)}.${sql.identifier(persistSequenceName)}`
+      await db.execute(sql`CREATE SEQUENCE ${persistSequence}`)
       for (const table of tables) {
         const config = getTableConfig(table)
         const columns = config.columns.map((column) => {
@@ -1172,6 +1192,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           sql`CREATE TABLE ${sql.identifier(config.name)} (${sql.join(columns, sql`, `)})`
         )
       }
+      await db.execute(
+        sql`ALTER SEQUENCE ${persistSequence} OWNED BY ${sql.identifier(schemaName)}.${sql.identifier(getTableConfig(copilotAsyncToolCalls).name)}.${sql.identifier(copilotAsyncToolCalls.persistSeq.name)}`
+      )
       await db.execute(
         sql`ALTER TABLE workflow_execution_snapshots ALTER COLUMN created_at SET DEFAULT now()`
       )
@@ -1274,7 +1297,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
     })
     afterAll(async () => {
-      postExecution.mockRestore()
+      postExecution?.mockRestore()
       controlServer?.closeAllConnections()
       if (controlServer) await new Promise<void>((resolve) => controlServer.close(() => resolve()))
       try {
@@ -1290,7 +1313,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.requests.length = 0
       fixture.errors.length = 0
       fixture.storageReads.length = 0
-      vi.clearAllMocks()
     })
 
     const admissionPrincipal = {
@@ -1738,7 +1760,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         status: 'running',
       })
       const owner = { runId, toolCallId, ownerToken, userId: 'run-reader' }
-      expect(await claimSimToolExecution(owner)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(owner)).toEqual({ outcome: 'claimed' })
       return { owner, chatId, streamId }
     }
 
@@ -1799,7 +1821,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ).rejects.toThrow('outcome is unknown')
       expect(await revokeExpiredSimToolExecutions(owner)).toHaveLength(1)
       expect(await revokeExpiredSimToolExecutions(owner)).toEqual([])
-      expect(await claimSimToolExecution({ ...owner, ownerToken: generateId() })).toEqual({
+      expect(await claimToolExecution({ ...owner, ownerToken: generateId() })).toEqual({
         outcome: 'existing',
       })
       const saved = await readTool(owner.toolCallId)
@@ -2046,7 +2068,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         })
         expect(await claimWorkflowToolExecution(toolCallId, executionId, 'client')).not.toBeNull()
         expect(
-          await claimSimToolExecution({
+          await claimToolExecution({
             runId,
             toolCallId,
             userId: 'run-reader',
@@ -2120,7 +2142,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ])
       const priorExecutionId = generateId()
       await claimWorkflowToolExecution(priorToolId, priorExecutionId, 'client')
-      await claimSimToolExecution({
+      await claimToolExecution({
         runId,
         toolCallId,
         userId: 'run-reader',
@@ -2163,7 +2185,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       })
       expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
       expect(
-        await claimSimToolExecution({
+        await claimToolExecution({
           runId,
           toolCallId,
           userId: 'run-reader',
@@ -2632,6 +2654,15 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       async (extension) => {
         const name = `shared-${generateId()}.${extension}`
         const chats = [generateId(), generateId()]
+        const emptyChatId = generateId()
+        await db.insert(copilotChats).values(
+          [...chats, emptyChatId].map((id) => ({
+            id,
+            workspaceId,
+            userId: 'run-reader',
+            type: 'mothership' as const,
+          }))
+        )
         const attachmentIds = [generateId(), generateId()]
         const fileIds: string[] = []
         try {
@@ -2667,34 +2698,43 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               .where(eq(workspaceFiles.key, prepared.storedAttachments[0].key))
             fileIds.push(row.id)
           }
-          const read = async (chatId: string) =>
-            executeAgentCliRequest(
-              {
-                invocation:
-                  extension === 'pdf'
-                    ? {
-                        kind: 'augmentation',
-                        name: 'files view',
-                        positionals: [`uploads/${encodeURIComponent(name)}`],
-                        flags: {},
-                      }
-                    : {
-                        kind: 'cli',
-                        argv: ['files', 'read', `uploads/${encodeURIComponent(name)}`],
-                      },
-              },
-              {
-                workspaceId,
-                userId: 'run-reader',
-                chatId,
-                resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
-                  userId: 'run-reader',
-                  workspaceId,
-                }),
-              }
+          const read = async (chatId: string) => {
+            const registry = new ResolvedSecretTraceRegistry([], {
+              userId: 'run-reader',
+              workspaceId,
+            })
+            return observeContentDelivery(
+              createRegistryContentGate({ registry, actorUserId: 'run-reader', workspaceId }),
+              () =>
+                executeAgentCliRequest(
+                  {
+                    invocation:
+                      extension === 'pdf'
+                        ? {
+                            kind: 'augmentation',
+                            name: 'files view',
+                            positionals: [`uploads/${encodeURIComponent(name)}`],
+                            flags: {},
+                          }
+                        : {
+                            kind: 'cli',
+                            argv: ['files', 'read', `uploads/${encodeURIComponent(name)}`],
+                          },
+                  },
+                  {
+                    workspaceId,
+                    userId: 'run-reader',
+                    chatId,
+                    resolvedSecretTraceRegistry: registry,
+                  }
+                )
             )
+          }
           const first = await read(chats[0])
-          expect(first.exitCode, first.stderr).toBe(0)
+          expect(
+            first.exitCode,
+            JSON.stringify({ stderr: first.stderr, errors: fixture.errors })
+          ).toBe(0)
           const second = await read(chats[1])
           expect(second.exitCode, second.stderr).toBe(0)
           if (extension === 'csv') {
@@ -2712,7 +2752,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               )
             }
           }
-          const absent = await read(generateId())
+          const absent = await read(emptyChatId)
           expect(absent.exitCode).not.toBe(0)
           expect(absent.stdout).not.toContain('second')
           expect(absent.observations).toBeUndefined()
@@ -2732,13 +2772,19 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               { workspaceId, reference }
             )
             expect(mediaReference.id).toBe(fileIds[index])
-            const mounts = await resolveInputFiles(
-              context,
-              [{ path: reference, sandboxPath: '/tmp/incoming.csv' }],
-              undefined,
-              undefined,
-              new ResolvedSecretTraceRegistry([], { userId: 'run-reader', workspaceId })
+            const { files: mounts, excluded } = await observeContentDelivery(
+              createRegistryContentGate({
+                registry: new ResolvedSecretTraceRegistry([], {
+                  userId: 'run-reader',
+                  workspaceId,
+                }),
+                actorUserId: 'run-reader',
+                workspaceId,
+              }),
+              () =>
+                resolveInputFiles(context, [{ path: reference, sandboxPath: '/tmp/incoming.csv' }])
             )
+            expect(excluded).toEqual([])
             expect(mounts).toHaveLength(1)
             const mount = mounts[0]
             if (mount.type === 'url') throw new Error('Expected inline mount bytes')

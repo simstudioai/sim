@@ -2,7 +2,6 @@ import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { WhatsAppResponse } from '@/tools/whatsapp/types'
 import { getTrigger } from '@/triggers'
 
 /** Yes/No dropdowns serialize as `'true'`/`'false'` strings; the tools expect booleans. */
@@ -18,13 +17,13 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
  */
 const UPLOAD_FILE_FIELD = ['uploadFile', 'uploadFileRef'] as const
 
-export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
+export const WhatsAppBlock: BlockConfig = {
   type: 'whatsapp',
   name: 'WhatsApp',
   description: 'Send WhatsApp messages',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API. Free-form messages only reach a recipient within 24 hours of their last message to you — outside that window WhatsApp requires a pre-approved template.',
+    'Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API. Free-form messages only reach a recipient within 24 hours of their last message to you — outside that window WhatsApp requires a pre-approved template.',
   docsLink: 'https://docs.sim.ai/integrations/whatsapp',
   category: 'tools',
   integrationType: IntegrationType.Communication,

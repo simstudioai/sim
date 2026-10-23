@@ -23,17 +23,17 @@ import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/core/events'
 import { mapThinkingLevel } from '@/executor/handlers/pi/core/keys'
 import {
+  createScrubbedPiError,
+  getScrubbedPiErrorMessage,
+  scrubPiEvent,
+} from '@/executor/handlers/pi/core/redaction'
+import {
   createPiModelRuntime,
   loadPiSdk,
   type PiSdk,
   resolvePiSdkModel,
   toPiTool,
-} from '@/executor/handlers/pi/core/pi-sdk'
-import {
-  createScrubbedPiError,
-  getScrubbedPiErrorMessage,
-  scrubPiEvent,
-} from '@/executor/handlers/pi/core/redaction'
+} from '@/executor/handlers/pi/core/sdk'
 import {
   buildSshToolSpecs,
   captureRepoChanges,
@@ -93,6 +93,7 @@ async function runLocalAgent(
       noTools: 'builtin',
       customTools,
       modelRuntime,
+      settingsManager: sdk.SettingsManager.inMemory({ cacheWarming: 'off' }),
       sessionManager: sdk.SessionManager.inMemory(isolatedDir),
     })
 

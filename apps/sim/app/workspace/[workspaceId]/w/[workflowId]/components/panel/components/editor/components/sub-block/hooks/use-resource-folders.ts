@@ -26,7 +26,7 @@ export interface ResourceFolder {
 
 export interface UseResourceFoldersResult {
   folders: ResourceFolder[]
-  /** Canonical path keyed by folder id, for resolving a stored value back to a row. */
+  /** Folders keyed by canonical path, for resolving a stored value back to a row. */
   byPath: Map<string, ResourceFolder>
   isLoading: boolean
   isPlaceholderData: boolean
@@ -84,13 +84,12 @@ export function useResourceFolders(
     WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )
 
-  const rows = useMemo<WorkflowFolder[]>(() => {
+  const rows = useMemo<Omit<WorkflowFolder, 'userId'>[]>(() => {
     if (isFileResource) {
       return (files.data ?? []).map((folder) => ({
         id: folder.id,
         resourceType: 'file' as const,
         name: folder.name,
-        userId: folder.userId,
         workspaceId: folder.workspaceId,
         parentId: folder.parentId,
         locked: false,
@@ -103,7 +102,7 @@ export function useResourceFolders(
     return generic.data ?? []
   }, [isFileResource, files.data, generic.data])
 
-  return useMemo(() => {
+  const { folders, byPath } = useMemo(() => {
     const byId = new Map(rows.map((row) => [row.id, row]))
     const folders: ResourceFolder[] = []
     for (const row of rows) {
@@ -127,17 +126,27 @@ export function useResourceFolders(
       })
     }
     folders.sort((a, b) => a.path.localeCompare(b.path))
+    return { folders, byPath: new Map(folders.map((folder) => [folder.path, folder])) }
+  }, [rows])
 
-    const query = isFileResource ? files : generic
-    return {
+  const {
+    isLoading,
+    isPlaceholderData,
+    error: queryError,
+    refetch: refetchQuery,
+  } = isFileResource ? files : generic
+
+  return useMemo(
+    () => ({
       folders,
-      byPath: new Map(folders.map((folder) => [folder.path, folder])),
-      isLoading: query.isLoading,
-      isPlaceholderData: query.isPlaceholderData,
-      error: query.error ? getErrorMessage(query.error, 'Failed to load folders') : null,
+      byPath,
+      isLoading,
+      isPlaceholderData,
+      error: queryError ? getErrorMessage(queryError, 'Failed to load folders') : null,
       refetch: () => {
-        void query.refetch()
+        void refetchQuery()
       },
-    }
-  }, [rows, isFileResource, files, generic])
+    }),
+    [folders, byPath, isLoading, isPlaceholderData, queryError, refetchQuery]
+  )
 }

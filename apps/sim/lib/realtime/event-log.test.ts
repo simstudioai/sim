@@ -1,16 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockEnv, mockRedisClient } = vi.hoisted(() => ({
-  mockRedisClient: { current: null as { eval: ReturnType<typeof vi.fn> } | null },
-  mockEnv: {
-    REDIS_URL: undefined as string | undefined,
-    REDIS_TLS_SERVERNAME: undefined as string | undefined,
-  },
-}))
-
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => mockRedisClient.current }))
-
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   appendEvent,
   type EventLogConfig,
@@ -41,11 +30,11 @@ function serializerFor(streamId: string, value: string) {
   }
 }
 
+afterAll(resetEnvMock)
+
 describe('event-log (memory fallback)', () => {
   beforeEach(() => {
-    mockEnv.REDIS_URL = undefined
-    mockEnv.REDIS_TLS_SERVERNAME = undefined
-    mockRedisClient.current = null
+    setEnv({ REDIS_URL: undefined, REDIS_TLS_SERVERNAME: undefined })
     resetEventLogMemoryForTesting()
   })
 
@@ -77,7 +66,7 @@ describe('event-log (memory fallback)', () => {
   })
 
   it('does not use memory when Redis is selected but its client is unavailable', async () => {
-    mockEnv.REDIS_URL = 'redis://localhost:6379'
+    setEnv({ REDIS_URL: 'redis://localhost:6379' })
 
     await expect(appendEvent(config, 's1', serializerFor('s1', 'a'))).resolves.toBeNull()
     await expect(readEventsSince<TestEntry>(config, 's1', 0)).resolves.toEqual({
@@ -87,7 +76,7 @@ describe('event-log (memory fallback)', () => {
   })
 
   it('fails fast instead of using memory for an invalid Redis configuration', async () => {
-    mockEnv.REDIS_URL = 'https://cache.example.com'
+    setEnv({ REDIS_URL: 'https://cache.example.com' })
 
     await expect(appendEvent(config, 's1', serializerFor('s1', 'a'))).rejects.toThrow(
       /valid redis:\/\/ or rediss:\/\/ URL/
@@ -97,9 +86,7 @@ describe('event-log (memory fallback)', () => {
 
 describe('event-log byte ceiling', () => {
   beforeEach(() => {
-    mockEnv.REDIS_URL = undefined
-    mockEnv.REDIS_TLS_SERVERNAME = undefined
-    mockRedisClient.current = null
+    setEnv({ REDIS_URL: undefined, REDIS_TLS_SERVERNAME: undefined })
     resetEventLogMemoryForTesting()
   })
 

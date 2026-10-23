@@ -3,15 +3,13 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
 
-export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
+export const GoogleContactsBlock: BlockConfig = {
   type: 'google_contacts',
   name: 'Google Contacts',
   description: 'Manage Google Contacts',
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.',
+  longDescription: 'Create, read, update, delete, list, and search contacts.',
   docsLink: 'https://docs.sim.ai/integrations/google_contacts',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

@@ -6,6 +6,7 @@ import {
   definePreparedSelectorAttachment,
   detailSelectorResult,
   listSelectorResult,
+  nestedSelectorPrincipal,
 } from '@/lib/selectors/server/types'
 
 /** The existing MCP use case binds the destination and credentials to an authorized server. */
@@ -25,7 +26,12 @@ export const mcpSelectorAttachments = {
           if (!isManagedMcpConnectionId(serverId))
             throw new OrchestrationError('validation', 'Invalid managed MCP connection ID')
           return discoverManagedMcpToolsUseCase.execute({
-            principal: args.principal,
+            principal: nestedSelectorPrincipal(
+              args.principal,
+              args.workspaceId,
+              discoverManagedMcpToolsUseCase,
+              { credentialId: serverId }
+            ),
             input: {
               workspaceId: args.workspaceId,
               credentialId: serverId,
@@ -34,7 +40,12 @@ export const mcpSelectorAttachments = {
           })
         }
         return discoverMcpServerToolsUseCase.execute({
-          principal: args.principal,
+          principal: nestedSelectorPrincipal(
+            args.principal,
+            args.workspaceId,
+            discoverMcpServerToolsUseCase,
+            { mcpServerId: serverId }
+          ),
           input: {
             workspaceId: args.workspaceId,
             serverId,

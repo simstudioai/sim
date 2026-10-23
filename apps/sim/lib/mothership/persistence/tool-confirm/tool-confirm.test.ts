@@ -1,16 +1,12 @@
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { getAsyncToolCalls, revokeExpiredSimToolExecutions } = vi.hoisted(() => ({
-  getAsyncToolCalls: vi.fn(),
-  revokeExpiredSimToolExecutions: vi.fn(),
-}))
 
 const channelHandlers = new Set<(event: any) => void>()
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCalls,
-  revokeExpiredSimToolExecutions,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/events/pubsub', () => ({
   createPubSubChannel: () => ({
@@ -32,6 +28,11 @@ import {
   publishToolConfirmation,
   waitForToolConfirmation,
 } from '@/lib/mothership/persistence/tool-confirm'
+
+const {
+  mockGetAsyncToolCalls: getAsyncToolCalls,
+  mockRevokeExpiredSimToolExecutions: revokeExpiredSimToolExecutions,
+} = mothershipAsyncRunsMockFns
 
 describe('copilot orchestrator persistence', () => {
   let row: {
@@ -307,7 +308,10 @@ describe('copilot orchestrator persistence', () => {
       })
       await vi.advanceTimersByTimeAsync(5_000)
       expect(await waiting).toMatchObject({ status: 'error', message: 'Outcome unknown' })
-      expect(revokeExpiredSimToolExecutions).toHaveBeenCalledWith(scope)
+      expect(revokeExpiredSimToolExecutions).toHaveBeenCalledWith({
+        ...scope,
+        toolCallId: 'tool-1',
+      })
     } finally {
       vi.useRealTimers()
     }

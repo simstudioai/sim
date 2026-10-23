@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Chip } from '@sim/emcn'
-import { signOut } from '@/lib/auth/auth-client'
+import { signOut } from '@/lib/auth/client'
 
 interface SwitchAccountProps {
   /** Where to return once the right account is signed in. */

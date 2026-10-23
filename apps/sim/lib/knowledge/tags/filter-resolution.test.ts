@@ -1,18 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockGetDocumentTagDefinitions, mockGetDocumentTagDefinitionsBatch } = vi.hoisted(() => ({
-  mockGetDocumentTagDefinitions: vi.fn(),
-  mockGetDocumentTagDefinitionsBatch: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitionsByKnowledgeBaseIds: mockGetDocumentTagDefinitionsBatch,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 import {
   resolveKnowledgeTagFilters,
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
+
+const mockGetDocumentTagDefinitions = knowledgeTagsServiceMockFns.mockGetDocumentTagDefinitions
 
 const CREATED_AT = new Date('2025-01-10T09:00:00Z')
 
@@ -34,15 +33,6 @@ function definition(
 }
 
 describe('resolveKnowledgeTagFilters', () => {
-  beforeEach(() => {
-    mockGetDocumentTagDefinitionsBatch.mockImplementation(
-      async (ids: string[]) =>
-        new Map(
-          await Promise.all(ids.map(async (id) => [id, await mockGetDocumentTagDefinitions(id)]))
-        )
-    )
-  })
-
   it('rejects a tag name the knowledge base does not define instead of ignoring it', async () => {
     mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
 

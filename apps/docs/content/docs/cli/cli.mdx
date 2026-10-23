@@ -1,0 +1,35 @@
+---
+title: Command search
+description: Find a command by describing the task you want to perform.
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Find a command by describing the task you want to perform.
+
+These commands accept the [global options](/cli/commands#global-options).
+
+## Find commands for a task [#find-the-command-for-a-task-described-in-plain-words]
+
+```bash
+sim cli search <query...>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `query...` | Yes | What you want to do, e.g. "cancel a workflow run" |
+
+</CommandTable>
+
+Ranks the commands this CLI ships, locally; your query is never sent anywhere. Returns the 5 best matches. Run `<command> --help` on one for its flags.
+
+**Examples**
+
+```bash
+sim cli search "cancel a running workflow"
+sim cli search list table rows
+```

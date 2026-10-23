@@ -1,0 +1,61 @@
+---
+title: Zoom
+description: Find past meetings and read available transcripts, notes, and summaries
+---
+
+When Zoom Search is enabled for your organization, connect your own account to find past meetings and read available artifacts. It uses **Member accounts** and the official Zoom Meetings MCP server, separately from workflow OAuth connections.
+
+## Connect
+
+Zoom Search requires deployment enablement and organization access before setup or retrieval is available. Ask your admin about availability if Zoom is missing.
+
+1. An admin adds **Zoom → Member accounts** in **Settings → Sources**.
+2. Each person selects **Integrations → Zoom → Connect**, signs in, and authorizes the read permissions. Zoom account-admin approval may be needed.
+3. Return to Sim, confirm the account appears, and search a known meeting. Read the result and follow its source link.
+
+A workflow Zoom connection does not authorize Search. Its dedicated app registration prevents Search reauthorization from replacing or narrowing a workflow app's grant.
+
+## Search and read meetings
+
+Ask Sim on **Home**: “Search Zoom for deployment rollback decisions last week and cite the transcript.” Use short plain keywords such as `deployment rollback`. Zoom matches topics, agendas, and available meeting content.
+
+Results identify past occurrences by UUID rather than recurring meeting number. Use native kind `meeting` when sending multiple queries to one account. `startDate` and `endDate` use actual start time, with an exclusive end. Continue `nextCursor` with the same account, query, and filters; rerun an expired continuation. [Zoom's Meetings API](https://developers.zoom.us/docs/api/meetings/) documents a 15-minute page-token lifetime; restart Search if the MCP continuation expires.
+
+Each page verifies at most ten candidates. Sorting that page does not establish the globally newest or oldest match. Boolean/field operators, project selection, ownership, and modification-date filters are unsupported.
+
+Reads return available timestamped transcripts, personal notes, and separately labeled AI summaries. Notes and summaries are not verbatim speech. Sim does not download recordings or transcribe audio. Recording, transcription, AI Companion settings, licenses, processing state, and sharing permissions determine which artifacts exist.
+
+Missing artifacts do not prove a discussion never happened. Oversized or malformed reads fail explicitly; provider failures do not appear as complete searches with no matches.
+
+## Self-hosted operator setup
+
+Zoom Search is disabled by default. Enable it with `ZOOM_SEARCH=true` for otherwise eligible organization scopes on a self-hosted deployment. Organization-targeted deployments can use the `zoom-search` AppConfig feature flag instead. Availability does not grant membership or provider access. Disabling the rollout blocks later Search setup and retrieval while retaining saved grants and conversations; members can still disconnect.
+
+Configure a separate General, User-managed Search app with `ZOOM_MCP_CLIENT_ID` and `ZOOM_MCP_CLIENT_SECRET`. Enable `meeting:read:search` and `meeting:read:assets`. Register this exact callback in both the redirect field and OAuth allow list:
+
+```text
+https://<your-sim-domain>/api/mcp/oauth/callback
+```
+
+An internal app supports only its Zoom account. Other accounts require approved external distribution, including unlisted production apps; beta sharing has a separate approval process. Follow [Zoom's MCP app setup](https://developers.zoom.us/docs/mcp/servers/connect-to-zoom-mcp-servers/), [production distribution](https://developers.zoom.us/docs/build-flow/before-you-build/), and [beta sharing guidance](https://developers.zoom.us/docs/distribute/sharing-private-and-beta-apps/).
+
+The connection uses PKCE and `client_secret_basic`. Sim requests only those two read scopes and permits `search_meetings` and `get_meeting_assets`, even if discovery includes writes. Its fixed endpoint is `https://mcp.zoom.us/mcp/meeting/streamable`.
+
+## Disconnect and troubleshoot
+
+In **Integrations**, open Zoom's **…** menu, select **Disconnect** for the account, and confirm. This stops use in the organization. Workflows using that same connection lose access; other members' connections are unaffected.
+
+To remove Zoom authorization too, open **Zoom App Marketplace → My Library**, find the Search app, and select **More → Remove**. Account admins may control removal. Disconnecting does not delete meetings/recordings or existing Sim conversations. [Zoom removal instructions](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0062865).
+
+| Problem | Check |
+| --- | --- |
+| Connect unavailable | Check organization enablement, source setup, dedicated OAuth app, and Zoom app approval. |
+| **Reconnect** needed | Authorize the same account again. |
+| Meeting or text missing | Check Zoom access, topic/dates, recording/transcript/summary settings, and processing state. |
+| Expired cursor or changed content | Search again before continuing. |
+
+## Related docs
+
+- [Zoom Meetings MCP server](https://developers.zoom.us/docs/mcp/zoom-meetings-mcp-server/)
+- [Sim Privacy Policy](https://www.sim.ai/privacy) — data handling and deletion requests
+- [Contact support](mailto:help@sim.ai)

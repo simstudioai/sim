@@ -13,11 +13,8 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockWorkflowCreated } = vi.hoisted(() => ({
-  mockWorkflowCreated: vi.fn(),
-}))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
@@ -27,11 +24,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: {
-    workflowCreated: (...args: unknown[]) => mockWorkflowCreated(...args),
-  },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: vi.fn().mockReturnValue({
@@ -52,6 +45,9 @@ describe('Workflows API Route - POST ordering', () => {
 
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      { archivedAt: null, forkSyncNewWorkflowsExcluded: false },
+    ])
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('workflow-new-id'),

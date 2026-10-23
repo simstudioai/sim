@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { env, envNumber } from '@/lib/core/config/env'
 import type { ConversationUsageTotal } from '@/lib/memory/conversation-types'
-import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { StreamingExecution } from '@/executor/types'
 import {
@@ -35,8 +35,9 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
-import { isEvaluationModel, isKnownModelId } from '@/providers/models'
+import { isEvaluationModel, isKnownModelId, supportsTemperature } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
+import { addSettledCost, recordJournaledModelCost } from '@/providers/run-usage-limit'
 import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
@@ -54,7 +55,6 @@ import {
   sumToolCosts,
   supportsPromptCaching,
   supportsReasoningEffort,
-  supportsTemperature,
   supportsThinking,
   supportsVerbosity,
 } from '@/providers/utils'
@@ -132,18 +132,14 @@ async function prepareProviderFileAttachments(request: ProviderRequest): Promise
   }
 }
 
-/** Round trips an Agent block's tool loop takes before it is forced to answer. */
-const DEFAULT_MAX_TOOL_ITERATIONS = 20
-
 /**
- * Maximum number of iterations for tool call loops to prevent infinite loops.
- * Used across all providers that support tool/function calling.
- *
- * Self-hosted deployments that need longer agent runs raise it with the
- * `MAX_TOOL_ITERATIONS` env var; a value that is not a positive integer falls
- * back to {@link DEFAULT_MAX_TOOL_ITERATIONS}.
+ * Maximum model round trips in an Agent block's tool-call loop. Unbounded by
+ * default: the loop runs until the model stops calling tools, bounded only by
+ * the execution timeout (none when billing is disabled and no timeout env var is
+ * set) and usage limits. Set the `MAX_TOOL_ITERATIONS` env var to a positive
+ * integer to impose a ceiling; any other value leaves it unbounded.
  */
-export const MAX_TOOL_ITERATIONS = envNumber(env.MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS, {
+export const MAX_TOOL_ITERATIONS = envNumber(env.MAX_TOOL_ITERATIONS, Number.POSITIVE_INFINITY, {
   min: 1,
   integer: true,
 })
@@ -264,7 +260,8 @@ export async function executeProviderRequest(
         providerId,
         request.model,
         request.workspaceId,
-        request.apiKey
+        request.apiKey,
+        request.abortSignal
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK
@@ -298,6 +295,8 @@ export async function executeProviderRequest(
   const modelSafeRequest = await prepareProviderFileAttachments(sanitizedRequest)
   const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
   const failedFunctionToolCost = { total: 0 }
+  // A conversation summary charges its parent request, so a stop after compaction bills it.
+  const settledCost = runtimeContext?.settledCost ?? { input: 0, output: 0, total: 0 }
   const requestRuntimeContext: ProviderRuntimeContext = {
     ...runtimeContext,
     ...(runtimeContext?.agentConversation
@@ -309,6 +308,7 @@ export async function executeProviderRequest(
         }
       : {}),
     failedFunctionToolCost,
+    settledCost,
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
           toolIdByWireId: new Map([
@@ -347,12 +347,19 @@ export async function executeProviderRequest(
       for (const registry of replayRegistries) {
         if (registry) await session.restoreProvenance?.(registry)
       }
+      // A continued call's cost is journaled, so the usage read below already counts it.
+      const settledBeforeContinuation = settledCost.total
       await continuePendingConversationCalls(modelSafeRequest, session)
+      settledCost.total = settledBeforeContinuation
+      failedFunctionToolCost.total = 0
       const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
         .reverse()
         .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
       priorConversationUsage = session.getUsage()
+      // A stop bills what success would: this journaled usage plus the request's own steps.
+      addSettledCost(settledCost, priorConversationUsage.cost)
+      recordJournaledModelCost(requestRuntimeContext, session.turnId, priorConversationUsage)
       bindConversationGenerationCompactor(
         modelSafeRequest,
         createAgentConversationCompactor(
@@ -363,6 +370,7 @@ export async function executeProviderRequest(
             const summary = await executeProviderRequest(providerId, summaryRequest, {
               resolvedSecretTraceRegistry: requestRuntimeContext.resolvedSecretTraceRegistry,
               executionContext: requestRuntimeContext.executionContext,
+              settledCost,
             })
             if (isStreamingExecution(summary) || isReadableStream(summary))
               throw new Error('Conversation summary did not return a settled response')

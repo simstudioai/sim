@@ -29,12 +29,9 @@ export const DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 100
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 200
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH = 200
 
-/** Maximum source IDs in one viewer-authorized progress request. */
-export const MAX_SEARCH_SOURCE_PROGRESS_ITEMS = 100
 /** Bound viewer-specific source resolution and document counts to a single page. */
 export const SEARCH_SOURCE_PAGE_SIZE = 25
 export const SEARCH_SOURCE_CANDIDATE_PAGE_SIZE = 100
-export const MAX_SEARCH_SOURCE_PROVIDER_TYPES = 100
 
 /**
  * Chunking a knowledge base gets when its creator names no configuration.
@@ -214,3 +211,10 @@ export const MAX_KNOWLEDGE_BUNDLE_DOCUMENTS = 2_000
  * because the processor's largest chunking config emits chunks past 10k.
  */
 export const MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH = 100_000
+/** Bytes an imported `manifest.json` may hold before it is read into memory. */
+export const MAX_KNOWLEDGE_BUNDLE_MANIFEST_BYTES = 64 * 1024 * 1024
+/**
+ * Bytes one imported document's chunk entry may hold, vectors included. The
+ * entry is read whole, as a parsed file's chunks are held whole while indexing.
+ */
+export const MAX_KNOWLEDGE_BUNDLE_CHUNKS_ENTRY_BYTES = 256 * 1024 * 1024

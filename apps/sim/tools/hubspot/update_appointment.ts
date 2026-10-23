@@ -73,7 +73,7 @@ export const hubspotUpdateAppointmentTool: ToolConfig<
       if (typeof properties === 'string') {
         try {
           properties = JSON.parse(properties)
-        } catch (e) {
+        } catch {
           throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
         }
       }

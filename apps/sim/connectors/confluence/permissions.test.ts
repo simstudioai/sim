@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getReadRestriction,
@@ -10,13 +11,6 @@ import {
 
 const mockFetch = vi.fn()
 const CLOUD = 'cloud-1'
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch)

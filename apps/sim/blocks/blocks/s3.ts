@@ -2,7 +2,6 @@ import { S3Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { S3Response } from '@/tools/s3/types'
 
 /**
  * Normalize the batch-delete keys input into a string array. Accepts an array,
@@ -33,13 +32,13 @@ function parseObjectKeys(value: unknown): string[] {
 /** Upload payload: an uploaded file, a referenced file, or inline text. */
 const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
 
-export const S3Block: BlockConfig<S3Response> = {
+export const S3Block: BlockConfig = {
   type: 's3',
   name: 'S3',
   description: 'Upload, download, list, and manage S3 files and buckets',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.',
+    'Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/s3',
   category: 'tools',
   integrationType: IntegrationType.Documents,

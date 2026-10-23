@@ -26,7 +26,7 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -45,7 +45,8 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
+import type { ImageAdmissionState } from '@/lib/knowledge/connectors/image-admission'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   beginListingCheckpoint,
@@ -73,7 +74,10 @@ import {
   tombstoneDocumentsObservedOnlyBy,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
-import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  removeDisabledImages,
+  runConnectorContentPass,
+} from '@/lib/knowledge/connectors/sync-content-pass'
 import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
@@ -85,6 +89,7 @@ import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
+  IMAGES_DEFERRED_NOTICE,
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
   MEMBER_FULL_RECRAWL_MINUTES,
@@ -94,6 +99,7 @@ import {
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
   MEMBER_SYNC_SOFT_BUDGET_SECONDS,
+  noticeRequiresFullListing,
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
@@ -115,11 +121,14 @@ import {
   ConnectorSyncCapacityError,
   classifyListing,
   classifySuspectListing,
+  countLiveConnectorDocuments,
   createSyncRunState,
+  keepsRecordedDocCount,
   loadPageCorpus,
   processDocOps,
   RETRY_WINDOW_DAYS,
   runChangeFeedPass,
+  staleSeen,
   sweepStuckDocuments,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
@@ -136,8 +145,6 @@ import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorMemberSyncEngine')
 
-/** Observers tried, in listing order, before a document's hydration is given up on. */
-const HYDRATION_OBSERVER_ATTEMPTS = 3
 /** A minted token is reused for this long before the member is re-minted. */
 const MEMBER_TOKEN_REUSE_MS = 45 * 60 * 1000
 /** Members whose tokens one run keeps at once; a memory backstop, not a working-set limit. */
@@ -212,6 +219,8 @@ interface MemberListingOutcome {
   resumable: boolean
   suspect: boolean
   contentFailures: boolean
+  /** Images this listing held back for the per-sync cap; the next listing must be full to offer them again. */
+  imagesDeferred: boolean
   /** Cursor to store when this outcome lands: a value, null to close the feed, undefined to leave it. */
   changeCursor: string | null | undefined
   checkpoint?: ListingCheckpoint
@@ -1330,7 +1339,7 @@ async function listForMember(input: {
     (!feed && !connectorConfig.supportsIncrementalSync) ||
     connectorConfig.supportsChangeFeed?.(sourceConfig) === false ||
     Boolean(member.listingCheckpoint) ||
-    member.lastError === SOURCE_CONTENT_ERROR ||
+    noticeRequiresFullListing(member.lastError) ||
     input.forceFull === true ||
     shouldListFully(
       member.memberSyncedThrough,
@@ -1580,7 +1589,11 @@ async function applyMemberListing(
       .update(knowledgeConnectorMember)
       .set({
         consecutiveFailures: 0,
-        lastError: outcome.contentFailures ? SOURCE_CONTENT_ERROR : null,
+        lastError: outcome.contentFailures
+          ? SOURCE_CONTENT_ERROR
+          : outcome.imagesDeferred
+            ? IMAGES_DEFERRED_NOTICE
+            : null,
         ...(outcome.mode === 'full' &&
         (!outcome.checkpoint || (outcome.checkpoint.complete && !outcome.checkpoint.unsafe))
           ? { lastListedCount: outcome.listedCount }
@@ -1692,21 +1705,17 @@ async function syncDedicatedMemberContent(input: {
   })
   run.result.docsHydratedOnce = pass.hydratedCount
   const incompleteListing =
-    !pass.complete || pass.checkpoint.unsafe || pass.checkpoint.contentFailures
-  if (pass.checkpoint.contentFailures) run.result.listingIncomplete = true
+    !pass.complete ||
+    pass.checkpoint.unsafe ||
+    pass.checkpoint.contentFailures ||
+    pass.checkpoint.imagesDeferred
+  if (pass.checkpoint.contentFailures || pass.checkpoint.imagesDeferred)
+    run.result.listingIncomplete = true
   const contentNotice = pass.holdNotice
   /** Counted before the lease transaction: a scan of the whole connector never holds its row. */
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, run.connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
+  const count = keepsRecordedDocCount(pass.complete, connector)
+    ? null
+    : await countLiveConnectorDocuments(run.connectorId)
   await withMemberLease(run, async (tx) => {
     const now = new Date()
     await tx.insert(knowledgeConnectorSyncLog).values({
@@ -1731,13 +1740,16 @@ async function syncDedicatedMemberContent(input: {
           ? { lastSyncAt: new Date(pass.checkpoint.startedAt) }
           : {}),
         ...(pass.complete ? { listingCheckpoint: null } : {}),
-        lastSyncDocCount: count,
+        ...(count === null ? {} : { lastSyncDocCount: count }),
         lastSyncError: contentNotice,
         updatedAt: now,
       })
       .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
   })
-  return { complete: pass.complete }
+  return {
+    complete: pass.complete,
+    imageExtractionsAdmitted: pass.checkpoint.imageExtractionsAdmitted,
+  }
 }
 
 async function completeMemberSync(
@@ -2195,7 +2207,7 @@ export async function executeMemberSync(
               kbOwner,
               billingAttribution,
             })
-          : { complete: true }
+          : { complete: true, imageExtractionsAdmitted: 0 }
         : undefined
       /**
        * Anyone who joined the workspace since the last run is invited now, so
@@ -2245,6 +2257,30 @@ export async function executeMemberSync(
         sourceConfig,
       })
 
+      /** A content pass that ran already removed disabled images; otherwise it happens here. */
+      let imageRemovalFinished = true
+      if (!(connector.credentialId && contentDue)) {
+        const deletedBefore = result.docsDeleted
+        imageRemovalFinished = await removeDisabledImages({
+          connectorId,
+          connector,
+          lease: run.lease,
+          leaseKind: 'member',
+          runId,
+          deadlineAt: run.deadlineAt,
+          result,
+        })
+        /** Image removals are purges too, so the run log counts them with the lifecycle's. */
+        result.docsPurged += result.docsDeleted - deletedBefore
+      }
+      /**
+       * One image budget for the whole run, not one per member listing, seeded by what
+       * the service-account pass already read.
+       */
+      const imageAdmission: ImageAdmissionState = {
+        imageExtractionsAdmitted: serviceContent?.imageExtractionsAdmitted ?? 0,
+        imagesDeferred: false,
+      }
       while (Date.now() < run.deadlineAt) {
         const member = await claimNextMember(run)
         if (!member) break
@@ -2257,6 +2293,8 @@ export async function executeMemberSync(
           ...PER_MEMBER_LISTING_CONTEXT,
         }
         let contentFailures = false
+        let imagesDeferred = false
+        imageAdmission.imagesDeferred = false
         const processPage = async (
           documents: ExternalDocument[],
           checkpoint: ListingCheckpoint,
@@ -2301,7 +2339,13 @@ export async function executeMemberSync(
                   await tx
                     .update(document)
                     .set({ sourceSeenAt: run.runStartedAt })
-                    .where(and(eq(document.connectorId, connectorId), inArray(document.id, page)))
+                    .where(
+                      and(
+                        eq(document.connectorId, connectorId),
+                        inArray(document.id, page),
+                        staleSeen(run.runStartedAt)
+                      )
+                    )
                 }
               })
             }
@@ -2395,11 +2439,17 @@ export async function executeMemberSync(
               lease: run.lease,
               documentAccess: 'members',
               deadlineAt: durableCheckpoint ? run.deadlineAt : undefined,
-              onBatchComplete: async (attempted) => {
+              imageAdmission,
+              onBatchComplete: async (attempted, heldBackExisting) => {
                 result.docsHydratedOnce += attempted.filter((item) => item.contentDeferred).length
-                await persistAttempted(attempted)
+                await persistAttempted([...attempted, ...heldBackExisting])
               },
             })
+            if (imageAdmission.imagesDeferred) {
+              checkpoint.imagesDeferred = true
+              imagesDeferred = true
+              result.listingIncomplete = true
+            }
             if (rejectedCredentialError) throw rejectedCredentialError
             if (!finished) return false
           } else {
@@ -2467,6 +2517,8 @@ export async function executeMemberSync(
            */
           contentFailures:
             contentFailures || (!listed.resumable && Boolean(listed.checkpoint?.contentFailures)),
+          imagesDeferred:
+            imagesDeferred || (!listed.resumable && Boolean(listed.checkpoint?.imagesDeferred)),
           changeCursor: suspect ? undefined : listed.changeCursor,
           checkpoint: listed.checkpoint,
           observationRunId: listed.observationRunId,
@@ -2513,8 +2565,8 @@ export async function executeMemberSync(
         })
         result.docsTombstoned += lifecycle.tombstoned
         result.docsResurrected += lifecycle.resurrected
-        result.docsPurged = lifecycle.purged
-        result.docsDeleted = lifecycle.purged
+        result.docsPurged += lifecycle.purged
+        result.docsDeleted += lifecycle.purged
         result.membersRemaining = !lifecycle.finished
       }
 
@@ -2531,6 +2583,7 @@ export async function executeMemberSync(
       result.membersRemaining =
         result.membersRemaining ||
         serviceContent?.complete === false ||
+        !imageRemovalFinished ||
         (await countDueMembers(run, binding)) > 0
       const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
       if (!landed) {

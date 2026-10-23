@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
 const { mockRedis, values } = vi.hoisted(() => {
@@ -20,18 +21,7 @@ const { mockRedis, values } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: vi.fn(() => mockRedis),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
-  })),
-  decryptSecret: vi.fn(async (value: string) => ({
-    decrypted: Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
-  })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -41,14 +31,17 @@ import {
   isCredentialGroupOAuthState,
 } from '@/lib/credential-groups/oauth-state'
 
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
+}))
+
 describe('credential group OAuth state', () => {
   beforeEach(() => {
     values.clear()
     vi.mocked(getRedisClient).mockReturnValue(mockRedis as never)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('stores encrypted attempt material and consumes state once', async () => {
@@ -184,7 +177,6 @@ describe('organization enrollment OAuth state', () => {
   }
   beforeEach(() => {
     values.clear()
-    vi.clearAllMocks()
     vi.mocked(getRedisClient).mockReturnValue(mockRedis as never)
   })
   it('round trips explicit organization ownership and preserves the setup return destination', async () => {

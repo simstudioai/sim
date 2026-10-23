@@ -4,12 +4,15 @@ import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
-import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import {
+  type CopilotRouteUseCase,
+  copilotRequestPrincipal,
+  isCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
-import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -80,17 +83,19 @@ export const v2ApiKeyAuth = {
 
 export interface V2RateLimitPolicy {
   readonly kind: 'public_api'
+  /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
     auth: V2ApiKeyAuthContext,
-    operation: ApplicationOperation
+    operation: ApplicationOperation,
+    cost?: number
   ): Promise<NextResponse | null>
 }
 
 export const v2RateLimits = {
   publicApi: {
     kind: 'public_api',
-    async enforce(request, auth, operation) {
+    async enforce(request, auth, operation, cost = 1) {
       const plan = (auth.rateLimitSubscription?.plan ?? 'free') as SubscriptionPlan
       const config = getRateLimit(plan, 'api-endpoint')
       const buckets = await Promise.all(
@@ -98,7 +103,8 @@ export const v2RateLimits = {
           try {
             return await rateLimiter.checkRateLimitDirectOrThrow(
               `v2:${operation.id}:${subjectId}`,
-              config
+              config,
+              cost
             )
           } catch (error) {
             throw new V2RouteInfrastructureError('rate_limit', error)
@@ -358,12 +364,7 @@ async function admitAuthenticatedV2Request(
     throw error
   }
 
-  // The server's own requests (embedded CLI, agent-cli engines) are authenticated like
-  // any other but never rate limited: the buckets exist for callers on the wire, and a
-  // chat turn's tool calls all land on one key. See `internal-request.ts`.
-  const limited = isInternalRequest(request)
-    ? null
-    : await rateLimitPolicy.enforce(request, auth, operation)
+  const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
@@ -374,11 +375,6 @@ type V2AdmissionAuth =
       keyType?: undefined
       keyExpiresAt?: undefined
     }
-
-type CopilotRouteUseCase = Pick<
-  OperationUseCase<ApplicationOperation, unknown, unknown>,
-  'operation' | 'delegationAudience'
->
 
 async function admitRateLimitedV2Request(
   request: NextRequest,
@@ -397,7 +393,7 @@ async function admitRateLimitedV2Request(
     setRequestAuth(describePrincipalAuth(principal))
     return { success: true, auth: { principal } }
   }
-  const preAuthResponse = isInternalRequest(request) ? null : await enforceV2PreAuthIpLimit(request)
+  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
@@ -437,7 +433,7 @@ export async function admitOptionalV2Request(
 ): Promise<{ success: true; auth?: V2AdmissionAuth } | { success: false; response: NextResponse }> {
   if (isCopilotRequest(request))
     return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, useCase)
-  const preAuthResponse = isInternalRequest(request) ? null : await enforceV2PreAuthIpLimit(request)
+  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   if (!hasV2Credential(request.headers)) return { success: true }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)

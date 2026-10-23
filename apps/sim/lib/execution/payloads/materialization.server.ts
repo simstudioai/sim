@@ -21,14 +21,14 @@ import {
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { StorageContext } from '@/lib/uploads'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   bufferToBase64,
   inferContextFromKey,
   isGeneratedDocumentSourceType,
   isPublicStorageContext,
-} from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import {
   readStoredWorkspaceFileRecordByKey,
@@ -343,7 +343,7 @@ export async function assertUserFileContentAccess(
     context === 'knowledge-base' && options.principal
       ? createKnowledgeAccessProvider(options.principal, { workspaceId: options.workspaceId })
       : undefined
-  const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, false, {
+  const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, {
     knowledgeAccess,
   })
   if (!hasAccess) {

@@ -14,6 +14,7 @@ export const DESTINATION_TYPES = [
   's3',
   'gcs',
   'azure_blob',
+  'sentinel',
   'datadog',
   'bigquery',
   'snowflake',
@@ -84,6 +85,8 @@ interface DrainDeliverySession {
     contentType: 'application/x-ndjson'
     metadata: DeliveryMetadata
     signal: AbortSignal
+    /** Checkpoints the next rowCount rows after a provider accepts them, before sending more. */
+    acknowledge?: (result: DeliveryResult & { rowCount: number }) => Promise<void>
   }): Promise<DeliveryResult>
   close(): Promise<void>
 }

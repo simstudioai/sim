@@ -1,6 +1,7 @@
 import { AuditResourceType } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
 import { parseUnorderedList } from '@/lib/api/cursor-binding'
@@ -70,8 +71,7 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   if (params.actorEmail) conditions.push(eq(auditLog.actorEmail, params.actorEmail))
 
   if (params.search) {
-    const escaped = params.search.replace(/[%_\\]/g, '\\$&')
-    const searchTerm = `%${escaped}%`
+    const searchTerm = `%${escapeLikePattern(params.search)}%`
     conditions.push(
       or(
         ilike(auditLog.action, searchTerm),
@@ -100,7 +100,7 @@ export async function getOrgWorkspaceIds(organizationId: string): Promise<string
 
 export interface OrgScopeParams {
   organizationId: string
-  orgWorkspaceIds: string[]
+  orgWorkspaceIds?: string[]
   orgMemberIds: string[]
   includeDeparted: boolean
 }
@@ -120,10 +120,15 @@ export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
     )
   )!
 
-  const orgScope =
-    orgWorkspaceIds.length > 0
-      ? or(inArray(auditLog.workspaceId, orgWorkspaceIds), orgLevelCondition)!
-      : orgLevelCondition
+  const workspaceCondition =
+    orgWorkspaceIds === undefined
+      ? sql`exists (select 1 from ${workspace} where ${workspace.id} = ${auditLog.workspaceId} and ${workspace.organizationId} = ${organizationId})`
+      : orgWorkspaceIds.length > 0
+        ? inArray(auditLog.workspaceId, orgWorkspaceIds)
+        : undefined
+  const orgScope = workspaceCondition
+    ? or(workspaceCondition, orgLevelCondition)!
+    : orgLevelCondition
 
   if (includeDeparted) return orgScope
 
@@ -139,22 +144,29 @@ function buildCursorCondition(cursor: string): SQL<unknown> | null {
   const cursorData = decodeAuditLogCursor(cursor)
   if (!cursorData) return null
   const cursorDate = new Date(cursorData.createdAt)
+  const cursorTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
 
   return or(
-    lt(auditLog.createdAt, cursorDate),
-    and(eq(auditLog.createdAt, cursorDate), lt(auditLog.id, cursorData.id))
+    lt(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
+    and(
+      eq(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
+      lt(auditLog.id, cursorData.id)
+    )
   )!
 }
 
 interface CursorPaginatedResult {
   data: DbAuditLog[]
   nextCursor?: string
+  truncated?: boolean
 }
 
+/** An optional byte budget bounds each database page before hydration and stops at oversized rows. */
 export async function queryAuditLogs(
   conditions: SQL<unknown>[],
   limit: number,
-  cursor?: string
+  cursor?: string,
+  maxBytes?: number
 ): Promise<CursorPaginatedResult> {
   const allConditions = [...conditions]
   if (cursor) {
@@ -162,11 +174,60 @@ export async function queryAuditLogs(
     if (cursorCondition) allConditions.push(cursorCondition)
   }
 
+  const condition = allConditions.length > 0 ? and(...allConditions) : undefined
+  const orderBy = [desc(sql`date_trunc('milliseconds', ${auditLog.createdAt})`), desc(auditLog.id)]
+  if (maxBytes !== undefined) {
+    return dbReplica.transaction(
+      async (tx) => {
+        const candidates = await tx
+          .select({
+            id: auditLog.id,
+            bytes: sql<number>`octet_length(row_to_json(${auditLog})::text)`.mapWith(Number),
+          })
+          .from(auditLog)
+          .where(condition)
+          .orderBy(...orderBy)
+          .limit(limit + 1)
+        const ids: string[] = []
+        let bytes = 0
+        let truncated = false
+        for (const candidate of candidates.slice(0, limit)) {
+          if (candidate.bytes > maxBytes) {
+            truncated = true
+            break
+          }
+          if (bytes + candidate.bytes > maxBytes) break
+          ids.push(candidate.id)
+          bytes += candidate.bytes
+        }
+        const data =
+          ids.length > 0
+            ? await tx
+                .select()
+                .from(auditLog)
+                .where(inArray(auditLog.id, ids))
+                .orderBy(...orderBy)
+                .limit(limit)
+            : []
+        const last = data.at(-1)
+        return {
+          data,
+          truncated,
+          nextCursor:
+            candidates.length > data.length && last
+              ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
+              : undefined,
+        }
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' }
+    )
+  }
+
   const rows = await dbReplica
     .select()
     .from(auditLog)
-    .where(allConditions.length > 0 ? and(...allConditions) : undefined)
-    .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
+    .where(condition)
+    .orderBy(...orderBy)
     .limit(limit + 1)
 
   const hasMore = rows.length > limit

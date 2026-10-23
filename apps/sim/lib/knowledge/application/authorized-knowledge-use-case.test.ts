@@ -1,33 +1,27 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  authorizeOrganization: vi.fn(),
-  recordAudit: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated' },
-  AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base' },
-  recordAudit: mocks.recordAudit,
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganization,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+
+const mockAuthorizeOrganization =
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+
+const mocks = {
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  authorizeOrganization: mockAuthorizeOrganization,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -42,7 +36,7 @@ const organizationContext = {
   knowledgeBaseId: 'knowledge-1',
 }
 
-const session = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const session = createSessionPrincipal()
 
 function useCaseFor(context: object) {
   const execute = vi.fn(async () => 'done')

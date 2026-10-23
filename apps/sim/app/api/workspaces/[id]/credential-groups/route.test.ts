@@ -1,12 +1,12 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
   list: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/credential-groups/application/manage-groups', () => ({
   getWorkspaceAccountsSettings: {
@@ -19,15 +19,17 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/workspaces/[id]/credential-groups/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
-const context = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID })
 
 function createRequest(): NextRequest {
-  return new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/credential-groups`)
+  return createMockRequest({
+    url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/credential-groups`,
+  })
 }
 
 describe('credential groups collection route', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })

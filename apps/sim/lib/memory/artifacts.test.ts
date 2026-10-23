@@ -1,16 +1,16 @@
 import { memory, memoryArtifact } from '@sim/db/schema'
 import { dbChainMockFns, encryptionMock, encryptionMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { getMemoryArtifactHandle } from '@/lib/memory/artifact-handle'
 
-const { storeLargeValue, materializeLargeValueRef } = vi.hoisted(() => ({
-  storeLargeValue: vi.fn(),
-  materializeLargeValueRef: vi.fn(),
-}))
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@/lib/execution/payloads/store', () => ({ storeLargeValue, materializeLargeValueRef }))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import {
   MAX_MEMORY_ARTIFACT_BYTES,
@@ -19,6 +19,11 @@ import {
   readMemoryArtifactByHandle,
   storeMemoryArtifact,
 } from '@/lib/memory/artifacts'
+
+const {
+  mockStoreLargeValue: storeLargeValue,
+  mockMaterializeLargeValueRef: materializeLargeValueRef,
+} = executionPayloadStoreMockFns
 
 const scope = { workspaceId: 'workspace-1', memoryId: 'memory-1' }
 const identity = {

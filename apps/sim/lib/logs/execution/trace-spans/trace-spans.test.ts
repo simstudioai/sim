@@ -1419,3 +1419,65 @@ describe('custom block invoked as an Agent tool', () => {
     expect(toolSpan?.output).not.toHaveProperty('_childTraceDisabled')
   })
 })
+
+describe('child span trees that were compacted into references', () => {
+  const spilledChildren = {
+    __simLargeValueRef: true,
+    version: 1,
+    id: 'lv_ABCDEFGHIJKLMNOPQRSTUV',
+    kind: 'array',
+    size: 9_000_000,
+  } as unknown as TraceSpan[]
+
+  function childWorkflowResult(childTraceSpans: TraceSpan[]): ExecutionResult {
+    return {
+      success: true,
+      output: {},
+      logs: [
+        {
+          blockId: 'workflow-1',
+          blockName: 'Child Workflow',
+          blockType: 'workflow',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:05.000Z',
+          durationMs: 5000,
+          success: true,
+          output: { success: true },
+          childTraceSpans,
+        },
+      ],
+    }
+  }
+
+  const loopSpan = (overrides: Partial<TraceSpan>): TraceSpan => ({
+    id: 'loop-1',
+    name: 'Loop',
+    type: 'loop',
+    blockId: 'loop-1',
+    duration: 1000,
+    startTime: '2024-01-01T10:00:01.000Z',
+    endTime: '2024-01-01T10:00:02.000Z',
+    status: 'success',
+    ...overrides,
+  })
+
+  it.concurrent('keeps the span when its children are a reference', () => {
+    const { traceSpans } = buildTraceSpans(
+      childWorkflowResult([loopSpan({ children: spilledChildren })])
+    )
+
+    expect(traceSpans[0].children?.map((span) => span.id)).toEqual(['loop-1'])
+    expect(traceSpans[0].children?.[0].children).toBeUndefined()
+  })
+
+  it.concurrent('keeps the span when its output child spans are a reference', () => {
+    const { traceSpans } = buildTraceSpans(
+      childWorkflowResult([
+        loopSpan({ output: { result: 'done', childTraceSpans: spilledChildren } }),
+      ])
+    )
+
+    expect(traceSpans[0].children?.map((span) => span.id)).toEqual(['loop-1'])
+    expect(traceSpans[0].children?.[0].output).toEqual({ result: 'done' })
+  })
+})

@@ -424,21 +424,3 @@ export interface SentryCreateDeployResponse extends ToolResponse {
     }
   }
 }
-
-/**
- * Union response type for all Sentry operations
- */
-export type SentryResponse =
-  | SentryListTeamsResponse
-  | SentryListIssuesResponse
-  | SentryGetIssueResponse
-  | SentryUpdateIssueResponse
-  | SentryListProjectsResponse
-  | SentryGetProjectResponse
-  | SentryCreateProjectResponse
-  | SentryUpdateProjectResponse
-  | SentryListEventsResponse
-  | SentryGetEventResponse
-  | SentryListReleasesResponse
-  | SentryCreateReleaseResponse
-  | SentryCreateDeployResponse

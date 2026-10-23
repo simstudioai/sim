@@ -17,6 +17,16 @@ const SnapshotId = z
   .describe("Latest unconsumed snapshotId from get_app_state for this app. Actions consume it.");
 const ElementId = z.string().min(1).max(128).describe("Element reference from that snapshot.");
 const WindowId = z.string().min(1).max(128).describe("Window reference from that snapshot.");
+/** Input fields shared across actions keep one description: Anthropic flattens the union and anyOfs differing copies. */
+const TargetWindowId = WindowId.optional().describe(
+  "Window reference from an earlier snapshot of this app. If omitted, get_app_state and press_key use the app's focused window; coordinate actions use the window the snapshot selected.",
+);
+const IncludeScreenshot = z
+  .boolean()
+  .optional()
+  .describe(
+    "Set true to include a screenshot in the returned state. On actions it overrides observeAfter.includeScreenshot.",
+  );
 const Coordinate = z.number().nonnegative().max(100_000);
 const ObserveAfter = {
   observeAfter: z
@@ -25,14 +35,20 @@ const ObserveAfter = {
     .describe(
       "Every mutation returns fresh app state by default. Set includeScreenshot to true to include an image; otherwise no screenshot is captured. Observation failure never retries the action.",
     ),
+  includeScreenshot: IncludeScreenshot,
 };
 const InputSequenceStep = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("type_text"), text: z.string().max(32_000) }),
   z.strictObject({ action: z.literal("press_key"), key: z.string().min(1).max(128) }),
 ]);
 const ElementTarget = { bundleId: BundleId, snapshotId: SnapshotId, elementId: ElementId };
-const WindowTarget = { bundleId: BundleId, snapshotId: SnapshotId, windowId: WindowId };
-const PointTarget = { ...WindowTarget, x: Coordinate, y: Coordinate };
+const PointTarget = {
+  bundleId: BundleId,
+  snapshotId: SnapshotId,
+  windowId: TargetWindowId,
+  x: Coordinate,
+  y: Coordinate,
+};
 const ClickOptions = {
   button: z.enum(["left", "right"]).optional(),
   clickCount: z.number().int().min(1).max(3).optional(),
@@ -42,13 +58,22 @@ const ScrollOffsets = {
     .number()
     .min(-10_000)
     .max(10_000)
-    .describe("Horizontal scroll distance in points; positive scrolls right, negative left."),
+    .optional()
+    .describe(
+      "Horizontal scroll distance in points; positive scrolls right, negative left. Omit for 0 when deltaY is set.",
+    ),
   deltaY: z
     .number()
     .min(-10_000)
     .max(10_000)
-    .describe("Vertical scroll distance in points; positive scrolls down, negative up."),
+    .optional()
+    .describe(
+      "Vertical scroll distance in points; positive scrolls down, negative up. Omit for 0 when deltaX is set.",
+    ),
 };
+
+const hasScrollDistance = (input: { deltaX?: number | undefined; deltaY?: number | undefined }) =>
+  input.deltaX !== undefined || input.deltaY !== undefined;
 
 /** Strict branches require an observed, unambiguous target before native input. */
 export const ComputerUseSchema = z.union([
@@ -58,11 +83,8 @@ export const ComputerUseSchema = z.union([
   z.strictObject({
     action: z.literal("get_app_state"),
     bundleId: BundleId,
-    windowId: WindowId.optional(),
-    includeScreenshot: z
-      .boolean()
-      .optional()
-      .describe("Set true to include an image of the selected window."),
+    windowId: TargetWindowId,
+    includeScreenshot: IncludeScreenshot,
   }),
   z.strictObject({ action: z.literal("click"), ...ElementTarget, ...ObserveAfter, ...ClickOptions }),
   z.strictObject({ action: z.literal("click"), ...PointTarget, ...ObserveAfter, ...ClickOptions }),
@@ -75,11 +97,24 @@ export const ComputerUseSchema = z.union([
   z.strictObject({
     action: z.literal("press_key"),
     ...ObserveAfter,
-    ...WindowTarget,
-    key: z.string().min(1).max(128).describe("One key or chord, such as Enter, Tab, Escape, or Cmd+A."),
+    bundleId: BundleId,
+    snapshotId: SnapshotId,
+    windowId: TargetWindowId,
+    elementId: ElementId.optional(),
+    key: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "One key or chord, such as Enter, Tab, Escape, or Cmd+A. With elementId, focuses that element first.",
+      ),
   }),
-  z.strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets }),
-  z.strictObject({ action: z.literal("scroll"), ...PointTarget, ...ObserveAfter, ...ScrollOffsets }),
+  z
+    .strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets })
+    .refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
+  z
+    .strictObject({ action: z.literal("scroll"), ...PointTarget, ...ObserveAfter, ...ScrollOffsets })
+    .refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
   z.strictObject({
     action: z.literal("drag"),
     ...PointTarget,
@@ -132,7 +167,6 @@ export const ComputerUseStatusSchema = z.strictObject({
   accessibility: z.boolean(),
   screenRecording: z.boolean(),
 });
-export type ComputerUseStatus = z.infer<typeof ComputerUseStatusSchema>;
 
 export const ComputerUseAppSchema = z.strictObject({
   bundleId: BundleId,
@@ -140,7 +174,6 @@ export const ComputerUseAppSchema = z.strictObject({
   pid: z.number().int().positive().optional(),
   isActive: z.boolean(),
 });
-export type ComputerUseApp = z.infer<typeof ComputerUseAppSchema>;
 
 export const ComputerUseWindowSchema = z.strictObject({
   windowId: WindowId,
@@ -150,7 +183,6 @@ export const ComputerUseWindowSchema = z.strictObject({
   width: z.number().nonnegative(),
   height: z.number().nonnegative(),
 });
-export type ComputerUseWindow = z.infer<typeof ComputerUseWindowSchema>;
 
 const ComputerUseNodeSchema = z.strictObject({
   elementId: ElementId,
@@ -205,32 +237,47 @@ export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
   ComputerUseStatusSchema,
   z.strictObject({ kind: z.literal("apps"), apps: z.array(ComputerUseAppSchema).max(1000) }),
   ComputerUseSnapshotSchema,
-  z.strictObject({
-    kind: z.literal("action"),
-    action: z.enum([
-      "activate_app",
-      "click",
-      "type_text",
-      "press_key",
-      "scroll",
-      "drag",
-      "set_value",
-      "perform_action",
-      "input_sequence",
-    ]),
-    bundleId: BundleId,
-    dispatched: z.literal(true),
-    verified: z.boolean(),
-    sequence: z
-      .strictObject({
-        completedSteps: z.number().int().min(0).max(32),
-        totalSteps: z.number().int().min(1).max(32),
-        error: z.string().min(1).max(2000).optional(),
-      })
-      .optional(),
-    observation: ComputerUseSnapshotSchema.optional(),
-    observationError: z.string().min(1).max(2000).optional(),
-  }),
+  z
+    .strictObject({
+      kind: z.literal("action"),
+      action: z.enum([
+        "activate_app",
+        "click",
+        "type_text",
+        "press_key",
+        "scroll",
+        "drag",
+        "set_value",
+        "perform_action",
+        "input_sequence",
+      ]),
+      bundleId: BundleId,
+      dispatched: z.literal(true),
+      verified: z.boolean(),
+      sequence: z
+        .strictObject({
+          completedSteps: z.number().int().min(0).max(32),
+          totalSteps: z.number().int().min(1).max(32),
+          error: z.string().min(1).max(2000).optional(),
+        })
+        .optional(),
+      observation: ComputerUseSnapshotSchema.optional(),
+      observationError: z.string().min(1).max(2000).optional(),
+    })
+    .superRefine((result, ctx) => {
+      if (result.action === "input_sequence" && !result.sequence)
+        ctx.addIssue({
+          code: "custom",
+          path: ["sequence"],
+          message: "Input sequences require dispatch progress",
+        });
+      if (result.sequence && result.sequence.completedSteps > result.sequence.totalSteps)
+        ctx.addIssue({
+          code: "custom",
+          path: ["sequence", "completedSteps"],
+          message: "Completed steps cannot exceed total steps",
+        });
+    }),
 ]);
 export type ComputerUseResult = z.infer<typeof ComputerUseResultSchema>;
 

@@ -1,3 +1,12 @@
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import {
@@ -7,20 +16,18 @@ import {
 } from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineCredentialOperation } from '@/lib/credentials/application/operations'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  getActor: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   execute: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getActor,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+
+const mocks = {
+  ...hoisted,
+  getActor: credentialsAccessMockFns.mockGetCredentialActorContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const memberOperation = defineCredentialOperation(
   defineWorkspaceOperation({
@@ -42,11 +49,7 @@ const adminOperation = defineCredentialOperation(
   }),
   'admin'
 )
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal()
 const credential = {
   id: 'credential-1',
   workspaceId: 'workspace-1',
@@ -122,11 +125,7 @@ describe('defineAuthorizedCredentialUseCase', () => {
  * 500 rather than a refusal.
  */
 describe('requireManageableCredentialType', () => {
-  const apiKeyPrincipal = {
-    kind: 'personal_api_key' as const,
-    userId: 'user-1',
-    keyId: 'key-1',
-  }
+  const apiKeyPrincipal = createPersonalApiKeyPrincipal()
   const delegatedPrincipal = {
     kind: 'delegated' as const,
     service: 'copilot' as const,

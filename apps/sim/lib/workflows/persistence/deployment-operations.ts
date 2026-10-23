@@ -4,6 +4,7 @@ import type { DbOrTx } from '@sim/workflow-persistence/types'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   canTransitionDeploymentOperation,
   createDeploymentReadiness,
@@ -95,7 +96,10 @@ export interface MarkDeploymentComponentReadinessParams extends DeploymentOperat
 }
 
 export interface ActivateDeploymentOperationParams extends DeploymentOperationGeneration {
-  onActivateTransaction?: (tx: DbOrTx, operation: WorkflowDeploymentOperation) => Promise<void>
+  onActivateTransaction?: (
+    tx: DbTransaction,
+    operation: WorkflowDeploymentOperation
+  ) => Promise<void>
 }
 
 interface PrepareOperationContext {
@@ -712,14 +716,15 @@ export async function recordDeploymentOperationRetry(
 }
 
 /**
- * Supersedes every in-flight operation for a workflow. Must run inside the
+ * Supersedes every in-flight operation for `workflowIds`. Must run inside the
  * undeploy/archive transaction so a queued preparation cannot activate a
  * version after the user explicitly took the workflow offline.
  */
 export async function supersedeInFlightDeploymentOperations(
   executor: DbOrTx,
-  workflowId: string
+  workflowIds: readonly string[]
 ): Promise<void> {
+  if (workflowIds.length === 0) return
   const now = new Date()
   await executor
     .update(workflowDeploymentOperation)
@@ -730,7 +735,7 @@ export async function supersedeInFlightDeploymentOperations(
     })
     .where(
       and(
-        eq(workflowDeploymentOperation.workflowId, workflowId),
+        inArray(workflowDeploymentOperation.workflowId, workflowIds),
         inArray(workflowDeploymentOperation.status, IN_FLIGHT_STATUSES)
       )
     )

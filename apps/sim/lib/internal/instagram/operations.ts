@@ -29,8 +29,8 @@ import {
   getExtensionFromMimeType,
   getFileExtension,
   getMimeTypeFromExtension,
-} from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE, sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -291,7 +291,7 @@ export async function executeInstagramDownloadMedia(
   body: InstagramDownloadMediaBody,
   context: InstagramOperationContext
 ): Promise<Response> {
-  const { executionId, requestId, signal, userId, workflowId, workspaceId } = context
+  const { executionId, signal, userId, workflowId, workspaceId } = context
   signal?.throwIfAborted()
   const files: UserFile[] = []
   let storageContext: StorageContext = 'copilot'

@@ -1,18 +1,12 @@
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getEditableSkillIdsMock } = vi.hoisted(() => ({
   getEditableSkillIdsMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@sim/utils/id', () => ({ generateId: () => 'gen-uuid', generateShortId: () => 'gen-id' }))
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/skills/access', () => ({
   getEditableSkillIds: getEditableSkillIdsMock,
 }))
@@ -22,6 +16,9 @@ import {
   listSkills,
   listSkillsForUser,
 } from '@/lib/workflows/skills/operations'
+
+idMockFns.mockGenerateId.mockReturnValue('gen-uuid')
+idMockFns.mockGenerateShortId.mockReturnValue('gen-id')
 
 describe('listSkills includeBuiltins', () => {
   beforeEach(() => {

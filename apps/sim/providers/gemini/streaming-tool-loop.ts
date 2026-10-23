@@ -20,7 +20,6 @@ import {
   type GenerateContentResponse,
   type GoogleGenAI,
   type Part,
-  type Schema,
   type ToolConfig,
 } from '@google/genai'
 import type { Logger } from '@sim/logger'
@@ -32,12 +31,14 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
+import { applyGeminiResponseFormat } from '@/providers/gemini/config'
 import {
   checkForForcedToolUsage,
-  cleanSchemaForGemini,
   convertUsageMetadata,
   ensureStructResponse,
+  geminiRetryDelayMs,
 } from '@/providers/google/utils'
+import { withProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
@@ -49,7 +50,7 @@ import {
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ModelPricing, ProviderRequest, TimeSegment } from '@/providers/types'
-import { isGemini3Model, prepareToolExecution, sumToolCosts } from '@/providers/utils'
+import { prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import type { GeminiUsage } from './types'
 import { priceGeminiTokens, splitGeminiUsage } from './usage'
 
@@ -94,19 +95,14 @@ function buildNextConfig(
   if (allForcedToolsUsed && request.responseFormat) {
     nextConfig.tools = undefined
     nextConfig.toolConfig = undefined
-    if (isGemini3Model(model)) {
-      logger.info('Gemini 3: Stripping tools after forced tool execution, schema already set')
-    } else {
-      nextConfig.responseMimeType = 'application/json'
-      nextConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      logger.info('Using structured output for final response after tool execution')
-    }
+    logger.info('Using structured output for final response after tool execution')
   } else if (currentToolConfig) {
     nextConfig.toolConfig = currentToolConfig
   } else {
     nextConfig.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } }
   }
 
+  applyGeminiResponseFormat(nextConfig, request.responseFormat, model)
   return nextConfig
 }
 
@@ -308,16 +304,25 @@ export function createGeminiStreamingToolLoopStream(
                   model
                 )
 
+            applyGeminiResponseFormat(turnConfig, request.responseFormat, model)
+
             const modelStart = Date.now()
-            const streamGenerator = await ai.models.generateContentStream(
-              await prepareConversationGeneration(request, 'gemini', {
-                model,
-                contents,
-                config: {
-                  ...turnConfig,
-                  abortSignal: loopAbortController.signal,
-                },
-              })
+            const turnPayload = await prepareConversationGeneration(request, 'gemini', {
+              model,
+              contents,
+              config: {
+                ...turnConfig,
+                abortSignal: loopAbortController.signal,
+              },
+            })
+            const streamGenerator = await withProviderRetry(
+              () => ai.models.generateContentStream(turnPayload),
+              {
+                logger,
+                label: 'Gemini',
+                abortSignal: loopAbortController.signal,
+                retryAfterMs: geminiRetryDelayMs,
+              }
             )
 
             const drained = await drainGeminiTurn(
@@ -678,8 +683,8 @@ export function createGeminiStreamingToolLoopStream(
             aborted: loopAbortController.signal.aborted,
             consumerCancelled,
             error,
-            onUnexpectedError: (cause) =>
-              logger.error('Gemini streaming tool loop failed', {
+            onUnexpectedError: (cause, level) =>
+              logger[level]('Gemini streaming tool loop failed', {
                 error: toError(cause).message,
               }),
           })

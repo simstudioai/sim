@@ -42,23 +42,8 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.search,
       knowledgeOperations.readSearchIndex,
       knowledgeOperations.enrollConnectorMember,
-      knowledgeOperations.simSearchConnect,
-      knowledgeOperations.listPersonalSourceSetupAccounts,
-      knowledgeOperations.personalSourceSetup,
     ]) {
       expect(operation.organizationOperation.minimumRole).toBe('member')
-    }
-  })
-
-  it('limits personal source setup to the signed-in member without delegating credential discovery', () => {
-    for (const operation of [
-      knowledgeOperations.listPersonalSourceSetupAccounts,
-      knowledgeOperations.personalSourceSetup,
-    ]) {
-      expect(operation.principalKinds).toEqual(['session'])
-      expect(operation.organizationOperation.principalKinds).not.toContain('organization_delegated')
-      expect(operation.workspaceApiKey).toBe('deny')
-      expect(operation.capability).toBe('knowledge.use')
     }
   })
 
@@ -66,7 +51,6 @@ describe('knowledge operation registry', () => {
     const operations = [
       knowledgeOperations.updateDocument,
       knowledgeOperations.addWorkspaceFiles,
-      knowledgeOperations.bulkDeleteDocuments,
       knowledgeOperations.createTag,
       knowledgeOperations.updateTag,
       knowledgeOperations.deleteTag,

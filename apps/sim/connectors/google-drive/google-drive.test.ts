@@ -1,8 +1,7 @@
+import { jsonResponse } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
-
-vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
 
 vi.mock('@/connectors/google-drive/workspace-drives', () => ({
   GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE: 100,
@@ -34,7 +33,6 @@ function companyContext(): Record<string, unknown> {
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 import {
@@ -78,13 +76,6 @@ describe('Google Drive administrator setup', () => {
     expect(String(mockFetch.mock.calls[0][0])).toContain('/drive/v3/files?')
   })
 })
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function driveErrorResponse(reason: string, message: string, status = 403): Response {
   return jsonResponse(

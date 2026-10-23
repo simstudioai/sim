@@ -1,25 +1,24 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() => ({
-  mockGetJob: vi.fn(),
-  mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
-}))
-
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplayWithBlockOutputs: mockMaterializeForDisplayWithBlockOutputs,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
   getAutomaticResumeWaitingMetadata: vi.fn().mockReturnValue(null),
 }))
 
+import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+
+const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
+const mockMaterializeForDisplayWithBlockOutputs =
+  traceStoreMockFns.mockMaterializeExecutionDataForDisplayWithBlockOutputs
 
 const input = {
   workflowId: 'workflow-1',
@@ -553,5 +552,110 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
     const status = await getWorkflowExecutionStatus(resumeInput)
 
     expect(status).toMatchObject({ status: 'cancelled', level: 'info', error: null })
+  })
+})
+
+describe('getWorkflowExecutionStatus polls that read no execution data', () => {
+  const STALLED = Symbol('stalled')
+
+  function queueLog(status: string, pausedRows: unknown[] = []) {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status,
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: new Date('2026-08-05T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: { finalOutput: { answer: 42 } },
+        costTotal: '0.5',
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, pausedRows)
+  }
+
+  /** Stands in for an archive read that has not come back from object storage yet. */
+  function stallArchiveRead() {
+    mockMaterializeForDisplayWithBlockOutputs.mockReturnValue(new Promise(() => {}))
+  }
+
+  /** Settles with {@link STALLED} instead of hanging when the read waits on the archive. */
+  function readOrStall(read: Parameters<typeof getWorkflowExecutionStatus>[0]) {
+    return Promise.race([getWorkflowExecutionStatus(read), flushMacrotask().then(() => STALLED)])
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    mockGetJob.mockResolvedValue(null)
+  })
+
+  it.each([
+    ['a running run', 'running', input],
+    ['a cancelled run', 'cancelled', input],
+    ['a completed run polled without includeOutput', 'completed', input],
+    ['a running run asked for its output early', 'running', { ...input, includeOutput: true }],
+  ])('answers %s without waiting on the run archive', async (_, status, read) => {
+    queueLog(status)
+    stallArchiveRead()
+
+    await expect(readOrStall(read)).resolves.toMatchObject({
+      status,
+      cost: { total: 0.5 },
+      error: null,
+      finalOutput: null,
+      blockOutputs: null,
+    })
+  })
+
+  it('answers a paused run without waiting on the run archive', async () => {
+    queueLog('running', [
+      {
+        id: 'paused-1',
+        status: 'paused',
+        pausePoints: [{ contextId: 'context-1', blockId: 'block-1', resumeStatus: 'paused' }],
+        metadata: {},
+        resumedCount: 0,
+        pausedAt: new Date('2026-08-05T12:00:00.500Z'),
+        nextResumeAt: null,
+      },
+    ])
+    stallArchiveRead()
+
+    await expect(readOrStall({ ...input, includeOutput: true })).resolves.toMatchObject({
+      status: 'paused',
+      paused: { contextId: 'context-1' },
+      finalOutput: null,
+    })
+  })
+
+  it('still reads selected block outputs from a run that is still running', async () => {
+    queueLog('running')
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: {},
+      blockOutputs: new Map([['block-1', { content: 'partial' }]]),
+    })
+
+    await expect(
+      getWorkflowExecutionStatus({ ...input, selectedOutputs: ['block-1'] })
+    ).resolves.toMatchObject({
+      status: 'running',
+      finalOutput: null,
+      blockOutputs: { 'block-1': { content: 'partial' } },
+    })
+  })
+
+  it('still rejects selected outputs of a running run whose execution data was truncated', async () => {
+    queueLog('running')
+    mockMaterializeForDisplayWithBlockOutputs.mockRejectedValue(
+      new FunctionalOutputsUnavailableError()
+    )
+
+    await expect(
+      getWorkflowExecutionStatus({ ...input, selectedOutputs: ['block-1'] })
+    ).rejects.toBeInstanceOf(FunctionalOutputsUnavailableError)
   })
 })

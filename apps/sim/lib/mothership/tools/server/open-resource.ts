@@ -5,27 +5,30 @@ import {
   openResourceOutputSchema,
 } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
-import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
-import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
+import { createCopilotApplicationAdapter } from '@/lib/mothership/application/adapter'
+import { executeDashboardUseCase } from '@/lib/mothership/application/execute-dashboard-use-case'
 import { executeCopilotKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
+import { executeWorkflowTestUseCase } from '@/lib/mothership/application/execute-workflow-test-use-case'
 import { executeCopilotWorkflowUseCase } from '@/lib/mothership/application/execute-workflow-use-case'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/mothership/auth/application-delegation'
+import { getCopilotFileOwnerAdapter, isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
 } from '@/lib/mothership/tools/server/base-tool'
 import { readTableDefinitionUseCase } from '@/lib/table/application/tables'
 import { readTableViewUseCase } from '@/lib/table/application/views'
+import { getWorkflowTestDetail } from '@/lib/workflow-tests/application/tests'
 import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
-import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
 const executeLogUseCase = createCopilotApplicationAdapter({
   domain: 'logs',
@@ -43,18 +46,48 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
   inputSchema: openResourceInputSchema,
   outputSchema: openResourceOutputSchema,
   async execute(input, context) {
-    const trusted = requireTrustedCopilotExecutionContext(context)
     if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
       throw new OrchestrationError('forbidden', 'Resource panels require agent mode')
+    if (input.resources.some((resource) => resource.owner && isOwnerScopedFile(resource.owner))) {
+      const owned = input.resources.flatMap((resource) =>
+        resource.type === 'file' &&
+        resource.owner &&
+        isOwnerScopedFile(resource.owner) &&
+        !resource.viewId
+          ? [{ owner: resource.owner, fileId: resource.id }]
+          : []
+      )
+      if (input.workspaceId || owned.length !== input.resources.length)
+        throw new OrchestrationError(
+          'validation',
+          'Owner-scoped files cannot be mixed with workspace targets'
+        )
+      const resources: OpenResourceOutput['resources'] = []
+      for (const target of owned) {
+        assertServerToolNotAborted(context)
+        const file = await getCopilotFileOwnerAdapter(target.owner).readMetadata(context, target)
+        resources.push({ type: 'file', id: file.id, title: file.name, owner: file.owner })
+      }
+      assertServerToolNotAborted(context)
+      return { resources }
+    }
+    const trusted = requireTrustedCopilotExecutionContext(context)
     if (input.workspaceId && input.workspaceId !== trusted.workspaceId)
       throw new OrchestrationError('not_found', 'Workspace not found in this invocation')
     const workspaceId = trusted.workspaceId
     const resources: OpenResourceOutput['resources'] = []
     for (const resource of input.resources) {
       assertServerToolNotAborted(context)
+      if (
+        resource.owner &&
+        (resource.type !== 'file' ||
+          isOwnerScopedFile(resource.owner) ||
+          resource.owner.entityId !== workspaceId)
+      )
+        throw new OrchestrationError('not_found', 'File owner not found in this invocation')
       if (resource.viewId && resource.type !== 'table')
         throw new OrchestrationError('validation', 'Saved views apply only to tables')
-      const base = { type: resource.type, id: resource.id, workspaceId }
+      const base = { type: resource.type, id: resource.id }
       switch (resource.type) {
         case 'workflow': {
           const { workflow } = await executeCopilotWorkflowUseCase(context, readWorkflowMetadata, {
@@ -85,14 +118,37 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
           })
           break
         }
+        case 'dashboard': {
+          const { dashboard } = await executeDashboardUseCase(context, readWorkspaceDashboard, {
+            workspaceId,
+          })
+          if (dashboard?.id !== resource.id)
+            throw new OrchestrationError('not_found', 'Dashboard not found')
+          resources.push({ ...base, title: dashboard.name })
+          break
+        }
+        case 'test': {
+          const { test } = await executeWorkflowTestUseCase(context, getWorkflowTestDetail, {
+            workspaceId,
+            name: resource.id,
+          })
+          resources.push({ ...base, title: test.title })
+          break
+        }
         case 'file': {
-          const { file } = await executeCopilotFileUseCase(
-            context,
-            readWorkspaceFileMetadata,
-            { fileId: resource.id, assertedWorkspaceId: workspaceId },
-            { fileId: resource.id }
-          )
-          resources.push({ ...base, title: file.name })
+          const owner = resource.owner ?? {
+            entityType: 'workspace' as const,
+            entityId: workspaceId,
+          }
+          const file = await getCopilotFileOwnerAdapter(owner).readMetadata(context, {
+            owner,
+            fileId: resource.id,
+          })
+          resources.push({
+            ...base,
+            title: file.name,
+            ...(resource.owner ? { owner: file.owner } : {}),
+          })
           break
         }
         case 'knowledgebase': {

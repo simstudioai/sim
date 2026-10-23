@@ -18,19 +18,19 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import type { DeploymentOperationSummary } from '@/lib/api/contracts/deployments'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock'
+import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/predeploy-checks'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import type { DeploymentViewState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deployment-view-state'
-import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
@@ -104,8 +104,7 @@ export function DeployModal({
   /* A snapshot that is expected but absent reads as loading everywhere. */
   const isLoadingDeployedState = isAwaitingSnapshot
   const queryClient = useQueryClient()
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const { navigateToSettings } = useSettingsNavigation()
   const isDeployed = isDeployedProp
   const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
@@ -159,11 +158,10 @@ export function DeployModal({
   const createButtonDisabled =
     isApiKeysLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
-  const {
-    data: deploymentInfoData,
-    isLoading: isLoadingDeploymentInfo,
-    refetch: refetchDeploymentInfo,
-  } = useDeploymentInfo(workflowId, { enabled: open })
+  const { data: deploymentInfoData, isLoading: isLoadingDeploymentInfo } = useDeploymentInfo(
+    workflowId,
+    { enabled: open }
+  )
 
   const { data: versionsData, isLoading: versionsLoading } = useDeploymentVersions(workflowId, {
     enabled: open,
@@ -604,7 +602,6 @@ export function DeployModal({
           {activeTab === 'chat' && (
             <ChatDeploy
               workflowId={workflowId || ''}
-              deploymentInfo={deploymentInfo}
               existingChat={existingChat as ExistingChat | null}
               isLoadingChat={isLoadingChat}
               onRefetchChat={handleRefetchChat}

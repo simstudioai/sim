@@ -2,13 +2,12 @@ import { omit } from '@sim/utils/object'
 import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { SttBlockResponse } from '@/tools/stt/types'
 
 const AUDIO_FIELD = ['audioFile', 'audioFileReference', 'audioUrl'] as const
 /* v2 drops the URL input, keeping only the upload/reference pair. */
 const AUDIO_V2_FIELD = ['audioFile', 'audioFileReference'] as const
 
-export const SttBlock: BlockConfig<SttBlockResponse> = {
+export const SttBlock: BlockConfig = {
   type: 'stt',
   name: 'Speech-to-Text',
   description: 'Convert speech to text using AI',
@@ -372,7 +371,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
 const sttV2Inputs = SttBlock.inputs ? omit(SttBlock.inputs, ['audioUrl']) : {}
 const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.id !== 'audioUrl')
 
-export const SttV2Block: BlockConfig<SttBlockResponse> = {
+export const SttV2Block: BlockConfig = {
   ...SttBlock,
   sunset: undefined,
   type: 'stt_v2',

@@ -1,3 +1,12 @@
+import {
+  setUploadsConfig,
+  uploadsConfigMock,
+  uploadsConfigMockFns,
+} from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -7,9 +16,6 @@ const {
   mockAbort,
   mockUploadToS3,
   mockDeleteFromS3,
-  mockInsertFileMetadata,
-  mockDeleteFileMetadata,
-  mockInsertImmutableFileMetadata,
   mockCleanupUnboundKnowledgeUpload,
   mockGetSignedUrl,
   mockHeadS3Object,
@@ -23,9 +29,6 @@ const {
   mockAbort: vi.fn(),
   mockUploadToS3: vi.fn(),
   mockDeleteFromS3: vi.fn(),
-  mockInsertFileMetadata: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-  mockInsertImmutableFileMetadata: vi.fn(),
   mockCleanupUnboundKnowledgeUpload: vi.fn(),
   mockGetSignedUrl: vi.fn(),
   mockHeadS3Object: vi.fn(),
@@ -42,12 +45,7 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mockGetSignedUrl,
 }))
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_S3_STORAGE: true,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({ bucket: 'b', region: 'r' }),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   initiateS3MultipartUpload: mockInitiate,
@@ -60,17 +58,20 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   headS3Object: mockHeadS3Object,
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: mockInsertFileMetadata,
-  deleteFileMetadata: mockDeleteFileMetadata,
-  insertImmutableFileMetadata: mockInsertImmutableFileMetadata,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/uploads/core/knowledge-upload-cleanup', () => ({
   cleanupUnboundKnowledgeUpload: mockCleanupUnboundKnowledgeUpload,
 }))
 
 import { createMultipartUpload, uploadFile } from '@/lib/uploads/core/storage-service'
+
+setUploadsConfig({ USE_S3_STORAGE: true })
+uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({ bucket: 'b', region: 'r' })
+
+const mockInsertFileMetadata = uploadsMetadataMockFns.mockInsertFileMetadata
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+const mockInsertImmutableFileMetadata = uploadsMetadataMockFns.mockInsertImmutableFileMetadata
 
 const PART_SIZE = 8 * 1024 * 1024
 

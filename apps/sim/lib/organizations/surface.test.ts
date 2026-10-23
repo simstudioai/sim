@@ -1,33 +1,41 @@
 import { member, organization } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { credentialGroupsAvailabilityMock } from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSearchAccess, mockPermissionConfig, mockEnterprisePlan } = vi.hoisted(() => ({
-  mockSearchAccess: vi.fn(),
-  mockPermissionConfig: vi.fn(),
-  mockEnterprisePlan: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mockPermissionConfig,
-  /** The nav lists Access Control on the regime; these tests drive it from the plan knob. */
-  isOrganizationPermissionRegimeActive: mockEnterprisePlan,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockEnterprisePlan,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mockSearchAccess,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 import {
   getOrganizationSurfaceContext,
   resolveOrganizationLanding,
 } from '@/lib/organizations/surface'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mockSearchAccess = knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability
+const mockPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+const mockEnterprisePlan = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
+
+/** The nav lists Access Control on the regime; these tests drive it from the plan knob. */
+permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockImplementation(
+  (...args: unknown[]) => mockEnterprisePlan(...args)
+)
 
 afterAll(resetDbChainMock)
 afterAll(resetEnvFlagsMock)
@@ -40,6 +48,27 @@ describe('getOrganizationSurfaceContext', () => {
     mockEnterprisePlan.mockResolvedValue(true)
     setEnvFlags({ isInvitationsDisabled: false, isHosted: true, isBillingEnabled: true })
   })
+
+  it.each([
+    { integrationsDenied: false, knowledgeDenied: false, allowed: true },
+    { integrationsDenied: true, knowledgeDenied: false, allowed: false },
+    { integrationsDenied: false, knowledgeDenied: true, allowed: false },
+  ])(
+    'respects Search connection permissions: %o',
+    async ({ integrationsDenied, knowledgeDenied, allowed }) => {
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+      queueTableRows(member, [{ memberCount: 1 }])
+      mockPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        hideIntegrationsTab: integrationsDenied,
+        hideKnowledgeBaseTab: knowledgeDenied,
+      })
+      await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+        viewer: { canConnectSearchIntegrations: allowed },
+      })
+    }
+  )
 
   it.each([
     { role: 'owner', billing: true, denied: false, expected: true },

@@ -1,42 +1,18 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockApplyStorageUsageDeltasInTx,
-  mockCheckStorageQuota,
-  mockCheckStorageQuotaForBillingContext,
-  mockDecrementStorageUsageForBillingContextInTx,
-  mockIncrementStorageUsageForBillingContextInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-  mockGetFileMetadataByKeys,
-  mockEnqueueKnowledgeDocumentProcessing,
-} = vi.hoisted(() => ({
-  mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockCheckStorageQuota: vi.fn(),
-  mockCheckStorageQuotaForBillingContext: vi.fn(),
-  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
+const { mockEnqueueKnowledgeDocumentProcessing } = vi.hoisted(() => ({
   mockEnqueueKnowledgeDocumentProcessing: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
-  checkStorageQuota: mockCheckStorageQuota,
-  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: vi.fn(),
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
   enqueueKnowledgeDocumentProcessing: mockEnqueueKnowledgeDocumentProcessing,
@@ -48,6 +24,19 @@ import {
   createSingleDocument,
   hardDeleteDocuments,
 } from '@/lib/knowledge/documents/service'
+
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
+const mockCheckStorageQuota = billingStorageMockFns.mockCheckStorageQuota
+const mockCheckStorageQuotaForBillingContext =
+  billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockDecrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx
+const mockIncrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 const STORAGE_CONTEXT = {
   workspaceId: 'workspace-1',

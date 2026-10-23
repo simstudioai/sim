@@ -1,31 +1,43 @@
 ---
 title: DocuSign
 description: Send documents for e-signature via DocuSign
+integration:
+  type: "docusign"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="docusign"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [DocuSign](https://www.docusign.com) to send envelopes for e-signature, create them from templates, inspect recipients and signing status, and download completed documents. Pending envelopes can be voided with a reason.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a DocuSign account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/docusign` |
+| Environment variables | `DOCUSIGN_CLIENT_ID`, `DOCUSIGN_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `signature` | Send, track, and manage envelopes with the eSignature API |
+| `extended` | Keep access active by extending the refresh token lifetime |
+
+## Use the block [#usage-instructions]
 
 Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.
-
-
 
 ## Actions
 
 ### Send DocuSign Envelope
 
 Create and send a DocuSign envelope with a document for e-signature
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +61,13 @@ Create and send a DocuSign envelope with a document for e-signature
 | `statusDateTime` | string | Status change datetime |
 | `uri` | string | Envelope URI |
 
+</ReferenceDetails>
+
 ### Send from DocuSign Template
 
 Create and send a DocuSign envelope using a pre-built template
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +88,13 @@ Create and send a DocuSign envelope using a pre-built template
 | `statusDateTime` | string | Status change datetime |
 | `uri` | string | Envelope URI |
 
+</ReferenceDetails>
+
 ### Get DocuSign Envelope
 
 Get the details and status of a DocuSign envelope
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +117,13 @@ Get the details and status of a DocuSign envelope
 | `signerCount` | number | Number of signers |
 | `documentCount` | number | Number of documents |
 
+</ReferenceDetails>
+
 ### List DocuSign Envelopes
 
 List envelopes from your DocuSign account with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -126,9 +150,13 @@ List envelopes from your DocuSign account with optional filters
 | `totalSetSize` | number | Total number of matching envelopes |
 | `resultSetSize` | number | Number of envelopes returned in this response |
 
+</ReferenceDetails>
+
 ### Void DocuSign Envelope
 
 Void (cancel) a sent DocuSign envelope that has not yet been completed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +172,13 @@ Void (cancel) a sent DocuSign envelope that has not yet been completed
 | `envelopeId` | string | Voided envelope ID |
 | `status` | string | Envelope status \(voided\) |
 
+</ReferenceDetails>
+
 ### Download DocuSign Document
 
 Download a signed document from a completed DocuSign envelope
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +196,13 @@ Download a signed document from a completed DocuSign envelope
 | `mimeType` | string | MIME type of the document |
 | `fileName` | string | Original file name |
 
+</ReferenceDetails>
+
 ### List DocuSign Templates
 
 List available templates in your DocuSign account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -189,9 +225,13 @@ List available templates in your DocuSign account
 | `totalSetSize` | number | Total number of matching templates |
 | `resultSetSize` | number | Number of templates returned in this response |
 
+</ReferenceDetails>
+
 ### List DocuSign Recipients
 
 Get the recipient status details for a DocuSign envelope
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,5 +255,7 @@ Get the recipient status details for a DocuSign envelope
 |   ↳ `name` | string | Recipient name |
 |   ↳ `email` | string | Recipient email |
 |   ↳ `status` | string | Recipient status |
+
+</ReferenceDetails>
 
 

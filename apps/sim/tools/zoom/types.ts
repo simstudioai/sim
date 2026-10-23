@@ -247,7 +247,7 @@ interface ZoomBaseParams {
 }
 
 // Meeting types
-export type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
+type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
 
 interface ZoomMeetingSettings {
   host_video?: boolean
@@ -298,15 +298,6 @@ interface ZoomMeeting {
     duration: number
     status: string
   }>
-}
-
-interface ZoomMeetingListResponse {
-  page_count: number
-  page_number: number
-  page_size: number
-  total_records: number
-  next_page_token?: string
-  meetings: ZoomMeeting[]
 }
 
 // Create Meeting tool types
@@ -529,16 +520,3 @@ export interface ZoomListPastParticipantsResponse extends ToolResponse {
     }
   }
 }
-
-// Combined response type for block
-export type ZoomResponse =
-  | ZoomCreateMeetingResponse
-  | ZoomListMeetingsResponse
-  | ZoomGetMeetingResponse
-  | ZoomUpdateMeetingResponse
-  | ZoomDeleteMeetingResponse
-  | ZoomGetMeetingInvitationResponse
-  | ZoomListRecordingsResponse
-  | ZoomGetMeetingRecordingsResponse
-  | ZoomDeleteRecordingResponse
-  | ZoomListPastParticipantsResponse

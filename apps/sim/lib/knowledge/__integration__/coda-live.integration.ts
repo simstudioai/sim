@@ -11,14 +11,13 @@ import { db } from '@sim/db'
 import {
   credential,
   document,
-  knowledgeBase,
   knowledgeConnector,
-  member,
   organization,
   session,
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { serializeSignedCookie } from 'better-call'
@@ -43,12 +42,8 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import {
-  resolveBillingAttribution,
-  resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { createOrganizationCredential } from '@/lib/credentials/application/organization-credentials'
 import { assertCodaLiveFixture } from '@/lib/knowledge/__integration__/coda-live-fixture'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
@@ -65,7 +60,6 @@ const tokenPath = process.env.CODA_CONNECTOR_LIVE_TOKEN_FILE
 const fixturePath = process.env.CODA_CONNECTOR_LIVE_FIXTURE_FILE
 const secondEmail = process.env.CODA_CONNECTOR_LIVE_SECOND_EMAIL
 const allowSharing = process.env.CODA_CONNECTOR_LIVE_ALLOW_SHARING !== 'false'
-const organizationScope = process.env.CODA_CONNECTOR_LIVE_SCOPE === 'organization'
 const uiFixturePath = process.env.CODA_CONNECTOR_LIVE_UI_FIXTURE_FILE
 const fixtureSchema = z.object({
   docId: z.string(),
@@ -89,7 +83,7 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
     let token: string
     let fixture: z.infer<typeof fixtureSchema>
     let fixtureValidated = false
-    let credentialId = generateId()
+    const credentialId = generateId()
     const principal = (userId: string): Principal => ({
       kind: 'session',
       userId,
@@ -131,9 +125,7 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
       const result = await searchKnowledge.execute({
         principal: as,
         input: {
-          ...(organizationScope
-            ? { organizationId: ids.organizationId }
-            : { workspaceId: ids.workspaceId }),
+          workspaceId: ids.workspaceId,
           knowledgeBaseIds: [ids.knowledgeBaseId],
           query: fixture.marker,
           searchMode: 'hybrid',
@@ -146,15 +138,10 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
     async function sync() {
       const result = await executeSync(connectorId, {
         fullSync: false,
-        billingAttribution: organizationScope
-          ? await resolveOrganizationBillingAttribution({
-              actorUserId: ids.aliceId,
-              organizationId: ids.organizationId,
-            })
-          : await resolveBillingAttribution({
-              actorUserId: ids.aliceId,
-              workspaceId: ids.workspaceId,
-            }),
+        billingAttribution: await resolveBillingAttribution({
+          actorUserId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+        }),
       })
       expect(result.error).toBeUndefined()
       expect(result.skipReason).toBeUndefined()
@@ -177,63 +164,28 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
       ids = await seedKnowledgeAclFixture()
       await db.update(user).set({ email: source.owner }).where(eq(user.id, ids.aliceId))
       await db.update(user).set({ email: secondEmail! }).where(eq(user.id, ids.bobId))
-      if (organizationScope) {
-        await db.insert(member).values([
-          {
-            id: generateId(),
-            organizationId: ids.organizationId,
-            userId: ids.aliceId,
-            role: 'owner',
-            createdAt: new Date(),
-          },
-          {
-            id: generateId(),
-            organizationId: ids.organizationId,
-            userId: ids.bobId,
-            role: 'member',
-            createdAt: new Date(),
-          },
-        ])
-        await db
-          .update(knowledgeBase)
-          .set({ workspaceId: null, organizationId: ids.organizationId, isSearchIndex: true })
-          .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-        const createdCredential = await createOrganizationCredential.execute({
-          principal: principal(ids.aliceId),
-          input: {
-            organizationId: ids.organizationId,
-            type: 'service_account',
-            providerId: 'coda-service-account',
-            displayName: 'Disposable Coda live fixture',
-            apiToken: token,
-          },
-        })
-        credentialId = createdCredential.credential.id
-      } else
-        await db.insert(credential).values({
-          id: credentialId,
-          workspaceId: ids.workspaceId,
-          createdBy: ids.aliceId,
-          type: 'service_account',
-          providerId: 'coda-service-account',
-          displayName: 'Disposable Coda live fixture',
-          encryptedServiceAccountKey: (
-            await encryptSecret(
-              JSON.stringify({
-                type: 'token_service_account',
-                providerId: 'coda-service-account',
-                apiToken: token,
-              })
-            )
-          ).encrypted,
-        })
+      await db.insert(credential).values({
+        id: credentialId,
+        workspaceId: ids.workspaceId,
+        createdBy: ids.aliceId,
+        type: 'service_account',
+        providerId: 'coda-service-account',
+        displayName: 'Disposable Coda live fixture',
+        encryptedServiceAccountKey: (
+          await encryptSecret(
+            JSON.stringify({
+              type: 'token_service_account',
+              providerId: 'coda-service-account',
+              apiToken: token,
+            })
+          )
+        ).encrypted,
+      })
       const created = await createKnowledgeConnector.execute({
         principal: principal(ids.aliceId),
         input: {
           knowledgeBaseId: ids.knowledgeBaseId,
-          ...(organizationScope
-            ? { assertedOrganizationId: ids.organizationId }
-            : { assertedWorkspaceId: ids.workspaceId }),
+          assertedWorkspaceId: ids.workspaceId,
           connectorType: 'coda',
           credentialId,
           accessMode: 'admin',
@@ -274,7 +226,7 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
             .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
           for (const row of rows)
             if (row.storageKey) await deleteFile({ key: row.storageKey, context: 'knowledge-base' })
-          await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+          await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
           await db.delete(organization).where(eq(organization.id, ids.organizationId))
           await db.delete(user).where(eq(user.id, ids.aliceId))
           await db.delete(user).where(eq(user.id, ids.bobId))
@@ -313,8 +265,7 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
         workspaceId: ids.workspaceId,
         keyId: 'fixture',
       })
-      if (organizationScope) await expect(keySearch).rejects.toThrow()
-      else expect(await keySearch).not.toContain(documentId)
+      expect(await keySearch).not.toContain(documentId)
       const chunks = await listKnowledgeChunks.execute({
         principal: principal(ids.aliceId),
         input: { knowledgeBaseId: ids.knowledgeBaseId, documentId },

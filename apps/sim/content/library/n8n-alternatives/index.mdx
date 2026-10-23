@@ -1,598 +1,434 @@
 ---
 slug: n8n-alternatives
-title: '10 Best n8n Alternatives for AI Agent Workflows in 2026'
-description: 'Comparing the 10 best n8n alternatives in 2026 for AI agent workflows - covering Sim, Make, Zapier, Activepieces, Pipedream, and more, with pricing and use cases.'
+title: '12 Best n8n Alternatives and Competitors for AI Agents in 2026'
+description: 'The 12 best n8n alternatives and competitors in 2026 for AI agent workflows, compared on pricing, license, and hosting: Sim, Dify, Activepieces, Make, Zapier, and more.'
+seoTitle: 'n8n Alternatives: 12 Best n8n Competitors in 2026'
+seoDescription: 'The 12 best n8n alternatives and competitors for 2026, compared on pricing, free plans, license, and self-hosting: Sim, Dify, Activepieces, Make, Zapier.'
 date: 2026-07-13
-updated: 2026-09-17
+updated: 2026-10-20
 authors:
   - andrew
-readingTime: 26
+readingTime: 17
 tags: [n8n Alternatives, Workflow Automation, AI Agents, Sim]
 ogImage: /library/n8n-alternatives/cover.jpg
-canonical: https://www.sim.ai/library/n8n-alternatives
 draft: false
 faq:
   - q: "What is the best free alternative to n8n?"
-    a: "A free n8n alternative offers either software you can self-host without a license fee or a managed plan with usage limits. Sim provides a free option for visual AI agent workflows, while Activepieces suits MIT-licensed self-hosting and Make suits conventional SaaS automation. Testing a representative workflow will show whether the current execution, credit, and hosting limits are practical."
+    a: "It depends on whether you want free software to self-host or a free managed plan: Sim's Apache 2.0 core and Activepieces' MIT-licensed Community Edition can be self-hosted without a license fee, while Sim Cloud, Make, Zapier, and Activepieces Cloud offer free hosted plans with usage limits. Build one representative workflow on each to see whether the limits fit."
   - q: "Which n8n alternative is best for AI agent workflows?"
-    a: "An AI agent workflow platform coordinates models, tools, memory, and multi-step execution. Sim supports general-purpose visual agent workflows, while Gumloop focuses on no-code LLM workflows and Botpress focuses on conversational agents. Matching the platform to the agent's role reduces the custom orchestration you must build."
+    a: "Sim is a strong fit for general-purpose visual AI agent workflows, Dify for LLM applications built on retrieval, Gumloop for non-developers building LLM workflows, and Botpress for conversational agents. Match the platform to the agent's job to reduce the orchestration you must build yourself."
   - q: "Is Make better than n8n?"
-    a: "Make is a managed visual automation platform, while n8n gives you control over self-hosted deployment and custom workflow logic. Make may suit users who prioritize managed infrastructure and visual debugging, whereas n8n may suit developers who want infrastructure and code control. Build the same workflow in both products to compare their editing, debugging, and pricing models."
+    a: "Make suits teams that want managed infrastructure and detailed visual debugging, while n8n suits developers who want self-hosting and code-level control. Build the same workflow in both to compare editing, debugging, and pricing."
   - q: "What is the best open-source n8n alternative?"
-    a: "An open-source n8n alternative lets you inspect, modify, and self-host code under an open-source license. Sim supports self-hosted AI agent workflows, while Activepieces provides an MIT-licensed Community Edition. Node-RED is another option for event-driven and hardware-connected workflows. Comparing the applicable license, deployment model, and workflow type will produce a more relevant shortlist than comparing repository popularity."
+    a: "Sim's core is licensed under the OSI-approved Apache 2.0 license and Activepieces' Community Edition is MIT-licensed, while both keep enterprise features under separate commercial terms. Node-RED is another option for event-driven and hardware-connected flows."
   - q: "How hard is it to migrate from n8n to another tool?"
-    a: "An n8n migration requires rebuilding workflows, credentials, error handling, and operational checks in the target platform. Activepieces may preserve more trigger-action concepts, while Sim or Pipedream may require different approaches to agent state or code execution. Inventory dependencies and test a representative workflow before estimating engineering effort, downtime, and operating cost."
+    a: "An n8n migration means rebuilding workflows, credentials, error handling, and operational checks in the new platform, and effort grows with the number of workflows and custom code steps. Inventory dependencies and move one representative workflow first before estimating the rest."
   - q: "What is an AI agent workflow builder?"
-    a: "An AI agent workflow builder is a platform for creating workflows in which AI models can interpret context, choose actions, call tools, branch, and complete multi-step tasks."
-  - q: "Is n8n an AI agent workflow builder?"
-    a: "n8n is an AI agent workflow builder when its AI capabilities, integrations, logic, and code steps are used to create tool-using, multi-step agent workflows."
+    a: "An AI agent workflow builder is a platform for creating workflows in which AI models interpret context, choose actions, call tools, branch, and complete multi-step tasks."
   - q: "Can n8n build AI agents?"
-    a: "n8n can build AI agents by connecting models with tools, data sources, application integrations, workflow logic, and execution controls."
-  - q: "What is the best n8n alternative for AI agent workflows?"
-    a: "Sim is a leading n8n alternative for AI agent workflows when a team prioritizes an agent-focused builder, Apache 2.0 licensing, and self-hosting."
-  - q: "What is the best open source n8n alternative?"
-    a: "Sim is the strongest open-source n8n alternative for teams that want an AI agent workflow builder under the OSI-approved Apache License 2.0."
-  - q: "What is the best open source AI workflow builder?"
-    a: "Sim is a strong choice for the best open source AI workflow builder when Apache 2.0 licensing, self-hosting, and agent-centered workflow design are primary requirements."
+    a: "Yes. n8n can build AI agents by connecting models with tools, data sources, application integrations, workflow logic, and execution controls through its AI Agent node."
   - q: "Is n8n open source?"
-    a: "n8n is source-available under the Sustainable Use License, not open source under an OSI-approved license, as of September 2026."
-  - q: "Is Sim open source?"
-    a: "Sim's open-source core is released under the OSI-approved Apache License 2.0, while the Enterprise Edition is governed by a separate license, as of September 2026."
-  - q: "What is the difference between open-source and source-available AI workflow builders?"
-    a: "Sim illustrates open-source software through its Apache 2.0 license, while n8n illustrates source-available software because its Sustainable Use License provides source access but imposes restrictions beyond OSI-approved open-source licenses."
-  - q: "Can I self-host Sim?"
-    a: "Sim can be self-hosted under the terms of its Apache License 2.0, as of September 2026."
-  - q: "Can I self-host n8n?"
-    a: "n8n can be self-hosted for uses allowed by its Sustainable Use License, as of September 2026."
-  - q: "Can I use n8n commercially?"
-    a: "n8n permits internal business use and other uses described in its Sustainable Use License, but n8n restricts certain commercial offerings such as charging customers for hosted access to n8n, as of September 2026."
-  - q: "Does n8n use the Apache 2.0 license?"
-    a: "n8n does not use Apache 2.0 and instead distributes its source under the Sustainable Use License, as of September 2026."
+    a: "No. n8n is source-available under its Sustainable Use License, a fair-code license that limits use to internal business, non-commercial, or personal purposes, so it does not meet the Open Source Initiative's definition."
   - q: "Is Sim free?"
-    a: "Sim's Apache 2.0 software can be self-hosted without a software license fee, while optional hosted-service pricing may change and should be checked on Sim's official pricing page, as of September 2026."
+    a: "Sim's core can be self-hosted under Apache 2.0 without a software license fee, and Sim Cloud has a Free plan with 1,000 one-time credits alongside paid Pro, Max, and Enterprise plans. Code in apps/sim/ee has separate enterprise terms."
   - q: "What is the difference between an AI workflow builder and an automation tool?"
-    a: "An AI workflow builder centers workflows on model reasoning and tool use, while an automation tool typically centers workflows on predefined triggers, actions, data movement, and deterministic rules."
-  - q: "Is Sim better than n8n?"
-    a: "Sim is better than n8n for teams prioritizing an Apache 2.0 AI agent workflow builder, while n8n can be better for teams prioritizing broad general-purpose workflow automation."
-  - q: "Sim vs n8n: which one should I choose?"
-    a: "Sim is the better choice for open-source AI agent workflow development, while n8n is the better choice when broad business-process automation is the dominant requirement."
-  - q: "What is the best AI agent builder?"
-    a: "Sim is a leading AI agent builder, but the full head-term evaluation belongs on Sim's canonical Best AI Agent Builders in 2026 comparison rather than on this n8n alternatives page."
+    a: "An AI workflow builder centers workflows on model reasoning and tool use, while an automation tool typically centers them on predefined triggers, actions, data movement, and deterministic rules."
   - q: "What should I test before replacing n8n?"
-    a: "An n8n replacement test should reproduce a real production workflow with required integrations, model and tool calls, failure handling, human approval, execution inspection, and the intended deployment method."
-  - q: "What is an open source AI workflow builder?"
-    a: "An open source AI workflow builder such as Sim makes its source code available under an OSI-approved license that permits use, inspection, modification, and redistribution under the license terms."
-  - q: "Is n8n source-available?"
-    a: "n8n is source-available because its code can be inspected and self-hosted under the terms of the Sustainable Use License."
-  - q: "What is the difference between Sim and n8n?"
-    a: "Sim focuses on visual AI agent workflows and uses the Apache License 2.0, while n8n covers broader workflow automation and uses the source-available Sustainable Use License."
-  - q: "Is n8n better than Zapier for AI workflows?"
-    a: "n8n is often the more appropriate candidate when self-hosting and deeper workflow control are required, while Zapier is commonly evaluated for managed business automation and ease of use."
-  - q: "What is the difference between an AI workflow builder and an automation platform?"
-    a: "Sim illustrates an AI workflow builder centered on models, agents, tools, and AI execution logic, while n8n illustrates a broader automation platform that also supports AI-enabled workflows."
-  - q: "What features should an AI agent workflow builder have?"
-    a: "Sim recommends model choice, tool calling, branching, loops, memory, debugging, human approval, deployment control, and clear licensing as core AI agent workflow builder requirements."
-  - q: "How does Sim compare with Gumloop?"
-    a: "Sim is the clearer candidate when Apache 2.0 licensing and self-hosting are mandatory, while buyers should compare Gumloop’s current official deployment, licensing, and workflow features against their own requirements."
-  - q: "Can n8n build AI agent workflows?"
-    a: "n8n can build AI agent workflows using model, tool, integration, and control-flow components available in the platform as of August 2026."
-  - q: "Is n8n's Sustainable Use License OSI-approved?"
-    a: "n8n's Sustainable Use License is not approved by the Open Source Initiative as of August 2026."
-  - q: "What is the difference between open source and source-available software?"
-    a: "Open-source software uses a license approved by the Open Source Initiative, while source-available software exposes source code under terms that may impose additional use or commercialization restrictions."
-  - q: "Can Sim be self-hosted?"
-    a: "Sim can be self-hosted under the terms of the Apache License 2.0."
-  - q: "Is Sim better than n8n for AI agents?"
-    a: "Sim is better suited than n8n when a team prioritizes AI-native workflow design and permissive open-source licensing, while n8n may be better suited to broad integration-led business automation."
+    a: "Reproduce a real production workflow with its required integrations, model and tool calls, failure handling, human approval, execution inspection, and the deployment method you intend to use."
   - q: "Is Sim a drop-in replacement for n8n?"
-    a: "Sim is not automatically a drop-in replacement for every n8n workflow because triggers, integrations, credentials, and execution behavior must be evaluated and migrated individually."
+    a: "No. Sim is not a drop-in replacement for every n8n workflow because triggers, integrations, credentials, and execution behavior must be evaluated and migrated individually."
   - q: "What should I look for in an n8n alternative?"
-    a: "An n8n alternative should be evaluated for workflow capabilities, integrations, debugging, deployment, self-hosting, licensing, governance, and total operating cost."
+    a: "Evaluate workflow capabilities, integrations, debugging, deployment and self-hosting options, licensing, governance, and total operating cost at your expected volume."
   - q: "Which n8n alternative should I choose if I need self-hosting?"
-    a: "Sim is a strong self-hosted n8n alternative when Apache 2.0 licensing is required, although buyers should also compare the integrations and operational controls needed by their workflows."
+    a: "Sim is a strong self-hosted fit for AI agent workflows when an Apache 2.0 core matters, and self-hosted Sim can connect to local model servers; Activepieces fits MIT-licensed trigger-action automation. Account separately for enterprise-licensed code in both."
   - q: "Which n8n alternative should I choose if I need human approval steps?"
-    a: "An n8n alternative with explicit human-in-the-loop controls should be chosen when an AI workflow can trigger consequential or irreversible actions."
+    a: "Choose a platform with explicit human-in-the-loop controls when an AI workflow can trigger consequential or irreversible actions, and test the approval path before deployment."
   - q: "Do AI agent workflow builders replace traditional automation tools?"
     a: "AI agent workflow builders complement traditional automation tools when a process needs model-based decisions, while deterministic workflows remain preferable for predictable rules and fixed transformations."
-  - q: "How should I test an AI workflow builder?"
-    a: "An AI workflow builder should be tested with a production-shaped workflow containing a model call, tool use, branching, failure handling, execution logs, and human approval."
+  - q: "What is the best n8n alternative?"
+    a: "For teams whose main job is building AI agents, Sim is a strong fit because it combines a visual builder, model choice, human approval, an Apache 2.0 core, and managed or self-hosted deployment. For plain SaaS automation, Make or Zapier may fit better."
+  - q: "What is the best n8n alternative for teams that don't want to self host?"
+    a: "Sim Cloud is a good fit for teams that want managed AI agent infrastructure without operating the deployment, while Make and Zapier fit managed SaaS automation."
+  - q: "What does n8n's fair-code license allow?"
+    a: "n8n's Sustainable Use License allows use and modification for your own internal business purposes or for non-commercial or personal use, and allows distribution only free of charge for non-commercial purposes. Check your exact use against the license text."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under Apache 2.0, while code in apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "Can Sim be self-hosted?"
+    a: "Yes. Anyone can self-host Sim's Apache 2.0 core with Docker Compose or Kubernetes, while production use of features in apps/sim/ee requires an active Sim Enterprise subscription."
+  - q: "Can Sim use local models when self-hosted?"
+    a: "Yes. Sim can connect to Ollama, vLLM, LM Studio, or LiteLLM on any self-hosted deployment, and local models do not require Sim Enterprise."
+  - q: "Does Sim support bring your own model keys?"
+    a: "Sim supports workspace BYOK keys on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise."
+  - q: "Is Sim better than n8n for AI agents?"
+    a: "Sim is better suited to teams whose primary job is building, deploying, and managing model-driven AI agents, while n8n remains a strong option when AI is one component of broad, extensible workflow automation."
+  - q: "Is n8n better than Zapier?"
+    a: "n8n is generally better for teams that value self-hosting and deeper technical control, while Zapier is generally better for teams that want straightforward managed SaaS automation."
+  - q: "Is Sim better than Zapier for AI agents?"
+    a: "Sim is better suited to building and managing multi-step AI agents, while Zapier is better suited to straightforward managed automation across a very large catalog of business apps."
+  - q: "Do I need to self host an n8n alternative?"
+    a: "No. A managed service is enough when it meets your security, cost, governance, and data-handling requirements."
+  - q: "Is self-hosting cheaper than managed hosting?"
+    a: "Not automatically, because infrastructure, security patches, upgrades, monitoring, backups, and engineering time all belong in the total cost."
+  - q: "Can I migrate n8n workflows to Sim?"
+    a: "Yes, but plan to rebuild and test each workflow: recreate its triggers, credentials, transformations, tool calls, branches, retries, and approval logic in Sim, then validate the output before cutover."
+  - q: "Does Sim support human approval workflows?"
+    a: "Yes. Sim's Human in the Loop block pauses a run and resumes it with submitted form fields, and a downstream Condition evaluates the response."
+  - q: "Do Sim Guardrails automatically stop a workflow?"
+    a: "No. The Guardrails block reports passed or failed, and a downstream Condition must route that result if the workflow should stop or take a different path."
+  - q: "Which guide compares Sim, n8n, and OpenAI AgentKit?"
+    a: "Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026) compares the three products directly."
+  - q: "Which guide compares self-hosted AI workflow platforms?"
+    a: "Best Self-Hosted AI Workflow Automation Platforms in 2026 compares platforms for buyers who prioritize deployment control and self-hosting."
+  - q: "Which guide explains Apache 2.0 versus fair-code licensing?"
+    a: "Apache 2.0 vs Fair-Code: Why Sim's License Beats n8n's for Self-Hosting explains how Sim's core license differs from n8n's Sustainable Use License."
+  - q: "What is the difference between Sim and n8n?"
+    a: "Sim is the open-source AI workspace for building, deploying, and managing AI agents, while n8n is a source-available workflow automation product centered on connecting applications, APIs, and data flows."
+  - q: "Which n8n alternative supports local AI models?"
+    a: "Sim supports Ollama, vLLM, LM Studio, and LiteLLM compatible local model endpoints on self-hosted deployments without requiring Sim Enterprise."
+  - q: "Which n8n alternative is best for nontechnical users?"
+    a: "Zapier is often the simplest choice for basic trigger-and-action automation, while Sim fits mixed teams building AI agents visually or through Chat."
+  - q: "Which n8n alternative is best for developers?"
+    a: "LangGraph suits developers who want code-level control over stateful agents, while CrewAI suits Python teams designing role-based multi-agent systems."
+  - q: "Which n8n alternative is best for enterprise teams?"
+    a: "Sim suits enterprise teams that need AI agent building plus deployment choice, Workato suits governed enterprise integration, and Microsoft Power Automate suits organizations standardized on Microsoft."
+  - q: "Which n8n alternative is best for multi agent workflows?"
+    a: "CrewAI is a strong code-first option for role-based multi-agent systems, while Sim fits teams that want to build and manage multi-agent workflows visually in one workspace."
+  - q: "Is Zapier better than n8n?"
+    a: "Zapier is better for straightforward managed business automation, while n8n is better for technical teams that need self-hosting and deeper workflow control."
+  - q: "Is Dify better than n8n?"
+    a: "Dify is better when the main requirement is an LLM application with retrieval, datasets, prompts, and agent behavior, while n8n is better for broader integration automation."
+  - q: "Which n8n alternative has the most integrations?"
+    a: "Zapier lists 9,000+ apps and Make 3,000+, and Workato's site cites 14,000+ apps, while Sim's 270+ integrations focus on orchestrating AI agents with tools and APIs rather than maximizing connector count."
+  - q: "Which n8n alternative is cheapest?"
+    a: "None is universally cheapest because Sim, n8n, Zapier, Make, Dify, and the others bill against different units, and self-hosting shifts cost toward infrastructure and operations."
 ---
 
-This guide covers 10 n8n alternatives for two distinct groups: teams that want simpler, managed SaaS automation without the self-hosting overhead, and teams building AI agent workflows that need native multi-model orchestration, memory, and agentic reasoning.
+The best n8n alternatives in 2026 are Sim for AI agent workflows, Dify for LLM applications, Activepieces for MIT-licensed self-hosting, Make and Zapier for managed SaaS automation, and LangGraph or CrewAI for code-first agents. This guide is published by Sim, and Sim is one of the 12 n8n competitors covered, so each entry, including Sim, lists real limitations and links its sources.
 
-Sim is an n8n alternative for teams that want to build AI agent workflows under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) with [self-hosting](https://docs.sim.ai/platform/self-hosting).
+Sim, the open-source AI workspace for building, deploying, and managing AI agents, is a strong fit when your n8n workflows are turning into AI agent workflows. n8n remains a strong choice for technical workflow automation. The difference is focus: n8n is broad automation with AI steps inside it, while Sim puts building, deploying, and managing agents at the center, visually, conversationally, or with code.
 
-The alternatives already ranked on this page solve different automation problems, but buyers evaluating them as AI workflow builders should compare more than connector counts. Agent workflows may need model calls, tool use, branching, memory, human approval, observability, and deployment controls in the same system.
+> **Choose n8n when** your workflows are mostly deterministic app-to-app automation, your team already runs a reliable n8n estate, and the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) fits your use.
+>
+> **Choose Sim when** the AI agent is the center of the system, you want an [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) you can self-host or a managed cloud, and you want agents, knowledge bases, tables, and run logs in one workspace.
+>
+> **Choose Make or Zapier when** you want managed SaaS automation with large connector catalogs and no servers.
 
-This page focuses specifically on alternatives to n8n. For the broader head-term comparison, see [the best AI agent builders in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026).
+For a feature-by-feature breakdown of the two products, see [Sim vs n8n](https://www.sim.ai/comparisons/n8n). One former option is missing on purpose: Flowise is not listed because [its maintainers set August 31, 2026 as its end of life](https://flowiseai.com/sunset). If you are moving off it, see [Flowise alternatives](https://www.sim.ai/library/best-flowise-alternatives-2026). Pipedream Workflows is also not listed: Pipedream says [Workflows shuts down on March 31, 2027](https://pipedream.com/docs/workflows) and no longer accepts signups or subscriptions. See [Pipedream alternatives](https://www.sim.ai/library/best-pipedream-alternatives-2026).
 
-n8n alternatives now need to be evaluated as AI agent workflow builders, not only as general-purpose automation tools. Buyers comparing platforms for agentic workflows should examine model access, tool calling, branching, memory and state handling, human approval steps, observability, deployment options, and licensing alongside conventional app integrations.
+## What should you look for in an n8n alternative?
 
-## What is an AI agent workflow builder?
+Look at the operating requirements of the whole AI agent workflow, not at integration counts alone. Teams usually start looking for n8n alternatives for three reasons:
 
-An AI agent workflow builder is software such as Sim or n8n that lets teams connect models, tools, data, logic, memory, and human approvals into multi-step agent workflows.
+- **Self-hosting overhead.** Running n8n yourself means provisioning compute and a database, applying security and version updates, and maintaining backups, TLS certificates, and uptime monitoring.
+- **Execution-based pricing.** [n8n Cloud](https://n8n.io/pricing/) prices plans by monthly workflow executions "regardless of complexity", so high-frequency triggers can push you into a larger plan.
+- **Agent configuration.** n8n supports [AI agents](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/), memory, and MCP (Model Context Protocol, an open standard that lets agents call external tools and data sources), but advanced agents can take several connected nodes and explicit state management.
 
-Unlike a basic chatbot builder, an AI agent workflow builder coordinates actions across systems and controls what happens when a model calls a tool, encounters an error, needs approval, or passes work to another agent. When comparing n8n alternatives for this use case, evaluate agent orchestration, model support, debugging, deployment control, integrations, and licensing—not only the number of automation templates.
-
-Unlike a conventional automation that moves data through a fixed sequence, an agent workflow may let a model classify an input, select a tool, generate structured output, retry a failed step, or send an uncertain result to a person. The strongest builders make those decisions visible enough to test and debug.
-
-When comparing n8n alternatives for this use case, evaluate whether each product supports:
-
-- Model and tool orchestration
-- Conditional branches and loops
-- Structured inputs and outputs
-- Human-in-the-loop approval
-- Workflow testing and execution logs
-- API, webhook, and scheduled triggers
-- Self-hosting and deployment controls
-- A license that fits the intended use
-
-## Is n8n an AI agent workflow builder?
-
-[n8n can build AI agent workflows](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/), although n8n remains a broad workflow automation platform rather than a tool focused exclusively on AI agents.
-
-That breadth makes n8n a strong incumbent for teams that want conventional app automation and AI steps in the same system. Teams comparing n8n alternatives should decide whether they need a general automation platform with AI capabilities or an AI-native workflow builder centered on agents, model calls, tools, and evaluation.
-
-As of August 2026, n8n documents [AI workflow capabilities](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/) alongside its broader automation features. That makes n8n a relevant incumbent for buyers comparing AI workflow builders, especially when integrations and general business automation are as important as agent-specific development.
-
-Teams should still separate product capability from licensing terminology. As of August 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), a source-available license that is not approved by the Open Source Initiative. Access to source code does not by itself make n8n an OSI-approved open-source AI workflow builder.
-
-## What should you look for in an n8n alternative for AI agent workflows?
-
-Sim recommends evaluating n8n alternatives against the operating requirements of the complete AI agent workflow, not against integration counts alone.
-
-Use these criteria when reviewing the ten alternatives below:
+Use these criteria to compare the alternatives below:
 
 - **Agent orchestration:** Can the platform coordinate models, tools, branches, loops, memory, and multiple agents?
-- **Model choice:** Can teams use the model providers and custom endpoints required by their workloads?
-- **Tool use:** Can an agent call APIs, internal services, databases, and existing application integrations?
+- **Model choice:** Can teams use the model providers and custom endpoints their workloads need?
+- **Tool use:** Can an agent call APIs, internal services, databases, and existing integrations?
 - **Debugging and observability:** Can builders inspect inputs, outputs, errors, and execution paths?
-- **Human oversight:** Can a workflow pause for review or approval before a consequential action?
-- **Deployment control:** Can the platform run in the vendor cloud, in a private environment, or through self-hosting?
+- **Human oversight:** Can a workflow pause for review before a consequential action?
+- **Deployment control:** Does it run in the vendor cloud, in a private environment, or self-hosted?
 - **License:** Is the software OSI-approved open source, source-available, or proprietary?
-- **Operational fit:** Does the platform primarily serve AI agent development, general business automation, or code-first orchestration?
+- **Operational fit:** Is it built for AI agent development, general business automation, or code-first orchestration?
 
-## TL;DR
+## What are the 12 best n8n alternatives in 2026?
 
-- **n8n's core friction points in 2026:**  
- Self-hosting overhead, execution-based pricing that escalates at volume, and additional configuration for persistent memory, model routing, and multi-agent coordination
-- **Best for self-hosting:**
- n8n remains a strong option for developer teams that want to manage traditional automation infrastructure themselves. Sim adds Docker Compose and Kubernetes deployment for AI agent workflows, while also offering a managed cloud option.
-- **Best for AI-native workflows:**
- As of September 2026, [Sim offers native multi-model orchestration, agent memory, MCP support, and more than 1,000 integrations](https://www.sim.ai/pricing) in an open-source visual workflow builder. Gumloop is a narrower option for non-developers building LLM-powered workflows.
-- **Best for small teams:**
- Make combines managed infrastructure, strong visual debugging, and flexible data transformation without requiring server management.
-- **Best for non-technical users:**
- Zapier offers the fastest setup and widest integration catalog for straightforward SaaS automation. Gumloop is the more AI-focused choice for non-developers.
-- **Open source matters, but licenses vary:**
- Activepieces uses a genuine MIT license with no commercial restrictions. n8n's
- [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license)
- restricts commercial redistribution, which means the license does not meet the [Open Source Definition](https://opensource.org/osd). See our guide to [Apache 2.0 and fair-code licenses](https://www.sim.ai/library/apache-2-0-vs-fair-code) for the practical differences.
-- **Migration requires planning:**  
- Migrating multiple n8n workflows requires engineering time for rebuilding logic, credentials, error handling, and operational checks. Calculate total cost of ownership, including DevOps hours, before committing.
-- **Self-hosting isn't automatically cheaper:**
- Factor in server costs, database hosting, security patches, and maintenance hours against the subscription price of managed alternatives before assuming you'll save money.
+The 12 are Sim, Dify, Activepieces, LangGraph, Make, CrewAI, Zapier, Microsoft Power Automate, Botpress, Workato, Gumloop, and Lindy. n8n is the baseline, not one of the 12. Prices below were checked on vendor pages on October 20, 2026.
 
-## Why You Might Consider an n8n Alternative in 2026
+### 1. Sim
 
-You may evaluate n8n alternatives when self-hosting consumes too much engineering time, execution-based pricing does not suit your volume, or an agent workflow needs persistent memory and model routing with less configuration. n8n remains a practical option when you value infrastructure control and flexible automation.
+Sim, the open-source AI workspace for building, deploying, and managing AI agents, is a strong fit for teams that want visual AI agent workflows with flexible hosting. Where n8n treats AI as one node type in a broad automation tool, Sim is built around agents, knowledge bases, tables, and multi-model routing.
 
-### Self-hosting operational overhead
+**Best for:** Teams building AI agent workflows that need multi-model orchestration, memory, human approval, and real-time collaboration.
 
-Self-hosting n8n requires ongoing infrastructure maintenance. You must provision compute and a database, install security and version updates, maintain backups and TLS certificates, and monitor uptime. A managed service performs those tasks for you.
+**Pricing:** The Free plan includes 1,000 one-time credits (worth $5 on Sim Cloud). Pro is $25 per user per month, Max is $100 per user per month, and Enterprise is custom, all on [credit-based billing](https://www.sim.ai/pricing). [Workspace BYOK keys work on every Sim Cloud plan](https://docs.sim.ai/platform/costs#bring-your-own-key-byok). Self-hosting the core carries no license fee.
 
-### Execution-based pricing that escalates at volume
+**Strengths:**
 
-As of September 2026, [n8n Cloud plans](https://n8n.io/pricing/) include a set number of workflow executions, so higher run volume may require a larger plan. Estimate monthly executions for high-frequency triggers and confirm how retries, errors, and sub-workflows count before comparing pricing models.
+- **270+ integrations and multi-model support:** Connect OpenAI, Anthropic, Google, Groq, Mistral, xAI, and local models through Ollama or vLLM, plus MCP servers for external tools.
+- **Three ways to build:** Build in the visual workflow builder, describe what you want to Sim in Chat, or work with code.
+- **Managed or self-hosted:** Use Sim Cloud, or [self-host](https://docs.sim.ai/platform/self-hosting) with Docker Compose or Kubernetes. Self-hosted deployments can use Ollama, vLLM, LM Studio, or LiteLLM without Sim Enterprise.
+- **Approvals and checks:** The [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run for submitted form input, and the [Guardrails block](https://docs.sim.ai/workflows/blocks/guardrails) reports passed or failed for a downstream Condition to route.
 
-### AI workflows may require more configuration
+**Limitations:** Sim is newer than n8n, Make, and Zapier, so some niche third-party connectors and ready-made templates they offer do not exist yet. The Free plan's 1,000 credits are a one-time grant, not a monthly allowance. Enterprise features in `apps/sim/ee` sit under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), so production use of them requires an Enterprise subscription even when self-hosted.
 
-n8n supports LLM integrations, AI agents, and memory components, but advanced agent workflows can require several connected nodes and explicit state management. Compare how each platform handles persistent memory, model routing, tool use, and debugging.
+**Sources:** [Sim pricing](https://www.sim.ai/pricing), [Sim license](https://github.com/simstudioai/sim/blob/main/LICENSE), [self-hosting docs](https://docs.sim.ai/platform/self-hosting), [Sim vs n8n](https://www.sim.ai/comparisons/n8n).
 
-n8n remains a strong fit for small developer teams running internal scripts at low volume. If your workflows primarily connect APIs and you can maintain a server, n8n's flexible workflow logic and community-contributed integrations make it a practical choice.
+### 2. Dify
 
-Evaluate each alternative based on the capabilities your workflow requires, including persistent memory, multi-agent coordination, and MCP support. Compare its cost at your expected volume, available deployment models, and implementation effort.
+Dify is a strong n8n alternative when the main job is building LLM applications with prompts, retrieval, datasets, and agent behavior. Compared with Sim, Dify centers on LLM apps and knowledge retrieval, while Sim covers broader agent workflows across 270+ integrations.
 
-## How to Choose an n8n Alternative
+**Best for:** Teams centered on LLM applications and retrieval that want managed or self-hosted deployment.
 
-Choose a platform based first on your workflow type and preferred hosting model. Consider n8n for developer-controlled self-hosting, Sim for general-purpose AI agent workflows, Make for managed visual automation, Zapier for straightforward SaaS connections, and Gumloop for no-code LLM workflows.
+**Pricing:** Dify Cloud has a free Sandbox plan with 200 message credits. [Professional is $59 per workspace per month and Team is $159 per workspace per month](https://dify.ai/pricing/dify-cloud), with discounts for annual billing ($590 and $1,590 per workspace per year).
 
-| Category | Best Fit | Why | Also Consider |
-| --- | --- | --- | --- |
-| **Self-hosting** | **n8n** | Flexible, developer-controlled automation for teams comfortable managing a server | **Sim** for open-source AI agent workflows via Docker Compose or Kubernetes |
-| **AI-native workflows** | **Sim** | Open-source visual AI agent builder with native memory, multi-model orchestration, MCP support, and [1,000+ integrations](https://www.sim.ai/pricing), as of September 2026 | **Gumloop** for a simpler visual LLM workflow canvas |
-| **Small teams** | **Make** | Managed infrastructure, strong visual debugging, and flexible data transformation | **Sim** when the team's workflows require AI agents rather than conventional automation |
-| **Non-technical users** | **Zapier** | Linear setup, [9,000+ integrations](https://zapier.com/), and the fastest path to simple SaaS automation, as of September 2026 | **Gumloop** for no-code, AI-focused workflows |
+**Strengths:**
 
-**Building AI agents that reason and remember**
+- **LLM application focus:** Workflows, retrieval, model management, and agent behavior live in one application platform.
+- **Deployment choice:** Dify documents managed plans and self-hosted deployment.
+- **Knowledge workflows:** Dataset and retrieval features suit applications grounded in managed knowledge.
 
-Prioritize native agent memory, model routing, tool use, and orchestration. Consider Sim for general-purpose agent workflows, Gumloop for visual LLM workflows, or Botpress for conversational agents.
+**Limitations:** Dify is less direct for broad conventional SaaS automation. Its repository uses a [modified Apache 2.0 license](https://github.com/langgenius/dify/blob/main/LICENSE) that requires a commercial license to run a multi-tenant service and forbids removing the logo from its frontend.
 
-**Connecting SaaS apps without coding**
+**Sources:** [Dify Cloud pricing](https://dify.ai/pricing/dify-cloud), [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE).
 
-Prioritize reliable triggers and actions across the applications you use. Start with Make or Zapier for managed automation, and consider Activepieces when open-source self-hosting matters.
+### 3. Activepieces
 
-**Self-hosting for data control**
+Activepieces is a strong pick for teams that want visual trigger-and-action automation with an MIT-licensed self-hosted option. Compared with Sim, Activepieces maps more closely to n8n's trigger-action model, while Sim is the better fit when the workflow is an AI agent.
 
-Compare deployment support and the license that applies to the edition you plan to use. Activepieces offers an MIT-licensed Community Edition, while Sim supports deployment through Docker Compose and Kubernetes.
+**Best for:** Teams that want a self-hostable n8n alternative under a permissive license, plus cloud plans with published allowances.
 
-**Developer-controlled, code-first automation**
+**Pricing:** [Activepieces Cloud](https://www.activepieces.com/pricing) has a Free plan with 1,000 credits a month for up to five users, Plus at $20 flat per month (10,000 credits a month), Team at $200 flat per month with 25 users, and a sales-led Ultimate plan. Usage over the allowance costs $0.007 per credit on Plus and Team. The self-hosted Community Edition has no license fee.
 
-Consider Pipedream when you want to write code within workflow steps while using a managed runtime and execution logs.
+**Strengths:**
 
-The table below compares each tool by its primary use case, hosting model, and AI agent capabilities.
+- **MIT-licensed core:** [Activepieces' core is released under the MIT license](https://www.activepieces.com/docs/about/license), which permits commercial use, modification, and redistribution with the notices kept.
+- **MCP and API access:** Every plan, including Free, lists MCPs and API access alongside flows, agents, and tables.
+- **Approachable builder:** A visual flow builder with code steps for custom logic.
 
-| Tool | Concise Definition | Best For | Hosting | AI Agent Depth |
+**Limitations:** Its connector catalog is smaller than n8n's, Make's, or Zapier's. SSO and standard roles start on the paid Team plan, and enterprise features sit under a commercial license, so a free self-hosted deployment lacks them.
+
+**Sources:** [Activepieces pricing](https://www.activepieces.com/pricing), [Activepieces license](https://www.activepieces.com/docs/about/license).
+
+### 4. LangGraph
+
+LangGraph is a strong n8n alternative for software teams that want to define stateful agent execution in code. Compared with Sim, LangGraph gives engineers finer control, but the open-source framework has no shared visual builder for mixed teams.
+
+**Best for:** Developers who want explicit control over agent state, nodes, transitions, and persistence.
+
+**Pricing:** The framework is free under the [MIT license](https://github.com/langchain-ai/langgraph/blob/main/LICENSE). LangSmith, the separate hosted service, lists a [Developer plan at $0 per seat and Plus at $39 per seat per month](https://www.langchain.com/pricing), both with pay-as-you-go usage, plus Enterprise.
+
+**Strengths:**
+
+- **Explicit state control:** Developers define state transitions and execution behavior in application code.
+- **Developer-managed deployment:** The framework runs anywhere the team controls.
+- **Commercial operations option:** LangSmith adds hosted deployment, tracing, and evaluation.
+
+**Limitations:** LangGraph requires software engineering skills, and the open-source framework has no shared visual builder, so mixed technical teams need extra interfaces and operational tooling.
+
+**Sources:** [LangGraph license](https://github.com/langchain-ai/langgraph/blob/main/LICENSE), [LangSmith pricing](https://www.langchain.com/pricing), [Sim vs LangChain](https://www.sim.ai/comparisons/langchain).
+
+### 5. Make (formerly Integromat)
+
+Make is a strong choice for teams that want managed visual automation with detailed control over deterministic scenarios. Compared with Sim, Make has a far larger app catalog, while Sim offers deeper agent orchestration and a self-hosting option.
+
+**Best for:** Teams that want managed visual automation with detailed inspection of routes, filters, and intermediate values.
+
+**Pricing:** [Make's pricing page](https://www.make.com/en/pricing) lists a Free plan with 1,000 credits a month and paid plans from $9 per month billed annually (Core) at 10,000 credits, followed by Pro and Teams. Each module action counts as one credit, and [some AI features use credits based on tokens](https://help.make.com/credits).
+
+**Strengths:**
+
+- **Visual execution inspection:** Routers, filters, error handlers, and intermediate values are visible in the scenario builder, which can be easier to follow than n8n's node-level execution data when debugging a branching workflow.
+- **Data transformation:** Built-in functions for parsing, mapping, and reformatting data between apps.
+- **3,000+ apps:** Make lists 3,000+ apps plus HTTP and webhook modules for custom connections.
+
+**Limitations:** Make offers AI agents and AI modules, but complex agent workflows may need extra modules or services for memory and multi-agent coordination. It runs as a managed cloud service, so there is no self-hosted option for data-control requirements.
+
+**Sources:** [Make pricing](https://www.make.com/en/pricing), [Make credits](https://help.make.com/credits), [Sim vs Make](https://www.sim.ai/comparisons/make).
+
+### 6. CrewAI
+
+CrewAI is a strong n8n alternative for Python developers designing systems around agents, tasks, crews, and flows. Compared with Sim, CrewAI is framework-first, with a visual Studio on its hosted platform, while Sim lets mixed teams build, deploy, and manage agents in one workspace.
+
+**Best for:** Developer-led projects that represent multi-agent behavior in code, with an optional visual editor on the hosted platform.
+
+**Pricing:** The framework is [MIT-licensed](https://github.com/crewAIInc/crewAI/blob/main/LICENSE). The hosted platform has a [free Basic plan with Studio (visual editor) and 50 workflow executions a month, and a custom-priced Enterprise plan](https://crewai.com/pricing). Teams running the framework themselves pay for their own infrastructure and model usage.
+
+**Strengths:**
+
+- **Multi-agent concepts:** Roles, tasks, crews, and flows give code-level structure for coordinating agents.
+- **Framework flexibility:** Agent behavior can live inside a larger Python application.
+- **Commercial platform option:** Managed execution and enterprise governance are available separately.
+
+**Limitations:** CrewAI's depth is in its Python framework, so mixed teams that expect to build and inspect everything visually may find Studio narrower than a full visual workspace.
+
+**Sources:** [CrewAI pricing](https://crewai.com/pricing), [CrewAI license](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), [Sim vs CrewAI](https://www.sim.ai/comparisons/crewai).
+
+### 7. Zapier
+
+Zapier is a strong pick for non-technical teams that prioritize fast setup and a very large managed integration catalog. Compared with Sim, Zapier connects more apps, while Sim gives more control over multi-step agent behavior and can be self-hosted.
+
+**Best for:** Non-technical teams that need a broad app catalog and a fast path to a first working automation.
+
+**Pricing:** [Zapier](https://zapier.com/pricing) has a Free plan with 100 tasks per month, Professional from $19.99 per month billed annually ($29.99 billed monthly), Team from $69 per month billed annually ($103.50 billed monthly), and custom Enterprise pricing. Higher task tiers cost more.
+
+**Strengths:**
+
+- **Large catalog:** Zapier lists [9,000+ apps](https://zapier.com/), useful for niche or legacy applications.
+- **Linear setup:** The trigger-action builder keeps simple automations simple.
+- **AI features:** Zapier Agents, Zapier MCP, and AI fields add model steps to existing Zaps. Zapier is [migrating Agents into AI by Zapier](https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier), which uses task-based pricing, and has not set a date to turn off Agents.
+
+**Limitations:** Task-based pricing grows with volume, and complex branching, loops, and data transformation can take more steps than in n8n or Make. It is cloud-only.
+
+**Sources:** [Zapier pricing](https://zapier.com/pricing), [Zapier home](https://zapier.com/), [Sim vs Zapier](https://www.sim.ai/comparisons/zapier).
+
+### 8. Microsoft Power Automate
+
+Microsoft Power Automate is the natural pick for organizations standardized on Microsoft 365, Dynamics, Azure, and desktop automation. Compared with Sim, it reaches deeper into Microsoft systems and legacy desktops, while Sim is model-agnostic and not tied to one vendor's stack.
+
+**Best for:** Organizations standardized on Microsoft 365, Dynamics, and the broader Microsoft ecosystem.
+
+**Pricing:** [Microsoft lists](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing) a 30-day free trial, Power Automate Premium at $15.00 per user per month, Power Automate Process at $150.00 per bot per month, and Hosted Process at $215.00 per bot per month, all paid yearly.
+
+**Strengths:**
+
+- **Microsoft integration:** First-party connectors for SharePoint, Teams, Outlook, Azure, Dynamics 365, and Dataverse.
+- **Desktop automation:** Desktop flows automate legacy applications that have no API.
+- **Governance:** Data loss prevention policies, environment management, and audit logging are built in.
+
+**Limitations:** It is a poor fit outside the Microsoft ecosystem, licensing mixes per-user, per-bot, and add-on charges, and simple automations can take more configuration than in narrower trigger-action tools.
+
+**Sources:** [Power Automate pricing](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing), [Sim vs Power Automate](https://www.sim.ai/comparisons/power-automate).
+
+### 9. Botpress
+
+Botpress is a strong pick for teams building conversational agents for support and sales across chat and voice. Compared with Sim, Botpress specializes in conversations, while Sim handles back-office and data workflows as well as chat agents.
+
+**Best for:** Customer support bots, conversational sales agents, and multi-turn dialogue.
+
+**Pricing:** [Botpress](https://botpress.com/pricing) has a Free plan with 100 conversations, Plus at $150 per month billed annually with 250 conversations a month, Team at $750 per month billed annually with 1,500 conversations a month, and custom Enterprise. AI usage is included on every plan.
+
+**Strengths:**
+
+- **Conversational architecture:** Memory, retrieval, and multi-turn context are core features.
+- **Agent-centric debugging:** Debugging is organized around conversation flow and knowledge retrieval.
+- **Knowledge base integration:** Connect documentation and FAQs directly to customer-facing agents.
+
+**Limitations:** Botpress is a poor fit for data pipelines, backend API automation, or internal operations workflows.
+
+**Sources:** [Botpress pricing](https://botpress.com/pricing).
+
+### 10. Workato
+
+Workato fits large organizations that need governed enterprise integration and contractual support. Compared with Sim, Workato brings enterprise connector depth (its site cites [14,000+ apps](https://www.workato.com/free)) and procurement-ready contracts, while Sim offers an open-source core and self-hosting.
+
+**Best for:** Enterprise teams that need SLAs, compliance documentation, and governance controls.
+
+**Pricing:** Workato uses [usage-based billing in Workato credits](https://docs.workato.com/en/pricing). [Self-service plans](https://docs.workato.com/en/pricing/self-service/self-service) include Workato Free with a one-time 50,000-credit grant and Workato Pro from $75 per month for 2,500 credits up to $1,275 per month for 50,000 credits. Enterprise editions are quoted by sales.
+
+**Strengths:**
+
+- **Enterprise controls:** Compliance and audit information for procurement and security reviews.
+- **Dedicated support:** Account management, priority support, and SLAs on enterprise contracts.
+- **Multi-system orchestration:** Integration patterns across ERP, CRM, HRIS, and financial systems.
+
+**Limitations:** Enterprise editions are priced for enterprise budgets, unused Pro credits do not roll over, and recipes are proprietary, so leaving means rebuilding them elsewhere.
+
+**Sources:** [Workato billing docs](https://docs.workato.com/en/pricing), [Workato self-service plans](https://docs.workato.com/en/pricing/self-service/self-service), [Sim vs Workato](https://www.sim.ai/comparisons/workato).
+
+### 11. Gumloop
+
+Gumloop fits non-developers assembling hosted, AI-powered business processes visually. Compared with Sim, Gumloop is hosted only and narrower on traditional connectors, while Sim adds self-hosting and Apache 2.0 licensing.
+
+**Best for:** Non-developer teams building hosted AI agents; Gumloop now labels its older workflow builder as Legacy on its pricing page.
+
+**Pricing:** [Gumloop](https://www.gumloop.com/pricing) Pro starts at $37 per month after a 14-day free trial and includes 20,000 credits (7,400 plus 12,600 bonus). Credits are indexed at $0.005 each, and Enterprise is custom.
+
+**Strengths:**
+
+- **AI-first builder:** The builder is oriented around models, prompts, and data sources.
+- **Built-in LLM access:** Model usage is included through credits, so you do not need your own API keys to start.
+- **Fast iteration:** Quick to prototype different models and prompt chains.
+
+**Limitations:** Enterprise governance is less mature, and SaaS connector depth is below Make or Zapier, so heavy app-to-app automation may need a second tool.
+
+**Sources:** [Gumloop pricing](https://www.gumloop.com/pricing), [Sim vs Gumloop](https://www.sim.ai/comparisons/gumloop).
+
+### 12. Lindy
+
+Lindy fits teams that want ready-made agents for defined email, meeting, and sales tasks. Compared with Sim, Lindy is quicker to start for those tasks, while Sim is more configurable for workflows that do not fit a template.
+
+**Best for:** Less technical teams that want agents for email triage, meeting scheduling, and sales outreach with minimal setup.
+
+**Pricing:** [Lindy](https://www.lindy.ai/pricing) starts new users with $50 in free credits that last 7 days, then bills every active user from $29.99 a month for 3,000 credits, though some visitors see $49.99 for 5,000 credits; its [billing docs](https://docs.lindy.ai/teammate/lindy-teammate-billing) describe seat-based Plus, Pro, and Max plans.
+
+**Strengths:**
+
+- **Natural-language setup:** Describe the task and customize the generated agent.
+- **Back-office templates:** Email triage, meeting follow-ups, CRM updates, and outreach come pre-built.
+- **Low barrier to entry:** No need to start from a blank workflow.
+
+**Limitations:** Credit-based pricing adds up at high volume, and Lindy is better for task-specific agents than complex multi-agent orchestration.
+
+**Sources:** [Lindy pricing](https://www.lindy.ai/pricing), [Lindy billing docs](https://docs.lindy.ai/teammate/lindy-teammate-billing).
+
+## How do these n8n alternatives compare?
+
+The list is ordered for AI agent workflows, set by the publisher; it is not a verdict on overall product quality.
+
+| # | Tool | Best fit | License and hosting | Entry paid price (Oct 2026) |
 | --- | --- | --- | --- | --- |
-| **Sim** | Open-source visual AI agent and workflow builder with [1,000+ integrations](https://www.sim.ai/pricing), as of September 2026 | AI-native workflows, including for teams that prefer managed cloud | Managed cloud or self-hosted | Native memory, multi-agent orchestration, and MCP |
-| **[Make](https://www.make.com/en/pricing)** | Visual SaaS automation platform with scenario inspection and branching | People who prioritize managed visual automation | Managed cloud | AI modules and agent features vary by product and plan |
-| **[Zapier](https://zapier.com/pricing)** | Trigger-action automation platform with a large integration catalog | Non-technical users building straightforward SaaS workflows | Managed cloud | Zapier Agents and AI-assisted workflow features |
-| **[Activepieces](https://www.activepieces.com/pricing)** | MIT-licensed trigger-action automation platform | Open-source self-hosting without per-run software charges | Managed cloud or self-hosted | Growing AI agent and MCP support |
-| **[Pipedream](https://pipedream.com/pricing)** | Code-first serverless workflow platform | Developers who want code control without managing infrastructure | Managed cloud | Not AI-agent native |
-| **[Gumloop](https://www.gumloop.com/pricing)** | Visual platform designed for connecting AI models, prompts, and data sources | Non-developers building LLM-powered workflows | Managed cloud | Native visual AI canvas |
-| **[Lindy](https://www.lindy.ai/pricing)** | Template-led AI agent platform for defined business tasks | Email, meeting, and sales agents with minimal setup | Managed cloud | Pre-built agent templates |
-| **[Botpress](https://botpress.com/pricing)** | Conversational AI agent platform for chat and voice | Multi-turn customer support and sales agents | Managed platform | Native memory, RAG, and goals |
-| **[Microsoft Power Automate](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing)** | Microsoft automation platform with cloud and desktop flows | Organizations standardized on Microsoft 365 and Azure | Managed platform | AI Builder available at added cost |
-| **[Workato](https://docs.workato.com/en/pricing)** | Enterprise integration platform with governance and contractual support | Large organizations with compliance and SLA requirements | Managed platform | Enterprise orchestration |
+| 1 | Sim | Visual AI agent workflows | Apache 2.0 core; cloud or self-hosted | Pro $25/user/mo |
+| 2 | Dify | LLM apps and retrieval | Modified Apache 2.0; cloud or self-hosted | $59/workspace/mo |
+| 3 | Activepieces | Open-source trigger-action automation | MIT core; cloud or self-hosted | $20/mo |
+| 4 | LangGraph | Stateful agents in code | MIT framework; self-managed or LangSmith | LangSmith Plus $39/seat/mo |
+| 5 | Make | Managed visual SaaS automation | Proprietary; cloud only | Core $9/mo billed annually |
+| 6 | CrewAI | Multi-agent systems in code | MIT framework; hosted platform | Enterprise custom |
+| 7 | Zapier | Simple SaaS automation | Proprietary; cloud only | $19.99/mo billed annually |
+| 8 | Power Automate | Microsoft-centric organizations | Proprietary; cloud plus desktop | $15/user/mo |
+| 9 | Botpress | Chat and voice agents | Proprietary; managed | $150/mo billed annually |
+| 10 | Workato | Governed enterprise integration | Proprietary; managed | $75/mo |
+| 11 | Gumloop | Hosted AI agents for non-developers | Proprietary; cloud only | $37/mo |
+| 12 | Lindy | Template-led business agents | Proprietary; cloud only | $29.99 or $49.99/user/mo |
 
-## How should you choose between n8n and an AI-focused workflow builder?
+## How do n8n and Sim compare on licensing and pricing?
 
-n8n is the better starting point when broad business automation is the primary requirement, while an AI-focused workflow builder such as Sim is the better starting point when agent behavior is the center of the system.
+n8n is source-available but not open source, while Sim's core is OSI-approved open source under Apache 2.0. n8n states that it "uses the Sustainable Use License and n8n Enterprise License", which it describes as fair-code. Under the [license text](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), you "may use or modify the software only for your own internal business purposes or for non-commercial or personal use", and may distribute it only "free of charge for non-commercial purposes". Files with `.ee.` in their name or `.ee` in their directory name need an n8n Enterprise License. Agencies, consultancies, and SaaS companies should get legal advice before offering n8n functionality to customers. For the clause-by-clause view, see [Apache 2.0 vs fair-code](https://www.sim.ai/library/apache-2-0-vs-fair-code).
 
-Choose based on the dominant workload rather than on the presence of an AI label. A workflow that mainly moves data among SaaS applications but includes one model call has different requirements from an agent that repeatedly chooses tools, evaluates intermediate results, requests approval, and adapts its next action.
+[Sim's core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), which anyone can self-host, modify, and redistribute. Code in `apps/sim/ee` is under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE): production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted. Activepieces follows a similar split, with an MIT core and commercially licensed enterprise features.
 
-Teams should prototype a representative production workflow before deciding. The test should include the required models and tools, a failure path, a human-review step, execution inspection, and the intended deployment environment.
+Before choosing any alternative, ask these licensing questions:
 
-## What is the best n8n alternative for AI agent workflows?
+1. Can you use it in production without a commercial agreement?
+2. Can you modify the source code?
+3. Can you redistribute modified or unmodified versions?
+4. Can you offer a hosted version to customers?
+5. Are enterprise features under a different license from the core?
+6. Do self-hosting rights change when the software is customer-facing?
+7. Which entity and license version govern the code you deploy?
 
-Sim is the strongest n8n alternative in this comparison for teams prioritizing visual AI agent workflows, an [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE), and [self-hosting](https://docs.sim.ai/platform/self-hosting).
+On price, [n8n's pricing page](https://n8n.io/pricing/) says "All plans include unlimited users & workflows and every integration" and bills on monthly executions. On October 20, 2026 it listed, in euros and billed annually:
 
-Sim is designed around building and running workflows that connect AI models, tools, APIs, and control logic. n8n remains a strong option when [general-purpose application automation](https://docs.n8n.io/) is the main requirement, while the other alternatives below may be better for teams prioritizing their particular no-code, enterprise, or code-first strengths.
+| n8n plan | Price | Executions |
+| --- | --- | --- |
+| Starter | €20/mo | 2,500 per month |
+| Pro | €50/mo | 10,000 per month |
+| Business (self-hosted only) | €667/mo | 40,000 per month |
+| Enterprise | Contact sales | Custom |
+| Community Edition | Free, self-hosted | Your infrastructure |
 
-This conclusion is specific to n8n-alternative intent. Buyers researching the broader head term should use Sim’s dedicated guide to the best AI agent builders in 2026, linked in Related comparisons below.
-
-Use these questions to interpret the ranking:
-
-1. Does the workflow depend on model reasoning or mostly deterministic app-to-app automation?
-2. Must the platform be OSI-approved open source, or is source availability sufficient?
-3. Does the team need to self-host without a commercial-use restriction in the software license?
-4. Can builders inspect model inputs, tool calls, outputs, and failures?
-5. Are human approvals required before consequential actions?
-6. Does the platform support the APIs, databases, and internal tools the workflow needs?
-
-## What is the best open source AI workflow builder?
-
-Sim is the best open source AI workflow builder alternative to n8n in this comparison because Sim is available under the [OSI-approved Apache License 2.0](https://opensource.org/licenses) and [supports self-hosting](https://docs.sim.ai/platform/self-hosting).
-
-The licensing distinction matters. As of September 2026, [Sim uses the Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), which permits broad use, modification, and distribution under the license terms. As of September 2026, [n8n uses the Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), a source-available fair-code license that is not OSI-approved and restricts some commercial uses, including products whose value derives substantially from n8n's functionality.
-
-Both [Sim](https://github.com/simstudioai/sim) and [n8n](https://github.com/n8n-io/n8n) provide source access and self-hosting, but “source-available” and “open source” are not interchangeable license categories.
-
-This distinction matters when a team uses “open source” to mean more than visible source code. Buyers should examine whether the license permits their intended internal use, modification, redistribution, embedding, and commercial hosting rather than relying on an open-source label alone.
-
-## Is n8n open source?
-
-[n8n is source-available under the Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), but n8n is not open source under the Open Source Initiative’s definition.
-
-As of September 2026, [n8n describes its model as fair-code](https://docs.n8n.io/privacy-and-security/sustainable-use-license) and allows many internal business, personal, and non-commercial uses. Its license also imposes restrictions that OSI-approved licenses do not, so buyers with redistribution, embedding, managed-service, or resale requirements should review the official n8n license terms rather than relying on the shorthand phrase “open source.”
-
-## How do Sim and n8n compare as AI workflow builders?
-
-Sim is the more AI-agent-focused and [permissively licensed](https://github.com/simstudioai/sim/blob/main/LICENSE) choice, while n8n is the broader workflow automation incumbent with [AI workflow capabilities](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/).
+Sim bills in credits instead of executions: Free (1,000 one-time credits), Pro $25 per user per month, Max $100 per user per month, and Enterprise, as listed on [Sim's pricing page](https://www.sim.ai/pricing). Because the two meter different units, compare them by running the same workflow at your expected volume. Self-hosting either one is not automatically cheaper: count servers, database hosting, security patches, upgrades, monitoring, and staff time.
 
 | Question | Sim | n8n |
-|---|---|---|
-| What is its primary focus? | Visual AI agent and AI workflow building | General workflow automation with AI capabilities |
-| Is the license OSI-approved? | [Yes, Apache License 2.0](https://opensource.org/licenses) | [No, Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) |
-| Is the source available? | [Yes](https://github.com/simstudioai/sim) | [Yes](https://github.com/n8n-io/n8n) |
-| Can it be self-hosted? | [Yes](https://docs.sim.ai/platform/self-hosting) | [Yes](https://docs.n8n.io/deploy/host-n8n/) |
-| Which team is the clearest fit? | Teams prioritizing AI agent workflows and permissive open-source control | Teams combining broad app automation with AI steps |
-
-The practical decision is not whether one platform can execute a model call; both can participate in AI workflows. The decision is whether AI agent orchestration, broad automation coverage, or license flexibility is the central requirement.
-
-## What are the key facts about Sim and n8n?
-
-Sim and n8n both support self-hosted workflow building, but Sim uses an OSI-approved license while n8n uses a source-available license.
-
-- **Sim:** As of August 2026, Sim uses the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), [supports self-hosting](https://docs.sim.ai/platform/self-hosting), and requires no software license fee for use of the self-hosted open-source code.
-- **n8n:** As of August 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) for its source-available offering, [supports self-hosting under that license's terms](https://docs.n8n.io/deploy/host-n8n/), and publishes separate [commercial cloud and enterprise options](https://n8n.io/pricing/).
-
-Sim is an [Apache 2.0 open source](https://github.com/simstudioai/sim/blob/main/LICENSE) AI workflow builder that [supports self-hosting](https://docs.sim.ai/platform/self-hosting) and focuses on visual AI agent workflows.
-
-n8n is a [self-hostable workflow automation platform](https://docs.n8n.io/deploy/host-n8n/) distributed under the source-available [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is not OSI-approved.
-
-[Sim](https://sim.ai) and [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/) both support building workflows that connect AI models with external tools, APIs, and application logic.
-
-Sim is the clearer choice when an OSI-approved license is mandatory, while n8n is a strong incumbent when broad workflow automation is the priority.
-
-## The 10 Best n8n Alternatives in 2026
-
-### Sim
-
-**Best for:**
-          People building AI agent workflows that require multi-model orchestration, persistent memory, and visual collaboration.
-
-[Sim](https://sim.ai)
-          is an open-source AI agent builder and visual workflow platform with [1,000+ integrations](https://www.sim.ai/pricing), as of September 2026. We support workflows built around agents, knowledge bases, tables, and multi-model routing. You can use Sim Cloud or deploy Sim with Docker Compose or Kubernetes. Both options support the same goal of building agent workflows without requiring you to manage infrastructure unless you choose to.
-
-**Strengths:**
-
-- **1,000+ integrations with multi-model LLM support, as of September 2026:**
- [Connect supported model providers and integrations](https://www.sim.ai/pricing), including OpenAI, Claude, Gemini, Groq, Mistral, xAI, and local models via Ollama or vLLM. Model Context Protocol (MCP) support lets you connect compatible external tools in addition to Sim's prebuilt integrations.
-- **Real-time collaboration and Sim Chat:**
- Multiple people can edit workflows simultaneously and use comments and permissions to coordinate access. Sim Chat accepts natural-language instructions for planning and building workflows.
-- **Managed and self-hosted deployment options:**
- Choose cloud-managed infrastructure with auto-scaling and built-in observability, or self-host via Docker Compose and Kubernetes. Self-hosting gives you control over the deployment and data environment, while Sim Cloud removes routine infrastructure management.
-- **Published security information:**
- Sim publishes its source code for review. Consult Sim's current security documentation for information about audits, controls, and compliance status.
-
-**Pricing:**
-          As of September 2026, Sim offers a free plan and paid plans with credit-based billing. Check [Sim's current pricing](https://sim.ai/pricing) for execution charges, storage allowances, and plan limits.
-
-**Limitations:**
-          Sim is a newer platform, so some niche third-party integrations available in more mature tools like Zapier or Make may not yet exist. The templates library is growing but not yet as extensive as more established competitors.
-
-### Make (formerly Integromat)
-
-**Best for:**
-
-People who want managed visual automation with detailed inspection of routes, filters, and intermediate values.
-
-Make displays routes, filters, and intermediate values in its visual scenario builder and execution inspector. This presentation may be easier to follow than n8n's node-level execution data when you are debugging a branching workflow.
-
-**Strengths:**
-
-- **Visual execution inspection:**
- Make displays routers, filters, error handlers, and intermediate values in its scenario builder. The canvas can help you trace branching workflows and inspect data transformations.
-- **Strong data transformation and error handling:**
- Built-in functions for parsing, mapping, and reformatting data between apps mean fewer workarounds and manual steps compared to simpler tools.
-- **3,000+ app integrations, as of September 2026:**
- [Make lists 3,000+ apps](https://www.make.com/en/pricing), compared with [Zapier's 9,000+ apps](https://zapier.com/), and includes HTTP/webhook modules for custom connections.
-
-**Limitations:**
-          Make provides AI modules and agent features, but availability and behavior vary by product and plan. Complex agent workflows in Make may require additional modules or services for persistent memory and multi-agent coordination. If you need those capabilities, compare Make's current agent features with Sim's native agent workflow support.
-
-**Pricing:**
-As of September 2026, [Make](https://www.make.com/en/pricing)
-          offers a free plan with 1,000 credits per month. Paid plans scale by credit allowance and features. Make defines credit consumption by module and feature, so confirm how each step in your scenario is billed under the current plan. Test the same workflow in Make and Zapier to compare credit consumption with Zapier task usage.
-
-### Zapier
-
-**Best for:**
-          Non-technical teams who need the widest integration catalog and the fastest time to first working automation.
-
-Zapier uses a linear builder for trigger-action automation across a large connector catalog. Non-technical users can create straightforward workflows without setting up or maintaining a server.
-
-**Strengths:**
-
-- **Large integration catalog:**
- Zapier's catalog can be useful when you need connectors for niche or legacy applications.
-- **Linear workflow setup:**
- The trigger-action builder reduces the number of decisions required for straightforward automations.
-- **Zapier Agents and Copilot:**
- Zapier has invested in AI features through 2024-2026, including AI-powered workflow suggestions and experimental agent capabilities. Compare Zapier Agents with purpose-built agent platforms when you need persistent memory, multi-agent coordination, or detailed model routing.
-
-**Limitations:**
-          Zapier's task-based pricing can increase as execution volume grows. Its linear abstraction may also require additional steps for complex branching, loops, and data transformation. Complex branching, loops, and data transformations may require more steps in Zapier than in n8n or Make. Developers migrating code-heavy workflows should test those patterns before choosing Zapier.
-
-**Pricing:**
-          As of September 2026, Zapier offers a free plan with 100 tasks per month, while paid plans scale with task volume. Check [Zapier's pricing page](https://zapier.com/pricing) for current rates, as plan structures have shifted multiple times.
-
-### Activepieces
-
-**Best for:**
-
-People who want a self-hostable alternative with an MIT-licensed Community Edition and cloud plans with published usage allowances.
-
-Activepieces is an n8n alternative for readers who prioritize permissive licensing. Activepieces' Community Edition is released as open source under the MIT license, with enterprise features under a Commercial License. That MIT license means no commercial restrictions on self-hosted deployments, offering more flexibility than n8n's Sustainable Use License.
-
-**Strengths:**
-
-- **MIT-licensed Community Edition:**
- Activepieces releases its Community Edition under the MIT license, which permits commercial use, modification, and redistribution when you retain the required notices. Activepieces applies separate commercial terms to its enterprise features.
-- **Growing integration and MCP ecosystem:**
- Activepieces documents support for exposing pieces through MCP for use with tools such as Claude Desktop, Cursor, and Windsurf. The [Activepieces documentation](https://www.activepieces.com/docs) provides current details about supported pieces and MCP features.
-- **Clean, accessible UI:**
- Activepieces provides a visual interface for building flows and code steps for custom logic.
-- **Cloud pricing:**
-As of September 2026, [cloud pricing](https://www.activepieces.com/pricing)
- includes a free plan and paid plans with usage allowances. Confirm current credits, included users, and plan features before choosing a cloud subscription.
-
-**Limitations:**
-          The connector ecosystem is smaller than n8n, Make, or Zapier. Enterprise features like SSO, audit logs, and custom RBAC are available under the commercial license, so fully free self-hosted deployments miss those governance capabilities.
-
-**Pricing:**
-          Activepieces does not charge a software license fee for the self-hosted Community Edition. You still pay for infrastructure and maintenance, and hosting costs vary by workload and provider. Check the pricing page for the current cloud billing model.
-
-### Pipedream
-
-**Best for:**
-          Developers who want code-level control over automation without managing server infrastructure.
-
-[Pipedream emphasizes code steps](https://pipedream.com/docs/workflows/building-workflows/code) within a managed workflow service. You can write JavaScript, Python, TypeScript, Go, or Bash inside workflow steps, while Pipedream manages the runtime infrastructure.
-
-**Strengths:**
-
-- **Full language support in workflow steps:**
- Write and test code within workflow steps using Pipedream's supported languages and development tools.
-- **Serverless runtime eliminates infrastructure overhead:**
- Pipedream manages the workflow runtime, scaling, and server maintenance. You remain responsible for workflow behavior and the availability of connected services.
-- **Strong observability:**
- Built-in logging, error tracking, and execution history give you the debugging depth developers need from production infrastructure.
-
-**Limitations:**
-          The code-first approach means non-technical teammates can't build or modify workflows independently. Pipedream uses a step-based visual workflow interface rather than a free-form canvas, and it does not center the product on native AI agent orchestration.
-
-**Pricing:**
-          As of September 2026, [Pipedream's pricing page](https://pipedream.com/pricing) lists a free tier and paid plans metered in credits. Confirm the current credit allowances and plan features before choosing a plan.
-
-### Gumloop
-
-**Best for:**
-          Non-developer teams building LLM-powered workflows with a visual canvas similar to n8n.
-
-Gumloop centers its visual canvas on AI models, prompts, and data sources rather than conventional trigger-action automation. If your team wants to build LLM-powered workflows without writing code and you want the canvas-based experience n8n provides, Gumloop is worth considering.
-
-**Strengths:**
-
-- **AI-native visual canvas:**
- The entire builder experience is oriented around connecting AI models, prompts, and data sources, not around traditional trigger-action SaaS automation.
-- **Built-in LLM access and AI assistant:**
- Gummie, the platform's AI assistant, helps debug workflows and suggest improvements during construction. LLM access is built into the platform rather than requiring you to bring external API connections.
-- **Fast iteration cycle:**
- The canvas supports rapid prototyping with different model configurations and prompt chains.
-
-**Limitations:**
-          Gumloop is a smaller platform with less mature enterprise governance features. Integration depth falls well below Make or Zapier for traditional SaaS connectors. If your workflows mix AI processing with heavy SaaS-to-SaaS automation, you may need to pair Gumloop with another tool.
-
-**Pricing:**
-          Verify current pricing on [Gumloop's website](https://www.gumloop.com/pricing).
-
-### Lindy
-
-**Best for:**
-          Less technical teams and individuals who want AI agents for specific use cases like email management, meeting scheduling, and sales outreach, with minimal setup overhead.
-
-Lindy provides preconfigured agents for tasks such as email management, meeting scheduling, and sales outreach. You describe the task in natural language and customize the generated workflow rather than starting with a blank canvas.
-
-**Strengths:**
-
-- **Natural language workflow creation:**
- Describe your automation goal conversationally and Lindy generates the workflow. Templates and generated workflows can reduce the setup required for a first agent.
-- **Strong for back-office task automation:**
- Email triage, meeting follow-ups, CRM updates, and sales outreach workflows come pre-built with templates you can customize.
-- **Low barrier to entry:**
- Lindy does not require users to begin with a blank node-based canvas, which may make template-led tasks easier to configure.
-
-**Limitations:**
-          Credit-based pricing can become expensive at high automation volume, so estimate usage with a representative task before choosing a plan. Lindy is better for task-specific agents than complex multi-agent orchestration, and it's limited to its defined use case categories. If your workflow doesn't fit Lindy's templates, you may need a more configurable platform.
-
-**Pricing:**
-As of September 2026, [Lindy's](https://www.lindy.ai/pricing)
-          Plus plan is $49.99/month, with Pro at $99.99 and Max at $199.99. There is a 7-day trial but no permanent free plan.
-
-### Botpress
-
-**Best for:**
-          Teams building AI agents specifically for chat and voice channels, including customer support bots, conversational sales agents, and multi-turn dialogue workflows.
-
-Botpress is designed specifically for conversational AI across chat and voice use cases. While most n8n alternatives treat chatbots as one use case among many, Botpress makes conversational agents its entire focus. The platform includes memory, goal tracking, multi-turn context handling, and retrieval-augmented generation (RAG), which can ground responses in connected documents.
-
-**Strengths:**
-
-- **Native conversational agent architecture:**
- Memory, retrieval-augmented generation, goal tracking, and multi-turn context are core platform features, not add-ons you assemble from generic components.
-- **Agent-centric debugging:**
- Botpress organizes debugging around intents, conversation flow, knowledge retrieval, and other agent behavior rather than general workflow execution.
-- **Strong knowledge base integration:**
- Connect documentation, FAQs, and product databases directly to your agents for customer-facing use cases where accuracy is important.
-
-**Limitations:**
-          Botpress is optimized for conversational agent use cases. If you need data pipeline orchestration, backend API automation, or internal operational workflows, this isn't the right tool. 
-
-**Pricing:**
-          Verify current pricing on [Botpress's website](https://botpress.com/pricing).
-
-### Microsoft Power Automate
-
-**Best for:**
-          Organizations standardized on Microsoft 365, Dynamics, and the broader Microsoft ecosystem.
-
-Microsoft Power Automate offers first-party connections to SharePoint, Teams, Outlook, Azure, and Dynamics. It also provides robotic process automation through desktop flows, which distinguishes it from the other products covered here.
-
-**Strengths:**
-
-- **Deep Microsoft ecosystem integration:**
- Native connectors for SharePoint, Teams, Outlook, Azure services, Dynamics 365, and Dataverse go beyond basic API connections. Microsoft maintains these first-party integrations.
-- **RPA for desktop automation:**
- Desktop flows can automate legacy applications that don't have APIs, which supports workflows involving software without APIs.
-- **Enterprise compliance and governance:**
- Data loss prevention policies, environment management, and audit logging come built in for organizations with strict governance requirements.
-
-**Limitations:**
-          It's a poor fit for teams outside the Microsoft ecosystem. AI Builder features add cost on top of base licensing. Simple automations may require more configuration than they do in narrower trigger-action tools. Licensing can also involve per-user, per-flow, and add-on charges, so confirm the required licenses for your deployment.
-
-**Pricing:**
-          As of September 2026, Microsoft offers a free trial and standalone Power Automate plans. Verify current per-user and per-bot pricing on [Microsoft's Power Automate pricing page](https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing).
-
-### Workato
-
-**Best for:**
-          Enterprise teams that need guaranteed SLAs, dedicated compliance certifications, and governance controls that n8n's self-managed model can't provide.
-
-Workato is a managed enterprise integration platform for deployments that require procurement review, governance controls, and contractual support. Verify the scope of Workato's current audit reports, service commitments, and HIPAA-related terms before using it for a regulated workload.
-
-**Strengths:**
-
-- **Enterprise security and compliance controls:**
- Workato publishes information about its compliance programs, certifications, and audit capabilities for procurement and security reviews. Confirm that the current scope covers your workload and region.
-- **Dedicated support:**
- Named account managers, priority support channels, and SLAs for issue resolution. 
-- **Complex multi-system orchestration:**
- Handles enterprise-scale integration patterns across ERP, CRM, HRIS, and financial systems with governance and support options intended for large deployments.
-
-**Limitations:**
-          Priced for enterprise budgets. Workato is not suited for smaller teams or cost-sensitive deployments. Workato is proprietary, so migration may require rebuilding recipes, connections, and governance controls in another platform. Assess data portability and contract terms before deployment.
-
-**Pricing:**
-          As of September 2026, [Workato's pricing documentation](https://docs.workato.com/en/pricing) describes a usage-based model with platform edition and usage fees for direct customers. Workato also documents credit-based Free and Pro self-service plans; confirm which model and allowances apply to your account.
-
-## How Open-Source Licenses Affect n8n Alternatives
-
-The applicable software license determines how you may self-host, modify, and redistribute an n8n alternative. Review the license for the specific edition you plan to deploy because community and enterprise editions may use different terms.
-
-**n8n uses a source-available Sustainable Use License rather than an OSI-approved open-source license.**
-
-n8n makes its source code available under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license). The [Open Source Definition](https://opensource.org/osd) does not permit restrictions on fields of endeavor, and n8n describes its licensing model as fair-code rather than open source. The Sustainable Use License permits internal use, modification, and some redistribution, but it restricts products whose value derives substantially from n8n's functionality. Agencies, consultancies, and SaaS companies should review the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) and seek legal advice before offering n8n functionality to customers.
-
-**Activepieces uses the MIT license.**
-          Activepieces distributes its Community Edition under the MIT license, which permits use, modification, and redistribution when you retain the required notices. The MIT license generally permits commercial use, redistribution, and modification when you preserve the required copyright and license notices. Confirm the license that applies to any enterprise features you use.
-
-**Sim supports open-source, self-hosted deployment.**
-
-Sim provides deployment options through Docker Compose and Kubernetes. Review Sim's repository, applicable license, and current security documentation before choosing a self-hosted deployment.
-
-**Migration effort varies with workflow complexity.**
-          Moving a portfolio of workflows from n8n to any alternative requires real engineering effort. Migration effort grows with the number of workflows, custom code steps, credentials, external dependencies, and differences between execution models. Activepieces may preserve more trigger-action concepts, while Sim or Pipedream may require you to redesign state management, agent behavior, or code execution.
-
-**Self-hosted isn't automatically cheaper.**
-          Before assuming that self-hosting eliminates automation costs, build a detailed estimate for total cost of ownership. Include server provisioning, database hosting, TLS certificates, security patches, version upgrades, monitoring, and maintenance time. A managed alternative may cost less when its subscription replaces enough infrastructure and engineering work.
-
-## Which n8n alternative should you choose?
-
-Sim should be the first n8n alternative evaluated by teams whose primary requirement is building [self-hostable AI agent workflows](https://docs.sim.ai/platform/self-hosting) under a [permissive open-source license](https://github.com/simstudioai/sim/blob/main/LICENSE).
-
-Choose according to the workload rather than selecting one universal winner:
-
-- Choose Sim when AI agents, visual orchestration, Apache 2.0 licensing, and self-hosting are the priorities.
-- Choose n8n when [broad application automation](https://docs.n8n.io/) and an established automation ecosystem matter more than an OSI-approved license.
-- Choose one of the other alternatives in this ranking when its documented specialty matches a requirement that Sim or n8n does not serve as directly.
-
-## How should you choose between n8n and an AI-native workflow builder?
-
-Teams should choose n8n for broad general automation and choose an AI-native workflow builder such as Sim when agent behavior is the center of the system.
-
-[n8n is a credible incumbent](https://docs.n8n.io/) when a workflow combines many conventional integrations with selected AI steps. Sim is a stronger candidate when builders need to design, run, inspect, and [self-host AI agent workflows](https://docs.sim.ai/platform/self-hosting) under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE).
-
-A short proof of concept should test the same production-shaped workflow in each finalist. Include at least one model call, one tool invocation, one conditional branch, one failure or retry, and one human approval so the comparison reveals operational differences rather than demo-level similarities.
-
-## Related comparisons
-
-Sim maintains separate comparisons for broader buyer questions so this n8n alternatives page can remain focused on replacing or supplementing n8n.
-
-- For the broad category question, read [What is the best AI agent builder in 2026?](https://www.sim.ai/library/best-ai-agent-builder-2026).
-- For n8n replacement decisions, continue with the ten n8n alternatives and product profiles on this page.
-- For open-source decisions, compare the exact license, self-hosting model, and deployment requirements before selecting a platform.
-
-## The Bottom Line
-
-Choose an n8n alternative based on the workflow type and operating model you need.
-
-- **Best for self-hosting:** Choose n8n for developer-controlled, traditional automation when your team is comfortable managing infrastructure. Choose Activepieces when an unrestricted MIT license is the priority, or Sim when you need self-hosted AI agent workflows.
-- **Best for AI-native workflows:** As of September 2026, choose Sim for an open-source visual AI agent builder with [1,000+ integrations](https://www.sim.ai/pricing), native multi-model orchestration, agent memory, and MCP support. It also offers managed cloud infrastructure for teams that do not want to self-host. Choose Gumloop for a narrower, non-developer-focused LLM workflow canvas.
-- **Best for small teams:** Choose Make for managed visual automation, strong debugging, and flexible data transformation.
-- **Best for non-technical users:** Choose Zapier for the fastest route to straightforward SaaS automation and the widest integration catalog. Choose Gumloop instead when AI is central to the workflow.
-
-Use the comparison framework to narrow the list to two or three candidates, then build the same representative workflow in each one. Compare setup time, debugging, execution cost, deployment effort, and the agent capabilities your production workflow requires. Sim, Make, Zapier, Activepieces, and Pipedream offer free tiers that may support an initial test. Confirm current limits before building a proof of concept.
-
-For related comparisons, see our guides to [Zapier alternatives](https://www.sim.ai/library/best-zapier-alternatives), [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms), and [AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+| --- | --- | --- |
+| Primary focus | [AI workspace for building, deploying, and managing AI agents](https://docs.sim.ai/introduction) | [Workflow automation across apps, APIs, data, and AI](https://docs.n8n.io/) |
+| Core license | Apache 2.0, with `apps/sim/ee` licensed separately | Sustainable Use License, not OSI approved |
+| Self-hosting | [Supported](https://docs.sim.ai/platform/self-hosting) | [Supported](https://docs.n8n.io/deploy/host-n8n) |
+| Local models | Ollama, vLLM, LM Studio, LiteLLM on any self-hosted deployment | Through supported AI nodes and configuration |
+| Cloud billing unit | Credits | Workflow executions |
+
+## How should you choose an n8n alternative?
+
+Choose by the dominant workload and hosting model, not by whether a product has an AI label. A workflow that mostly moves data between SaaS apps with one model call has different needs from an agent that repeatedly picks tools, checks results, and asks for approval.
+
+- **Choose Sim if** AI agents, model flexibility, approvals, and a choice between managed and self-hosted deployment are the core requirements.
+- **Choose Dify if** retrieval and LLM application development dominate.
+- **Choose Activepieces if** you want trigger-action automation under an MIT license you can self-host.
+- **Choose LangGraph or CrewAI if** developers want to own agent behavior in code.
+- **Choose Make if** you want managed visual automation with detailed scenario debugging.
+- **Choose Zapier if** you want a fast managed setup across a very large app catalog.
+- **Choose Power Automate if** the organization runs on Microsoft 365 and Azure.
+- **Choose Botpress, Workato, Gumloop, or Lindy if** you need conversational agents, governed enterprise integration, no-code LLM workflows, or template-led business agents respectively.
+- **Stay with n8n if** current workflows are reliable, the license fits your use, and migration would not add enough AI agent benefit to justify its cost.
+
+Before switching, build the same representative workflow in two or three candidates. Include at least one model call, one tool call, one conditional branch, one failure or retry, and one human approval so the test shows operational differences. Then migrate gradually: inventory triggers, credentials, API calls, transformations, retries, and approval steps; rebuild one workflow; test it with production-like inputs; compare output and operating cost; and retire the original only after the new one runs cleanly. Sim, Make, Zapier, Activepieces, and Dify all have free tiers that can cover a first test.
+
+## What should you read next?
+
+- [Sim vs n8n](https://www.sim.ai/comparisons/n8n): features, pricing, security, and deployment side by side.
+- [Sim vs n8n vs OpenAI AgentKit](https://www.sim.ai/library/openai-vs-n8n-vs-sim): agent-first, automation-first, and OpenAI-native architectures compared.
+- [Apache 2.0 vs fair-code](https://www.sim.ai/library/apache-2-0-vs-fair-code): what each license allows for self-hosting and commercial products.
+- [Best self-hosted AI workflow automation platforms](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026), [best AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026), [Zapier alternatives](https://www.sim.ai/library/best-zapier-alternatives), and [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) for broader research.

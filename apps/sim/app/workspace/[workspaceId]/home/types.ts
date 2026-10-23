@@ -2,11 +2,9 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/searc
 import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import type { ToolActivity, TurnOrigin } from '@/lib/mothership/generated/protocol'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
-
-const EDIT_CONTENT_TOOL_ID = 'apply_file_edit'
-const RUN_SUBAGENT_ID = 'run'
 
 export type {
   MothershipResource,
@@ -29,14 +27,27 @@ export interface FileAttachmentForApi {
 /** Assistant searches as the signed-in person and uses their connected accounts. */
 export type ChatRequestMode = MothershipChat['mode']
 
-export interface QueuedMessage {
-  id: string
+/** What a chat send carries, whether it goes out now, waits in the queue or is handed over. */
+export interface SendPayload {
   content: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
+}
+
+export interface QueuedMessage extends SendPayload {
+  id: string
+  /** Recovery dropped invalid contexts; the user must review the message before sending. */
+  hasUnavailableContexts?: boolean
+  /**
+   * An earlier attempt at this message got no answer, so the server may
+   * already hold it as sent. It goes out exactly as written, under that
+   * attempt's id, and cannot be edited into a different message. False once
+   * the server is known not to have it (it refused it, or it was never sent).
+   */
+  admissionUnknown?: boolean
 }
 
 export const ToolCallStatus = {
@@ -58,26 +69,14 @@ interface ToolCallResult {
   error?: string
 }
 
-interface GenericResourceEntry {
-  toolCallId: string
-  toolName: string
-  displayTitle: string
-  status: ToolCallStatus
-  params?: Record<string, unknown>
-  streamingArgs?: string
-  result?: ToolCallResult
-}
-
-export interface GenericResourceData {
-  entries: GenericResourceEntry[]
-}
-
 export interface ToolCallData {
   id: string
   toolName: string
   displayTitle: string
   activityDescription?: string
   status: ToolCallStatus
+  /** Display grouping, held beside `params`. */
+  activity?: ToolActivity
   params?: Record<string, unknown>
   result?: ToolCallResult
   streamingArgs?: string
@@ -94,6 +93,8 @@ export interface ToolCallInfo {
   activityDescription?: string
   /** Model-authored activity phrase for a gateway-resolved integration call. */
   integrationDescription?: string
+  /** Display grouping, held beside `params`; older history carries it in `params.activity`. */
+  activity?: ToolActivity
   params?: Record<string, unknown>
   calledBy?: string
   result?: ToolCallResult
@@ -166,6 +167,7 @@ export interface ChatMessageContext {
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string
@@ -195,10 +197,11 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
-  /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
-  origin?: 'task'
+  /** Automation opened this turn, not the user: a system chip, not a bubble. */
+  origin?: TurnOrigin
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
+  fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatMessageContext[]
   requestId?: string
 }

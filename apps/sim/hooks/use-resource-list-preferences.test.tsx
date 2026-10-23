@@ -93,7 +93,6 @@ describe('useResourceListPreferences', () => {
     act(() => {
       for (const root of mountedRoots.splice(0)) root.unmount()
     })
-    vi.restoreAllMocks()
   })
 
   it('lets an explicit URL change cancel a pending saved-preference restoration', async () => {

@@ -1,0 +1,159 @@
+---
+title: Build a research agent
+description: Build and test a research agent with web search tools and structured output.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+Build and test an agent that researches a person's professional background and returns `location`, `profession`, and `education` fields.
+
+## Prerequisites
+
+- A workspace where you can create and edit workflows.
+- An available model that supports tool calls and structured output.
+- Access to Exa and Linkup search tools. Use Sim-provided credentials where offered, or enter your own provider keys where prompted. Self-hosted deployments must supply the credentials they use.
+
+Model and tool calls can incur usage charges. See [Costs](/platform/costs) and [Credentials](/platform/credentials) for hosted credentials and your own keys.
+
+## Build the agent
+
+<Steps>
+<Step>
+
+### Create a workflow
+
+Click **+** beside **Workflows** in the sidebar. Right-click the new workflow, choose **Rename**, and name it `People research`.
+
+The new workflow contains a **Start** block. Its built-in `input` field receives messages from the workflow test chat; you do not need to add a custom field for this tutorial.
+
+</Step>
+<Step>
+
+### Add and connect Agent
+
+Open **Toolbar** and drag **Agent** into the workflow. Check that **Start** connects to **Agent**. If no connection appears, drag from Start's output handle to Agent's input handle.
+
+Select **Agent** to open its fields in **Editor**. Choose a model that supports tools and structured output, and configure its credentials if prompted.
+
+</Step>
+<Step>
+
+### Configure Messages
+
+In **Messages**, create these two messages. Use the role dropdown to choose **System** or **User**, and the plus button to add another message.
+
+**System**
+
+```text
+Research the person named in the user's message using the available search tools.
+Find their location, profession, and education. Use Unknown for anything you
+cannot verify. Include sources in your answer.
+```
+
+**User**
+
+```text
+<start.input>
+```
+
+`<start.input>` inserts the message passed into Start. See [References](/workflows/connections) for using block outputs in another block.
+
+</Step>
+<Step>
+
+### Add search tools
+
+In Agent's **Tools**, open **Add tool...** and add **Exa** and **Linkup**. Select Exa's search operation and configure the fields shown for each tool, including credentials where required.
+
+The agent chooses which tools to call. A tool with a missing credential or required setting can fail when the agent calls it.
+
+</Step>
+<Step>
+
+### Test and inspect the run
+
+Click **Open chat** beside the workflow's More actions menu. This opens the workflow test chat, which has an **Outputs** dropdown. The **Chat** tab in the panel is where you talk to Sim about building the workflow.
+
+In **Outputs**, select **Agent → content**. Send:
+
+```text
+Research the professional background of Tim Berners-Lee. Find his profession,
+education, and a publicly documented location. Mark anything you cannot verify
+as Unknown.
+```
+
+Expand **Logs** at the bottom of the builder and select Agent's row. Inspect its output, tool calls, and sources. Check that the results identify the intended person and support the returned facts.
+
+</Step>
+<Step>
+
+### Define structured output
+
+In Agent's **Response Format**, paste this schema:
+
+```json
+{
+  "name": "person",
+  "description": "A researched professional profile",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "location": {
+        "type": "string",
+        "description": "A publicly documented location, or Unknown"
+      },
+      "profession": {
+        "type": "string",
+        "description": "The person's profession, or Unknown"
+      },
+      "education": {
+        "type": "string",
+        "description": "The person's education, or Unknown"
+      }
+    },
+    "required": ["location", "profession", "education"],
+    "additionalProperties": false
+  }
+}
+```
+
+You can also use the generation control beside **Response Format** to create a schema from a description. Check the generated schema before running it.
+
+`person` names the schema. Its properties become outputs directly on Agent; it does not add a nested `person` field. Replace the System message with:
+
+```text
+Research the person named in the user's message using the available search tools.
+Return only the location, profession, and education fields defined by the response
+format. Use Unknown for anything you cannot verify.
+```
+
+Keep the User message set to `<start.input>`.
+
+</Step>
+<Step>
+
+### Verify the structured result
+
+Send the same prompt in the workflow test chat. In **Outputs**, select Agent's `location`, `profession`, and `education` fields. Open Agent's complete output in **Logs** and check their values before using them downstream.
+
+When the model returns the schema's fields as valid JSON, they are available as `<agent.location>`, `<agent.profession>`, and `<agent.education>`. Structured output requests a shape; it does not verify the facts.
+
+<Callout type="warn">
+  A model can return malformed JSON even when a response format is configured. Sim can then fall back to `content` and add `_responseFormatWarning`. Inspect the output and correct the response or model configuration before relying on the schema fields.
+</Callout>
+
+</Step>
+</Steps>
+
+## Fix a failed run
+
+Select the failed block in **Logs** and read its error, input, and output. Check the credentials on the model or tool, then confirm that each reference points to an existing output. Rerun after correcting the failure. See [Logs and debugging](/logs-debugging) for tracing a failure through earlier blocks.
+
+## Related docs
+
+- [Agent block](/workflows/blocks/agent): Tools, memory, skills, and response formats.
+- [Connections](/workflows/connections): Pass outputs between blocks.
+- [Deploy a workflow](/workflows/deployment): Expose the agent through an API, chat, or MCP server.
+- [Integrations](/integrations): Configure tools for other services.

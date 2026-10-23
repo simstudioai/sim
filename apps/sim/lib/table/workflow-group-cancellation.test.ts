@@ -1,18 +1,15 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendTableEvent } = vi.hoisted(() => ({
-  mockAppendTableEvent: vi.fn(),
-}))
-
-vi.mock('@/lib/table/events', () => ({
-  appendTableEvent: mockAppendTableEvent,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import {
   cancelWorkflowGroupExecution,
   publishWorkflowGroupCancellationEvent,
 } from '@/lib/table/workflow-group-cancellation'
+
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
 
 const OPTIONS = {
   workspaceId: 'workspace-1',

@@ -4,8 +4,8 @@ import {
   type InternalFileUploadSession,
   internalFileUploadSessionSchema,
 } from '@/lib/api/contracts/upload-sessions'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import type { UploadActor, UploadPurposeResult } from '@/app/api/files/uploads/finalizers'
 
@@ -32,13 +32,7 @@ export async function requireUploadUser(): Promise<AuthenticatedUploadActor | Ne
 }
 
 export function uploadSessionErrorResponse(error: unknown): NextResponse | null {
-  const classified = asOrchestrationError(error)
-  return classified
-    ? NextResponse.json(
-        { error: classified.message },
-        { status: statusForOrchestrationError(classified.code) }
-      )
-    : null
+  return orchestrationFailureResponse(error)
 }
 
 export function toInternalUploadSession(

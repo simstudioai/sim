@@ -1,0 +1,77 @@
+diff --git a/lib/thin/sqlnet/networkSession.js b/lib/thin/sqlnet/networkSession.js
+index 69ec17689277ce21ec34a50feb6f7904dea1ea53..6e762a247551d8c6a156ae5c0c4350418ecb8456 100644
+--- a/lib/thin/sqlnet/networkSession.js
++++ b/lib/thin/sqlnet/networkSession.js
+@@ -46,7 +46,9 @@ const REDIRECT_SECURITY_KEYS = new Set([
+   'sslServerCertDN',
+   'walletLocation',
+   'walletPassword',
+-  'walletContent'
++  'walletContent',
++  'httpsProxy',
++  'httpsProxyPort'
+ ]);
+ 
+ function getRedirectParams(params) {
+@@ -126,6 +128,7 @@ class NetworkSession {
+     this.isReset = false;
+     this.breakPosted = false;
+     this.compressionEnabled = false;
++    this.transportProtocol = null;
+   }
+ 
+   async getAddress(addressNode, userConfig) {
+@@ -158,21 +161,22 @@ class NetworkSession {
+    */
+   async transportConnect(address) {
+     const protocol = address?.protocol ? address.protocol.toUpperCase() : undefined;
+-    const effectiveHttpsProxy = address?.httpsProxy || this.sAtts?.nt?.httpsProxy;
+-
+-    // Enforce TCPS whenever an HTTPS proxy would be used (either at the address
+-    // level or via the session-global proxy fallback in NTTCP).
+-    if (protocol === 'TCP' && effectiveHttpsProxy) {
++    if (protocol !== 'TCP' && protocol !== 'TCPS') {
+       errors.throwErr(errors.ERR_INVALID_CONNECT_STRING_PARAMETERS,
+-        'https proxy requires protocol as', 'tcps ');
++        address.protocol + " protocol not supported");
+     }
+-
+-    if (protocol === 'TCP' || protocol === 'TCPS') {
+-      this.ntAdapter = new NTTCP(this.sAtts.nt);
+-    } else {
++    const proxyPort = this.sAtts?.nt?.httpsProxyPort;
++    if (protocol === 'TCP' && (!this.sAtts?.nt?.httpsProxy ||
++      !Number.isInteger(proxyPort) || proxyPort < 1 || proxyPort > 65535)) {
+       errors.throwErr(errors.ERR_INVALID_CONNECT_STRING_PARAMETERS,
+-        address.protocol + " protocol not supported");
++        'TCP requires a caller-supplied proxy host and port');
++    }
++    if (this.transportProtocol && protocol !== this.transportProtocol) {
++      errors.throwErr(errors.ERR_INVALID_CONNECT_STRING_PARAMETERS,
++        `redirect cannot change protocol from ${this.transportProtocol} to ${protocol}`);
+     }
++    this.transportProtocol = protocol;
++    this.ntAdapter = new NTTCP(this.sAtts.nt);
+ 
+     await this.ntAdapter.connect(address);
+     this.ntAdapter.startRead();
+diff --git a/lib/thin/sqlnet/ntTcp.js b/lib/thin/sqlnet/ntTcp.js
+index 8b8c82c14296580544d3a5fb97e8aaeac02f65a0..e298fd8d4321fb0ee23dc405bd1510782dd95f27 100644
+--- a/lib/thin/sqlnet/ntTcp.js
++++ b/lib/thin/sqlnet/ntTcp.js
+@@ -158,8 +158,13 @@ class NTTCP {
+     }
+ 
+     let connectErrCause, proxyConnectErrCause, req;
+-    const httpsProxy = address.httpsProxy || this.atts.httpsProxy;
+-    let httpsProxyPort = address.httpsProxyPort || this.atts.httpsProxyPort;
++    const proxy = this.atts.httpsProxy
++      ? { host: this.atts.httpsProxy, port: this.atts.httpsProxyPort }
++      : address.httpsProxy
++        ? { host: address.httpsProxy, port: address.httpsProxyPort }
++        : null;
++    const httpsProxy = proxy?.host;
++    let httpsProxyPort = proxy?.port;
+ 
+     await new Promise((resolve) => {
+       if (httpsProxy) {

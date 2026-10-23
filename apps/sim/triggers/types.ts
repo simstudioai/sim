@@ -1,11 +1,12 @@
 import type { OutputCondition, SubBlockConfig } from '@/blocks/types'
 
 export interface TriggerOutput {
+  nullable?: boolean
   type?: string
   description?: string | TriggerOutput
   /** Restricts which trigger configurations surface this output in the tag dropdown. */
   condition?: OutputCondition
-  [key: string]: TriggerOutput | OutputCondition | string | undefined
+  [key: string]: TriggerOutput | OutputCondition | string | boolean | undefined
 }
 
 export interface TriggerConfig {
@@ -42,16 +43,4 @@ export interface TriggerConfig {
 
 export interface TriggerRegistry {
   [triggerId: string]: TriggerConfig
-}
-
-interface TriggerInstance {
-  id: string
-  triggerId: string
-  blockId: string
-  workflowId: string
-  config: Record<string, any>
-  webhookPath?: string
-  isActive: boolean
-  createdAt: Date
-  updatedAt: Date
 }

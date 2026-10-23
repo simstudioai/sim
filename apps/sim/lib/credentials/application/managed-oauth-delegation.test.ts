@@ -1,25 +1,22 @@
+import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
-const { mockBindInternalExecutorDelegation } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
-  InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
-}))
-
-vi.mock('@/lib/auth/internal', () => ({
-  InvalidInternalDelegationTokenError: class InvalidInternalDelegationTokenError extends Error {},
-  verifyInternalDelegationToken: vi.fn(),
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import {
   bindExecutorManagedOAuthDelegation,
   InvalidManagedOAuthDelegationError,
 } from '@/lib/credentials/application/managed-oauth-delegation'
+
+const mockBindInternalExecutorDelegation =
+  authInternalDelegationMockFns.mockBindInternalExecutorDelegation
 
 function delegationOrigin(
   overrides: Partial<ExecutorDelegationOrigin> = {}

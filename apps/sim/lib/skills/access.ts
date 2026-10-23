@@ -141,44 +141,6 @@ export async function listSkillEditors(skillRow: {
   return editors
 }
 
-export interface SkillsUpdateAccess {
-  /** Ids from the request that resolve to existing skills in the workspace. */
-  existingIds: Set<string>
-  /** Existing skills the user may not update (not an editor, not a workspace admin). */
-  denied: Array<{ id: string; name: string }>
-}
-
-/**
- * Partitions an upsert request's skill ids for authorization: ids that resolve
- * to existing workspace skills require skill editor access; unresolved ids are
- * creates, gated by workspace write permission instead.
- */
-export async function checkSkillsUpdateAccess(params: {
-  workspaceId: string
-  userId: string
-  skillIds: string[]
-  workspaceAccess?: WorkspaceAccess
-}): Promise<SkillsUpdateAccess> {
-  if (params.skillIds.length === 0) return { existingIds: new Set(), denied: [] }
-
-  const rows = await db
-    .select({ id: skill.id, name: skill.name })
-    .from(skill)
-    .where(and(eq(skill.workspaceId, params.workspaceId), inArray(skill.id, params.skillIds)))
-
-  const existingIds = new Set(rows.map((row) => row.id))
-  if (rows.length === 0) return { existingIds, denied: [] }
-
-  const access = await getEditableSkillIds(params.workspaceId, params.userId, {
-    workspaceAccess: params.workspaceAccess,
-  })
-  const denied = access.canAdminWorkspace
-    ? []
-    : rows.filter((row) => !access.editorSkillIds.has(row.id))
-
-  return { existingIds, denied }
-}
-
 /**
  * Removes a user's skill editor grants across one or more workspaces when they
  * leave (workspace removal, org removal/transfer). Rows are editor grants

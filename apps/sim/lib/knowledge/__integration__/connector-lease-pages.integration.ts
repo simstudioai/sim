@@ -19,6 +19,7 @@ import {
 } from '@sim/db/schema'
 import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { installKnowledgeProjectionAsync } from '@sim/db/script-migrations/0024_knowledge_projection_async'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
@@ -41,7 +42,7 @@ vi.mock('@/connectors/registry.server', () => ({
 }))
 
 import { PROJECTION_ROW_BATCH_SIZE } from '@sim/db/knowledge-projection'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
   createKnowledgeAclFixtureIds,
@@ -120,7 +121,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         RETURN NEW;
       END $$`)
     )
-    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+    for (const projection of ['embedding_search']) {
       await db.execute(
         sql.raw(`DROP TRIGGER IF EXISTS log_lease_page_projection_write ON ${projection}`)
       )
@@ -141,7 +142,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     await db.execute(sql`DROP TRIGGER IF EXISTS fail_after_acl_writes ON document`)
     await db.execute(sql`DELETE FROM lease_page_acl_writes`)
     await db.execute(sql`DELETE FROM lease_page_projection_writes`)
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   })
@@ -151,7 +152,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     await db.execute(sql`DROP FUNCTION IF EXISTS log_lease_page_acl_write()`)
     await db.execute(sql`DROP FUNCTION IF EXISTS fail_after_acl_writes()`)
     await db.execute(sql`DROP TABLE IF EXISTS lease_page_acl_writes`)
-    for (const projection of ['embedding_search', 'embedding_keyword_tin'])
+    for (const projection of ['embedding_search'])
       await db.execute(
         sql.raw(`DROP TRIGGER IF EXISTS log_lease_page_projection_write ON ${projection}`)
       )
@@ -300,13 +301,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       )
       for (let offset = 0; offset < rows.length; offset += 200)
         await db.insert(embedding).values(rows.slice(offset, offset + 200))
-      /**
-       * Each chunk's projection rows, filled from its document as the backfill leaves them. The
-       * embedding insert writes the vector projection's row; the keyword projection's own sync
-       * trigger ships with the Tin migration, which a database without Tin skips. The fixture sets
-       * the filled state itself, whatever triggers an earlier suite left behind; what is under
-       * test is the document trigger that rewrites these rows.
-       */
+      /** Seeds the filled vector state whose ACL updates must stay bounded. */
       const chunkIds = sql.join(
         documents.map((entry) => sql`${entry.id}`),
         sql`, `
@@ -314,11 +309,6 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       await db.execute(sql`
         UPDATE embedding_search p SET enabled = true, connector_id = d.connector_id, acl = d.acl
         FROM document d WHERE d.id = p.document_id AND d.id IN (${chunkIds})`)
-      await db.execute(sql`
-        INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content, connector_id, acl)
-        SELECT e.id, e.knowledge_base_id, e.document_id, true, e.content, d.connector_id, d.acl
-        FROM embedding e JOIN document d ON d.id = e.document_id WHERE e.document_id IN (${chunkIds})
-        ON CONFLICT (id) DO UPDATE SET enabled = true, connector_id = EXCLUDED.connector_id, acl = EXCLUDED.acl`)
       /** Only writes made by the code under test are counted. */
       await db.execute(sql`DELETE FROM lease_page_projection_writes`)
       await db
@@ -337,10 +327,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       db.execute<{ projection: string; acl: string | null; expected: string }>(sql`
         SELECT 'embedding_search' AS projection, array_to_string(p.acl, ',') AS acl,
           array_to_string(d.acl, ',') AS expected
-        FROM embedding_search p JOIN document d ON d.id = p.document_id WHERE d.connector_id = ${connectorId}
-        UNION ALL
-        SELECT 'embedding_keyword_tin', array_to_string(p.acl, ','), array_to_string(d.acl, ',')
-        FROM embedding_keyword_tin p JOIN document d ON d.id = p.document_id WHERE d.connector_id = ${connectorId}`)
+        FROM embedding_search p JOIN document d ON d.id = p.document_id WHERE d.connector_id = ${connectorId}`)
 
     /** Projection rows each transaction rewrote, per table. */
     const projectionRowsPerTransaction = async () =>
@@ -354,7 +341,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       const seeded = await seedDocuments(ids.connectorId, [alice()], 30)
       await seedChunks(seeded)
       const before = [...(await projectionAcls(ids.connectorId))]
-      expect(before).toHaveLength(2 * 30 * CHUNKS)
+      expect(before).toHaveLength(30 * CHUNKS)
 
       await expect(
         persistDocumentAcls(
@@ -367,7 +354,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       const after = [...(await projectionAcls(ids.connectorId))]
       expect(after.filter((row) => row.acl !== bob() || row.expected !== bob())).toEqual([])
       const perTransaction = await projectionRowsPerTransaction()
-      expect(perTransaction.reduce((total, rows) => total + rows, 0)).toBe(2 * 30 * CHUNKS)
+      expect(perTransaction.reduce((total, rows) => total + rows, 0)).toBe(30 * CHUNKS)
       expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PROJECTION_ROW_BATCH_SIZE)
     })
 
@@ -384,13 +371,28 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       ).resolves.toBe(true)
 
       const after = [...(await projectionAcls(members.connectorId))]
-      expect(after).toHaveLength(2 * 30 * CHUNKS)
+      expect(after).toHaveLength(30 * CHUNKS)
       expect(after.filter((row) => row.acl !== '' || row.expected !== '')).toEqual([])
       expect(Math.max(...(await projectionRowsPerTransaction()))).toBeLessThanOrEqual(
         PROJECTION_ROW_BATCH_SIZE
       )
     })
   })
+
+  async function waitForDocumentLock(): Promise<number> {
+    return vi.waitFor(
+      async () => {
+        const [row] = await db.execute<{ pid: number }>(sql`
+        SELECT pid FROM pg_stat_activity
+        WHERE wait_event_type = 'Lock' AND datname = current_database()
+          AND (query ILIKE 'update "document" set "acl"%'
+            OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
+        if (!row) throw new Error('Document ACL writer has not reached the held row')
+        return row.pid
+      },
+      { timeout: 5_000, interval: 10 }
+    )
+  }
 
   describe('fence-last pages', () => {
     /**
@@ -422,17 +424,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         leaseTransaction(ids.connectorId, adminLease())
       )
       try {
-        let waiter: number | undefined
-        for (let attempt = 0; attempt < 100 && waiter === undefined; attempt++) {
-          const [row] = await db.execute<{ pid: number }>(sql`
-            SELECT pid FROM pg_stat_activity
-            WHERE wait_event_type = 'Lock' AND datname = current_database()
-              AND (query ILIKE 'update "document" set "acl"%'
-                OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
-          waiter = row?.pid
-          if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
-        }
-        expect(waiter).toBeDefined()
+        const waiter = await waitForDocumentLock()
         const connectorLocks = await db.execute<{ mode: string }>(sql`
           SELECT mode FROM pg_locks
           WHERE pid = ${waiter} AND relation = 'knowledge_connector'::regclass`)
@@ -535,17 +527,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         lease: createMemberSyncLease(members.connectorId, members.runId),
       })
       try {
-        let waiter: number | undefined
-        for (let attempt = 0; attempt < 200 && waiter === undefined; attempt++) {
-          const [row] = await db.execute<{ pid: number }>(sql`
-            SELECT pid FROM pg_stat_activity
-            WHERE wait_event_type = 'Lock' AND datname = current_database()
-              AND (query ILIKE 'update "document" set "acl"%'
-                OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
-          waiter = row?.pid
-          if (waiter === undefined) await new Promise<void>((resolve) => setImmediate(resolve))
-        }
-        expect(waiter).toBeDefined()
+        const waiter = await waitForDocumentLock()
         const connectorLocks = await db.execute<{ mode: string }>(sql`
           SELECT mode FROM pg_locks
           WHERE pid = ${waiter} AND relation = 'knowledge_connector'::regclass`)
@@ -1156,6 +1138,13 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         .update(document)
         .set({ sourceSeenAt: sql`now() + interval '1 day'` })
         .where(eq(document.connectorId, members.connectorId))
+      const seenStamps = () =>
+        db
+          .select({ id: document.id, sourceSeenAt: document.sourceSeenAt })
+          .from(document)
+          .where(eq(document.connectorId, members.connectorId))
+          .orderBy(document.id)
+      const seenBefore = await seenStamps()
       provider.list.mockResolvedValue({
         documents: seeded.map((row) => ({
           externalId: row.externalId,
@@ -1186,6 +1175,8 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       expect(perTransaction.reduce((total, writes) => total + writes, 0)).toBe(2 * DOCUMENTS)
       expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PAGE)
       await expectBounded(members.connectorId)
+      /** A row already stamped at or after this run's start is not rewritten by the seen stamp. */
+      expect(await seenStamps()).toEqual(seenBefore)
     })
 
     it('rematerialises what a change feed withdrew one page per lease transaction', async () => {

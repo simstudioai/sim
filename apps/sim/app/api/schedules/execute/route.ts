@@ -22,7 +22,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   getJobQueue,
   JOB_PENDING_RETENTION_HOURS,
@@ -44,11 +44,13 @@ import {
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
 } from '@/lib/execution/manual-cancellation'
+import { runJobLane } from '@/lib/mothership/jobs/lane'
 import {
   buildCarrierReconciledMetadata,
   carrierNotReconciledSql,
@@ -885,10 +887,12 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
   const disabledScheduleIds = new Set<string>()
 
   await db.transaction(async (tx) => {
-    const [lock] = await tx.execute<{ acquired: boolean }>(
-      sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${SCHEDULE_EXECUTION_QUEUE_NAME}, 0)) AS acquired`
+    const acquired = await tryAcquireAdvisoryXactLock(
+      tx,
+      'schedule_execution_queue',
+      SCHEDULE_EXECUTION_QUEUE_NAME
     )
-    if (!lock?.acquired) {
+    if (!acquired) {
       logger.info(
         'Skipped stale database schedule job recovery because another worker holds the lock'
       )
@@ -1065,10 +1069,12 @@ async function tryStartDatabaseScheduleJob(jobId: string): Promise<DatabaseSched
   const now = new Date()
 
   return db.transaction(async (tx) => {
-    const [lock] = await tx.execute<{ acquired: boolean }>(
-      sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${SCHEDULE_EXECUTION_QUEUE_NAME}, 0)) AS acquired`
+    const acquired = await tryAcquireAdvisoryXactLock(
+      tx,
+      'schedule_execution_queue',
+      SCHEDULE_EXECUTION_QUEUE_NAME
     )
-    if (!lock?.acquired) return 'capacity_full'
+    if (!acquired) return 'capacity_full'
 
     const [row] = await tx
       .select({
@@ -1781,6 +1787,13 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
         : []
 
     await Promise.allSettled(schedulePromises)
+  }
+
+  try {
+    const { claimed } = await runJobLane()
+    totalSchedules += claimed
+  } catch (error) {
+    logger.error(`[${requestId}] Scheduled job lane failed`, { error: toError(error).message })
   }
 
   const totalCount = totalSchedules

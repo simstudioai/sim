@@ -30,6 +30,7 @@ import { googleVaultConnector } from '@/connectors/google-vault'
 import { grainConnector } from '@/connectors/grain'
 import { granolaConnector } from '@/connectors/granola'
 import { greenhouseConnector } from '@/connectors/greenhouse'
+import { helpScoutConnector } from '@/connectors/helpscout'
 import { hubspotConnector } from '@/connectors/hubspot'
 import { incidentioConnector } from '@/connectors/incidentio'
 import { intercomConnector } from '@/connectors/intercom'
@@ -43,8 +44,10 @@ import { mondayConnector } from '@/connectors/monday'
 import { notionConnector } from '@/connectors/notion'
 import { obsidianConnector } from '@/connectors/obsidian'
 import { onedriveConnector } from '@/connectors/onedrive'
+import { otterConnector } from '@/connectors/otter'
 import { outlookConnector } from '@/connectors/outlook'
 import { pagerdutyConnector } from '@/connectors/pagerduty'
+import { planeConnector } from '@/connectors/plane'
 import { redditConnector } from '@/connectors/reddit'
 import { rootlyConnector } from '@/connectors/rootly'
 import { s3Connector } from '@/connectors/s3'
@@ -106,6 +109,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   grain: grainConnector,
   granola: granolaConnector,
   greenhouse: greenhouseConnector,
+  helpscout: helpScoutConnector,
   hubspot: hubspotConnector,
   incidentio: incidentioConnector,
   intercom: intercomConnector,
@@ -119,8 +123,10 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   notion: notionConnector,
   obsidian: obsidianConnector,
   onedrive: onedriveConnector,
+  otter: otterConnector,
   outlook: outlookConnector,
   pagerduty: pagerdutyConnector,
+  plane: planeConnector,
   reddit: redditConnector,
   rootly: rootlyConnector,
   s3: s3Connector,

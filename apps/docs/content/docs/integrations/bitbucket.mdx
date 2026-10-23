@@ -1,26 +1,51 @@
 ---
 title: Bitbucket
 description: Work with Bitbucket Cloud repositories, pull requests, and pipelines
+integration:
+  type: "bitbucket"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="bitbucket"
-  color="#FFFFFF"
-/>
 
-## Usage Instructions
+{/* MANUAL-CONTENT-START:intro */}
+Use [Bitbucket](https://bitbucket.org/) Cloud to read repositories, branches, commits, files, and diffs; create or delete branches; and manage pull requests and comments. Pipeline actions list runs and steps, start or stop runs, and retrieve step logs.
+
+Connect a Bitbucket account through OAuth. Triggers can start workflows on pushes, repository changes, build status updates, and pull request events; Sim manages their webhooks. For example, a workflow can read a failed pipeline's logs or review a newly opened pull request.
+{/* MANUAL-CONTENT-END */}
+
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Bitbucket account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/bitbucket` |
+| Environment variables | `BITBUCKET_CLIENT_ID`, `BITBUCKET_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `account` | View your Bitbucket account and workspace memberships |
+| `repository` | View repositories and source code |
+| `repository:write` | Push to repositories and create or delete branches |
+| `pullrequest` | View and comment on pull requests |
+| `pullrequest:write` | Create, update, approve, decline, and merge pull requests |
+| `pipeline` | View pipelines, steps, and logs |
+| `pipeline:write` | Run and stop pipelines |
+| `webhook` | Manage repository webhooks |
+
+## Use the block [#usage-instructions]
 
 Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, diagnose or control pipelines, and start workflows from repository and pull request events. OAuth is used for actions and automatic webhook management.
-
-
 
 ## Actions
 
 ### Bitbucket List Workspaces
 
 List Bitbucket Cloud workspaces available to the authenticated account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +74,13 @@ List Bitbucket Cloud workspaces available to the authenticated account
 |   ↳ `selfUrl` | string | Workspace API URL |
 |   ↳ `avatarUrl` | string | Workspace avatar URL |
 
+</ReferenceDetails>
+
 ### Bitbucket List Repositories
 
 List repositories in a Bitbucket Cloud workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +133,13 @@ List repositories in a Bitbucket Cloud workspace
 |   ↳ `selfUrl` | string | Repository API URL |
 |   ↳ `htmlUrl` | string | Repository web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Repository
 
 Get a Bitbucket Cloud repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -149,9 +182,13 @@ Get a Bitbucket Cloud repository
 |   ↳ `selfUrl` | string | Repository API URL |
 |   ↳ `htmlUrl` | string | Repository web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket List Branches
 
 List branches in a Bitbucket Cloud repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -212,9 +249,13 @@ List branches in a Bitbucket Cloud repository
 |   ↳ `selfUrl` | string | Branch API URL |
 |   ↳ `htmlUrl` | string | Branch web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Create Branch
 
 Create a branch at a commit hash or existing ref
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +308,13 @@ Create a branch at a commit hash or existing ref
 |   ↳ `selfUrl` | string | Branch API URL |
 |   ↳ `htmlUrl` | string | Branch web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Delete Branch
 
 Delete a branch from a Bitbucket Cloud repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -285,9 +330,13 @@ Delete a branch from a Bitbucket Cloud repository
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the branch was deleted |
 
+</ReferenceDetails>
+
 ### Bitbucket List Commits
 
 List repository commits in reverse chronological order
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,9 +388,13 @@ List repository commits in reverse chronological order
 |   ↳ `selfUrl` | string | Commit API URL |
 |   ↳ `htmlUrl` | string | Commit web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Commit
 
 Get a repository commit by its full SHA-1
+
+<ReferenceDetails>
 
 #### Input
 
@@ -386,9 +439,13 @@ Get a repository commit by its full SHA-1
 |   ↳ `selfUrl` | string | Commit API URL |
 |   ↳ `htmlUrl` | string | Commit web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket List Directory
 
 List one shallow repository directory at a full commit SHA-1
+
+<ReferenceDetails>
 
 #### Input
 
@@ -423,9 +480,13 @@ List one shallow repository directory at a full commit SHA-1
 |   ↳ `selfUrl` | string | Source API URL |
 |   ↳ `metadataUrl` | string | Source metadata API URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Get File Metadata
 
 Inspect file size and attributes at a full repository commit SHA-1
+
+<ReferenceDetails>
 
 #### Input
 
@@ -449,9 +510,13 @@ Inspect file size and attributes at a full repository commit SHA-1
 |   ↳ `attributes` | array | File attributes reported by Bitbucket |
 |   ↳ `isBinary` | boolean | Whether the documented attributes include the binary marker |
 
+</ReferenceDetails>
+
 ### Bitbucket Get File
 
 Read bounded UTF-8 text from a file at a full repository commit SHA-1
+
+<ReferenceDetails>
 
 #### Input
 
@@ -474,9 +539,13 @@ Read bounded UTF-8 text from a file at a full repository commit SHA-1
 | `fullBytes` | number | Full file byte size when reported |
 | `contentType` | string | Response MIME type |
 
+</ReferenceDetails>
+
 ### Bitbucket List Pull Requests
 
 List pull requests in a Bitbucket Cloud repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -570,9 +639,13 @@ List pull requests in a Bitbucket Cloud repository
 |   ↳ `selfUrl` | string | Pull request API URL |
 |   ↳ `htmlUrl` | string | Pull request web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Pull Request
 
 Get a pull request by repository-scoped ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -656,9 +729,13 @@ Get a pull request by repository-scoped ID
 |   ↳ `selfUrl` | string | Pull request API URL |
 |   ↳ `htmlUrl` | string | Pull request web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Create Pull Request
 
 Create a pull request between repository branches
+
+<ReferenceDetails>
 
 #### Input
 
@@ -748,9 +825,13 @@ Create a pull request between repository branches
 |   ↳ `selfUrl` | string | Pull request API URL |
 |   ↳ `htmlUrl` | string | Pull request web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Merge Pull Request
 
 Start an asynchronous pull request merge and return a task to poll when needed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -840,9 +921,13 @@ Start an asynchronous pull request merge and return a task to poll when needed
 |   ↳ `selfUrl` | string | Pull request API URL |
 |   ↳ `htmlUrl` | string | Pull request web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Merge Task Status
 
 Poll the status of an asynchronous pull request merge task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -929,9 +1014,13 @@ Poll the status of an asynchronous pull request merge task
 |   ↳ `selfUrl` | string | Pull request API URL |
 |   ↳ `htmlUrl` | string | Pull request web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Decline Pull Request
 
 Decline an open pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1015,9 +1104,13 @@ Decline an open pull request
 |   ↳ `selfUrl` | string | Pull request API URL |
 |   ↳ `htmlUrl` | string | Pull request web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Approve Pull Request
 
 Approve a pull request as the authenticated account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1047,9 +1140,13 @@ Approve a pull request as the authenticated account
 |   ↳ `state` | string | Review state |
 |   ↳ `participatedOn` | string | Timestamp of the participant action |
 
+</ReferenceDetails>
+
 ### Bitbucket Request Pull Request Changes
 
 Request changes on a pull request as the authenticated account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1079,9 +1176,13 @@ Request changes on a pull request as the authenticated account
 |   ↳ `state` | string | Review state |
 |   ↳ `participatedOn` | string | Timestamp of the participant action |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Pull Request Diff
 
 Read a bounded UTF-8 unified diff for one pull request file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1103,9 +1204,13 @@ Read a bounded UTF-8 unified diff for one pull request file
 | `returnedBytes` | number | Provider bytes read for the returned diff |
 | `fullBytes` | number | Full diff byte size when reported |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Pull Request Diffstat
 
 List per-file change statistics for a pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1137,9 +1242,13 @@ List per-file change statistics for a pull request
 |   ↳ `oldCommitHash` | string | Old file commit hash |
 |   ↳ `newCommitHash` | string | New file commit hash |
 
+</ReferenceDetails>
+
 ### Bitbucket List Pull Request Comments
 
 List global, inline, and reply comments on a pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1201,9 +1310,13 @@ List global, inline, and reply comments on a pull request
 |   ↳ `selfUrl` | string | Comment API URL |
 |   ↳ `htmlUrl` | string | Comment web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Create Pull Request Comment
 
 Create a global comment or reply on a pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1257,9 +1370,13 @@ Create a global comment or reply on a pull request
 |   ↳ `selfUrl` | string | Comment API URL |
 |   ↳ `htmlUrl` | string | Comment web URL |
 
+</ReferenceDetails>
+
 ### Bitbucket List Pull Request Commit Statuses
 
 List commit statuses associated with a pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1296,9 +1413,13 @@ List commit statuses associated with a pull request
 |   ↳ `selfUrl` | string | Status API URL |
 |   ↳ `commitUrl` | string | Commit API URL |
 
+</ReferenceDetails>
+
 ### Bitbucket List Pipelines
 
 List pipelines for a Bitbucket Cloud repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1361,9 +1482,13 @@ List pipelines for a Bitbucket Cloud repository
 |   ↳ `selfUrl` | string | Pipeline API URL |
 |   ↳ `stepsUrl` | string | Pipeline steps API URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Pipeline
 
 Get a pipeline by UUID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1411,9 +1536,13 @@ Get a pipeline by UUID
 |   ↳ `selfUrl` | string | Pipeline API URL |
 |   ↳ `stepsUrl` | string | Pipeline steps API URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Trigger Pipeline
 
 Run the repository pipeline selected by a branch or ref target
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1463,9 +1592,13 @@ Run the repository pipeline selected by a branch or ref target
 |   ↳ `selfUrl` | string | Pipeline API URL |
 |   ↳ `stepsUrl` | string | Pipeline steps API URL |
 
+</ReferenceDetails>
+
 ### Bitbucket Stop Pipeline
 
 Stop a running pipeline
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1481,9 +1614,13 @@ Stop a running pipeline
 | --------- | ---- | ----------- |
 | `stopped` | boolean | Whether the stop request succeeded |
 
+</ReferenceDetails>
+
 ### Bitbucket List Pipeline Steps
 
 List the steps in a pipeline
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1523,9 +1660,13 @@ List the steps in a pipeline
 |     ↳ `name` | string | Command name |
 |     ↳ `command` | string | Executable command |
 
+</ReferenceDetails>
+
 ### Bitbucket Get Pipeline Step Log
 
 Read a bounded UTF-8 tail of a pipeline step log
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1545,16 +1686,20 @@ Read a bounded UTF-8 tail of a pipeline step log
 | `truncated` | boolean | Whether earlier log output was omitted |
 | `totalBytes` | number | Full log byte size when reported |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Bitbucket Build Status Created
 
 Trigger workflow when a build status is created for a Bitbucket commit
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1583,13 +1728,14 @@ Trigger workflow when a build status is created for a Bitbucket commit
 | `statusName` | string | Display name of the build status |
 | `statusUrl` | string | URL associated with the build status |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Build Status Updated
 
 Trigger workflow when a build status is updated for a Bitbucket commit
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1618,12 +1764,13 @@ Trigger workflow when a build status is updated for a Bitbucket commit
 | `statusName` | string | Display name of the build status |
 | `statusUrl` | string | URL associated with the build status |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Commit Comment Created
 
 Trigger workflow when a comment is created on a Bitbucket commit
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1651,13 +1798,14 @@ Trigger workflow when a comment is created on a Bitbucket commit
 | `commentContent` | string | Raw text content of the comment |
 | `commit` | json | Commit the comment was created on |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Approval Removed
 
 Trigger workflow when approval is removed from a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1687,13 +1835,14 @@ Trigger workflow when approval is removed from a Bitbucket pull request
 | `destinationBranch` | string | Pull request destination branch |
 | `approval` | json | Pull request approval details |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Approved
 
 Trigger workflow when a Bitbucket pull request is approved
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1723,13 +1872,14 @@ Trigger workflow when a Bitbucket pull request is approved
 | `destinationBranch` | string | Pull request destination branch |
 | `approval` | json | Pull request approval details |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Changes Request Removed
 
 Trigger workflow when a changes request is removed from a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1759,13 +1909,14 @@ Trigger workflow when a changes request is removed from a Bitbucket pull request
 | `destinationBranch` | string | Pull request destination branch |
 | `changesRequest` | json | Pull request changes-request details |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Changes Requested
 
 Trigger workflow when changes are requested on a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1795,13 +1946,14 @@ Trigger workflow when changes are requested on a Bitbucket pull request
 | `destinationBranch` | string | Pull request destination branch |
 | `changesRequest` | json | Pull request changes-request details |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Comment Created
 
 Trigger workflow when a comment is created on a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1833,13 +1985,14 @@ Trigger workflow when a comment is created on a Bitbucket pull request
 | `commentId` | number | Repository-scoped comment ID |
 | `commentContent` | string | Raw text content of the comment |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Comment Deleted
 
 Trigger workflow when a comment is deleted from a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1871,13 +2024,14 @@ Trigger workflow when a comment is deleted from a Bitbucket pull request
 | `commentId` | number | Repository-scoped comment ID |
 | `commentContent` | string | Raw text content of the comment |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Comment Reopened
 
 Trigger workflow when a resolved comment is reopened on a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1909,13 +2063,14 @@ Trigger workflow when a resolved comment is reopened on a Bitbucket pull request
 | `commentId` | number | Repository-scoped comment ID |
 | `commentContent` | string | Raw text content of the comment |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Comment Resolved
 
 Trigger workflow when a comment is resolved on a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1947,13 +2102,14 @@ Trigger workflow when a comment is resolved on a Bitbucket pull request
 | `commentId` | number | Repository-scoped comment ID |
 | `commentContent` | string | Raw text content of the comment |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Comment Updated
 
 Trigger workflow when a comment is updated on a Bitbucket pull request
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1985,13 +2141,14 @@ Trigger workflow when a comment is updated on a Bitbucket pull request
 | `commentId` | number | Repository-scoped comment ID |
 | `commentContent` | string | Raw text content of the comment |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Created
 
 Trigger workflow when a Bitbucket pull request is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2020,13 +2177,14 @@ Trigger workflow when a Bitbucket pull request is created
 | `sourceBranch` | string | Pull request source branch |
 | `destinationBranch` | string | Pull request destination branch |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Declined
 
 Trigger workflow when a Bitbucket pull request is declined
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2055,13 +2213,14 @@ Trigger workflow when a Bitbucket pull request is declined
 | `sourceBranch` | string | Pull request source branch |
 | `destinationBranch` | string | Pull request destination branch |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Merged
 
 Trigger workflow when a Bitbucket pull request is merged
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2090,13 +2249,14 @@ Trigger workflow when a Bitbucket pull request is merged
 | `sourceBranch` | string | Pull request source branch |
 | `destinationBranch` | string | Pull request destination branch |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Pull Request Updated
 
 Trigger workflow when a Bitbucket pull request is updated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2125,12 +2285,13 @@ Trigger workflow when a Bitbucket pull request is updated
 | `sourceBranch` | string | Pull request source branch |
 | `destinationBranch` | string | Pull request destination branch |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Push
 
 Trigger workflow when commits are pushed to a Bitbucket repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2155,12 +2316,13 @@ Trigger workflow when commits are pushed to a Bitbucket repository
 | `payload` | json | Full parsed Bitbucket webhook payload |
 | `push` | json | Push details, including changes and commits |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Repository Forked
 
 Trigger workflow when a Bitbucket repository is forked
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2185,12 +2347,13 @@ Trigger workflow when a Bitbucket repository is forked
 | `payload` | json | Full parsed Bitbucket webhook payload |
 | `fork` | json | Newly created repository fork |
 
-
----
+</ReferenceDetails>
 
 ### Bitbucket Repository Updated
 
 Trigger workflow when a Bitbucket repository is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2214,4 +2377,6 @@ Trigger workflow when a Bitbucket repository is updated
 | `repository` | json | Repository where the event occurred |
 | `payload` | json | Full parsed Bitbucket webhook payload |
 | `changes` | json | Repository fields changed by the update |
+
+</ReferenceDetails>
 

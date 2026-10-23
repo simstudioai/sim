@@ -1,11 +1,11 @@
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   type InvitationWithGrants,
   requireInvitationResendAuthority,
@@ -22,7 +22,7 @@ import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission
  * precede organization and billing-identity locks; permission-group locks are leaves.
  */
 export async function lockInvitationResendPolicy(
-  tx: DbOrTx,
+  tx: DbTransaction,
   invitation: InvitationWithGrants,
   actorUserId: string,
   assertedOrganizationId?: string

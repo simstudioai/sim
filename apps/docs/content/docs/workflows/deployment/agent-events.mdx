@@ -1,193 +1,213 @@
 ---
 title: Agent stream events
-description: Protocol for streaming thinking and tool lifecycle from Agent blocks
+description: Consume answer text, provider reasoning, and tool lifecycle events over a negotiated SSE protocol.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Agent blocks can emit more than answer text while they run: **provider-exposed thinking** (or reasoning summaries) and a **tool-call lifecycle** (name + status). Sim delivers those as typed events on an opt-in stream protocol.
-
-<Callout type="info">
-Sim does **not** invent thinking for providers that do not stream it. Bedrock Converse, many OpenAI-compat models, and non-reasoning chat models stay text-only (plus tools when a live tool loop is wired).
-</Callout>
+Agent blocks can stream answer text, provider-exposed thinking or reasoning summaries, and tool lifecycle events. A client declares the protocol it understands; separate policies decide whether thinking and tool events are exposed.
 
 ## Two independent switches
 
-Agent events are governed by two things that do not depend on each other.
-
-**Policy decides which frames exist.** `includeThinking` turns on `thinking` frames, `includeToolCalls` turns on `tool` frames, and both default to **off**.
-
-| Surface | Policy source |
-|---------|---------------|
-| Deployed chat (`/api/chat/{identifier}`) | The chat deployment's **Thinking** and **Tool calls** toggles |
-| Workflow API (`/api/v2/workflows/{id}/execute`) | Per-request `includeThinking` / `includeToolCalls` in the body |
-
-**The header declares the protocol version.** Sending it says the client understands v1 framing:
+Send this header for live answer text and the `agent-events-v1` frame vocabulary:
 
 ```http
 X-Sim-Stream-Protocol: agent-events-v1
 ```
 
-It does two things. It switches answer text to live token-by-token `chunk` frames that `chunk_reset` can retract, and it is **required** for any `thinking` or `tool` frame — a client that never declared a version has no contract for their shape, so it keeps the text-only stream it already understands.
+The response echoes the negotiated protocol. The header enables live `chunk` frames and the `chunk_reset` event that retracts an intermediate tool-calling turn. It does not, by itself, expose thinking or tools.
 
-When both event flags are false, you can omit the header to receive settled final-turn text without agent-event frames. The response echoes the header back when the protocol was negotiated.
+| Surface | Thinking and tool policies |
+| --- | --- |
+| Workflow API | Request-body `includeThinking` and `includeToolCalls` |
+| Deployed chat | Deployment **Include thinking** and **Include tool calls** settings |
 
-The header alone exposes nothing, so a chat with both policies off still streams token by token.
+Both policies default off. Either can be enabled independently, but its frames also require the header. Without the header, answer text arrives as settled final-turn chunks rather than provisional live tokens.
 
 <Callout type="warn">
-On the workflow API, setting `includeThinking` or `includeToolCalls` **without** the header is rejected with `400`. The flags would otherwise be a silent no-op, which is the failure mode this protocol exists to avoid. Deployed chat degrades instead of rejecting, because there the policy comes from the deployment rather than the request.
+The workflow API rejects `includeThinking` or `includeToolCalls` without `stream: true` and the protocol header. Deployed chat instead omits those events when its client has not negotiated the protocol, because its policies come from deployment settings.
 </Callout>
 
 ### Workflow API
 
+This example selects `content` from a block named Agent:
+
 ```bash
-curl -N https://sim.ai/api/v2/workflows/{id}/execute \
+curl -N -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
   -H "X-API-Key: $SIM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -H "X-Sim-Stream-Protocol: agent-events-v1" \
-  -d '{
-    "stream": true,
-    "selectedOutputs": ["agent_1.content"],
-    "includeThinking": true,
-    "includeToolCalls": true
-  }'
+  -H 'Content-Type: application/json' \
+  -H 'X-Sim-Stream-Protocol: agent-events-v1' \
+  -d '{"input":{"message":"Research this topic"},"stream":true,"selectedOutputs":["agent.content"],"includeThinking":true,"includeToolCalls":true}'
 ```
 
-Both flags default to `false`, so an existing integration receives exactly the frames it does today. The header is required whenever either flag is set; omit it and the request is rejected with `400` rather than silently downgraded.
+Tool frames contain names and lifecycle status, not arguments or results. The authenticated workflow API's terminal envelope can contain full tool arguments and results. Public deployed chat removes those payloads from its own tool-call metadata.
 
-Two differences from deployed chat are worth knowing. Tool frames carry the name and status only on both surfaces, but the API's terminal `final` envelope keeps tool **arguments and results** — public chat redacts them. And thinking is delivered only as `thinking` frames; it is stripped from `providerTiming.timeSegments` in the envelope on every surface, so enabling the policy is the only way to receive it.
+Thinking is delivered through `thinking` frames when supported and enabled. It is removed from `providerTiming.timeSegments` in terminal envelopes, so timing metadata is not an alternative route to reasoning content.
 
 ## Simple SSE frame shapes
 
-Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older clients that append every `chunk` into the answer cannot leak thinking).
+Each frame is one JSON value in an SSE `data:` line:
 
-| Frame | Meaning |
-|-------|---------|
-| `{ "blockId", "chunk": "…" }` | Answer text. Legacy clients receive settled final-turn text in one piece; opted-in clients receive it live as the model generates (see below) |
-| `{ "blockId", "event": "chunk_reset" }` | Opted-in only: discard the block’s streamed answer text — it belonged to a turn that resolved to tool calls |
-| `{ "blockId", "event": "thinking", "data": "…" }` | Thinking / reasoning summary delta |
-| `{ "blockId", "event": "tool", "phase": "start"\|"end", "id", "name", "status?" }` | Tool lifecycle (no args / results) |
-| `{ "event": "final", "data": … }` | Terminal result envelope for a settled execution. `data.success` may be `false` with `data.error` when the workflow itself failed |
-| `{ "event": "error", "error": "…" }` | Terminal stream failure (timeout, client abort, processing error) — followed by `[DONE]`, never by `final` |
-| `{ "event": "stream_error", "blockId?", "error" }` | Non-terminal mid-block read issue; the stream keeps going |
-| `data: "[DONE]"` | Stream closed (JSON-encoded sentinel; always follows the terminal `final` or `error` frame) |
+| Example | Meaning |
+| --- | --- |
+| `{"blockId":"agent-id","chunk":"Hello"}` | Answer text; no `event` discriminator |
+| `{"blockId":"agent-id","event":"chunk_reset"}` | Clear provisional answer text for this block |
+| `{"blockId":"agent-id","event":"thinking","data":"..."}` | Provider thinking or reasoning-summary delta |
+| `{"blockId":"agent-id","event":"tool","phase":"start","id":"call-id","name":"search"}` | Tool started |
+| `{"blockId":"agent-id","event":"tool","phase":"end","id":"call-id","name":"search","status":"success"}` | Tool ended; status distinguishes its outcome |
+| `{"event":"final","data":{"success":true,"output":{}}}` | Settled execution envelope; a workflow failure can have `success: false` and `error` |
+| `{"event":"error","error":"Execution timed out"}` | Terminal stream failure; no `final` follows |
+| `{"event":"stream_error","blockId":"agent-id","error":"..."}` | Non-terminal read issue; execution can continue |
+
+The stream closes with the JSON-encoded sentinel:
+
+```text
+data: "[DONE]"
+```
+
+Exactly one terminal `final` or `error` frame precedes it. Unknown event types should be ignored, allowing the protocol to add frames without breaking clients.
 
 ### Live answer text and intermediate turns
 
-During a live tool loop, the model can’t be classified mid-turn: text it emits may turn out to be the final answer or preamble before a tool call (the stop reason arrives only at turn end).
+A model turn can emit text before deciding to call a tool. An opted-in client receives that provisional text live; if the turn resolves to tool calls, `chunk_reset` tells it to clear the accumulated answer for that block. The final turn streams after the tools settle.
 
-- **Clients sending the protocol header** (no event policy required) receive answer text as `chunk` frames **live**, token by token. If the turn then resolves to tool calls, a `chunk_reset` frame tells the client to discard that block’s streamed text — the final turn re-streams live after tools settle. Append `chunk`, honor `chunk_reset`, and the displayed answer always converges to the block’s final content.
-- **Clients without the header** never see provisional text: only settled final-turn text is emitted as `chunk`, delivered in one piece when the turn completes. Honoring `chunk_reset` is what buys live cadence, so send the header if you want it.
+Append `chunk` values per `blockId` and honor resets. Frames from several blocks can interleave. Clients without the header receive only settled final-turn text and do not need to handle provisional turns.
 
-The block's `content` output and plain-message memory view contain the final response text. With [durable tool history](/workflows/blocks/agent#memory) enabled, internal memory also preserves complete assistant messages that lead to tool calls and their results. It records completed provider messages, not individual streamed text deltas, and does not add these internal exchanges to the Memory API's `data` response.
+The block's `content` and plain-message memory view contain its final response. With [durable tool history](/workflows/blocks/agent#memory), internal memory also preserves completed assistant tool-call messages and results, not individual token deltas. Those internal exchanges are not added to the Memory API's `data` response.
 
 ### Abort
 
-Client disconnect or Stop aborts the provider stream. In-flight tools settle as `cancelled`. Cancel is distinct from execution timeout.
+Client disconnect or **Stop** aborts the provider stream. In-flight tools settle as `cancelled`; cancellation is distinct from execution timeout.
 
 ### Reconnect
 
-Canvas execution-events `stream:chunk`, `stream:chunk_reset`, `stream:thinking`, and `stream:tool` are **live-only** (not buffered for reconnect replay), same as answer chunks. Guaranteed `seq` replay is out of scope.
+Editor execution-events `stream:chunk`, `stream:chunk_reset`, `stream:thinking`, and `stream:tool` are live-only. They are not buffered for reconnect replay; the protocol does not guarantee `seq` replay.
 
-## Canvas (draft Run)
+## Editor runs [#canvas-draft-run]
 
-When you click **Run** in the builder, the execution-events SSE path forwards the same sink. The canvas is always opted in — it does not send (or need) the `X-Sim-Stream-Protocol` header, and the policy switches do not apply to it:
+The workflow builder's execution-events stream forwards:
 
-- `stream:thinking` — `{ blockId, text }`
-- `stream:tool` — `{ blockId, phase, id, name, status? }`
-- `stream:chunk` — answer text, live on agent-events runs
-- `stream:chunk_reset` — `{ blockId }`; discard the block’s streamed text (intermediate turn)
+| Event | Data |
+| --- | --- |
+| `stream:chunk` | Live answer text |
+| `stream:chunk_reset` | `{ blockId }` |
+| `stream:thinking` | `{ blockId, text }` |
+| `stream:tool` | `{ blockId, phase, id, name, status? }` |
 
-The terminal output panel shows Thinking / Tools chrome above the block output when those events arrive. PII redaction on block output still disables live forwarding (executor rule).
+Draft **Run** is opted in without the public protocol header or deployment policy switches. The terminal output panel shows thinking and tool activity when available. Block-output PII redaction disables live forwarding.
 
 ## Chat deployment toggles
 
-In **Deploy → Chat**, enable **Include thinking** for provider-exposed thinking and **Include tool calls** for tool names and lifecycle status. The switches are independent of each other, and both still require the client to send the protocol header. Neither switch affects answer-text cadence.
+In **Deploy → Chat**, enable **Include thinking** and **Include tool calls** as needed. They do not change answer-text cadence. The hosted chat UI sends the protocol header; a custom client must send it itself.
 
-Tool arguments and results are never exposed to a public chat — not in lifecycle frames, and not through the terminal `final` envelope, where the block's own tool calls are reduced to the same name-and-lifecycle shape. The authenticated workflow API still returns full tool results. Redeploy or update the chat after changing Agent models or tools.
+Public chat reduces its own tool-call metadata to names and lifecycle status in both streamed fields and the terminal envelope. Do not use a workflow's arbitrary output fields as a way to expose private tool arguments or results.
+
+After changing the workflow's models or tools, deploy an updated workflow snapshot. Save chat settings when changing its event policies.
+
+### Structured chat outputs
+
+The hosted chat also negotiates `chat-outputs-v1` for selected non-text outputs, including file metadata:
+
+```http
+X-Sim-Stream-Protocol: agent-events-v1, chat-outputs-v1
+```
+
+That additional capability can emit `{"blockId":"block-id","event":"output","data":{}}`. Treat `data` as a structured selected value, not answer text. `chat-outputs-v1` is separate from the thinking/tool policies.
 
 ## Provider support
 
-Per-model support is generated from the model registry on the [Agent block page](/workflows/blocks/agent#streamed-thinking-and-tool-calls); the table below summarizes by provider family.
+Sim forwards provider-exposed reasoning; it does not invent thinking for text-only models. Support depends on the selected model and its reasoning settings. See the generated [Agent support table](/workflows/blocks/agent#streamed-thinking-and-tool-calls).
 
-| Family | Thinking | Live tools |
-|--------|----------|------------|
-| Anthropic / Azure Anthropic | Yes (incl. redacted blocks in traces). The newest Claude generations omit full thinking; Sim requests summarized thinking for them on streaming runs | Yes |
-| Gemini / Vertex | Yes when a thinking level is set (thought summaries requested on agent-events runs) | Yes |
-| OpenAI Responses | Reasoning **summaries** when streamed (requires OpenAI organization verification; unverified orgs fall back to no summaries) | Yes |
-| OpenAI-compat (Groq, DeepSeek, …) | Only if vendor streams `reasoning` / `reasoning_content` | Live loop where wired (e.g. Groq, DeepSeek) |
-| Bedrock | Not invented | Yes when streaming tool loop is used |
+Claude generations can expose full or summarized thinking. Gemini/Vertex can expose thought summaries with a configured thinking level. OpenAI Responses uses reasoning summaries and can fall back without summaries when organization verification is unavailable. OpenAI-compatible providers expose reasoning only when their stream supplies it; live tools require a wired tool loop. Bedrock does not gain invented reasoning when only text/tools are available.
 
 ## Consuming the stream
 
-A conforming client owes the stream four things:
+A client must:
 
-1. **Discriminate before appending.** Only a frame with **no** `event` field is answer text. Checking `event === undefined` rather than "has a `chunk` field" is what keeps future frame types from leaking into the answer.
-2. **Accumulate per `blockId`.** A workflow can stream more than one block; frames interleave.
-3. **Honor `chunk_reset`** if you sent the protocol header. Clear that block's accumulated text — it belonged to a turn that resolved to tool calls, and the final turn re-streams.
-4. **Stop at the terminal frame.** Exactly one of `final` or `error` arrives, followed by the literal `"[DONE]"` sentinel. `stream_error` is *not* terminal.
+1. Append only frames with no `event` and a string `chunk`.
+2. Accumulate text per `blockId`.
+3. Clear that block's answer on `chunk_reset`.
+4. Handle `final` and `error` as terminal; `stream_error` is non-terminal.
+5. Handle negotiated `output` frames separately and ignore unknown events.
 
 ### Reference client
 
-```ts
+This parser consumes Sim's single-line JSON data frames. It returns the final envelope, keeping answer and thinking buffers separate:
+
+```typescript
 type Frame = Record<string, unknown>
 
-async function consume(response: Response, renderToolChip: (frame: Frame) => void) {
-  const reader = response.body!.getReader()
+async function consume(
+  response: Response,
+  onTool: (frame: Frame) => void,
+  onOutput: (frame: Frame) => void,
+  onIssue: (frame: Frame) => void
+) {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  if (!response.body) throw new Error('Response body is missing')
+
+  const reader = response.body.getReader()
   const decoder = new TextDecoder()
   const answers = new Map<string, string>()
   const thinking = new Map<string, string>()
   let buffer = ''
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) throw new Error('Stream ended before a terminal frame')
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
 
-    // SSE frames are newline-delimited; keep the trailing partial line.
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const frame = JSON.parse(line.slice(6)) as Frame | string
+        if (typeof frame !== 'object' || frame === null) continue
 
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      const payload = line.slice(6)
+        const { blockId, event } = frame
+        if (event === 'error') throw new Error(String(frame.error))
+        if (event === 'final') {
+          return { answers, thinking, result: frame.data }
+        }
+        if (event === 'stream_error') {
+          onIssue(frame)
+          continue
+        }
+        if (typeof blockId !== 'string') continue
 
-      const frame = JSON.parse(payload) as Frame | string
-      if (frame === '[DONE]') return { answers, thinking }
-      if (typeof frame === 'string') continue
-
-      const { blockId, event } = frame as { blockId?: string; event?: string }
-
-      if (event === undefined && typeof frame.chunk === 'string') {
-        answers.set(blockId!, (answers.get(blockId!) ?? '') + frame.chunk)
-      } else if (event === 'chunk_reset') {
-        answers.set(blockId!, '')
-      } else if (event === 'thinking') {
-        thinking.set(blockId!, (thinking.get(blockId!) ?? '') + String(frame.data))
-      } else if (event === 'tool') {
-        // frame.phase is 'start' | 'end'; frame.status is set on 'end'.
-        renderToolChip(frame)
-      } else if (event === 'final') {
-        // Terminal. frame.data.success may be false with frame.data.error.
-      } else if (event === 'error') {
-        throw new Error(String(frame.error))
-      } else if (event === 'stream_error') {
-        // Non-terminal: log and keep reading.
+        if (event === undefined && typeof frame.chunk === 'string') {
+          answers.set(blockId, (answers.get(blockId) ?? '') + frame.chunk)
+        } else if (event === 'chunk_reset') {
+          answers.set(blockId, '')
+        } else if (event === 'thinking' && typeof frame.data === 'string') {
+          thinking.set(blockId, (thinking.get(blockId) ?? '') + frame.data)
+        } else if (event === 'tool') {
+          onTool(frame)
+        } else if (event === 'output') {
+          onOutput(frame)
+        }
       }
     }
+  } finally {
+    await reader.cancel()
+    reader.releaseLock()
   }
 }
 ```
 
-Unknown `event` values should be ignored rather than treated as errors — that is what lets new frame types ship without breaking existing clients.
+Inspect the returned envelope's `success` and `error`: receiving `final` means execution settled, not that the workflow succeeded. The parser stops on a terminal frame rather than waiting for the closing sentinel.
 
-## Example (public chat)
+## Example public chat [#example-public-chat]
 
 ```bash
-curl -N -X POST 'http://localhost:3000/api/chat/your-slug' \
+curl -N -X POST 'https://www.sim.ai/api/chat/your-slug' \
   -H 'Content-Type: application/json' \
   -H 'X-Sim-Stream-Protocol: agent-events-v1' \
   -d '{"input":"Think briefly, then say hi"}'
 ```
 
-See also [Chat deployment](/workflows/deployment/chat) for access control and the event settings.
+## Related docs
+
+- [Chat deployment](/workflows/deployment/chat) for access control and event settings
+- [API deployment](/workflows/deployment/api) for execution modes

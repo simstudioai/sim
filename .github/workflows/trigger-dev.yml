@@ -1,0 +1,64 @@
+name: trigger-dev
+
+# Independent of app CI: task packaging and deployment must never delay dev images.
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+# Serialize promotions without cancelling an external deployment in flight.
+# Pending pushes coalesce to the newest run while the current run finishes.
+concurrency:
+  group: deploy-trigger-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          node-version: ''
+
+      - name: Upload preview version
+        id: deploy
+        working-directory: ./apps/sim
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          : "${TRIGGER_ACCESS_TOKEN:?TRIGGER_ACCESS_TOKEN must be configured}"
+          : "${TRIGGER_PROJECT_ID:?TRIGGER_PROJECT_ID must be configured}"
+          bunx trigger.dev@4.5.16 deploy --env preview --branch dev-sim --skip-promotion
+
+      - name: Promote current dev preview
+        working-directory: ./apps/sim
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
+            exit 1
+          fi
+          CURRENT_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/dev" --jq '.object.sha')
+          if [ "$CURRENT_SHA" != "$GITHUB_SHA" ]; then
+            echo "::notice::Skipping superseded dev task version $VERSION"
+            exit 0
+          fi
+          bunx trigger.dev@4.5.16 promote "$VERSION" --env preview --branch dev-sim

@@ -5,7 +5,7 @@ import {
   getExecutionSignalHub,
   LEGACY_EXECUTION_CANCEL_CHANNEL,
   publishLocalExecutionSignal,
-} from '@/lib/execution/execution-signal'
+} from '@/lib/execution/signal'
 
 const logger = createLogger('ExecutionCancellation')
 

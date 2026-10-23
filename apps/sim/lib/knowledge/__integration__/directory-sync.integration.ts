@@ -13,6 +13,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createMockRequest } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -50,13 +51,13 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { resolveUserKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
+import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { groupToken } from '@/lib/knowledge/access/tokens'
 import {
   persistExternalGroupMembership,
@@ -125,7 +126,7 @@ describe('directory failure visibility in PostgreSQL', () => {
       .where(eq(knowledgeExternalGroup.workspaceId, ids.workspaceId))
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(user).where(eq(user.id, ids.aliceId))
     await db.delete(user).where(eq(user.id, ids.bobId))
     await db.$client.end()
@@ -793,14 +794,14 @@ describe('directory failure visibility in PostgreSQL', () => {
       groupId: 'identity-only',
     })!
     await syncExternalDirectoryGroups({ workspaceId: ids.workspaceId, directory, force: true })
+    /** A fresh provider per read, so every check resolves the person's tokens again. */
+    const tokensOf = async (userId: string) =>
+      (await createUserKnowledgeAccessProvider(userId, { workspaceId: ids.workspaceId }).get())
+        .tokens
     const hasGroup = async () =>
-      (await resolveUserKnowledgeAccessScope(ids.aliceId, ids.workspaceId)).tokens.some(
-        (token) => token === expectedGroup
-      )
+      (await tokensOf(ids.aliceId)).some((token) => token === expectedGroup)
     expect(await hasGroup()).toBe(true)
-    expect(
-      (await resolveUserKnowledgeAccessScope(ids.bobId, ids.workspaceId)).tokens
-    ).not.toContain(expectedGroup)
+    expect(await tokensOf(ids.bobId)).not.toContain(expectedGroup)
 
     await db
       .update(credential)

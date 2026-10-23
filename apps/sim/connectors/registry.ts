@@ -30,6 +30,7 @@ import { googleVaultConnectorMeta } from '@/connectors/google-vault/meta'
 import { grainConnectorMeta } from '@/connectors/grain/meta'
 import { granolaConnectorMeta } from '@/connectors/granola/meta'
 import { greenhouseConnectorMeta } from '@/connectors/greenhouse/meta'
+import { helpScoutConnectorMeta } from '@/connectors/helpscout/meta'
 import { hubspotConnectorMeta } from '@/connectors/hubspot/meta'
 import { incidentioConnectorMeta } from '@/connectors/incidentio/meta'
 import { intercomConnectorMeta } from '@/connectors/intercom/meta'
@@ -43,8 +44,10 @@ import { mondayConnectorMeta } from '@/connectors/monday/meta'
 import { notionConnectorMeta } from '@/connectors/notion/meta'
 import { obsidianConnectorMeta } from '@/connectors/obsidian/meta'
 import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
+import { otterConnectorMeta } from '@/connectors/otter/meta'
 import { outlookConnectorMeta } from '@/connectors/outlook/meta'
 import { pagerdutyConnectorMeta } from '@/connectors/pagerduty/meta'
+import { planeConnectorMeta } from '@/connectors/plane/meta'
 import { redditConnectorMeta } from '@/connectors/reddit/meta'
 import { rootlyConnectorMeta } from '@/connectors/rootly/meta'
 import { s3ConnectorMeta } from '@/connectors/s3/meta'
@@ -106,6 +109,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   grain: grainConnectorMeta,
   granola: granolaConnectorMeta,
   greenhouse: greenhouseConnectorMeta,
+  helpscout: helpScoutConnectorMeta,
   hubspot: hubspotConnectorMeta,
   incidentio: incidentioConnectorMeta,
   intercom: intercomConnectorMeta,
@@ -119,8 +123,10 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   notion: notionConnectorMeta,
   obsidian: obsidianConnectorMeta,
   onedrive: onedriveConnectorMeta,
+  otter: otterConnectorMeta,
   outlook: outlookConnectorMeta,
   pagerduty: pagerdutyConnectorMeta,
+  plane: planeConnectorMeta,
   reddit: redditConnectorMeta,
   rootly: rootlyConnectorMeta,
   s3: s3ConnectorMeta,

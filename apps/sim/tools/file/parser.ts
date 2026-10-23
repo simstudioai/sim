@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 import type {
   FileFetchInput,

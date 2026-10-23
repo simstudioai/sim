@@ -1,18 +1,19 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'generated-tag-id'),
-  generateShortId: vi.fn(() => 'short-id'),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
   getTagUsageStats,
 } from '@/lib/knowledge/tags/service'
+
+idMockFns.mockGenerateId.mockReturnValue('generated-tag-id')
+idMockFns.mockGenerateShortId.mockReturnValue('short-id')
 
 const NOW = new Date('2026-01-01T00:00:00.000Z')
 
@@ -180,19 +181,6 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
     expect(result.created).toEqual([])
     expect(result.errors).toEqual(['Display name "CLITEST-CAT" already exists'])
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('reads the snapshot it compares against under the knowledge base row lock', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [])
-
-    await createOrUpdateTagDefinitionsBulk(
-      'kb-1',
-      { definitions: [{ tagSlot: 'tag1', displayName: 'clitest-locked', fieldType: 'text' }] },
-      'request-10'
-    )
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 })
 

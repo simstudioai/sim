@@ -1,116 +1,91 @@
 ---
-title: Self-Hosting
-description: Deploy Sim on your own infrastructure
+title: Self-hosting
+description: Deploy and operate Sim on your own infrastructure
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Deploy Sim on your own infrastructure with Docker or Kubernetes.
+Run Sim on your own infrastructure with Docker Compose or Kubernetes. Both run the same app, realtime service, database migrations, and background job endpoints.
+
+## Choose a deployment
+
+| Deployment | Use it for |
+| --- | --- |
+| [Docker](/platform/self-hosting/docker) | A single-node installation with published containers |
+| [Kubernetes](/platform/self-hosting/kubernetes) | A Helm installation on a cluster you operate |
+| [Cloud platforms](/platform/self-hosting/platforms) | Provider-specific setup for Railway, a VPS, or managed Kubernetes |
+
+Compose bundles PostgreSQL, Redis, and a scheduler. The Helm chart bundles PostgreSQL and Redis and enables scheduled jobs by default. Kubernetes also exposes replica, autoscaling, disruption-budget, secret-store, and network-policy settings; configure these for your cluster before relying on high availability. See [Reference architectures](/platform/self-hosting/reference-architectures).
+
+## Quick start
+
+Install Bun, Node.js 20 or newer, Docker, and Docker Compose 2.24.0 or later, then run:
+
+```bash
+bunx sim-setup
+```
+
+The wizard creates a `./sim` directory with a production Compose file and generated `.env`, including `POSTGRES_PASSWORD`. It starts published container images. Open [http://localhost:3000](http://localhost:3000).
+
+See [Docker](/platform/self-hosting/docker) for runtime prerequisites, manual setup, and production configuration. For a cluster, use [Kubernetes](/platform/self-hosting/kubernetes).
 
 ## Requirements
 
-| Resource | Small | Standard | Production |
-|----------|-------|----------|------------|
+Use these as starting resource examples, then size the deployment for concurrent executions, file processing, vector queries, and database growth. User counts alone do not predict capacity.
+
+| Resource | Evaluation example | Team example | Larger workload example |
+| --- | --- | --- | --- |
 | CPU | 2 cores | 4 cores | 8+ cores |
-| RAM | 12 GB | 16 GB | 32+ GB |
-| Storage | 20 GB SSD | 50 GB SSD | 100+ GB SSD |
-| Docker | 20.10+ | 20.10+ | Latest |
+| RAM | 12 GiB | 16 GiB | 32+ GiB |
+| Storage | 20 GiB SSD | 50 GiB SSD | 100+ GiB SSD |
 
-**Small**: Development, testing, single user (1-5 users)
-**Standard**: Teams (5-50 users), moderate workloads
-**Production**: Large teams (50+ users), high availability, heavy workflow execution
+These are sizing suggestions, not enforced minimums or capacity guarantees. The Helm chart requests 4 GiB and limits the app to 8 GiB by default. Production Compose sets an 8G app memory limit with no reservation. Memory-intensive executions and parsing can require more; see [Scaling](/platform/self-hosting/scaling).
 
-<Callout type="info">
-Resource requirements are driven by workflow execution (isolated-vm sandboxing), file processing (in-memory document parsing), and vector operations (pgvector). Memory is typically the constraining factor rather than CPU. The Helm chart requests 4 Gi for the app and caps it at 8 Gi; `docker-compose.prod.yml` sets only an 8 GB limit, with no reservation.
+## Before production use
+
+- Set your public origin and route `/socket.io` to the realtime service. Configure TLS before remote sign-in.
+- Retain and back up `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` with the database. Generate keys only for a new installation.
+- Configure durable [object storage](/platform/self-hosting/object-storage) or a persistent local-storage layout. The production Compose file does not mount the app's upload directory.
+- Configure [email](/platform/self-hosting/email) for invitations, verification, and password resets.
+- Verify [background jobs](/platform/self-hosting/background-jobs), including the scheduler's `CRON_SECRET`.
+
+<Callout type="warn">
+  Recreating an app container with unmounted local uploads loses those files. Losing an encryption key makes the data encrypted with it unreadable. A database backup does not replace file storage or key backups.
 </Callout>
 
-## Quick Start
+Run [Verify your install](/platform/self-hosting/verify) before opening the deployment to your team and after upgrades or restores.
 
-```bash
-git clone https://github.com/simstudioai/sim.git && cd sim
+## External dependencies
 
-cat > .env << EOF
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
-API_ENCRYPTION_KEY=$(openssl rand -hex 32)
-CRON_SECRET=$(openssl rand -hex 32)
-EOF
+The editor and execution engine run within your deployment. Configure these dependencies for the features you use:
 
-docker compose -f docker-compose.prod.yml up -d
-```
+| Feature | Dependency |
+| --- | --- |
+| Knowledge bases | An OpenAI, Azure OpenAI, OpenRouter, or Gemini embedding key, or your own Ollama server. `KB_EMBEDDING_MODEL` selects the model (`text-embedding-3-small` by default); `EMBEDDING_OUTPUT_DIMS` selects the stored vector width. Use `ollama/<model>` and `OLLAMA_URL` for local embeddings. |
+| Agent blocks | A model provider key or a self-hosted compatible endpoint such as Ollama, vLLM, LM Studio, or LiteLLM. |
+| Chat | `COPILOT_API_KEY` for the default Sim service. Set `NEXT_PUBLIC_CHAT_DISABLED=true` to hide Chat when it is not configured. |
+| OAuth integrations | Your provider app and credentials for each OAuth service you use. API-key integrations take keys in their blocks. |
+| Remote Function or Pi execution | An E2B or Daytona provider key and the appropriate immutable image. Function and Pi use separate images. |
 
-Open [http://localhost:3000](http://localhost:3000)
+Plain JavaScript without `import` or `require` runs in isolated-vm within Node child workers in the app container. Python, Shell, imported JavaScript, custom Function Sandboxes, and file-path or sandbox execution require remote sandbox configuration. See [Sandboxes](/platform/self-hosting/sandboxes).
 
-<Callout type="info">
-  The `.env` step is not optional — the compose file refuses to start without the first three rather than booting with empty values. `CRON_SECRET` is what the scheduler uses; without it the `cron` service exits with instructions and everything else still runs. See [Docker](/platform/self-hosting/docker) for the full production setup.
-</Callout>
+## Enterprise features
 
-## Deployment Options
-
-<Cards>
-  <Card title="Docker" href="/platform/self-hosting/docker">
-    Deploy with Docker Compose on any server
-  </Card>
-  <Card title="Kubernetes" href="/platform/self-hosting/kubernetes">
-    Deploy with Helm on Kubernetes clusters
-  </Card>
-  <Card title="Cloud Platforms" href="/platform/self-hosting/platforms">
-    Railway, DigitalOcean, AWS, Azure, GCP guides
-  </Card>
-</Cards>
-
-### Which one to pick
-
-Docker Compose and Kubernetes run the same application; what differs is the operational envelope around it, which the table below sets out. Cloud Platforms covers provider-specific notes for either. Docker Compose is the fastest way to evaluate Sim and is fine for a single-node team install; Kubernetes is the path for high availability and managed secrets.
-
-| Capability | Docker Compose | Kubernetes (Helm) |
-|---|---|---|
-| App, realtime, migrations, Postgres, Redis | Yes | Yes |
-| Scheduled workflows and polling triggers | Yes — `cron` service | Yes — CronJobs |
-| Horizontal scaling / HA | No (single node) | Yes (`replicaCount`, HPA, PDB) |
-| Managed secrets (Vault, ESO, cloud KMS) | Manual `.env` | Yes |
-| Network policy, Pod Security Standards | Host-level only | Yes |
-| PII redaction, OpenTelemetry collector | Not bundled | Optional components |
-
-The remaining differences are inherent to the platform — Compose has no analogue of a HorizontalPodAutoscaler or a PodDisruptionBudget. Application behavior is the same on both.
-
-## Where to go next
-
-<Cards>
-  <Card title="Integrations & OAuth" href="/platform/self-hosting/integrations-oauth">
-    Configure OAuth applications for the services you use
-  </Card>
-  <Card title="Object Storage" href="/platform/self-hosting/object-storage">
-    Required before storing anything you care about
-  </Card>
-  <Card title="Verify Your Install" href="/platform/self-hosting/verify">
-    Ten-minute smoke test across every subsystem
-  </Card>
-</Cards>
-
-The sidebar covers the rest: architecture, email, Redis, authentication, background jobs, networking, security, scaling, observability, and upgrades.
-
-## Enterprise Features
-
-Organizations, SSO, permission groups, audit logs, whitelabeling, session policies, data retention, and data drains all run on a self-hosted deployment with no billing or subscription. Turn the set on with:
+In a standard billing-disabled self-hosted deployment, enterprise features are enabled through configuration:
 
 ```bash
 ENTERPRISE_ENABLED=true
 NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
-Your deployment also needs an organization model for most of them to apply. The [self-hosted enterprise guide](/platform/enterprise/self-hosted) covers both patterns, the per-feature flags, and troubleshooting.
+Organizations, SSO, permission groups, audit logs, whitelabeling, session policies, retention, and data drains also need their feature-specific configuration. Most read settings from the organization that owns a workspace. Enabling the suite can enable retention processing; review the configured policy before turning it on.
 
-## External dependencies to plan for
+See [Self-hosted enterprise features](/platform/enterprise/self-hosted) for organization setup, per-feature flags, and billing-enabled differences.
 
-Sim is self-contained for the core editor and execution engine. A few features reach outside the deployment:
+## Related docs
 
-| Feature | Requires | Notes |
-|---|---|---|
-| **Knowledge bases** | An OpenAI, Azure OpenAI, or Gemini API key, or an Ollama server | Embeddings are generated by the model named in `KB_EMBEDDING_MODEL` (`text-embedding-3-small` by default). Set it to `ollama/<model>` with `OLLAMA_URL` to embed locally instead. `EMBEDDING_OUTPUT_DIMS` sets the vector width. |
-| **Agent blocks** | An API key for at least one model provider | Or a self-hosted OpenAI-compatible endpoint: Ollama, vLLM, LM Studio, or LiteLLM. |
-| **Chat module** | `COPILOT_API_KEY` from sim.ai | Set `NEXT_PUBLIC_CHAT_DISABLED=true` to hide the module instead. |
-| **OAuth integrations** | Your own OAuth app per service | See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). |
-| **Remote Function / Pi execution** | Optional E2B or Daytona key, plus a Function base image | Plain JavaScript — no `import` or `require` — runs in the in-process isolated VM with nothing configured. Everything else needs both a provider key and an immutable Function base image: Python, Shell, imported JavaScript, custom Function Sandboxes, and any block that selects a sandbox or references a file path. Pi uses a separate image again, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`. See [Sandboxes](/platform/self-hosting/sandboxes). |
+- [Environment variables](/platform/self-hosting/environment-variables)
+- [Authentication](/platform/self-hosting/authentication)
+- [Integrations and OAuth](/platform/self-hosting/integrations-oauth)
+- [Security](/platform/self-hosting/security)
+- [Upgrades](/platform/self-hosting/upgrades)

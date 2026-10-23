@@ -36,7 +36,7 @@ export const kalshiGetExchangeStatusTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_status')
+      handleKalshiError(data, 'get_exchange_status')
     }
 
     const status = {
@@ -83,7 +83,7 @@ export const kalshiGetExchangeStatusV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_exchange_status_v2',
   name: 'Get Exchange Status from Kalshi V2',
-  description: 'Retrieve the current status of the Kalshi exchange (V2 - exact API response)',
+  description: 'Retrieve the current status of the Kalshi exchange',
   version: '2.0.0',
 
   params: {},
@@ -102,7 +102,7 @@ export const kalshiGetExchangeStatusV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_status_v2')
+      handleKalshiError(data, 'get_exchange_status_v2')
     }
 
     return {

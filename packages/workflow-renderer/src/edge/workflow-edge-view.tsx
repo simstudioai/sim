@@ -50,7 +50,7 @@ function getExecutionPulseMotion(length: number) {
  * otherwise be read from stores — diff status, run status, and whether the run
  * status originated from a preview — is resolved by the container and passed in.
  */
-export interface WorkflowEdgeData extends Record<string, unknown> {
+interface WorkflowEdgeData extends Record<string, unknown> {
   isSelected?: boolean
   onDelete?: (edgeId: string) => void
 }
@@ -169,6 +169,9 @@ export function WorkflowEdgeView({
     if (diffStatus === 'deleted') {
       color = 'var(--text-error)'
       opacity = 0.7
+    } else if (diffStatus === 'ghost') {
+      color = 'var(--text-tertiary)'
+      opacity = 0.7
     } else if (diffStatus === 'new') {
       color = 'var(--brand-accent)'
     } else if (isWorkflowRunning) {
@@ -194,7 +197,7 @@ export function WorkflowEdgeView({
     }
 
     return {
-      strokeWidth: diffStatus ? 2.5 : hasRunStatus ? 2 : 1.5,
+      strokeWidth: diffStatus === 'ghost' ? 1.5 : diffStatus ? 2.5 : hasRunStatus ? 2 : 1.5,
       strokeDasharray: diffStatus === 'deleted' ? '10,5' : undefined,
       opacity,
       ...(style ?? {}),

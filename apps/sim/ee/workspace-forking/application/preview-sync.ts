@@ -27,6 +27,7 @@ import {
 import { buildPromoteCopySelection } from '@/ee/workspace-forking/lib/promote/copy-unmapped'
 import type { PromoteForkParams } from '@/ee/workspace-forking/lib/promote/promote'
 import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import { loadForkWorkflowComparisons } from '@/ee/workspace-forking/lib/promote/sync-provenance'
 import {
   buildForkTriggerPlan,
   resolveForkTriggerPaths,
@@ -60,7 +61,8 @@ export async function previewForkSync(
   const { edge, sourceWorkspaceId, targetWorkspaceId } = params
   const revision = await loadForkPreviewRevision(db, params, choices)
   await validateForkMappingTargets(sourceWorkspaceId, targetWorkspaceId, params.mappings ?? [])
-  const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(sourceWorkspaceId)
+  const { deployedWorkflows, sourceStates, sourceVersionIds } =
+    await loadSourceDeployedStates(sourceWorkspaceId)
   const mappingRows = overlayForkMappingEntries(
     await getEdgeMappingRows(db, edge.childWorkspaceId),
     edge,
@@ -308,18 +310,29 @@ export async function previewForkSync(
       'conflict',
       'Workspace changed during preview; request another preview'
     )
+  const comparisons = await loadForkWorkflowComparisons(
+    db,
+    edge.childWorkspaceId,
+    plan.items,
+    sourceVersionIds
+  )
   const preview = {
     previewFingerprint: revision.fingerprint,
     sourceWorkspaceId,
     targetWorkspaceId,
     ready: blockers.length === 0,
     workflows: [
-      ...plan.items.map((item) => ({
-        action: item.mode,
-        sourceWorkflowId: item.sourceWorkflowId,
-        ...(item.mode === 'replace' ? { targetWorkflowId: item.targetWorkflowId } : {}),
-        name: item.sourceMeta.name,
-      })),
+      ...plan.items.map((item) => {
+        const comparison = comparisons.get(item.sourceWorkflowId)
+        if (!comparison) throw new Error('Missing source workflow comparison')
+        return {
+          action: item.mode,
+          sourceWorkflowId: item.sourceWorkflowId,
+          comparison,
+          ...(item.mode === 'replace' ? { targetWorkflowId: item.targetWorkflowId } : {}),
+          name: item.sourceMeta.name,
+        }
+      }),
       ...plan.archivedTargets.map((item) => ({
         action: 'archive' as const,
         targetWorkflowId: item.id,

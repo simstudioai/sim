@@ -18,7 +18,7 @@ export const stripeResumeSubscriptionTool: ToolConfig<
 > = {
   id: 'stripe_resume_subscription',
   name: 'Stripe Resume Subscription',
-  description: 'Resume a subscription that was scheduled for cancellation',
+  description: 'Resume a paused subscription',
   version: '1.0.0',
 
   params: {

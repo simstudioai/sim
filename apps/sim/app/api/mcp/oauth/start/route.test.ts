@@ -9,6 +9,7 @@ import {
   permissionsMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,7 +62,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    await GET(request)
+    await GET(request, createRouteContext({}))
 
     // The route must call the guarded wrapper (which defaults fetchFn to the
     // SSRF-guarded fetch internally) rather than the raw SDK `auth()` — see
@@ -82,7 +83,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
 
     expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
     expect(response.status).toBe(504)
@@ -105,7 +106,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(409)
@@ -121,7 +122,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(500)
@@ -138,13 +139,110 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(422)
     expect(body.error).toBe(
       "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
     )
+  })
+})
+
+/**
+ * Runs the SDK's real dynamic client registration against an authorization server that
+ * answers with `status` and `body`, so the route sees exactly the error class the SDK builds.
+ */
+async function registerAgainst(status: number, body: string) {
+  const { registerClient } = await import('@modelcontextprotocol/sdk/client/auth.js')
+  return registerClient('https://auth.example.com', {
+    clientMetadata: { redirect_uris: ['https://sim.example.com/api/mcp/oauth/callback'] },
+    fetchFn: async () => new Response(body, { status }),
+  })
+}
+
+describe('MCP OAuth start route: authorization-server refusals', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      userName: 'User One',
+      userEmail: 'user1@example.com',
+      authType: 'session',
+    })
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        id: 'server-1',
+        name: 'Docs',
+        url: 'https://mcp.example.com/mcp',
+        workspaceId: 'workspace-1',
+        authType: 'oauth',
+        deletedAt: null,
+      },
+    ])
+    mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValue({
+      id: 'oauth-row-1',
+      mcpServerId: 'server-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      clientInformation: null,
+      tokens: null,
+      codeVerifier: null,
+      state: null,
+      stateCreatedAt: null,
+      updatedAt: new Date(),
+    })
+    mcpOauthMockFns.mockLoadPreregisteredClient.mockResolvedValue(undefined)
+  })
+
+  const start = () =>
+    GET(
+      new NextRequest(
+        'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+      ),
+      createRouteContext({})
+    )
+
+  it.each([
+    [
+      'an RFC 7591 code the SDK does not know, which it raises as a ServerError',
+      400,
+      '{"error":"invalid_redirect_uri","error_description":"Only loopback redirect URIs are supported."}',
+      'Only loopback redirect URIs are supported.',
+    ],
+    [
+      'a registered OAuth code, raised as its typed subclass',
+      400,
+      '{"error":"invalid_client_metadata","error_description":"client_name is required"}',
+      'invalid_client_metadata: client_name is required',
+    ],
+    [
+      'a non-spec body, wrapped by the SDK in a ServerError',
+      403,
+      '{"message":"redirect URI https://sim.example.com/api/mcp/oauth/callback is not allowed"}',
+      'Authorization server: redirect URI https://sim.example.com/api/mcp/oauth/callback is not allowed',
+    ],
+  ] as const)(
+    'answers 422 with the server message for %s',
+    async (_name, status, body, message) => {
+      mcpOauthMockFns.mockMcpAuthGuarded.mockImplementationOnce(() => registerAgainst(status, body))
+
+      const response = await start()
+
+      expect(response.status).toBe(422)
+      expect((await response.json()).error).toBe(message)
+    }
+  )
+
+  it('keeps a 500 for a failure that is not an authorization-server answer', async () => {
+    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(new Error('decrypt failed'))
+
+    const response = await start()
+
+    expect(response.status).toBe(500)
+    expect((await response.json()).error).toBe('Failed to start OAuth flow')
   })
 })
 

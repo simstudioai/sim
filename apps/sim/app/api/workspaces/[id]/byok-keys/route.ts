@@ -30,6 +30,7 @@ import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -158,9 +159,7 @@ export const POST = withRouteHandler(
         await tx.execute(
           sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_BYOK_LOCK_TIMEOUT_MS}ms`}, true)`
         )
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`byok:${workspaceId}:${providerId}`}, 0))`
-        )
+        await acquireAdvisoryXactLock(tx, 'workspace_byok', `byok:${workspaceId}:${providerId}`)
 
         const [{ keyCount }] = await tx
           .select({ keyCount: count() })

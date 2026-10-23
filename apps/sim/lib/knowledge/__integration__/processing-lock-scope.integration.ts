@@ -7,7 +7,17 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
+import {
+  document,
+  embedding,
+  knowledgeBase,
+  knowledgeBaseTagDefinitions,
+  organization,
+  user,
+  workspace,
+} from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import postgres from 'postgres'
@@ -19,20 +29,27 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
     return fixtures.root
   },
 }))
-vi.mock('@/lib/knowledge/documents/document-processor', () => ({
+vi.mock('@/lib/knowledge/documents/processor', () => ({
   processDocument: fixtures.process,
 }))
 vi.mock('@/lib/knowledge/embeddings', () => ({ generateEmbeddings: fixtures.embeddings }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
+import { observeContentDelivery } from '@/lib/core/application'
 import * as embeddingClient from '@/lib/embeddings/client'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
+import { createKnowledgeChunk, listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
-import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import { processDocumentAsync, updateDocument } from '@/lib/knowledge/documents/service'
+import { deleteAllTagDefinitions } from '@/lib/knowledge/tags/service'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Advisory lock key that parks a processing transaction inside its embedding insert. */
 const EMBEDDING_GATE = 7_310_191
@@ -70,7 +87,7 @@ describe('document processing commit lock scope', () => {
   afterAll(async () => {
     vi.restoreAllMocks()
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     await rm(fixtures.root, { recursive: true, force: true })
@@ -136,6 +153,170 @@ describe('document processing commit lock scope', () => {
     return resolveBillingAttribution({ actorUserId: ids.aliceId, workspaceId: ids.workspaceId })
   }
 
+  async function expectCurrentChunks(
+    documentId: string,
+    contents: string[],
+    expectedTag: string | null = 'current'
+  ) {
+    const principal = createCopilotChatPrincipal(
+      { userId: ids.aliceId, workspaceId: ids.workspaceId },
+      KNOWLEDGE_DELEGATION_AUDIENCE
+    )
+    const result = await observeContentDelivery(
+      createRegistryContentGate({
+        registry: new ResolvedSecretTraceRegistry([], {
+          userId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+        }),
+        actorUserId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      }),
+      () =>
+        listKnowledgeChunks.execute({
+          principal,
+          input: { knowledgeBaseId: ids.knowledgeBaseId, documentId },
+        })
+    )
+    expect(result.chunks.map((row) => row.content).sort()).toEqual([...contents].sort())
+    expect(result.chunks.every((row) => row.tag1 === expectedTag)).toBe(true)
+  }
+
+  it('uses metadata committed while processing waits for embeddings', async () => {
+    const file = await addConnectorDocument('metadata-during-provider')
+    await db.update(document).set({ connectorId: null }).where(eq(document.id, file.documentId))
+    fixtures.embeddings.mockImplementationOnce(async () => {
+      await updateDocument(file.documentId, { tag1: 'current' }, 'metadata-during-provider')
+      return embeddingResult
+    })
+    expect(
+      await processDocumentAsync(ids.knowledgeBaseId, file.documentId, file, {}, await billing())
+    ).toEqual({ outcome: 'indexed' })
+    await expectCurrentChunks(
+      file.documentId,
+      chunks.map((chunk) => chunk.text)
+    )
+  })
+
+  it.each(['metadata edit', 'tag deletion'] as const)(
+    'applies a waiting %s to the chunks committed by processing',
+    async (kind) => {
+      const file = await addConnectorDocument('metadata-during-commit')
+      await db.update(document).set({ connectorId: null }).where(eq(document.id, file.documentId))
+      if (kind === 'tag deletion') {
+        await db
+          .insert(knowledgeBaseTagDefinitions)
+          .values([
+            {
+              id: generateId(),
+              knowledgeBaseId: ids.knowledgeBaseId,
+              tagSlot: 'tag1',
+              displayName: 'Fixture text',
+              fieldType: 'text',
+            },
+            {
+              id: generateId(),
+              knowledgeBaseId: ids.knowledgeBaseId,
+              tagSlot: 'number1',
+              displayName: 'Fixture number',
+              fieldType: 'number',
+            },
+          ])
+          .onConflictDoNothing()
+        await db
+          .update(document)
+          .set({ tag1: 'old', number1: 3 })
+          .where(eq(document.id, file.documentId))
+      }
+      const gate = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+      let processing: ReturnType<typeof processDocumentAsync> | undefined
+      let editing: Promise<unknown> | undefined
+      try {
+        await gate`SELECT pg_advisory_lock(${EMBEDDING_GATE})`
+        await installEmbeddingProbe(
+          file.documentId,
+          `PERFORM pg_advisory_xact_lock_shared(${EMBEDDING_GATE});`
+        )
+        processing = processDocumentAsync(
+          ids.knowledgeBaseId,
+          file.documentId,
+          file,
+          {},
+          await billing()
+        )
+        let processingPid = 0
+        await vi.waitFor(
+          async () => {
+            const [row] = await gate<Array<{ pid: number }>>`
+          SELECT pid FROM pg_locks WHERE locktype = 'advisory' AND objid = ${EMBEDDING_GATE} AND NOT granted`
+            expect(row?.pid).toBeGreaterThan(0)
+            processingPid = row?.pid ?? 0
+          },
+          { timeout: 10_000, interval: 20 }
+        )
+        editing =
+          kind === 'metadata edit'
+            ? updateDocument(file.documentId, { tag1: 'current' }, 'metadata-during-commit')
+            : deleteAllTagDefinitions(ids.knowledgeBaseId, 'tag-deletion-during-commit')
+        await vi.waitFor(
+          async () => {
+            const [row] = await gate<Array<{ waiting: boolean }>>`
+          SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE ${processingPid} = ANY(pg_blocking_pids(pid))) AS waiting`
+            expect(row?.waiting).toBe(true)
+          },
+          { timeout: 10_000, interval: 20 }
+        )
+      } finally {
+        await gate`SELECT pg_advisory_unlock(${EMBEDDING_GATE})`
+        try {
+          await Promise.all([processing, editing])
+        } finally {
+          await gate.end()
+        }
+      }
+      await expectCurrentChunks(
+        file.documentId,
+        chunks.map((chunk) => chunk.text),
+        kind === 'metadata edit' ? 'current' : null
+      )
+      if (kind === 'tag deletion') {
+        const retained = await db
+          .select({ tag1: embedding.tag1, number1: embedding.number1 })
+          .from(embedding)
+          .where(eq(embedding.documentId, file.documentId))
+        expect(retained).toHaveLength(chunks.length)
+        expect(retained.every((row) => row.tag1 === null && row.number1 === null)).toBe(true)
+        expect(
+          await db
+            .select()
+            .from(knowledgeBaseTagDefinitions)
+            .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, ids.knowledgeBaseId))
+        ).toEqual([])
+      }
+    }
+  )
+
+  it('uses current document tags when a manual chunk finishes its provider request', async () => {
+    const file = await addConnectorDocument('manual-metadata-during-provider')
+    await db
+      .update(document)
+      .set({ connectorId: null, processingStatus: 'completed' })
+      .where(eq(document.id, file.documentId))
+    fixtures.embeddings.mockImplementationOnce(async () => {
+      await updateDocument(file.documentId, { tag1: 'current' }, 'manual-metadata-during-provider')
+      return { ...embeddingResult, embeddings: [embeddingResult.embeddings[0]] }
+    })
+    await createKnowledgeChunk.execute({
+      principal: { kind: 'session', userId: ids.aliceId, sessionId: generateId() },
+      input: {
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: file.documentId,
+        content: 'Manual chunk content',
+        resolveContentProvenance: () => ({ status: 'exact', entries: [] }),
+      },
+    })
+    await expectCurrentChunks(file.documentId, ['Manual chunk content'])
+  })
+
   it('holds no knowledge_connector lock while writing embeddings', async () => {
     const file = await addConnectorDocument('lock-scope-fixture')
     await installConnectorLockProbe()
@@ -152,6 +333,14 @@ describe('document processing commit lock scope', () => {
     expect(await db.select().from(document).where(eq(document.id, file.documentId))).toMatchObject([
       { processingStatus: 'completed', chunkCount: 3 },
     ])
+    for (const projection of ['embedding_search']) {
+      expect(
+        await db.$client.unsafe(
+          `SELECT count(*)::int AS count FROM ${projection} WHERE document_id = $1`,
+          [file.documentId]
+        )
+      ).toEqual([{ count: 3 }])
+    }
   })
 
   it.each([
@@ -165,8 +354,8 @@ describe('document processing commit lock scope', () => {
        * The embedding insert waits on an advisory lock the test holds, so the processing
        * transaction is parked mid-write while a second connection commits the deletion.
        */
-      const gate = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
-      const deleter = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+      const gate = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+      const deleter = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
       try {
         await gate`SELECT pg_advisory_lock(${EMBEDDING_GATE})`
         await installEmbeddingProbe(
@@ -208,7 +397,7 @@ describe('document processing commit lock scope', () => {
             .from(embedding)
             .where(eq(embedding.documentId, file.documentId))
         ).toEqual([])
-        for (const projection of ['embedding_search', 'embedding_keyword_search']) {
+        for (const projection of ['embedding_search']) {
           expect(
             await db.$client.unsafe(`SELECT id FROM ${projection} WHERE document_id = $1`, [
               file.documentId,

@@ -1,15 +1,23 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import drizzleConfig from '@sim/db/drizzle.config'
+import {
+  completeProjectArchiveRepair,
+  countPendingProjectArchiveRepairs,
+  ensureProjectArchiveRepairJournal,
+} from '@sim/db/maintenance/project-repairs'
 import { prepareForcedPush } from '@sim/db/scripts/prepare-push'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
-describe.skipIf(!databaseUrl)('patched Drizzle push against PostgreSQL', () => {
+describe('patched Drizzle push against PostgreSQL', () => {
   const databaseName = `push_policy_${generateId().replaceAll('-', '')}`
   let admin: Sql
   let sql: Sql
@@ -17,20 +25,21 @@ describe.skipIf(!databaseUrl)('patched Drizzle push against PostgreSQL', () => {
   let directory: string
 
   beforeAll(async () => {
-    admin = postgres(databaseUrl!, { max: 1, onnotice: () => {} })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => {} })
     await admin`CREATE DATABASE ${admin(databaseName)}`
-    const url = new URL(databaseUrl!)
+    const url = new URL(databaseUrl)
     url.pathname = `/${databaseName}`
     fixtureUrl = url.toString()
     sql = postgres(fixtureUrl, { max: 1, onnotice: () => {} })
     directory = await mkdtemp(join(tmpdir(), 'push-policy-'))
+    await symlink(fileURLToPath(new URL('.', import.meta.url)), join(directory, 'scripts'))
     await writeFile(
       join(directory, 'drizzle.config.ts'),
       `export default {
   dialect: 'postgresql',
   schema: ${JSON.stringify(join(directory, 'schema.ts'))},
   schemaFilter: ['public', 'old_scope', 'new_scope'],
-  tablesFilter: ['!script_migrations'],
+  tablesFilter: ${JSON.stringify(drizzleConfig.tablesFilter)},
   dbCredentials: { url: process.env.DATABASE_URL },
 }`
     )
@@ -55,7 +64,7 @@ describe.skipIf(!databaseUrl)('patched Drizzle push against PostgreSQL', () => {
   async function schema(source: string) {
     await writeFile(
       join(directory, 'schema.ts'),
-      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
+      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check, timestamp, unique, foreignKey } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
 import { sql } from ${JSON.stringify(import.meta.resolve('drizzle-orm'))}
 ${source}`
     )
@@ -81,6 +90,19 @@ ${source}`
     )
   }
 
+  function runPush(args: string[]) {
+    return spawnSync(
+      'bun',
+      ['--no-env-file', fileURLToPath(new URL('./push.ts', import.meta.url)), ...args],
+      {
+        cwd: directory,
+        env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+        encoding: 'utf8',
+        timeout: 30_000,
+      }
+    )
+  }
+
   async function legacyColumns() {
     await sql`CREATE TABLE records (id text PRIMARY KEY, old_label text, old_enabled boolean)`
     await sql`INSERT INTO records VALUES ('existing', 'original value', true)`
@@ -90,6 +112,223 @@ ${source}`
   newEnabled: boolean('new_enabled').notNull().default(false),
 })`)
   }
+
+  it('requires approval to retire keyword writers and preserves updates when later reconciliation fails', async () => {
+    await sql`CREATE TABLE knowledge_base (id text PRIMARY KEY, is_search_index boolean NOT NULL DEFAULT false)`
+    await sql`CREATE TABLE embedding (id text PRIMARY KEY, content text NOT NULL)`
+    await sql`CREATE TABLE embedding_keyword_search (id text PRIMARY KEY, content text NOT NULL)`
+    await sql`INSERT INTO knowledge_base VALUES ('kb', false)`
+    await sql`INSERT INTO embedding VALUES ('chunk', 'retained content')`
+    await sql`INSERT INTO embedding_keyword_search VALUES ('chunk', 'obsolete content')`
+    await sql.unsafe(`CREATE FUNCTION sync_embedding_keyword_search() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        DELETE FROM embedding_keyword_search WHERE id = NEW.id;
+        RETURN NEW;
+      END $$`)
+    await sql`CREATE TRIGGER embedding_keyword_search_sync AFTER UPDATE ON embedding
+      FOR EACH ROW EXECUTE FUNCTION sync_embedding_keyword_search()`
+    await sql.unsafe(`CREATE FUNCTION sync_knowledge_base_keyword_search() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        DELETE FROM embedding_keyword_search;
+        RETURN NEW;
+      END $$`)
+    await sql`CREATE TRIGGER knowledge_base_keyword_search_sync AFTER UPDATE ON knowledge_base
+      FOR EACH ROW EXECUTE FUNCTION sync_knowledge_base_keyword_search()`
+    await schema(`export const chunks = pgTable('embedding', {
+      id: text('id').primaryKey(), content: text('content').notNull(),
+    })
+export const knowledgeBases = pgTable('knowledge_base', {
+      id: text('id').primaryKey(), isSearchIndex: boolean('is_search_index').notNull().default(false),
+    })`)
+    const denied = runPush([])
+    expect(denied.error).toBeUndefined()
+    expect(denied.status, denied.stdout + denied.stderr).toBe(1)
+    await sql`UPDATE embedding SET content = 'unapproved push retained writer' WHERE id = 'chunk'`
+    expect(await sql`SELECT id FROM embedding_keyword_search`).toEqual([])
+    const emptyDenied = runPush([])
+    expect(emptyDenied.error).toBeUndefined()
+    expect(emptyDenied.status, emptyDenied.stdout + emptyDenied.stderr).toBe(1)
+    await sql`UPDATE knowledge_base SET is_search_index = false WHERE id = 'kb'`
+    const result = runPush(['--force'])
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stdout + result.stderr).not.toBe(0)
+    expect(await sql`SELECT to_regclass('embedding_keyword_search') AS projection`).toEqual([
+      { projection: null },
+    ])
+    await sql`UPDATE embedding SET content = 'updated content' WHERE id = 'chunk'`
+    await sql`UPDATE knowledge_base SET is_search_index = true WHERE id = 'kb'`
+    expect(await sql`SELECT content FROM embedding`).toEqual([{ content: 'updated content' }])
+    expect(await sql`SELECT is_search_index FROM knowledge_base`).toEqual([
+      { is_search_index: true },
+    ])
+  }, 30_000)
+
+  it('keeps the provider-cleanup gate visible across session search paths', async () => {
+    const scoped = postgres(fixtureUrl, {
+      max: 1,
+      connection: { search_path: 'old_scope,public' },
+      onnotice: () => {},
+    })
+    try {
+      await sql`CREATE SCHEMA old_scope`
+      await ensureProjectArchiveRepairJournal(scoped)
+      const repair = { workspaceId: 'archived', archivedAt: '2026-01-01', workflowIds: ['flow'] }
+      await scoped`INSERT INTO project_backfill_archive_repairs (workspace_id,repair) VALUES ('archived',${JSON.stringify(repair)}::text::jsonb)`
+      expect(await countPendingProjectArchiveRepairs(sql)).toBe(1)
+      await completeProjectArchiveRepair(sql, repair)
+      expect(await countPendingProjectArchiveRepairs(scoped)).toBe(0)
+    } finally {
+      await scoped.end()
+    }
+  })
+
+  it.each([false, true])(
+    'uses the direct migration connection for Project reconciliation (application URL present=%s)',
+    async (applicationUrlPresent) => {
+      const unavailable = new URL(fixtureUrl)
+      unavailable.port = '1'
+      const result = spawnSync(
+        'bun',
+        [
+          '--no-env-file',
+          fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+          '--prepare',
+        ],
+        {
+          env: {
+            ...process.env,
+            DATABASE_URL: applicationUrlPresent ? unavailable.toString() : undefined,
+            MIGRATION_DATABASE_URL: fixtureUrl,
+          },
+          encoding: 'utf8',
+          timeout: 15_000,
+        }
+      )
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(0)
+    },
+    30_000
+  )
+
+  it.each([false, true])(
+    'refuses Project contract through push and preserves legacy assignments (copied=%s)',
+    async (copied) => {
+      await sql`CREATE TABLE project (id text PRIMARY KEY)`
+      await sql`CREATE TABLE workspace (id text PRIMARY KEY)`
+      await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL UNIQUE)`
+      await sql`INSERT INTO project VALUES ('retained')`
+      await sql`INSERT INTO workspace VALUES ('environment')`
+      await sql`INSERT INTO project_workspace VALUES ('retained', 'environment')`
+      if (copied) {
+        await sql`ALTER TABLE workspace ADD COLUMN project_id text`
+        await sql`UPDATE workspace SET project_id = 'retained'`
+      }
+      await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
+export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), projectId: text('project_id').notNull() })`)
+      const result = runPush(['--force'])
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(1)
+      expect(await sql`SELECT * FROM project_workspace`).toEqual([
+        { project_id: 'retained', workspace_id: 'environment' },
+      ])
+      expect(await sql`SELECT id FROM workspace`).toEqual([{ id: 'environment' }])
+      expect(
+        await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'workspace'::regclass AND attname = 'project_id' AND NOT attisdropped`
+      ).toEqual(copied ? [{ attnotnull: false }] : [])
+    },
+    30_000
+  )
+
+  it('installs native Project constraints through the fresh-push reconciler and preserves it on replay', async () => {
+    function reconcileProjects() {
+      const result = spawnSync(
+        'bun',
+        [
+          '--no-env-file',
+          fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+        ],
+        {
+          env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+          encoding: 'utf8',
+          timeout: 15000,
+        }
+      )
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(0)
+    }
+    await schema(`export const projects = pgTable('project', {
+  id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
+  organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(sql\`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END\`),
+  organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [unique('project_id_organization_scope_unique').on(t.id, t.organizationScopeKey)])
+export const workspaces = pgTable('workspace', {
+  id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'restrict' }),
+  organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(sql\`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END\`),
+  organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), forkedFromWorkspaceId: text('forked_from_workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
+}, (t) => [
+  unique('workspace_id_project_unique').on(t.id, t.projectId),
+  foreignKey({name: 'workspace_project_organization_fk', columns: [t.projectId,t.organizationScopeKey], foreignColumns: [projects.id,projects.organizationScopeKey]}),
+  foreignKey({name: 'workspace_fork_project_fk', columns: [t.forkedFromWorkspaceId,t.projectId], foreignColumns: [t.id,t.projectId]}),
+])
+export const workflows = pgTable('workflow', {
+  id: text('id').primaryKey(), workspaceId: text('workspace_id'), archivedAt: timestamp('archived_at'),
+})`)
+    const first = push()
+    expect(first.error, first.stderr).toBeUndefined()
+    expect(first.status, first.stdout + first.stderr).toBe(0)
+    reconcileProjects()
+    expect(await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`).toEqual([
+      { marker: null },
+    ])
+    await sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
+    await sql`DELETE FROM project WHERE id = 'empty'`
+    await sql.begin(async (tx) => {
+      await tx`INSERT INTO project (id,name,owner_id) VALUES ('family','Family','owner')`
+      await tx`INSERT INTO workspace (id,name,owner_id,project_id,forked_from_workspace_id) VALUES ('root','Root','owner','family',NULL), ('fork','Fork','owner','family','root')`
+    })
+    const repeated = push()
+    expect(repeated.error, repeated.stderr).toBeUndefined()
+    expect(repeated.status, repeated.stdout + repeated.stderr).toBe(0)
+    reconcileProjects()
+    expect(await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`).toEqual([
+      { marker: null },
+    ])
+    expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
+      { id: 'fork', project_id: 'family' },
+      { id: 'root', project_id: 'family' },
+    ])
+    await expect(
+      sql`UPDATE workspace SET organization_id = 'other' WHERE id = 'fork'`
+    ).rejects.toMatchObject({ code: '23503' })
+    await sql`DELETE FROM workspace`
+    expect(await sql`SELECT to_regclass('public.project_workspace') AS legacy`).toEqual([
+      { legacy: null },
+    ])
+  }, 60_000)
+
+  it('preserves populated composite folder references when schema push is repeated', async () => {
+    await schema(`export const folders = pgTable('folder', {
+  id: text('id').primaryKey(), resourceType: text('resource_type').notNull(),
+  workspaceId: text('workspace_id').notNull(), parentId: text('parent_id'),
+}, (t) => [
+  unique('folder_workspace_owner_type_unique').on(t.id, t.workspaceId, t.resourceType),
+  foreignKey({ name: 'folder_workspace_parent_owner_fk', columns: [t.parentId, t.workspaceId, t.resourceType], foreignColumns: [t.id, t.workspaceId, t.resourceType] }),
+])`)
+    const first = push()
+    expect(first.status, first.stdout + first.stderr).toBe(0)
+    await sql`INSERT INTO folder (id, workspace_id, resource_type, parent_id)
+      VALUES ('parent', 'workspace-a', 'file', NULL), ('child', 'workspace-a', 'file', 'parent')`
+    const repeated = push()
+    expect(repeated.status, repeated.stdout + repeated.stderr).toBe(0)
+    expect(await sql`SELECT id, parent_id, workspace_id FROM folder ORDER BY id`).toEqual([
+      { id: 'child', parent_id: 'parent', workspace_id: 'workspace-a' },
+      { id: 'parent', parent_id: null, workspace_id: 'workspace-a' },
+    ])
+    await expect(
+      sql`UPDATE folder SET workspace_id = 'workspace-b' WHERE id = 'child'`
+    ).rejects.toMatchObject({ code: '23503' })
+  }, 60_000)
 
   it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {
     await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`
@@ -170,12 +409,15 @@ ${source}`
     expect(repeated.stdout).toContain('No changes detected')
   }, 60_000)
 
-  it('creates independent tables and enums while preserving the excluded script ledger', async () => {
+  it('creates independent tables and enums while preserving runner journals', async () => {
     await sql`CREATE TYPE old_status AS ENUM ('active')`
     await sql`CREATE TABLE old_records (id text PRIMARY KEY, status old_status)`
     await sql`INSERT INTO old_records VALUES ('old-row', 'active')`
     await sql`CREATE TABLE script_migrations (name text PRIMARY KEY)`
     await sql`INSERT INTO script_migrations VALUES ('completed-fixture-migration')`
+    await ensureProjectArchiveRepairJournal(sql)
+    await sql`INSERT INTO project_backfill_archive_repairs (workspace_id, repair)
+      VALUES ('pending-workspace', '{"workspaceId":"pending-workspace"}'::jsonb)`
     await schema(`export const status = pgEnum('new_status', ['active'])
 export const records = pgTable('new_records', { id: text('id').primaryKey(), status: status('status') })`)
     const result = push()
@@ -187,6 +429,13 @@ export const records = pgTable('new_records', { id: text('id').primaryKey(), sta
     ).toEqual([{ old_table: null, old_type: null }])
     expect(await sql`SELECT * FROM script_migrations`).toEqual([
       { name: 'completed-fixture-migration' },
+    ])
+    expect(await sql`SELECT * FROM project_backfill_archive_repairs`).toEqual([
+      {
+        workspace_id: 'pending-workspace',
+        repair: { workspaceId: 'pending-workspace' },
+        completed_at: null,
+      },
     ])
   }, 30_000)
 

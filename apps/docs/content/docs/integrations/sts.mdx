@@ -1,31 +1,29 @@
 ---
 title: AWS STS
 description: Connect to AWS Security Token Service
+integration:
+  type: "sts"
+  color: "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sts"
-  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS STS](https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html) to request temporary credentials, assume roles, verify the calling identity, and identify the AWS account associated with an access key.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.
-
-
+Assume roles, get temporary credentials, verify caller identity, and look up access key information.
 
 ## Actions
 
 ### STS Assume Role
 
 Assume an IAM role and receive temporary security credentials
+
+<ReferenceDetails>
 
 #### Input
 
@@ -57,6 +55,8 @@ Assume an IAM role and receive temporary security credentials
 | `assumedRoleId` | string | Assumed role ID with session name |
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
+
+</ReferenceDetails>
 
 ### STS Assume Role With Web Identity
 

@@ -9,7 +9,7 @@ import {
   type LogFieldProjection,
   projectCostTotal,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
@@ -430,6 +430,27 @@ async function readWorkflowExecutionStatus(
 
   const cost = logRow.costTotal != null ? { total: Number(logRow.costTotal) } : null
 
+  const resource = {
+    executionId: logRow.executionId,
+    // Column is `set null` on workflow delete; the caller's param is the fallback.
+    workflowId: logRow.workflowId ?? workflowId,
+    status,
+    trigger: logRow.trigger,
+    level: logRow.level,
+    startedAt: logRow.startedAt.toISOString(),
+    endedAt: logRow.endedAt?.toISOString() ?? null,
+    totalDurationMs: logRow.totalDurationMs ?? null,
+    paused,
+    cost,
+  }
+
+  // Mirrors the three output conditions below; a poll needing none skips the archive read.
+  const readsExecutionData =
+    status === 'failed' || (includeOutput && status === 'completed') || selectedOutputs.length > 0
+  if (!readsExecutionData) {
+    return { ...resource, error: null, finalOutput: null, blockOutputs: null }
+  }
+
   const requestedBlockIds = [
     ...new Set(selectedOutputs.map((selector) => selector.split('.')[0]).filter(Boolean)),
   ]
@@ -456,20 +477,5 @@ async function readWorkflowExecutionStatus(
       ? pickSelectedOutputs(selectedOutputs, materialized.blockOutputs)
       : null
 
-  return {
-    executionId: logRow.executionId,
-    // Column is `set null` on workflow delete; the caller's param is the fallback.
-    workflowId: logRow.workflowId ?? workflowId,
-    status,
-    trigger: logRow.trigger,
-    level: logRow.level,
-    startedAt: logRow.startedAt.toISOString(),
-    endedAt: logRow.endedAt?.toISOString() ?? null,
-    totalDurationMs: logRow.totalDurationMs ?? null,
-    paused,
-    cost,
-    error,
-    finalOutput,
-    blockOutputs,
-  }
+  return { ...resource, error, finalOutput, blockOutputs }
 }

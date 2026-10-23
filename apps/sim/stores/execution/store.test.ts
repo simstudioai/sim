@@ -26,14 +26,10 @@
  * groups run sequentially since they affect or read global store state.
  */
 
+import { workflowRegistryStoreMock } from '@sim/testing/mocks/workflow-registry-store.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: Object.assign(
-    vi.fn(() => null),
-    { getState: vi.fn(() => ({ activeWorkflowId: null })) }
-  ),
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/execution/types')

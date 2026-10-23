@@ -1,49 +1,14 @@
-import {
-  canonicalizeVfsPath as canonicalizeNeutralVfsPath,
-  decodeVfsPathSegments as decodeNeutralVfsPathSegments,
-  decodeVfsSegment as decodeNeutralVfsSegment,
-  decodeVfsSegmentSafe as decodeNeutralVfsSegmentSafe,
-  encodeVfsPathSegments as encodeNeutralVfsPathSegments,
-  encodeVfsSegment as encodeNeutralVfsSegment,
-} from '@/lib/vfs/path'
+import { encodeVfsPathSegments, encodeVfsSegment } from '@/lib/vfs/path'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
-export function encodeVfsSegment(segment: string): string {
-  return encodeNeutralVfsSegment(segment)
-}
-
-export function decodeVfsSegment(segment: string): string {
-  return decodeNeutralVfsSegment(segment)
-}
-
 /**
- * Decodes a VFS path segment for display, falling back to the raw segment when
- * it is not valid encoding (e.g. a literal "%" that was never encoded).
- */
-export function decodeVfsSegmentSafe(segment: string): string {
-  return decodeNeutralVfsSegmentSafe(segment)
-}
-
-export function encodeVfsPathSegments(segments: string[]): string {
-  return encodeNeutralVfsPathSegments(segments)
-}
-
-export function decodeVfsPathSegments(path: string): string[] {
-  return decodeNeutralVfsPathSegments(path)
-}
-
-export function canonicalizeVfsPath(path: string): string {
-  return canonicalizeNeutralVfsPath(path)
-}
-
-/**
- * Canonical, per-segment-encoded VFS path of a workspace file. `uploads` is the
- * chat-upload namespace, which has no folders.
+ * Canonical, per-segment-encoded VFS path of a workspace file. `uploads` (chat uploads),
+ * `tests` (test files), and `changelog` (release bodies) are namespaces without folders.
  */
 export function canonicalWorkspaceFilePath(parts: {
   folderPath?: string | null
   name: string
-  prefix?: 'files' | 'recently-deleted/files' | 'uploads'
+  prefix?: 'files' | 'recently-deleted/files' | 'uploads' | 'tests' | 'changelog'
 }): string {
   const prefix = parts.prefix ?? 'files'
   const folderSegments = parts.folderPath

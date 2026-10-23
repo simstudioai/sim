@@ -1,46 +1,65 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ContentDeliveryUnobservedError,
+  ContentRefusedError,
+  type ContentSource,
+  observeContentDelivery,
+} from '@/lib/core/application'
 import { FileParserError } from '@/lib/file-parsers/errors'
-import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
-const mocks = vi.hoisted(() => ({
-  provenance: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
-  fetchBuffer: vi.fn(),
-  parseBuffer: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveContext: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveReferencedWorkspaceFileContext: mocks.resolveContext,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.fetchServable,
 }))
 
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: (extension: string) =>
-    ['txt', 'pdf', 'doc', 'docx', 'pptx'].includes(extension),
-  parseBuffer: mocks.parseBuffer,
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
-import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import {
+  extractWorkspaceFileRecordText,
+  readWorkspaceFileText,
+} from '@/lib/workspace-files/application/read-workspace-file-text'
+
+const mocks = {
+  provenance: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  fetchBuffer: workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer,
+  ...hoisted,
+  parseBuffer: fileParsersMockFns.mockParseBuffer,
+  resolveContext: workspaceFileReferenceMockFns.mockResolveReferencedWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_doc'
@@ -54,9 +73,9 @@ const fileContext = {
 }
 
 const principals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-  { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-workspace' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'key-personal' }),
+  createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID, keyId: 'key-workspace' }),
 ]
 
 function fileRecord(overrides: Record<string, unknown> = {}) {
@@ -70,6 +89,13 @@ function fileRecord(overrides: Record<string, unknown> = {}) {
     storageContext: 'workspace',
     ...overrides,
   }
+}
+
+/** A record as the use case hands it to extraction, with the full shape provenance binds to. */
+function fileRecordForChat() {
+  return fileRecord({ contentUpdatedAt: new Date('2026-01-01T00:00:00.000Z') }) as Parameters<
+    typeof extractWorkspaceFileRecordText
+  >[0]
 }
 
 /** The canonical context the reference resolver hands back, carrying the record it resolved. */
@@ -93,27 +119,48 @@ describe('readWorkspaceFileText', () => {
     mocks.parseBuffer.mockResolvedValue({ content: 'hello there!', metadata: {} })
   })
 
-  it('observes canonical private provenance before returning while keeping public results unchanged', async () => {
+  it('classifies a Chat read by its canonical provenance before reading any bytes', async () => {
     const provenance = { status: 'exact', entries: [] }
     mocks.provenance.mockResolvedValue(provenance)
-    const observe = vi.fn(async () => {})
-    const result = await observeWorkspaceFileDelivery(observe, () =>
-      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    const admit = vi.fn(async (sources: readonly ContentSource[]) => sources.map(() => true))
+    const result = await observeContentDelivery({ admit }, () =>
+      extractWorkspaceFileRecordText(fileRecordForChat(), {}, createDelegatedPrincipal())
     )
-    expect(observe).toHaveBeenCalledWith(provenance)
-    expect(result.secretProvenance).toBeUndefined()
+    expect(admit).toHaveBeenCalledWith([
+      { kind: 'workspace-file', id: FILE_ID, provenance, view: 'complete' },
+    ])
+    expect(admit.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.fetchBuffer.mock.invocationCallOrder[0]
+    )
+    expect(result.text).toBe('hello there!')
   })
-  it('does not return content if the private delivery observer refuses', async () => {
+
+  it('refuses a Chat read its gate refuses with a 403, before reading any bytes', async () => {
     mocks.provenance.mockResolvedValue({ status: 'unknown' })
     await expect(
-      observeWorkspaceFileDelivery(
-        async () => {
-          throw new Error('no evidence')
-        },
-        () => readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+      observeContentDelivery({ admit: async (sources) => sources.map(() => false) }, () =>
+        extractWorkspaceFileRecordText(fileRecordForChat(), {}, createDelegatedPrincipal())
       )
-    ).rejects.toThrow('no evidence')
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
   })
+
+  it('refuses a Chat read no gate observes, before reading provenance or bytes', async () => {
+    await expect(
+      extractWorkspaceFileRecordText(fileRecordForChat(), {}, createDelegatedPrincipal())
+    ).rejects.toBeInstanceOf(ContentDeliveryUnobservedError)
+    expect(mocks.provenance).not.toHaveBeenCalled()
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+  })
+
+  it.each(principals)(
+    'reads no provenance for a $kind caller, which no gate classifies',
+    async (principal) => {
+      const result = await readWorkspaceFileText.execute({ principal, input: input() })
+      expect(result.text).toBe('hello there!')
+      expect(mocks.provenance).not.toHaveBeenCalled()
+    }
+  )
 
   it('uses the complete text representation before selecting a line window', async () => {
     const controller = new AbortController()
@@ -306,6 +353,7 @@ describe('readWorkspaceFileText', () => {
   })
 })
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)

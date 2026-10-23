@@ -88,8 +88,10 @@ conditions freshly after every push.
    across all pages has `isResolved: true`, and every check has finished and passed, stop —
    report the outcome (see "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
-   usual pre-push checks, push, and go to step 8 to re-trigger review.
+2. **If the PR has a merge conflict**, rebase rather than merge (step 6's rebase would discard a
+   merge commit): `git fetch origin staging && git rebase origin/staging`, resolve each conflict
+   and `git rebase --continue` until the rebase finishes. Then run step 6 (the sync check and the
+   `/ship` gates), then steps 7–8: push with `--force-with-lease` and re-trigger review.
 
 3. **If no review has run yet** (fresh PR, no bot comments): both run automatically on PR open —
    confirm via `gh pr checks <n>` (look for `Greptile Review` and `cubic · AI code reviewer`) and
@@ -121,15 +123,13 @@ conditions freshly after every push.
    ```
 
 6. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
-   the whole check-and-recover flow (stash WIP if needed, rebase, verify the rebase didn't just
+   the whole check-and-recover flow (stash WIP pinned by SHA as `/ship` step 2 shows, rebase, verify the rebase didn't just
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
-   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
-   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
-   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
-   either gate just as easily as the original commit did.
+   was fixed once. Then run `/ship` steps 4–6 on this round's diff — the cleanup and test gates,
+   migration safety, and the regenerate + audit phases. A review-fix round is still a code change
+   and can trip any of them just as easily as the original commit did.
 
 7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed

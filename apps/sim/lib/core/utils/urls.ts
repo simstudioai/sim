@@ -1,12 +1,19 @@
 import { isLoopbackHostname } from '@sim/security/hostnames'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { env, getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/env-flags'
 
 /** Canonical base URL for the public-facing marketing site. No trailing slash. */
-export const SITE_URL = 'https://www.sim.ai'
+export const SITE_URL = SIM_SITE_URL
 
 /** Host of the canonical marketing site, e.g. `www.sim.ai`. */
 export const CANONICAL_SITE_HOST = new URL(SITE_URL).host
+
+/** Resolves a site-relative href against {@link SITE_URL}; absolute URLs pass through. */
+export function toSiteUrl(href: string): string {
+  if (hasHttpProtocol(href)) return href
+  return href === '/' ? SITE_URL : `${SITE_URL}${href}`
+}
 
 function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)

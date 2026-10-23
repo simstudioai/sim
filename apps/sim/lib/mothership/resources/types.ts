@@ -1,3 +1,4 @@
+import type { FileOwner } from '@/lib/mothership/generated/file-owner'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 
 export const MothershipResourceType = {
@@ -5,6 +6,8 @@ export const MothershipResourceType = {
   sources: 'sources',
   table: 'table',
   file: 'file',
+  dashboard: 'dashboard',
+  test: 'test',
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
   folder: 'folder',
@@ -20,10 +23,11 @@ export type MothershipResourceType =
   (typeof MothershipResourceType)[keyof typeof MothershipResourceType]
 
 export interface MothershipResource {
+  owner?: FileOwner
   type: MothershipResourceType
   id: string
   title: string
-  /** Canonical resource owner; independent of the conversation's owner. */
+  /** Non-file workspace scope, or the legacy workspace file address. */
   workspaceId?: string
   workspaceName?: string
   path?: string
@@ -56,6 +60,7 @@ export interface MothershipResourceUpdate extends MothershipResource {
  * than filled in.
  */
 export interface WorkspaceResourceRef {
+  owner?: FileOwner
   type: MothershipResourceType
   id?: string
   path?: string
@@ -63,21 +68,93 @@ export interface WorkspaceResourceRef {
   workspaceId?: string
 }
 
-/** Scope is part of identity for aliases such as integration names and folder paths. */
+/** Explicit file ownership never inherits the conversation's workspace. */
+export function getChatResourceWorkspaceId(
+  resource: Pick<MothershipResource, 'workspaceId' | 'owner'>,
+  fallbackWorkspaceId?: string
+): string | undefined {
+  if (!resource.owner) return resource.workspaceId ?? fallbackWorkspaceId
+  return resource.owner.entityType === 'workspace' ? resource.owner.entityId : undefined
+}
+
+/** File and file-folder tabs are the resources that carry an explicit owner. */
+export function isFileResourceType(type: string): boolean {
+  return type === 'file' || type === 'filefolder'
+}
+
+/** File owner pairs must agree with any legacy address supplied alongside them. */
+export function hasValidChatResourceOwner(
+  resource: Pick<MothershipResource, 'type' | 'workspaceId' | 'owner'>
+): boolean {
+  if (!isFileResourceType(resource.type)) return !resource.owner
+  if (!resource.owner)
+    return resource.workspaceId === undefined || hasAddressableId(resource.workspaceId)
+  if (!hasAddressableId(resource.owner.entityId)) return false
+  if (resource.owner.entityType === 'workspace')
+    return resource.workspaceId === undefined || resource.workspaceId === resource.owner.entityId
+  return resource.owner.entityType === 'project' && resource.workspaceId === undefined
+}
+
+/**
+ * Adds the explicit owner to a known workspace file address without inferring ownership for older
+ * unscoped panels. The address stays alongside it: browsers read `workspaceId` to open and close a
+ * workspace file tab, and the resource key is the same either way.
+ */
+export function normalizeChatResource(
+  resource: MothershipResourceUpdate
+): MothershipResourceUpdate {
+  if (
+    !isFileResourceType(resource.type) ||
+    resource.workspaceId === undefined ||
+    !hasValidChatResourceOwner(resource)
+  )
+    return resource
+  return {
+    ...resource,
+    owner: resource.owner ?? { entityType: 'workspace', entityId: resource.workspaceId },
+  }
+}
+
+/** The fields that identify a chat tab; everything else on a resource is display metadata. */
+export type ChatResourceAddress = Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>
+
+/**
+ * Tab identity, shared by the server store and the browser. Scope is part of identity for aliases
+ * such as integration names and folder paths. The chat's workspace is the fallback scope, so an
+ * unscoped tab and the same tab addressed by that workspace are one tab on both sides.
+ */
 export function getChatResourceKey(
-  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+  resource: ChatResourceAddress,
+  chatWorkspaceId?: string
 ): string {
-  return resource.workspaceId
-    ? JSON.stringify([resource.workspaceId, resource.type, resource.id])
+  if (resource.owner && resource.owner.entityType !== 'workspace')
+    return JSON.stringify([
+      resource.owner.entityType,
+      resource.owner.entityId,
+      resource.type,
+      resource.id,
+    ])
+  const workspaceId = getChatResourceWorkspaceId(resource, chatWorkspaceId)
+  return workspaceId
+    ? JSON.stringify([workspaceId, resource.type, resource.id])
     : `${resource.type}:${resource.id}`
 }
 
+/** {@link getChatResourceKey} bound to one chat's workspace, for comparing that chat's tabs. */
+export function chatResourceKeyFor(
+  chatWorkspaceId?: string
+): (resource: ChatResourceAddress) => string {
+  return (resource) => getChatResourceKey(resource, chatWorkspaceId)
+}
+
 /** UUID resources keep their existing deep links; workspace aliases need their owner in the URL. */
-export function getChatResourceSelectionId(resource: MothershipResource): string {
+export function getChatResourceSelectionId(resource: ChatResourceAddress): string {
+  if (resource.owner && resource.owner.entityType !== 'workspace')
+    return getChatResourceKey(resource)
   const canonicalId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     resource.id
   )
-  return resource.workspaceId && !canonicalId && !isEphemeralResource(resource)
+  return getChatResourceWorkspaceId(resource) && !canonicalId && !isEphemeralResource(resource)
     ? getChatResourceKey(resource)
     : resource.id
 }
@@ -110,6 +187,8 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   sources: { persisted: true },
   table: { persisted: true },
   file: { persisted: true },
+  dashboard: { persisted: true },
+  test: { persisted: true },
   workflow: { persisted: true },
   knowledgebase: { persisted: true },
   folder: { persisted: true },
@@ -142,7 +221,7 @@ export function isDesktopOnlyResource(resource: MothershipResource): boolean {
   return RESOURCE_POLICY[resource.type]?.desktopOnly === true
 }
 
-export function isEphemeralResource(resource: MothershipResource): boolean {
+export function isEphemeralResource(resource: Pick<MothershipResource, 'type' | 'id'>): boolean {
   // The in-flight file preview is a placeholder that becomes a real file once
   // the write lands, so persisting it would restore a tab for a file that was
   // never created.
@@ -190,14 +269,16 @@ function withoutDesktopSessionResources(
 
 /**
  * The canonical form of a chat's resource list: legacy desktop panel rows and
- * unaddressable resources dropped. Every path that reads or writes stored
- * resources goes through this, which is what heals chats that already hold
- * one.
+ * unaddressable resources dropped, known file addresses normalized. Every path
+ * that reads or writes stored resources goes through this, which is what heals
+ * chats that already hold one.
  */
 export function sanitizeChatResources(
   resources: readonly MothershipResource[]
 ): MothershipResource[] {
-  return withoutDesktopSessionResources(resources).filter(isAddressableResource)
+  return withoutDesktopSessionResources(resources)
+    .filter((resource) => isAddressableResource(resource) && hasValidChatResourceOwner(resource))
+    .map(normalizeChatResource)
 }
 
 /**
@@ -207,7 +288,8 @@ export function sanitizeChatResources(
  */
 export function reorderStoredChatResources(
   storedResources: readonly MothershipResource[],
-  requestedOrder: readonly MothershipResource[]
+  requestedOrder: readonly MothershipResource[],
+  chatWorkspaceId?: string
 ): MothershipResource[] | null {
   const stored = sanitizeChatResources(storedResources)
   const requested = sanitizeChatResources(requestedOrder)
@@ -217,8 +299,9 @@ export function reorderStoredChatResources(
   // writers) sends one fewer entry from the deduplicated client. Matching on
   // sets keeps that reorder valid and collapses the duplicate on write, where
   // a length check would reject every reorder for that chat forever.
-  const storedByKey = new Map(stored.map((resource) => [getChatResourceKey(resource), resource]))
-  const requestedKeys = Array.from(new Set(requested.map(getChatResourceKey)))
+  const keyOf = chatResourceKeyFor(chatWorkspaceId)
+  const storedByKey = new Map(stored.map((resource) => [keyOf(resource), resource]))
+  const requestedKeys = Array.from(new Set(requested.map(keyOf)))
   if (requestedKeys.length !== storedByKey.size) return null
 
   const reordered: MothershipResource[] = []
@@ -248,6 +331,7 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
  * and its no-op check.
  */
 const MERGED_FIELDS = {
+  owner: true,
   title: true,
   workspaceId: true,
   workspaceName: true,
@@ -273,6 +357,8 @@ export function mergeChatResource(
   prev: MothershipResource | undefined,
   next: MothershipResourceUpdate
 ): MothershipResource {
+  prev = prev ? normalizeChatResource(prev) : undefined
+  next = normalizeChatResource(next)
   if (!prev) {
     // Copied, never aliased: the result lands in React state, the query cache
     // and the pending-write queue at once, and `next` is the caller's object.
@@ -282,6 +368,11 @@ export function mergeChatResource(
   const { viewId: _previousViewId, ...prevWithoutViewId } = prev
   const merged: MothershipResource = {
     ...(next.clearViewId === true ? prevWithoutViewId : prev),
+    ...(next.owner !== undefined &&
+    (next.owner.entityType !== prev.owner?.entityType ||
+      next.owner.entityId !== prev.owner.entityId)
+      ? { owner: next.owner }
+      : {}),
     ...(next.workspaceId !== undefined ? { workspaceId: next.workspaceId } : {}),
     ...(next.workspaceName !== undefined ? { workspaceName: next.workspaceName } : {}),
     ...(next.path !== undefined ? { path: next.path } : {}),
@@ -326,6 +417,7 @@ export function mergePendingChatResourceUpdate(
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',
+  dashboards: 'dashboard',
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
   folders: 'folder',

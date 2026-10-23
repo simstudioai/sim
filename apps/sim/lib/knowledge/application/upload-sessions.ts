@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
-import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
+import { checkAttributedUsageLimits } from '@/lib/billing/core/attribution'
 import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -37,8 +36,6 @@ import {
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-
-const logger = createLogger('KnowledgeUploadSessions')
 
 export class KnowledgeDocumentUnsupportedMediaTypeError extends Error {
   constructor(message: string) {

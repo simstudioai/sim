@@ -1,58 +1,43 @@
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const {
-  mockCancelRuns,
-  mockGetRowById,
-  mockResolveContext,
-  mockResolvePermission,
-  mockRequireTableRowIds,
-  mockRunWorkflowColumn,
-  mockSignalRowsChanged,
-  mockTranslatePredicate,
-  mockGetTableById,
-  mockReadDispatch,
-  mockListDispatches,
-  mockCancelDispatchById,
-  mockResolveWorkspaceContext,
-} = vi.hoisted(() => ({
-  mockCancelRuns: vi.fn(),
-  mockGetRowById: vi.fn(),
-  mockResolveContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockRequireTableRowIds: vi.fn(),
-  mockRunWorkflowColumn: vi.fn(),
-  mockSignalRowsChanged: vi.fn(),
-  mockTranslatePredicate: vi.fn(),
-  mockGetTableById: vi.fn(),
+const { mockReadDispatch, mockListDispatches, mockCancelDispatchById } = vi.hoisted(() => ({
   mockReadDispatch: vi.fn(),
   mockListDispatches: vi.fn(),
   mockCancelDispatchById: vi.fn(),
-  mockResolveWorkspaceContext: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/table', () => ({
-  DEFAULT_TABLE_PLAN_LIMITS: { enterprise: { maxRowsPerTable: 2 } },
-  getRowById: mockGetRowById,
-  getTableById: mockGetTableById,
-  requireTableRowIds: mockRequireTableRowIds,
-  TABLE_LIMITS: { MAX_COLUMNS_PER_TABLE: 2 },
+  ...tableMock,
+  DEFAULT_TABLE_PLAN_LIMITS: {
+    ...tableMock.DEFAULT_TABLE_PLAN_LIMITS,
+    enterprise: { ...tableMock.DEFAULT_TABLE_PLAN_LIMITS.enterprise, maxRowsPerTable: 2 },
+  },
+  TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_COLUMNS_PER_TABLE: 2 },
 }))
 
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mockResolveContext,
-  resolveTableWorkspaceContext: mockResolveWorkspaceContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 vi.mock('@/lib/table/dispatcher', () => ({
   cancelDispatchById: mockCancelDispatchById,
@@ -60,18 +45,11 @@ vi.mock('@/lib/table/dispatcher', () => ({
   readDispatch: mockReadDispatch,
 }))
 
-vi.mock('@/lib/table/application/rows', () => ({
-  tablePredicateNamesToFilter: mockTranslatePredicate,
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
-vi.mock('@/lib/table/events', () => ({
-  signalTableRowsChanged: mockSignalRowsChanged,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
-vi.mock('@/lib/table/workflow-columns', () => ({
-  cancelWorkflowGroupRuns: mockCancelRuns,
-  runWorkflowColumn: mockRunWorkflowColumn,
-}))
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 
 import {
   cancelTableDispatch,
@@ -79,6 +57,17 @@ import {
   readTableDispatch,
   startTableRun,
 } from '@/lib/table/application/runs'
+
+const { mockGetRowById, mockGetTableById, mockRequireTableRowIds } = tableMockFns
+const {
+  mockResolveActiveTableContext: mockResolveContext,
+  mockResolveTableWorkspaceContext: mockResolveWorkspaceContext,
+} = tableApplicationContextMockFns
+const mockTranslatePredicate = tableApplicationRowsMockFns.mockTablePredicateNamesToFilter
+const { mockCancelWorkflowGroupRuns: mockCancelRuns, mockRunWorkflowColumn } =
+  tableWorkflowColumnsMockFns
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockSignalRowsChanged = tableEventsMockFns.mockSignalTableRowsChanged
 
 const TABLE: TableDefinition = {
   id: 'table-1',
@@ -108,7 +97,7 @@ const TABLE: TableDefinition = {
   updatedAt: new Date('2026-01-01'),
 }
 
-const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const PRINCIPAL = createSessionPrincipal()
 
 describe('table run application use cases', () => {
   beforeEach(() => {
@@ -139,7 +128,7 @@ describe('table run application use cases', () => {
    */
   it('carries the billed account as the meter but nobody as the gate for a workspace key', async () => {
     await startTableRun.execute({
-      principal: { kind: 'workspace_api_key', workspaceId: TABLE.workspaceId, keyId: 'key-1' },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: TABLE.workspaceId }),
       input: {
         kind: 'row_enrichment',
         tableId: TABLE.id,

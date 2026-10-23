@@ -1,31 +1,29 @@
 ---
 title: Zendesk
 description: Manage support tickets, users, and organizations in Zendesk
+integration:
+  type: "zendesk"
+  color: "#03363D"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="zendesk"
-  color="#03363D"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Zendesk](https://www.zendesk.com/) in Sim to manage tickets, users, and organizations and search support records. The reference includes single-record and bulk operations, ticket merging, organization autocomplete, and search counts.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.
-
-
+Read, create, update, or delete tickets, users, and organizations, including supported bulk operations. Merge tickets, autocomplete organizations, search records, or count search results. Ticket events can start workflows.
 
 ## Actions
 
 ### Get Tickets from Zendesk
 
 Retrieve a list of tickets from Zendesk with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -108,9 +106,13 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
+</ReferenceDetails>
+
 ### Get Single Ticket from Zendesk
 
 Get a single ticket by ID from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,9 +182,13 @@ Get a single ticket by ID from Zendesk
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The ticket ID |
 
+</ReferenceDetails>
+
 ### Create Ticket in Zendesk
 
 Create a new ticket in Zendesk with support for custom fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,9 +267,13 @@ Create a new ticket in Zendesk with support for custom fields
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The created ticket ID |
 
+</ReferenceDetails>
+
 ### Bulk Create Tickets in Zendesk
 
 Create multiple tickets in Zendesk at once (max 100)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +305,13 @@ Create multiple tickets in Zendesk at once (max 100)
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
+</ReferenceDetails>
+
 ### Update Ticket in Zendesk
 
 Update an existing ticket in Zendesk with support for custom fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -376,9 +390,13 @@ Update an existing ticket in Zendesk with support for custom fields
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The updated ticket ID |
 
+</ReferenceDetails>
+
 ### Bulk Update Tickets in Zendesk
 
 Update multiple tickets in Zendesk at once (max 100)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +433,13 @@ Update multiple tickets in Zendesk at once (max 100)
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
+</ReferenceDetails>
+
 ### Delete Ticket from Zendesk
 
 Delete a ticket from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -435,9 +457,13 @@ Delete a ticket from Zendesk
 | `deleted` | boolean | Deletion success |
 | `ticket_id` | string | The deleted ticket ID |
 
+</ReferenceDetails>
+
 ### Merge Tickets in Zendesk
 
 Merge multiple tickets into a target ticket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -472,9 +498,13 @@ Merge multiple tickets into a target ticket
 | `job_id` | string | The merge job ID |
 | `target_ticket_id` | string | The target ticket ID that tickets were merged into |
 
+</ReferenceDetails>
+
 ### Get Users from Zendesk
 
 Retrieve a list of users from Zendesk with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -542,9 +572,13 @@ Retrieve a list of users from Zendesk with optional filtering
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
+</ReferenceDetails>
+
 ### Get Single User from Zendesk
 
 Get a single user by ID from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -603,9 +637,13 @@ Get a single user by ID from Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The user ID |
 
+</ReferenceDetails>
+
 ### Get Current User from Zendesk
 
 Get the currently authenticated user from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -663,9 +701,13 @@ Get the currently authenticated user from Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The current user ID |
 
+</ReferenceDetails>
+
 ### Search Users in Zendesk
 
 Search for users in Zendesk using a query string
+
+<ReferenceDetails>
 
 #### Input
 
@@ -733,9 +775,13 @@ Search for users in Zendesk using a query string
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
+</ReferenceDetails>
+
 ### Create User in Zendesk
 
 Create a new user in Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -801,9 +847,13 @@ Create a new user in Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The created user ID |
 
+</ReferenceDetails>
+
 ### Bulk Create Users in Zendesk
 
 Create multiple users in Zendesk using bulk import
+
+<ReferenceDetails>
 
 #### Input
 
@@ -835,9 +885,13 @@ Create multiple users in Zendesk using bulk import
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
+</ReferenceDetails>
+
 ### Update User in Zendesk
 
 Update an existing user in Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -904,9 +958,13 @@ Update an existing user in Zendesk
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The updated user ID |
 
+</ReferenceDetails>
+
 ### Bulk Update Users in Zendesk
 
 Update multiple users in Zendesk using bulk update
+
+<ReferenceDetails>
 
 #### Input
 
@@ -938,9 +996,13 @@ Update multiple users in Zendesk using bulk update
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
+</ReferenceDetails>
+
 ### Delete User from Zendesk
 
 Delete a user from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -958,9 +1020,13 @@ Delete a user from Zendesk
 | `deleted` | boolean | Deletion success |
 | `user_id` | string | The deleted user ID |
 
+</ReferenceDetails>
+
 ### Get Organizations from Zendesk
 
 Retrieve a list of organizations from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -999,9 +1065,13 @@ Retrieve a list of organizations from Zendesk
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
+</ReferenceDetails>
+
 ### Get Single Organization from Zendesk
 
 Get a single organization by ID from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1033,9 +1103,13 @@ Get a single organization by ID from Zendesk
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The organization ID |
 
+</ReferenceDetails>
+
 ### Autocomplete Organizations in Zendesk
 
 Autocomplete organizations in Zendesk by name prefix (for name matching/autocomplete)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1075,9 +1149,13 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
 
+</ReferenceDetails>
+
 ### Create Organization in Zendesk
 
 Create a new organization in Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1114,9 +1192,13 @@ Create a new organization in Zendesk
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The created organization ID |
 
+</ReferenceDetails>
+
 ### Bulk Create Organizations in Zendesk
 
 Create multiple organizations in Zendesk using bulk import
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1148,9 +1230,13 @@ Create multiple organizations in Zendesk using bulk import
 |     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
+</ReferenceDetails>
+
 ### Update Organization in Zendesk
 
 Update an existing organization in Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1188,9 +1274,13 @@ Update an existing organization in Zendesk
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The updated organization ID |
 
+</ReferenceDetails>
+
 ### Delete Organization from Zendesk
 
 Delete an organization from Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1208,9 +1298,13 @@ Delete an organization from Zendesk
 | `deleted` | boolean | Whether the organization was successfully deleted |
 | `organization_id` | string | The deleted organization ID |
 
+</ReferenceDetails>
+
 ### Search Zendesk
 
 Unified search across tickets, users, and organizations in Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1237,9 +1331,13 @@ Unified search across tickets, users, and organizations in Zendesk
 |   ↳ `has_more` | boolean | Whether more items are available |
 | `results` | array | Array of result objects \(tickets, users, or organizations depending on search query\) |
 
+</ReferenceDetails>
+
 ### Count Search Results in Zendesk
 
 Count the number of search results matching a query in Zendesk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1256,16 +1354,20 @@ Count the number of search results matching a query in Zendesk
 | --------- | ---- | ----------- |
 | `count` | number | Number of matching results |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Zendesk Ticket Comment Added
 
 Trigger workflow when a comment is added to a Zendesk ticket
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1282,7 +1384,7 @@ Trigger workflow when a comment is added to a Zendesk ticket
 | `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
 | `time` | string | When the event occurred \(ISO 8601\) |
 | `account_id` | number | Zendesk account ID |
-| `ticket` | object | ticket output from the tool |
+| `ticket` | object |  |
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
@@ -1300,13 +1402,14 @@ Trigger workflow when a comment is added to a Zendesk ticket
 |   ↳ `updated_at` | string | Ticket last update timestamp |
 | `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
 
-
----
+</ReferenceDetails>
 
 ### Zendesk Ticket Created
 
 Trigger workflow when a new ticket is created in Zendesk
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1323,7 +1426,7 @@ Trigger workflow when a new ticket is created in Zendesk
 | `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
 | `time` | string | When the event occurred \(ISO 8601\) |
 | `account_id` | number | Zendesk account ID |
-| `ticket` | object | ticket output from the tool |
+| `ticket` | object |  |
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
@@ -1341,13 +1444,14 @@ Trigger workflow when a new ticket is created in Zendesk
 |   ↳ `updated_at` | string | Ticket last update timestamp |
 | `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
 
-
----
+</ReferenceDetails>
 
 ### Zendesk Ticket Event
 
 Trigger workflow from any Zendesk ticket event
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1364,7 +1468,7 @@ Trigger workflow from any Zendesk ticket event
 | `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
 | `time` | string | When the event occurred \(ISO 8601\) |
 | `account_id` | number | Zendesk account ID |
-| `ticket` | object | ticket output from the tool |
+| `ticket` | object |  |
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
@@ -1382,13 +1486,14 @@ Trigger workflow from any Zendesk ticket event
 |   ↳ `updated_at` | string | Ticket last update timestamp |
 | `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
 
-
----
+</ReferenceDetails>
 
 ### Zendesk Ticket Priority Changed
 
 Trigger workflow when a ticket priority changes in Zendesk
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1405,7 +1510,7 @@ Trigger workflow when a ticket priority changes in Zendesk
 | `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
 | `time` | string | When the event occurred \(ISO 8601\) |
 | `account_id` | number | Zendesk account ID |
-| `ticket` | object | ticket output from the tool |
+| `ticket` | object |  |
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
@@ -1423,13 +1528,14 @@ Trigger workflow when a ticket priority changes in Zendesk
 |   ↳ `updated_at` | string | Ticket last update timestamp |
 | `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
 
-
----
+</ReferenceDetails>
 
 ### Zendesk Ticket Status Changed
 
 Trigger workflow when a ticket status changes in Zendesk
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1446,7 +1552,7 @@ Trigger workflow when a ticket status changes in Zendesk
 | `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
 | `time` | string | When the event occurred \(ISO 8601\) |
 | `account_id` | number | Zendesk account ID |
-| `ticket` | object | ticket output from the tool |
+| `ticket` | object |  |
 |   ↳ `id` | string | Ticket ID |
 |   ↳ `subject` | string | Ticket subject |
 |   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
@@ -1463,4 +1569,6 @@ Trigger workflow when a ticket status changes in Zendesk
 |   ↳ `created_at` | string | Ticket creation timestamp |
 |   ↳ `updated_at` | string | Ticket last update timestamp |
 | `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
+
+</ReferenceDetails>
 

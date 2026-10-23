@@ -44,7 +44,13 @@ export function GitHubSetup({ scope }: GitHubSetupProps) {
         ? 'This connection attempt expired. Close this window and connect GitHub again from Sim.'
         : null)
 
-  if (failure) return <AuthHeader title='GitHub not connected' description={failure} />
+  if (failure)
+    return (
+      <>
+        <CredentialGroupCompletionHandoff completionId={scope.setupId} failure='failed' />
+        <AuthHeader title='GitHub not connected' description={failure} />
+      </>
+    )
   if (result?.status === 'completed') {
     return (
       <>

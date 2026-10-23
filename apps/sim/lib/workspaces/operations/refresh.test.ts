@@ -1,16 +1,7 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 import { refreshWorkspaceOperation } from '@/lib/workspaces/operations/refresh'
-
-const { receiptTable } = vi.hoisted(() => ({
-  receiptTable: {
-    id: 'workspaceOperationReceipt.id',
-    workspaceId: 'workspaceOperationReceipt.workspaceId',
-    report: 'workspaceOperationReceipt.report',
-  },
-}))
-vi.mock('@sim/db/schema', () => ({ ...schemaMock, workspaceOperationReceipt: receiptTable }))
 
 function report(overrides: Partial<WorkspaceOperationReport> = {}): WorkspaceOperationReport {
   return {
@@ -27,7 +18,7 @@ function report(overrides: Partial<WorkspaceOperationReport> = {}): WorkspaceOpe
 }
 
 function queueReport(value: WorkspaceOperationReport): void {
-  queueTableRows(receiptTable, [{ report: value }])
+  queueTableRows(schemaMock.workspaceOperationReceipt, [{ report: value }])
 }
 
 describe('refreshWorkspaceOperation', () => {

@@ -58,13 +58,15 @@ interface IsolatedVMTaskRequest {
   bootstrap: string
   brokers: string[]
   finalize: string
+  /** Evaluate `code` as an ES module named `filename` that may import only `modules`. */
+  userModule?: { filename: string; modules: Record<string, string> }
 }
 
 /**
  * Host-side broker handler invoked when isolate code calls a broker.
  * Registered per-request via `executeInIsolatedVM(..., { brokers })`.
  */
-export type IsolatedVMBrokerHandler = (args: unknown) => Promise<unknown>
+export type IsolatedVMBrokerHandler = (args: unknown, brokerId: number) => Promise<unknown>
 
 export interface IsolatedVMExecutionOptions {
   /** Broker name → handler. Must cover every broker listed in `request.task.brokers`. */
@@ -102,6 +104,8 @@ interface IsolatedVMTaskTimings {
 }
 
 interface IsolatedVMError {
+  /** Existing broker call ID, set only when a task propagates that broker's error object. */
+  brokerErrorId?: number
   message: string
   name: string
   stack?: string
@@ -733,7 +737,7 @@ function handleBrokerMessage(
   }
 
   Promise.resolve()
-    .then(() => pending.runInOutboundScope(() => handler(args)))
+    .then(() => pending.runInOutboundScope(() => handler(args, brokerId)))
     .then((resultValue) => {
       if (pending.cancelled) {
         sendResponse({ error: 'Execution cancelled' })

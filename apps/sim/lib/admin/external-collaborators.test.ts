@@ -5,28 +5,29 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  setLimit: vi.fn(),
-  acquireLock: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAudit: mocks.recordAudit,
-}))
-
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  setOrgMemberUsageLimit: mocks.setLimit,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.acquireLock,
-}))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 import { updateDashboardExternalCollaboratorUsageLimit } from '@/lib/admin/external-collaborators'
+
+const mocks = {
+  setLimit: organizationMemberLimitsMockFns.mockSetOrgMemberUsageLimit,
+  acquireLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const actor = { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
 

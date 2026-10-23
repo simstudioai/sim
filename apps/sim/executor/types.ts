@@ -1,11 +1,12 @@
 import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
   ExecutionCallbacks,
+  ExecutionTestHooks,
   IterationContext,
   ParentIteration,
   PiiBlockOutputRedaction,
@@ -383,6 +384,10 @@ interface ExecutionMetadata {
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
+  /** Other durable pauses remain after the current context resumes. */
+  resumeHasPendingPauses?: boolean
+  /** Stop-after completion retires outstanding pause contexts when settling a resume. */
+  stopAfterBlockReached?: boolean
   executionMode?: 'sync' | 'stream' | 'async'
   /**
    * Run-level agent-events opt-in (see the snapshot ExecutionMetadata).
@@ -416,6 +421,8 @@ export interface ExecutorDelegationOrigin {
 
 export interface ExecutionContext {
   workflowId: string
+  /** Set during a workflow test run; Agent tool calls consult it before calling the tool. */
+  testHooks?: ExecutionTestHooks
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
@@ -661,6 +668,20 @@ export interface ExecutionContext {
    * Starts at 0 and increments for each block. Use getNextExecutionOrder() to access.
    */
   executionOrderCounter?: { value: number }
+
+  /**
+   * Billed model spend not yet in the usage ledger, which receives a run's cost only with the
+   * run's log. Shared by every block's context copy and by child workflows billed on this log.
+   */
+  unrecordedModelCost?: UnrecordedModelCost
+}
+
+/** A run's running model spend, and when its usage limit may next be read after a read failed. */
+export interface UnrecordedModelCost {
+  total: number
+  readDeferredUntil?: number
+  /** Agent turns whose journaled spend `total` already holds. */
+  countedTurnIds?: Set<string>
 }
 
 /**
@@ -736,16 +757,6 @@ export interface StreamingExecution {
   onFullContent?: (content: string) => void | Promise<void>
 }
 
-interface BlockExecutor {
-  canExecute(block: SerializedBlock): boolean
-
-  execute(
-    block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
-  ): Promise<BlockOutput>
-}
-
 /**
  * Per-invocation identity for one run of one block.
  *
@@ -802,46 +813,4 @@ export interface BlockHandler {
     inputs: Record<string, any>,
     nodeMetadata: BlockNodeMetadata
   ) => Promise<BlockOutput | StreamingExecution>
-}
-
-interface Tool<P = any, O = Record<string, any>> {
-  id: string
-  name: string
-  description: string
-  version: string
-
-  params: {
-    [key: string]: {
-      type: string
-      required?: boolean
-      description?: string
-      default?: any
-    }
-  }
-
-  request?: {
-    url?: string | ((params: P) => string)
-    method?: string
-    headers?: (params: P) => Record<string, string>
-    body?: (params: P) => Record<string, any>
-  }
-
-  transformResponse?: (response: any) => Promise<{
-    success: boolean
-    output: O
-    error?: string
-  }>
-}
-
-interface ToolRegistry {
-  [key: string]: Tool
-}
-
-export interface ResponseFormatStreamProcessor {
-  processStream(
-    originalStream: ReadableStream,
-    blockId: string,
-    selectedOutputs: string[],
-    responseFormat?: any
-  ): ReadableStream
 }

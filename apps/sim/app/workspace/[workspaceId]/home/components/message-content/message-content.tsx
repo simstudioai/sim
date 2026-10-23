@@ -16,16 +16,16 @@ import { isPlainRecord } from '@sim/utils/object'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
   humanizeToolName,
   normalizeToolActivityDescription,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   hasAgentGroupItemContent,
@@ -37,6 +37,7 @@ import {
   ownsTurnWait,
   type TurnLiveIndicators,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
+import { THINKING_LABEL } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
@@ -247,6 +248,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
     displayTitle,
     activityDescription,
     status: tc.status,
+    activity: tc.activity,
     params: tc.params,
     result: tc.result,
     streamingArgs: tc.streamingArgs,
@@ -566,10 +568,7 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
     const groups: AgentGroupSegment[] = []
     let current: AgentGroupSegment | undefined
     for (const item of segment.items) {
-      const activity =
-        item.type === 'tool'
-          ? readToolActivity(item.data.params, item.data.streamingArgs)
-          : undefined
+      const activity = item.type === 'tool' ? readCallActivity(item.data) : undefined
       if (activity) labels.set(activity.id, { ...labels.get(activity.id), ...activity })
       if (!current || (activity && activity.id !== current.activity?.id)) {
         current = {
@@ -624,8 +623,15 @@ export function parseBlocks(blocks: ContentBlock[], isStreaming = false): Messag
   )
 }
 
-function joinRenderableText(parts: string[]): string {
-  return parts.filter(Boolean).join('\n\n')
+/** Returns independently rendered text segments, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageTextSegments(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string[] {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return [fallbackContent]
+
+  return parsed.map((segment) => (segment.type === 'text' ? segment.content : '')).filter(Boolean)
 }
 
 /** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
@@ -633,12 +639,7 @@ export function getOrchestratorMessageText(
   blocks: ContentBlock[],
   fallbackContent: string
 ): string {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
-  if (parsed.length === 0) return fallbackContent
-
-  return joinRenderableText(
-    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
-  )
+  return getOrchestratorMessageTextSegments(blocks, fallbackContent).join('\n\n')
 }
 
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
@@ -929,13 +930,13 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string {
   const last = blocks[blocks.length - 1]
   switch (last?.type) {
     case 'subagent_end':
-      return 'Returning…'
+      return 'Returning'
     case 'tool_call':
       return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
-        ? 'Dispatching…'
-        : 'Thinking'
+        ? 'Dispatching'
+        : THINKING_LABEL
     default:
-      return 'Thinking'
+      return THINKING_LABEL
   }
 }
 
@@ -987,7 +988,7 @@ function MessageContentInner({
   onPhaseChange,
   actions,
 }: MessageContentProps) {
-  const { onWorkspaceResourceSelect } = useChatSurface()
+  const { onWorkspaceResourceSelect, onViewSources } = useChatSurface()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const cited = useMemo(
     () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),
@@ -1103,7 +1104,14 @@ function MessageContentInner({
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
       {actions}
-      {sources.length > 0 && <MessageSources sources={sources} />}
+      {sources.length > 0 && (
+        <MessageSources
+          sources={sources}
+          onViewAll={
+            messageId && onViewSources ? () => onViewSources(messageId, imageRequestId) : undefined
+          }
+        />
+      )}
     </div>
   )
 

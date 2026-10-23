@@ -1,10 +1,10 @@
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   execute: vi.fn(),
   executeOrganization: vi.fn(),
-  getBaseUrl: vi.fn(),
 }))
 
 const useCases = vi.hoisted(() => ({
@@ -13,22 +13,23 @@ const useCases = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/mothership/application/resolve-organization-personal-token', () => ({
-  executeCopilotOrganizationCredentialUseCase: mocks.executeOrganization,
+  executeCopilotOrganizationCredentialUseCase: hoisted.executeOrganization,
 }))
 vi.mock('@/lib/credentials/application/resolve-organization-personal-token', () => ({
   prepareOrganizationPersonalConnection: useCases.prepareOrganization,
 }))
 
 vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
-  executeCopilotCredentialUseCase: mocks.execute,
+  executeCopilotCredentialUseCase: hoisted.execute,
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: mocks.getBaseUrl }))
 vi.mock('@/lib/credentials/application/prepare-credential-connection', () => ({
   prepareCredentialConnection: useCases.prepare,
 }))
 
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeOAuthGetAuthLink } from '@/lib/mothership/tools/handlers/oauth'
+
+const mocks = { ...hoisted, getBaseUrl: urlsMockFns.mockGetBaseUrl }
 
 const context: ToolExecutionContext = {
   userId: 'user-1',

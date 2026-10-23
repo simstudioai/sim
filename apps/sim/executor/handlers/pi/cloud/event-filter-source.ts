@@ -2,10 +2,9 @@
  * The stdout filter the sandbox modes pipe the Pi CLI through, written at runtime like the search
  * extension and the review tools script next to it.
  *
- * Pi's `--mode json` writes `JSON.stringify(event)` for every session event with no filtering, and
- * `message_update` repeats the whole assistant message alongside each delta — so raw stdout grows
- * with the square of the response length, and `tool_execution_end`, `turn_end`, and `agent_end`
- * each add a full tool result, turn transcript, or run transcript on top of that.
+ * Pi 1.0 emits delta-only `message_update` events, but `tool_execution_end`, `turn_end`, and
+ * `agent_end` still include tool results and transcripts. The filter preserves Sim's event
+ * contract without retaining those cumulative payloads.
  *
  * The reduction has to happen in the sandbox because by the time Sim could drop the bytes they are
  * already retained: E2B's SDK accumulates every callback-delivered chunk internally, so its adapter

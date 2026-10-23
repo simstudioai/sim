@@ -1,3 +1,8 @@
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,10 +17,8 @@ const mocks = vi.hoisted(() => ({
     features: { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true },
   },
 }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOptionalOrganizationContext: () => mocks.organization,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useOptionalWorkspaceHostContext: () => mocks.workspace,
 }))
@@ -27,6 +30,11 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entit
 }))
 
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+organizationProviderMockFns.mockUseOptionalOrganizationContext.mockImplementation(
+  () => mocks.organization
+)
 
 beforeEach(() => {
   mocks.organization.viewer.isAdmin = true

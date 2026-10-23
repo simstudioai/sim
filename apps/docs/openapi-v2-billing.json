@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Sim API v2 — Billing",
+    "title": "Sim API v2 — billing",
     "description": "Version 2 of the Sim REST API for billing standing, credit allowance, storage quota, and cursor-paginated usage history.",
     "version": "2.0.0",
     "contact": {
@@ -38,19 +38,27 @@
     "/api/v2/billing/status": {
       "get": {
         "operationId": "getBillingStatus",
-        "summary": "Get Billing Status",
-        "description": "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List Billing Logs for credit history.\n\nOAuth scope: `api:read`.",
+        "summary": "Get billing status",
+        "description": "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "billing.status.read",
         "x-oauth-scope": "api:read",
         "tags": ["Billing"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
             "in": "query",
             "required": false,
-            "description": "Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
+            "description": "Workspace whose payer to report. A workspace API key is bound to its own workspace; a different or unknown ID returns `404 Workspace not found`. Omit for account billing when using a personal API key or OAuth token.",
             "schema": {
-              "description": "Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
+              "description": "Workspace whose payer to report. A workspace API key is bound to its own workspace; a different or unknown ID returns `404 Workspace not found`. Omit for account billing when using a personal API key or OAuth token.",
               "type": "string",
               "minLength": 1,
               "maxLength": 128
@@ -75,6 +83,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2BillingStatusResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workspaceId": null,
+                        "period": {
+                          "start": "2026-07-01T00:00:00.000Z",
+                          "end": "2026-08-01T00:00:00.000Z"
+                        },
+                        "plan": "pro",
+                        "status": "active",
+                        "credits": {
+                          "used": 512,
+                          "limit": 20000,
+                          "remaining": 19488
+                        },
+                        "storage": {
+                          "usedBytes": 5242880,
+                          "limitBytes": 1073741824,
+                          "percentUsed": 0.48828125
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -106,11 +140,19 @@
     "/api/v2/billing/logs": {
       "get": {
         "operationId": "listBillingLogs",
-        "summary": "List Billing Logs",
+        "summary": "List billing logs",
         "description": "List credit usage with source filtering and cursor pagination. The default `period` is `30d`; pagination covers only the selected time window. An inverted custom window returns `400`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "billing.logs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Billing"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "source",
@@ -162,24 +204,24 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "description": "Include events at or after this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Required with `period=custom`. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+              "description": "Include events at or after this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Required with `period=custom`. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "description": "Include events at or before this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Allowed only with `period=custom`; omission defaults to now. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+              "description": "Include events at or before this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Allowed only with `period=custom`; omission defaults to now. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected."
             }
           },
           {
@@ -225,6 +267,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2BillingLogListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "log_1",
+                          "createdAt": "2026-07-29T18:04:11.000Z",
+                          "source": "sim-chat",
+                          "workspaceId": "ws_1",
+                          "workflow": null,
+                          "runId": null,
+                          "creditCost": 12
+                        }
+                      ],
+                      "nextCursor": null,
+                      "scope": "workspace"
+                    }
+                  }
                 }
               }
             }
@@ -260,13 +322,23 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+        "description": "Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {
@@ -429,7 +501,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -475,6 +547,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -570,7 +645,7 @@
             },
             "required": ["start", "end"],
             "additionalProperties": false,
-            "description": "Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window."
+            "description": "Current subscription billing period. Without a Stripe subscription, including on Free, the bounds are 1970-01-01 to 9999-12-31; they do not represent a monthly window."
           },
           "plan": {
             "type": "string",
@@ -588,7 +663,7 @@
                 "properties": {
                   "used": {
                     "type": "number",
-                    "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+                    "description": "Credits consumed during the current billing period on a paid plan, or over the account’s lifetime on Free."
                   },
                   "limit": {
                     "type": "number",
@@ -606,7 +681,7 @@
                 "type": "null"
               }
             ],
-            "description": "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+            "description": "The payer’s credit usage and allowance: per billing period on paid plans, lifetime on Free. Null when the caller cannot manage the payer’s billing, including every workspace API key."
           },
           "storage": {
             "anyOf": [
@@ -706,7 +781,7 @@
               "voice-output",
               "api-tool"
             ],
-            "description": "Product surface that consumed the credits."
+            "description": "Product surface that consumed credits. The legacy `mothership_block` value identifies the Agent block; `sim-chat` identifies Sim Chat."
           },
           "workspaceId": {
             "anyOf": [
@@ -789,7 +864,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           },
           "scope": {
             "type": "string",

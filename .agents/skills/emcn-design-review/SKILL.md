@@ -7,7 +7,7 @@ argument-hint: "[scope] [fix=true|false]"
 # EMCN Design Review
 
 Arguments:
-- scope: what to review (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
+- scope: what to review (default: your current changes). Examples: "diff to staging", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
 
 User arguments: $ARGUMENTS
@@ -32,7 +32,7 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 
 ## Design Tokens
 
-Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantics (`text-muted-foreground`) or hardcoded colors (`text-gray-500`, `#333`).
+Use CSS variable pattern (`text-[var(--text-body)]`), never Tailwind semantics (`text-muted-foreground`) or hardcoded colors (`text-gray-500`, `#333`).
 
 **Text**: `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-muted`, `--text-body` (canonical value text), `--text-icon`, `--text-placeholder`, `--text-subtle`, `--text-inverse`, `--text-error`
 **Surfaces**: `--bg`, `--surface-1` through `--surface-7`, `--surface-hover`, `--surface-active`
@@ -42,22 +42,13 @@ Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantic
 **Shadows**: `shadow-subtle`, `shadow-medium`, `shadow-overlay`, `shadow-card`
 **Badges**: `--badge-*` semantic families (success/error/gray/blue/purple/orange/amber/teal/cyan/pink, each with `-bg`/`-text`)
 
-## Buttons
+## Buttons and chips
 
-Intent-to-variant mapping (read the actual `buttonVariants` in `packages/emcn/src/components/button/button.tsx` for the full variant set — it exposes more than listed here):
-
-| Action | Variant |
-|--------|---------|
-| Toolbar, icon-only | `ghost` |
-| Create, save, submit | `primary` |
-| Cancel, close | `default` |
-| Delete, remove | `destructive` |
-| Selected state | `active` |
-| Toggle | `outline` |
+Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `outline`, `border`, `border-shadow`; omit `variant` for the bare chip, and `filled` is reserved for chip fields and triggers). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
 
 ## Delete/Remove Confirmations
 
-`ChipModal` `size='sm'`, title "Delete/Remove {ItemType}", destructive confirm button, plain Cancel (follow the chip footer layout in `.claude/rules/emcn-components.md`). Use `text-[var(--text-error)]` for irreversible warnings.
+Use `ChipConfirmModal` (title "Delete/Remove {ItemType}", `confirm={{ label, onClick }}`, which defaults to destructive). Keep its fail-safe `defaultAction='dismiss'` per `.claude/rules/emcn-components.md` "Modal keyboard defaults". Put irreversible-consequence copy in `text`.
 
 ## Toast
 
@@ -70,6 +61,10 @@ Intent-to-variant mapping (read the actual `buttonVariants` in `packages/emcn/sr
 ## Icons
 
 Default: `size-[14px]`. Color: `text-[var(--text-icon)]`. Scale: 14px > 16px > 12px > 20px. Use the `size-*` shorthand — flag `h-[Npx] w-[Npx]` and `h-N w-N` pairs as refactor targets.
+
+## Mobile
+
+Check at 320px and 390px with touch, then desktop and fullscreen. Use `Chip`/`ChipLink`'s `mobileIconOnly` for familiar mobile toolbar actions, preserving accessible names; keep labels for ambiguous choices. Keep navigation, primary actions, and dismissal reachable without hover or dragging; aim for 44px touch targets with compact visible icons/button faces and 16px editable text. Match behavior to the actual container or viewport breakpoint. Contain horizontal scrolling to intentional tables/code, fit overlays to the dynamic viewport, and keep the composer/actions reachable with the keyboard open. Reuse EMCN tokens and brief motion with reduced-motion support; preserve desktop geometry.
 
 ## Anti-patterns to flag
 

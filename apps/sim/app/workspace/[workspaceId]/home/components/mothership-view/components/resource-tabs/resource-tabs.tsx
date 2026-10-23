@@ -23,6 +23,7 @@ import {
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { useQueries } from '@tanstack/react-query'
+import { requestBrowserOmniboxFocus } from '@/lib/browser-agent/omnibox-focus'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import {
   openBrowserTab,
@@ -43,7 +44,6 @@ import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components
 import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
-  resourceTabWidthClass,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
@@ -203,7 +203,7 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
@@ -343,7 +343,9 @@ export function ResourceTabs({
       if (resource.type === 'browser') {
         void openBrowserTab(desktopScopeId)
           .then((state) => {
-            if (state?.activeTabId) selectResource(state.activeTabId)
+            if (!state?.activeTabId) return
+            requestBrowserOmniboxFocus(state.activeTabId, state.scopeId)
+            selectResource(state.activeTabId)
           })
           .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
         return
@@ -361,7 +363,6 @@ export function ResourceTabs({
       // The chat owner handles optimistic state and its single ordered persistence queue.
       onAddResource(resource)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [desktopScopeId, onAddResource, selectResource]
   )
 
@@ -459,7 +460,7 @@ export function ResourceTabs({
           )
           continue
         }
-        onRemoveResource(r.type, r.id, r.workspaceId)
+        onRemoveResource(r)
         if (r.type === 'browser') {
           sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
         }
@@ -475,7 +476,6 @@ export function ResourceTabs({
         anchorIdRef.current = null
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeId,
       chatId,
@@ -572,7 +572,6 @@ export function ResourceTabs({
         ).catch(() => toast.error('Could not reorder that terminal. Please try again.'))
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [chatId, desktopScopeId, resources, onReorderResources]
   )
 
@@ -604,10 +603,7 @@ export function ResourceTabs({
         onReorder={handleReorder}
         onTabDragStart={handleTabDragStart}
         variant='floating'
-        className={cn(
-          RESOURCE_HEADER_CLASSES.stripGeometry,
-          resourceTabWidthClass(resources.length)
-        )}
+        className={RESOURCE_HEADER_CLASSES.stripGeometry}
         newTabControl={
           // Offered before the chat exists too: a resource opened while composing
           // the first prompt is context for that prompt, and gating on a chat id

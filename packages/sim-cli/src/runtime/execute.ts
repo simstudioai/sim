@@ -8,11 +8,11 @@ import {
   waitWorkspaceOperation,
   workspaceWaitTimeout,
 } from '../commands/protocol/workspace-operation-wait'
-import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
 import { safeOneLine } from '../output/render'
+import { connect } from './called-operations'
 import { camel } from './derive'
 import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
 import { warnRenamedFlag } from './renamed'
@@ -130,6 +130,13 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
     const requested = lengthOf(body?.fileIds)
     if (requested === 0) return null
     return `Deleted nothing: none of the ${requested} requested ${requested === 1 ? 'file was' : 'files were'} deleted.`
+  },
+  archiveProjectFileItems: (payload, body) => {
+    const items = payload.deletedItems as { files?: unknown; folders?: unknown } | undefined
+    if (countOf(items?.files) + countOf(items?.folders) > 0) return null
+    const requested = lengthOf(body?.fileIds) + lengthOf(body?.folderIds)
+    if (requested === 0) return null
+    return `Archived nothing: none of the ${requested} requested ${requested === 1 ? 'item was' : 'items were'} archived.`
   },
   /**
    * `added` empty with `failed` populated is a call that indexed nothing. An
@@ -432,7 +439,7 @@ export async function executeOperation(
     throw new SimApiError('--all-workspaces cannot be combined with --workspace', 0)
   }
 
-  const { client, profile } = clientFrom(host)
+  const { client, profile } = connect(host)
   const hasWorkspaceField = Boolean(
     (operationSpec.query && PROFILE_INJECTED_FIELD in operationSpec.query) ||
       (operationSpec.body && PROFILE_INJECTED_FIELD in operationSpec.body)
@@ -499,8 +506,8 @@ export async function executeOperation(
       do {
         const pageSize = Math.min(DEFAULT_PAGE_SIZE, limit - rows.length)
         const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
-        const page: V2Page<unknown> = await client.request(request.path, {
-          method: operationSpec.method,
+        const page: V2Page<unknown> = await client.request(operation, {
+          params: request.params,
           headers: request.headers,
           query: paging === 'query' ? { ...request.query, ...pageLimit, cursor } : request.query,
           body:
@@ -529,8 +536,8 @@ export async function executeOperation(
 
   let result: { data?: unknown }
   try {
-    result = await client.request<{ data?: unknown }>(request.path, {
-      method: operationSpec.method,
+    result = await client.request<{ data?: unknown }>(operation, {
+      params: request.params,
       headers: request.headers,
       query: request.query,
       body: request.body,

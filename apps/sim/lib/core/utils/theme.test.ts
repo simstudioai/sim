@@ -8,7 +8,6 @@ describe('syncThemeToNextThemes', () => {
   afterEach(() => {
     localStorage.clear()
     document.documentElement.classList.remove('light', 'dark')
-    vi.restoreAllMocks()
   })
 
   it('does not dispatch or rewrite classes when the requested theme is already applied', () => {

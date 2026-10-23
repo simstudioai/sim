@@ -79,7 +79,7 @@ export const createCredentialGroupMcpConnector = defineAuthorizedWorkspaceUseCas
     resourceName: result.mcpServer.name,
     description: `Added managed MCP connector "${result.mcpServer.name}"`,
   }),
-  afterSuccess: ({ context, result }) =>
+  afterSuccess: ({ context }) =>
     applyManagedMcpConnectorEffects({
       workspaceId: context.workspaceId,
       serverIds: [],

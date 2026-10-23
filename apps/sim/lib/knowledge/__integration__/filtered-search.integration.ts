@@ -9,6 +9,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -18,7 +19,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
 import { resolveKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
-import { executeKnowledgeSearch } from '@/lib/knowledge/search/queries'
+import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 
 afterAll(async () => {
@@ -123,14 +124,14 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
     })
 
     afterAll(async () => {
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(eq(user.id, ids.aliceId))
       await db.delete(user).where(eq(user.id, ids.bobId))
     })
 
     async function search(principal: Principal, mode: 'vector' | 'hybrid' = 'vector') {
       const access = await resolveKnowledgeAccessScope(principal, { workspaceId: ids.workspaceId })
-      const rows = await executeKnowledgeSearch({
+      const { rows, retrieval } = await retrieveKnowledgeSearch({
         knowledgeBaseIds: [ids.knowledgeBaseId, secondBaseId],
         topK: 3,
         access,
@@ -145,6 +146,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' },
         ],
       })
+      expect(retrieval.status).toBe('complete')
       return rows.map((row) => fixtures.find((fixture) => fixture.embeddingId === row.id)!.name)
     }
 

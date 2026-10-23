@@ -1,15 +1,16 @@
-import { NextRequest } from 'next/server'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
   mockCheckRateLimitDirect: vi.fn(),
 }))
 
-vi.unmock('@/lib/core/utils/request')
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({ AUTH_TRUSTED_PROXIES: '10.0.0.0/8' })
+})
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { AUTH_TRUSTED_PROXIES: '10.0.0.0/8' },
-}))
+vi.unmock('@/lib/core/utils/request')
 
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: class {
@@ -28,8 +29,9 @@ describe('route rate-limit client IP resolution', () => {
   })
 
   it('keys the bucket on the first untrusted hop from the right', async () => {
-    const request = new NextRequest('http://localhost/api/test', {
+    const request = createMockRequest({
       method: 'POST',
+      url: 'http://localhost/api/test',
       headers: {
         'x-forwarded-for': '198.51.100.20, 203.0.113.30, 10.0.0.12',
       },

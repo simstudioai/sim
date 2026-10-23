@@ -9,12 +9,12 @@ export interface NetSuiteAuthParams {
   instanceUrl?: string
 }
 
-export interface NetSuitePaginationParams {
+interface NetSuitePaginationParams {
   limit?: number
   offset?: number
 }
 
-export interface NetSuiteRecordQueryParams {
+interface NetSuiteRecordQueryParams {
   fields?: string
   expand?: string
   expandSubResources?: boolean
@@ -143,7 +143,7 @@ export interface NetSuiteExecuteDatasetParams extends NetSuiteAuthParams, NetSui
 
 export interface NetSuiteListRecordTypesParams extends NetSuiteAuthParams {}
 
-export type NetSuiteMetadataFormat = 'default' | 'openapi' | 'json_schema'
+type NetSuiteMetadataFormat = 'default' | 'openapi' | 'json_schema'
 
 export interface NetSuiteGetRecordMetadataParams extends NetSuiteAuthParams {
   recordType: string

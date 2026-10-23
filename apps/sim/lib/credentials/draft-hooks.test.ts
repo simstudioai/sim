@@ -6,6 +6,7 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/oauth/terminal-errors', () => ({ clearDeadFlag: mocks.clearDeadFlag }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   handleCreateCredentialFromDraft,
@@ -36,6 +37,9 @@ describe('handleCreateCredentialFromDraft', () => {
     dbChainMockFns.values.mockRejectedValueOnce(new Error('Failed query', { cause }))
     queueTableRows(schemaMock.credential, [
       { id: 'credential-existing', displayName: 'Existing Gmail' },
+    ])
+    queueTableRows(schemaMock.account, [
+      { providerId: 'google-email', providerAccountId: 'subject' },
     ])
 
     await handleCreateCredentialFromDraft({
@@ -98,6 +102,7 @@ describe('handleReconnectCredential', () => {
       { id: 'credential-1', accountId: null, displayName: 'Renamed Gmail' },
     ])
     queueTableRows(schemaMock.credential, [])
+    queueTableRows(schemaMock.account, [{ providerId: 'gmail', providerAccountId: 'subject-new' }])
     queueTableRows(schemaMock.account, [{ providerId: 'gmail', accountId: 'subject-new' }])
 
     await handleReconnectCredential({

@@ -6,6 +6,7 @@ import type {
   GreenhouseUserRef,
 } from '@/tools/greenhouse/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const greenhouseListJobStagesTool: ToolConfig<
   GreenhouseListJobStagesParams,
@@ -45,7 +46,9 @@ export const greenhouseListJobStagesTool: ToolConfig<
 
   request: {
     url: (params: GreenhouseListJobStagesParams) => {
-      const url = new URL(`https://harvest.greenhouse.io/v1/jobs/${params.jobId.trim()}/stages`)
+      const url = new URL(
+        `https://harvest.greenhouse.io/v1/jobs/${safeUrlPathSegment(params.jobId, 'jobId')}/stages`
+      )
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))
       return url.toString()

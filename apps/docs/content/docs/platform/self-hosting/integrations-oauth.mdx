@@ -1,128 +1,283 @@
 ---
-title: Integrations & OAuth
-description: Register OAuth apps so your users can connect Slack, Google, Jira, and every other integration
+title: Integrations and OAuth
+description: Configure provider apps, callbacks, and credentials for your deployment
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { FAQ } from '@/components/ui/faq'
-import { Image } from '@/components/ui/image'
+import { Tabs, Tab } from '@/components/ui/tabs'
 
-<Callout type="warn">
-  **OAuth integrations need your own provider application on a self-hosted deployment.** Configure the OAuth services your team uses; API-key integrations can instead use keys supplied in their blocks. Users will see the connector in the UI, click "Connect", and get an error from the provider until the corresponding `*_CLIENT_ID` and `*_CLIENT_SECRET` are set.
-</Callout>
+Register provider apps for the OAuth integrations your team uses. API-key blocks take member-supplied keys; service-account connections have their own configuration. Sim login providers are separate from integration connections, even when they share client credentials.
 
-You only need to register the services your team actually uses. One OAuth app covers every Sim connector that shares its credential — a single Google app serves Gmail, Drive, Sheets, Calendar, Docs, Forms, BigQuery, and more.
+## Prerequisites
 
-## How it works
+- Serve Sim at a stable public origin and set `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` to match.
+- Have permission to register an app and grant the required provider permissions.
+- Use the deployment's secret store or env files for client secrets.
+- For webhook triggers, make Sim reachable from the provider's servers. Polling triggers instead require the scheduler.
 
-Each connector has a **provider ID**. When a user connects an account, Sim redirects them to the provider, and the provider redirects back to:
+Each OAuth connector has a provider ID. Its callback is:
 
-```
+```text
 https://<your-sim-domain>/api/auth/oauth2/callback/<provider-id>
 ```
 
-That URL is derived from `NEXT_PUBLIC_APP_URL`, so set it correctly before registering anything — the redirect URI you register with the provider must match byte for byte, including scheme and the absence of a trailing slash.
+Register the exact scheme, hostname, port, and path. Use no trailing slash. A provider that permits several callbacks can share one app across connectors or environments; GitHub Search's installation setup requires a separate app per deployment origin.
 
-<Callout type="info">
-  Most providers let you register several redirect URIs on one app. Register your production URL and any staging URL together so one OAuth app serves both environments.
-</Callout>
+## Set up an OAuth client [#setup]
 
-## Setup
+1. Set your public origin:
 
-<Steps>
+   ```bash
+   NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+   BETTER_AUTH_URL=https://sim.yourdomain.com
+   ```
 
-<Step>
+2. Register the provider app and each connector callback you need. Configure provider-side APIs, permissions, consent, and distribution using the sections below.
+3. Store the matching client ID/secret and restart the app. With Compose, recreate the app container after editing `.env`; a running process does not reread credentials.
+4. Connect an account from the integration and confirm it returns to Sim with the account listed. Test an operation using that connection.
 
-### Confirm your public URL
+For Kubernetes, use the configured [secret strategy](/platform/self-hosting/kubernetes#secret-stores): inline `app.env` becomes a chart-managed Secret; an existing Secret must contain the standard env keys; ESO requires `externalSecrets.remoteRefs.app` mappings and suppresses the inline Secret. Do not commit credentials to a values file. Explicit `app.env` credentials in existing-Secret mode are inlined into pod specs.
 
-```bash
-NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
-BETTER_AUTH_URL=https://sim.yourdomain.com
-```
+When changing an organization's saved OAuth provider configuration or scopes, an organization admin updates that configuration and affected members reconnect. Changing server variables alone does not replace an organization's saved provider settings.
 
-Both must be your real public origin. If these are wrong, every OAuth round-trip fails with a redirect-URI mismatch.
+## Provider reference
 
-</Step>
+Every provider ID below uses the callback format above unless its section specifies another flow. Integration references contain operation-specific requirements and their **OAuth Scopes** sections.
 
-<Step>
+### Google
 
-### Register an app with the provider
+Use one web OAuth client for the enabled Google services. The same client variables can also provide **Sign in with Google**; register `/api/auth/callback/google` separately if you use it.
 
-In the provider's developer console, create an OAuth 2.0 application. Register the redirect URI(s) for every Sim connector you want from that provider — one line per provider ID from the tables below.
+| Environment variables | Provider IDs |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `google-email`, `google-drive`, `google-sheets`, `google-docs`, `google-calendar`, `google-contacts`, `google-forms`, `google-tasks`, `google-meet`, `google-groups`, `google-chat`, `google-ads`, `google-bigquery`, `google-vault`, `vertex-ai` |
 
-For a Google app covering Gmail and Drive, for example, you register both:
+1. Select your project in [Google Cloud Console](https://console.cloud.google.com/). Under **APIs & Services → Library**, enable the APIs for your services. Gmail, Drive, Calendar, and Meet use **Gmail API**, **Google Drive API**, **Google Calendar API**, and **Google Meet REST API**, respectively. For native Google Sheets reads through Drive, also enable the **Google Sheets API**; see [Google's API enablement instructions](https://developers.google.com/workspace/sheets/api/quickstart/nodejs#enable_the_api).
+2. Open **Google Auth platform → Branding** and enter the app name and contact details. Under **Audience**, choose **Internal** only for your Workspace organization; otherwise choose **External** and add test users while testing.
+3. Configure **Data Access → Add or remove scopes** for external use. Sensitive/restricted scopes can require provider verification. Follow [Google's consent guidance](https://developers.google.com/workspace/guides/configure-oauth-consent).
+4. Open **Google Auth platform → Clients → Create client**, select **Web application**, and add each enabled connector's callback under **Authorized redirect URIs**. Add callbacks to an existing client if the deployment already uses one. See [Google web credentials](https://developers.google.com/workspace/guides/create-credentials#web-application).
+5. Store `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, restart Sim, and connect each service separately. Workspace administrators may need to approve the app.
 
-```
+For example, Gmail and Drive require both callbacks:
+
+```text
 https://sim.yourdomain.com/api/auth/oauth2/callback/google-email
 https://sim.yourdomain.com/api/auth/oauth2/callback/google-drive
 ```
 
-Scopes are requested by Sim at authorization time; you generally do not need to pre-declare them, but Google and Microsoft require you to enable the corresponding APIs on the project/app first (for example Gmail API, Drive API, Calendar API).
+#### Member-account scopes
 
-</Step>
+These are the full Google member scope sets for the Search services below. Their connections also support workflow actions, so requested scopes can be broader than Search's read-only operations. The same Google identity does not imply the same grant for another service.
 
-<Step>
+<Tabs items={['Gmail', 'Drive', 'Calendar', 'Meet']}>
+<Tab value="Gmail">
 
-### Set the credentials
+Callback: `/api/auth/oauth2/callback/google-email`.
 
-Add the client ID and secret to the app's environment. In Kubernetes they go under `app.env` — the chart writes every key there into a chart-managed Secret — but supply the values through External Secrets or a pre-created Secret rather than committing them to a values file:
-
-```yaml
-app:
-  env:
-    GOOGLE_CLIENT_ID: "..."
-    GOOGLE_CLIENT_SECRET: "..."
-    SLACK_CLIENT_ID: "..."
-    SLACK_CLIENT_SECRET: "..."
+```text
+openid
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/gmail.send
+https://www.googleapis.com/auth/gmail.modify
+https://www.googleapis.com/auth/gmail.labels
 ```
 
-Restart the app. Credentials are read at startup — a running pod will not pick up new ones.
+</Tab>
+<Tab value="Drive">
 
-</Step>
+Callback: `/api/auth/oauth2/callback/google-drive`.
 
-<Step>
+```text
+openid
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/drive.file
+https://www.googleapis.com/auth/drive
+```
 
-### Verify
+</Tab>
+<Tab value="Calendar">
 
-Open a workflow, add the integration's block, and connect an account. A successful round-trip returns you to Sim with the account listed. A redirect-URI mismatch is the failure you will hit most; compare the registered URI against `NEXT_PUBLIC_APP_URL` character by character.
+Callback: `/api/auth/oauth2/callback/google-calendar`.
 
-</Step>
+```text
+openid
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/calendar
+```
 
-</Steps>
+</Tab>
+<Tab value="Meet">
 
-## Provider reference
+Callback: `/api/auth/oauth2/callback/google-meet`.
 
-Every provider ID below maps to the redirect URI `https://<your-domain>/api/auth/oauth2/callback/<provider-id>`.
+```text
+openid
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/meetings.space.created
+https://www.googleapis.com/auth/meetings.space.readonly
+```
 
-### Google
+</Tab>
+</Tabs>
 
-One OAuth client in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) covers all of these. Enable the matching API for each connector you use.
-
-| Environment variables | Provider IDs |
-|---|---|
-| `GOOGLE_CLIENT_ID`<br />`GOOGLE_CLIENT_SECRET` | `google-email`, `google-drive`, `google-sheets`, `google-docs`, `google-calendar`, `google-contacts`, `google-forms`, `google-tasks`, `google-meet`, `google-groups`, `google-chat`, `google-ads`, `google-bigquery`, `google-vault`, `vertex-ai` |
-
-The same variables also power "Sign in with Google". See [Authentication](/platform/self-hosting/authentication).
+Other Google connectors declare their current scopes in their integration reference. Google Search service-account sources use separate domain-wide delegation scopes; those do not replace each member's OAuth connection. Configure delegation using the [Gmail](/search/gmail), [Drive](/search/google-drive), and [Calendar](/search/google-calendar) source guides. Meet member Search does not require a service account.
 
 ### Microsoft
 
-One app registration in [Entra ID](https://entra.microsoft.com) covers all of these.
+Use one [Entra app registration](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) for the enabled Microsoft connectors:
 
 | Environment variables | Provider IDs |
-|---|---|
-| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-word`, `microsoft-planner`, `microsoft-dataverse`, `microsoft-ad` |
+| --- | --- |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-word`, `microsoft-planner`, `microsoft-powerbi`, `microsoft-dataverse`, `microsoft-ad`, `microsoft-intune` |
 
-The same variables also power "Sign in with Microsoft".
+1. Create or select the app under **Entra ID → App registrations**. Choose the account types appropriate for the connectors you will use.
+2. Under **Authentication**, register each connector callback as a **Web** redirect URI. If using Sim login, also register `/api/auth/callback/microsoft`.
+3. Under **API permissions → Add a permission**, select the resource API and its **Delegated permissions**. Configure the scopes below; grant tenant admin consent when the permission requires it. These are member connections, not application/service-principal permissions. See [Microsoft API permissions](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis).
+4. Create a client secret, store its value as `MICROSOFT_CLIENT_SECRET`, and store the application client ID as `MICROSOFT_CLIENT_ID`. Restart Sim and connect each service.
+
+Every connector below requests `openid`, `profile`, `email`, and `offline_access`, plus its resource scopes:
+
+| Provider ID | Additional delegated scopes |
+| --- | --- |
+| `outlook` | `Mail.ReadWrite`, `Mail.ReadBasic`, `Mail.Read`, `Mail.Send`, `Calendars.ReadWrite` |
+| `onedrive` | `Files.Read`, `Files.ReadWrite` |
+| `sharepoint` | `Sites.Read.All`, `Sites.ReadWrite.All`, `Sites.Manage.All` |
+| `microsoft-teams` | `User.Read`, `Chat.Read`, `Chat.ReadWrite`, `Chat.ReadBasic`, `ChatMessage.Send`, `Channel.ReadBasic.All`, `ChannelMessage.Send`, `ChannelMessage.Read.All`, `ChannelMessage.ReadWrite`, `ChannelMember.Read.All`, `Group.Read.All`, `Group.ReadWrite.All`, `Team.ReadBasic.All`, `TeamMember.Read.All`, `Files.Read`, `Sites.Read.All` |
+| `microsoft-excel` | `Files.Read`, `Files.ReadWrite` |
+| `microsoft-word` | `Files.Read`, `Files.ReadWrite`, `Files.Read.All`, `Files.ReadWrite.All` |
+| `microsoft-planner` | `Group.ReadWrite.All`, `Group.Read.All`, `Tasks.ReadWrite` |
+| `microsoft-powerbi` | `https://analysis.windows.net/powerbi/api/Workspace.Read.All`, `https://analysis.windows.net/powerbi/api/Report.Read.All`, `https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All` |
+| `microsoft-dataverse` | `https://dynamics.microsoft.com/user_impersonation` |
+| `microsoft-ad` | `User.ReadWrite.All`, `Group.ReadWrite.All`, `GroupMember.ReadWrite.All`, `LicenseAssignment.Read.All`, `LicenseAssignment.ReadWrite.All`, `UserAuthenticationMethod.ReadWrite.All`, `AuditLog.Read.All`, `Application.Read.All`, `AppRoleAssignment.ReadWrite.All`, `RoleManagement.ReadWrite.Directory`, `Device.Read.All`, `Policy.Read.All` |
+| `microsoft-intune` | `DeviceManagementManagedDevices.Read.All`, `DeviceManagementConfiguration.Read.All`, `DeviceManagementManagedDevices.PrivilegedOperations.All` |
+
+For Power BI, use its Web callback and organizational account from the home tenant. The `https://analysis.windows.net/powerbi/api/` prefix is part of the requested resource scopes. Power BI uses a separate connection from Microsoft Graph; Credential Groups and service-principal authentication are unsupported in this version. See [Power BI](/integrations/powerbi).
+
+For Dataverse/Dynamics 365, add **Dynamics CRM → Delegated permissions → user_impersonation**. The table shows the legacy Dynamics resource scope; environment-specific Dataverse connections request that environment's resource scope. Azure AD, Intune, Teams, and Planner permissions can require tenant-admin consent. Reconnect existing accounts after adding scopes.
+
+### Atlassian
+
+Configure Confluence and Jira with their respective OAuth credentials and callbacks. A personal/member OAuth app is separate from an Atlassian service-account credential used to restrict a Search source.
+
+| Service | Environment variables | Callback |
+| --- | --- | --- |
+| Confluence | `CONFLUENCE_CLIENT_ID` / `CONFLUENCE_CLIENT_SECRET` | `/api/auth/oauth2/callback/confluence` |
+| Jira | `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET` | `/api/auth/oauth2/callback/jira` |
+
+1. In the [Atlassian developer console](https://developer.atlassian.com/console/myapps/), create or select an **OAuth 2.0 integration**.
+2. Under **Authorization → OAuth 2.0 (3LO)**, register the callback for the service using the exact Sim origin.
+3. Under **Permissions**, add the corresponding Confluence/Jira API scopes below, including **User Identity API → read:me**. Sim requests `offline_access` for refresh tokens.
+4. Enable sharing under **Distribution** so members other than the app owner can connect.
+5. Store the service's client ID/secret from **Settings**, restart Sim, and connect from **Integrations**, selecting the intended site. After changing client/scopes, update the organization's provider configuration and reconnect affected accounts.
+
+These are the full member connection scope sets. They include workflow writes; Search itself uses read operations. Jira's list includes Service Management and Assets permissions. Service-account read scopes from Search do not replace this app configuration. See [Confluence OAuth](https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/) and [Jira OAuth](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/).
+
+<Tabs items={['Confluence', 'Jira']}>
+<Tab value="Confluence">
+
+```text
+read:confluence-content.all
+read:confluence-space.summary
+read:space:confluence
+write:confluence-content
+write:confluence-space
+write:confluence-file
+read:page:confluence
+write:page:confluence
+read:comment:confluence
+write:comment:confluence
+delete:comment:confluence
+delete:attachment:confluence
+delete:page:confluence
+read:label:confluence
+write:label:confluence
+read:attachment:confluence
+write:attachment:confluence
+search:confluence
+read:me
+offline_access
+read:hierarchical-content:confluence
+read:content.metadata:confluence
+read:user:confluence
+read:confluence-user
+read:group:confluence
+read:task:confluence
+write:task:confluence
+write:space:confluence
+delete:space:confluence
+read:blogpost:confluence
+write:blogpost:confluence
+delete:blogpost:confluence
+read:content.property:confluence
+write:content.property:confluence
+read:space.property:confluence
+write:space.property:confluence
+read:space.permission:confluence
+```
+
+</Tab>
+<Tab value="Jira">
+
+```text
+read:jira-user
+read:jira-work
+write:jira-work
+read:me
+offline_access
+read:issue.vote:jira
+read:user:jira
+delete:issue:jira
+delete:comment:jira
+delete:attachment:jira
+delete:issue-worklog:jira
+delete:issue-link:jira
+read:servicedesk-request
+write:servicedesk-request
+manage:servicedesk-customer
+read:servicedesk:jira-service-management
+read:requesttype:jira-service-management
+read:request:jira-service-management
+write:request:jira-service-management
+read:request.comment:jira-service-management
+write:request.comment:jira-service-management
+read:servicedesk.customer:jira-service-management
+write:servicedesk.customer:jira-service-management
+read:organization:jira-service-management
+write:organization:jira-service-management
+read:servicedesk.organization:jira-service-management
+write:servicedesk.organization:jira-service-management
+read:queue:jira-service-management
+read:request.sla:jira-service-management
+read:request.status:jira-service-management
+write:request.status:jira-service-management
+read:request.participant:jira-service-management
+write:request.participant:jira-service-management
+read:request.approval:jira-service-management
+write:request.approval:jira-service-management
+read:cmdb-object:jira
+write:cmdb-object:jira
+delete:cmdb-object:jira
+read:cmdb-schema:jira
+read:cmdb-type:jira
+read:cmdb-attribute:jira
+```
+
+</Tab>
+</Tabs>
 
 ### GitHub Search
+
 
 Self-hosted GitHub Search uses a GitHub App for personal account connections and optional organization repository boundaries. Register your own App and configure the server variables below. Sim Cloud users use the [GitHub Search setup flow](/search/github#add-a-repository) directly.
 
 <Steps>
 <Step>
 
-#### Register the App
+#### Register the app
 
 For a team, open **Your organizations → Settings** for the organization that will own the App. For a personal App, open your account's **Settings**. Then choose **Developer settings → GitHub Apps → New GitHub App**.
 
@@ -148,9 +303,9 @@ Replace `<NEXT_PUBLIC_APP_URL>` with your configured public origin, such as `htt
 
 Authorization starts from Sim so the callback can finish the pending connection. The **Setup URL** returns installation approval to that same setup attempt. Keep **Request user authorization (OAuth) during installation** disabled: Sim starts account authorization when it is needed, before installation. See GitHub's [Setup URL guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url).
 
-For an existing deployment, deploy the application with the setup callback before changing the App registration. Use a separate GitHub App for each deployment origin, such as staging and production, so installation approval returns to the instance that started it. Keep the existing user authorization callback above unchanged.
+Use a separate GitHub App per deployment origin so installation approval returns to the instance that started it. Before changing an existing App registration, deploy a Sim version that serves the setup callback; retain its user authorization callback.
 
-Live Search queries GitHub's API on demand and does not need a webhook. Ordinary knowledge-base connectors and explicitly restored legacy Search use their separate polling path.
+Live Search queries GitHub on demand and does not need a webhook. Ordinary GitHub knowledge-base connectors have their own polling/indexing path.
 
 </Step>
 <Step>
@@ -159,13 +314,11 @@ Live Search queries GitHub's API on demand and does not need a webhook. Ordinary
 
 Expand **Permissions → Repository permissions**. Set **Contents**, **Issues**, and **Pull requests** to **Read-only**; leave mandatory **Metadata** at **Read-only**. Contents supports code reads; Issues and Pull requests allow the connected member’s App user token to search and read private issues and pull requests.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-repository-permissions.jpg" alt="GitHub repository permissions with Contents set to Read-only and Metadata shown as mandatory Read-only" width={768} height={929} />
 
 Expand **Account permissions** and set **Email addresses → Access: Read-only**.
 
 Expand **Organization permissions** and set **Members → Access: Read-only**. Sim uses this to verify that the person connecting an organization installation is an organization owner. Existing installations must approve this permission update; repository read access alone cannot verify ownership.
 
-<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/github-app-email-permission.jpg" alt="GitHub account permissions with only Email addresses selected for Read-only access" width={768} height={929} />
 
 | Permission area | Permission | Access |
 |---|---|---|
@@ -205,7 +358,7 @@ The private key must include its PEM header, footer, and contents. Sim accepts a
 
 Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
 
-The live Search application needs these five variables. If a worker also indexes ordinary GitHub knowledge bases, or Search has explicitly reverted to `SIM_SEARCH_LIVE=false`, configure the variables in that worker’s matching environment too. Updating the app’s secret store does not update a separately configured worker. Live Search does not schedule a GitHub indexing worker.
+Configure all five variables on the app. If a separate worker indexes GitHub knowledge bases, configure its matching environment too; app secret changes do not update a separate worker. Live Search does not use an indexing worker.
 
 The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
 
@@ -213,7 +366,7 @@ Keep **Expire user authorization tokens** enabled so Sim receives the refresh to
 
 Complete the installation through [the GitHub Search source setup](/search/github#add-a-repository).
 
-If you replace a deployment's GitHub App, an organization admin selects **Settings → Credential Groups → Providers → Update configurations**. This applies the deployment's current App configuration to all existing providers while preserving their option IDs. Accounts whose App configuration changed must reconnect. Then reconnect personal GitHub accounts and connect an installation of the new App. Reconnecting alone cannot update the organization's saved App configuration.
+If you replace a deployment's GitHub App, an organization admin selects **Settings → Credential Groups → Integrations → Update configurations**. This applies the deployment's current App configuration to all existing providers while preserving their option IDs. Accounts whose App configuration changed must reconnect. Then reconnect personal GitHub accounts and connect an installation of the new App. Reconnecting alone cannot update the organization's saved App configuration.
 
 </Step>
 </Steps>
@@ -222,7 +375,8 @@ If GitHub rejects `redirect_uri`, compare the App's registered callback with `NE
 
 GitHub workflow blocks and knowledge-base token connections continue to use personal access tokens.
 
-### Everything else
+### Other providers [#everything-else]
+
 
 | Service | Environment variables | Provider ID |
 |---|---|---|
@@ -236,6 +390,7 @@ GitHub workflow blocks and knowledge-base token connections continue to use pers
 | Monday | `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET` | `monday` |
 | Airtable | `AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET` | `airtable` |
 | Bitbucket | `BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET` | `bitbucket` |
+| Help Scout | `HELPSCOUT_CLIENT_ID` / `HELPSCOUT_CLIENT_SECRET` | `helpscout` |
 | HubSpot | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | `hubspot` |
 | Salesforce | `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | `salesforce` |
 | Pipedrive | `PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET` | `pipedrive` |
@@ -251,9 +406,15 @@ GitHub workflow blocks and knowledge-base token connections continue to use pers
 | WordPress | `WORDPRESS_CLIENT_ID` / `WORDPRESS_CLIENT_SECRET` | `wordpress` |
 | LinkedIn | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | `linkedin` |
 | X | `X_CLIENT_ID` / `X_CLIENT_SECRET` | `x` |
+| Ramp | `RAMP_CLIENT_ID` / `RAMP_CLIENT_SECRET` | `ramp` |
 | Reddit | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | `reddit` |
 | Spotify | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | `spotify` |
 | TikTok | `TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET` | `tiktok` |
+
+For Help Scout, create an app under **Your Profile > My Apps** and set its redirection URL to
+`https://<your-domain>/api/auth/oauth2/callback/helpscout`. The App ID and App Secret are the client
+ID and secret. Help Scout has no OAuth scopes: a connection acts with the permissions of the user who
+authorizes it.
 
 For Bitbucket, create an OAuth consumer and register
 `https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes
@@ -263,21 +424,33 @@ read/write (`account`, `repository`, `repository:write`, `pullrequest`, `pullreq
 `pipeline`, `pipeline:write`, and `webhook`). The webhook permission is required for automatic
 trigger subscription management.
 
+Some providers need more setup than a client ID, secret, and redirect URI:
+
+| Service | Extra setup |
+|---|---|
+| Asana | Sim requests the `default` scope. Enable **Full permissions** under the app's OAuth settings, or Asana rejects the authorization. |
+| Attio | Enable the scopes listed on the [Attio page](/integrations/attio#oauth-scopes) in the app's Developer console; Attio grants scopes from the app, not the authorization request. |
+| Cal.com | Sim does not send a `scope` parameter, so connecting works only with a legacy Cal.com OAuth client: one with no scopes configured, or only `READ_BOOKING` and `READ_PROFILE`. Cal.com requires at least one scope on new clients and rejects their authorization without a `scope` parameter. |
+| DocuSign | `DOCUSIGN_AUTH_HOST` defaults to the demo host `account-d.docusign.com`. Set it to `account.docusign.com` for production accounts. |
+| Microsoft | Azure AD, Teams, and Planner request permissions that need tenant admin consent. For Dataverse and Dynamics 365, add the **Dynamics CRM** API's delegated `user_impersonation` permission. |
+| Notion | Enable the integration's **Read content**, **Update content**, **Insert content**, **Read comments**, **Insert comments**, and **User information with email addresses** capabilities. |
+| Zoho Desk and ManageEngine | Both use one Zoho client. Register both `zoho-desk` and `manageengine-sdp` redirect URIs on it if you use both. |
+
 ### Services with a different flow
 
 | Service | Configuration | Notes |
 |---|---|---|
 | **Instagram** | `INSTAGRAM_CLIENT_ID` / `INSTAGRAM_CLIENT_SECRET` | Instagram App ID/Secret from the Meta App Dashboard (Instagram → API setup with Instagram login). Redirect URI: `/api/auth/oauth2/callback/instagram`. **Publishing requires cloud object storage** — Meta fetches a public HTTPS URL, so local-disk storage will not work. |
+| **QuickBooks** | Configure client ID, client secret, environment, and optional webhook verifier token on the connection/provider configuration | Callback: `/api/auth/oauth2/callback/quickbooks`. This uses per-connection app configuration rather than deployment-wide client env variables. |
 | **Shopify** | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | Redirect URI: `/api/auth/oauth2/callback/shopify`. Per-shop install flow. |
-| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. |
+| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. Add your Sim origin (`NEXT_PUBLIC_APP_URL`) to the API key's allowed origins, or Trello will not redirect back. |
 
 ## Non-OAuth integration credentials
 
+
 Many blocks authenticate with an API key the user pastes into the block, and need nothing from you.
 
-<Callout type="warn">
-  Sim also has a "hosted key" mechanism, configured with the `{PREFIX}_API_KEY_COUNT` + `{PREFIX}_API_KEY_1..N` variables below, that lets the platform supply a key so users do not have to. **The injection path is gated on the deployment being Sim's hosted platform** (`isHosted`, derived from the app hostname), so on a self-hosted instance these variables do not remove the need for users to bring their own key. Set them only if you are running a fork that has adapted that gate.
-</Callout>
+Sim also has a "hosted key" mechanism, configured with the `{PREFIX}_API_KEY_COUNT` + `{PREFIX}_API_KEY_1..N` variables below, that lets the platform supply a key so users do not have to. **The injection path is gated on the deployment being Sim's hosted platform** (`isHosted`, derived from the app hostname), so on a self-hosted instance these variables do not remove the need for users to bring their own key. Treat these as hosted-platform configuration; they do not enable platform-supplied integration keys on a standard production self-hosted instance.
 
 The variables, for reference:
 
@@ -297,6 +470,7 @@ Providers that take a `_COUNT` plus numbered keys distribute requests round-robi
 
 ## Triggers that need extra configuration
 
+
 Webhook triggers receive callbacks from the provider and must be able to verify them:
 
 | Variable | Needed for |
@@ -308,9 +482,19 @@ When enabling the native Sim Slack trigger, configure all three variables togeth
 
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 
-<FAQ items={[
-  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for OAuth integrations your team uses. API-key integrations do not require an OAuth application. If an OAuth provider's credentials are unset, its connector cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 9, so most deployments need only a handful of registrations."},
-  { question: "Users get a redirect_uri_mismatch error. What is wrong?", answer: "Almost always NEXT_PUBLIC_APP_URL does not match the URI registered with the provider. Check for http vs https, a trailing slash, an apex-vs-www difference, or a port. The URI Sim sends is built from NEXT_PUBLIC_APP_URL at request time."},
-  { question: "Can I use the same OAuth app for staging and production?", answer: "Yes, if the provider allows multiple redirect URIs on one app — register both hosts. Providers that allow only one URI need a separate app per environment."},
-  { question: "Why does the Instagram integration need cloud storage?", answer: "Meta fetches media from a public HTTPS URL rather than accepting an upload, so published files must live in S3, Azure Blob, or GCS. Local-disk storage cannot serve them. Gmail attachments and other integrations do not have this constraint." },
-]} />
+## Troubleshooting
+
+| Failure | Check |
+| --- | --- |
+| Callback/redirect URI mismatch | Compare scheme, hostname, port, and path with the callback derived from `NEXT_PUBLIC_APP_URL`. |
+| Only the provider app owner can connect | Check audience/test users, app distribution, and provider approval. |
+| A new scope is missing | Configure the provider permission, update saved organization provider configuration where applicable, then reconnect the account. |
+| Instagram publishing cannot fetch media | Configure cloud object storage with a publicly reachable HTTPS media URL. This is a publishing requirement; Gmail attachments do not have the same constraint. |
+| Polling trigger stays idle | Verify the scheduler and `CRON_SECRET`; a connected OAuth account does not prove scheduling works. |
+
+## Related docs
+
+- [Authentication](/platform/self-hosting/authentication)
+- [Connected accounts](/platform/connected-accounts)
+- [Search](/search)
+- [Background jobs](/platform/self-hosting/background-jobs)

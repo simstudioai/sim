@@ -1,40 +1,23 @@
 import type {
   DelegatedPrincipal,
-  PersonalApiKeyPrincipal,
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 
-const mocks = vi.hoisted(() => ({
-  routingEnabled: vi.fn(() => false),
-  resolveRoute: vi.fn(async () => ({ kind: 'direct' as const })),
-  events: [] as string[],
-  recordAudit: vi.fn(() => mocks.events.push('audit')),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
-vi.mock('@/lib/core/network/config.server', () => ({
-  isOutboundRoutingEnabled: mocks.routingEnabled,
-  resolveOutboundRoute: mocks.resolveRoute,
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPDATED: 'file.updated' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mocks.recordAudit,
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
@@ -42,6 +25,17 @@ import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/autho
 import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
+
+const mocks = {
+  routingEnabled: networkConfigMockFns.mockIsOutboundRoutingEnabled,
+  resolveRoute: networkConfigMockFns.mockResolveOutboundRoute,
+  events: [] as string[],
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+mocks.recordAudit.mockImplementation(() => {
+  mocks.events.push('audit')
+})
 
 const operation = defineWorkspaceOperation({
   id: 'test.rename',
@@ -98,11 +92,7 @@ const canonicalContext: TestContext = {
   canonicalResourceId: 'resource-1',
 }
 
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal()
 
 describe('defineAuthorizedWorkspaceUseCase', () => {
   beforeEach(() => {
@@ -155,11 +145,7 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       },
     })
 
-    const disallowedPrincipal: PersonalApiKeyPrincipal = {
-      kind: 'personal_api_key',
-      userId: 'user-1',
-      keyId: 'key-1',
-    }
+    const disallowedPrincipal = createPersonalApiKeyPrincipal()
     await expect(
       useCase.execute({ principal: disallowedPrincipal, input: { resourceId: 'resource-1' } })
     ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
@@ -435,11 +421,7 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
     })
 
     await useCase.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       input: { resourceId: 'resource-1' },
     })
 

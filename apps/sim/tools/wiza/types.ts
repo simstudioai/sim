@@ -13,12 +13,12 @@ export interface WizaGetCreditsResponse extends ToolResponse {
   }
 }
 
-export interface WizaIncludeExcludeFilter {
+interface WizaIncludeExcludeFilter {
   v: string
   s: 'i' | 'e'
 }
 
-export interface WizaLocationFilter {
+interface WizaLocationFilter {
   v: string | { country?: string; state?: string; city?: string }
   b: 'country' | 'state' | 'city'
   s: 'i' | 'e'
@@ -166,9 +166,3 @@ export interface WizaIndividualRevealData {
 export interface WizaIndividualRevealResponse extends ToolResponse {
   output: WizaIndividualRevealData
 }
-
-export type WizaResponse =
-  | WizaGetCreditsResponse
-  | WizaProspectSearchResponse
-  | WizaCompanyEnrichmentResponse
-  | WizaIndividualRevealResponse

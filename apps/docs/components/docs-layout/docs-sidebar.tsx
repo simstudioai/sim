@@ -13,6 +13,7 @@ import {
   SidebarItem,
   SidebarSeparator,
 } from '@/components/docs-layout/sidebar-components'
+import { DOCS_SECTIONS, getDocsSection } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
 
 interface SidebarTreeProps {
@@ -67,6 +68,7 @@ export function DocsSidebar() {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const { open, setOpen } = useSidebar()
   const mobile = useMediaQuery('(width < 1024px)')
+  const section = getDocsSection(usePathname())
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -91,26 +93,34 @@ export function DocsSidebar() {
         }}
         className='fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-[85%] max-w-[380px] border-[var(--border)] border-l bg-[var(--surface-1)] p-0 text-[var(--text-body)] backdrop:bg-black/30 backdrop:backdrop-blur-xs open:flex open:flex-col'
       >
-        <div className='flex shrink-0 items-center justify-between px-4 pt-4 pb-2'>
-          <span className='text-[var(--text-primary)] text-sm'>Documentation</span>
-          <Chip aria-label='Close navigation' leftIcon={X} onClick={() => setOpen(false)} />
+        <div className='shrink-0 border-[var(--border)] border-b'>
+          <div className='flex h-12 items-center justify-between gap-3 px-4'>
+            <span className='text-[var(--text-primary)] text-sm'>Documentation</span>
+            <Chip
+              aria-label='Close navigation'
+              leftIcon={X}
+              mobileCompact
+              onClick={() => setOpen(false)}
+            />
+          </div>
+          <nav
+            aria-label='Documentation sections'
+            className='flex flex-wrap items-center gap-px bg-transparent! px-2 pb-2'
+          >
+            {DOCS_SECTIONS.map((item) => (
+              <ChipLink
+                key={item.slug}
+                href={item.href}
+                active={section === item.slug}
+                aria-current={section === item.slug ? 'page' : undefined}
+                mobileCompact
+                onNavigate={() => setOpen(false)}
+              >
+                {item.compactLabel}
+              </ChipLink>
+            ))}
+          </nav>
         </div>
-        <nav
-          aria-label='Documentation sections'
-          className='flex shrink-0 flex-wrap gap-px px-2 pb-2'
-        >
-          {[
-            ['Docs', '/introduction'],
-            ['API Reference', '/api-reference/getting-started'],
-            ['CLI', '/cli'],
-            ['MCP', '/mcp'],
-            ['Academy', '/academy'],
-          ].map(([label, href]) => (
-            <ChipLink key={href} href={href} onNavigate={() => setOpen(false)}>
-              {label}
-            </ChipLink>
-          ))}
-        </nav>
         {open && <SidebarScrollArea />}
       </dialog>
     )

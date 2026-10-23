@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
+import { isJsonWithinByteLimit, stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 
 describe('bounded JSON', () => {
   it.each([
@@ -13,11 +13,14 @@ describe('bounded JSON', () => {
     const bytes = Buffer.byteLength(json, 'utf8')
     expect(stringifyBoundedJson(value, bytes)).toBe(json)
     expect(stringifyBoundedJson(value, bytes - 1)).toBeUndefined()
+    expect(isJsonWithinByteLimit(value, bytes)).toBe(true)
+    expect(isJsonWithinByteLimit(value, bytes - 1)).toBe(false)
   })
 
   it('rejects cycles, excessive depth, and excessive nodes', () => {
     const cyclic: Record<string, unknown> = {}
     cyclic.self = cyclic
+    expect(isJsonWithinByteLimit(cyclic, 1024)).toBe(false)
     let deep: unknown = 'leaf'
     for (let index = 0; index < 66; index++) deep = { child: deep }
     for (const value of [
@@ -37,6 +40,7 @@ describe('bounded JSON', () => {
     const custom = Object.defineProperty({}, 'toJSON', { value: toJSON })
     for (const value of [accessor, custom, { output: new Uint8Array([1, 2, 3]) }]) {
       expect(stringifyBoundedJson(value, 1024)).toBeUndefined()
+      expect(isJsonWithinByteLimit(value, 1024)).toBe(false)
     }
     expect(getter).not.toHaveBeenCalled()
     expect(toJSON).not.toHaveBeenCalled()
@@ -47,6 +51,7 @@ describe('bounded JSON', () => {
     const serialize = vi.spyOn(JSON, 'stringify')
     try {
       expect(stringifyBoundedJson(value, 1024)).toBeUndefined()
+      expect(isJsonWithinByteLimit(value, 1024)).toBe(false)
       expect(serialize).not.toHaveBeenCalled()
     } finally {
       serialize.mockRestore()
@@ -61,6 +66,7 @@ describe('bounded JSON', () => {
     const serialize = vi.spyOn(JSON, 'stringify')
     try {
       expect(stringifyBoundedJson(value, 1024)).toBeUndefined()
+      expect(isJsonWithinByteLimit(value, 1024)).toBe(false)
       expect(serialize).not.toHaveBeenCalled()
     } finally {
       serialize.mockRestore()
@@ -71,6 +77,7 @@ describe('bounded JSON', () => {
     const get = vi.fn(() => 'UNADMITTED')
     const value = new Proxy({ text: 'admitted' }, { get })
     expect(stringifyBoundedJson(value, 1024)).toBe('{"text":"admitted"}')
+    expect(isJsonWithinByteLimit(value, 19)).toBe(true)
     expect(get).not.toHaveBeenCalled()
   })
 
@@ -79,6 +86,7 @@ describe('bounded JSON', () => {
     const prototype = Object.create(Array.prototype, { 0: { get } })
     const value = Object.setPrototypeOf(Array(1), prototype)
     expect(stringifyBoundedJson(value, 1024)).toBe('[null]')
+    expect(isJsonWithinByteLimit(value, 6)).toBe(true)
     expect(get).not.toHaveBeenCalled()
   })
 
@@ -86,5 +94,29 @@ describe('bounded JSON', () => {
     const result = { answer: 42 }
     const value = { rawResponse: result, modelResponse: result }
     expect(stringifyBoundedJson(value, 1024)).toBe(JSON.stringify(value))
+    expect(isJsonWithinByteLimit(value, Buffer.byteLength(JSON.stringify(value)))).toBe(true)
   })
+
+  it('counts an ordinary toJSON data field without invoking custom serialization', () => {
+    const value = { toJSON: 'ordinary JSON field', nested: [{}, [], { flag: true }] }
+    const bytes = Buffer.byteLength(JSON.stringify(value))
+    expect(isJsonWithinByteLimit(value, bytes)).toBe(true)
+    expect(isJsonWithinByteLimit(value, bytes - 1)).toBe(false)
+  })
+
+  it.each(['method', 'accessor'] as const)(
+    'rejects an inherited toJSON %s without invoking it or ignoring an own shadow',
+    (kind) => {
+      const serialize = vi.fn(() => 'x'.repeat(2048))
+      const prototype = Object.create(Array.prototype, {
+        toJSON: kind === 'method' ? { value: serialize } : { get: serialize },
+      })
+      const value = Object.setPrototypeOf([], Object.create(prototype))
+      expect(isJsonWithinByteLimit(value, 1024)).toBe(false)
+      expect(serialize).not.toHaveBeenCalled()
+      Object.defineProperty(value, 'toJSON', { value: null })
+      expect(isJsonWithinByteLimit(value, 2)).toBe(true)
+      expect(serialize).not.toHaveBeenCalled()
+    }
+  )
 })

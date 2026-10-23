@@ -13,10 +13,10 @@ import {
   inferContextFromKey,
   isInternalFileUrl,
   parseInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import { workflowFileInputSchema } from '@/lib/workflows/input-file-schema'
 import { isFileFieldType } from '@/lib/workflows/input-format'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -129,7 +129,6 @@ async function resolveStoredFileReference(
 export async function processExecutionFile(
   fileInput: unknown,
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
-  requestId: string,
   userId?: string,
   storedFileScope: StoredFileReferenceScope = 'execution'
 ): Promise<UserFile | null> {
@@ -217,7 +216,7 @@ export async function processExecutionFile(
         storedFileScope
       )
     }
-    const { downloadFileFromUrl } = await import('@/lib/uploads/utils/file-utils.server')
+    const { downloadFileFromUrl } = await import('@/lib/uploads/utils/file.server')
     const buffer = await withResourceOutboundScope(executionContext, () =>
       downloadFileFromUrl(file.data, { userId })
     )
@@ -262,13 +261,7 @@ export async function processExecutionFiles(
 
   for (const file of files) {
     try {
-      const userFile = await processExecutionFile(
-        file,
-        fullContext,
-        requestId,
-        userId,
-        storedFileScope
-      )
+      const userFile = await processExecutionFile(file, fullContext, userId, storedFileScope)
 
       if (userFile) {
         uploadedFiles.push(userFile)

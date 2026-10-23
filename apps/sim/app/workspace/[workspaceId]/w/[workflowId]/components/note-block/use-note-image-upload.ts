@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 
 /**
@@ -19,8 +19,7 @@ import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
  * flow and the canvas context menu's "Add image".
  */
 export function useNoteImageUpload(): (file: File) => Promise<{ url: string; alt: string } | null> {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const uploadFile = useUploadWorkspaceFile()
 
   return useCallback(

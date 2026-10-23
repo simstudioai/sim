@@ -1,148 +1,56 @@
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const {
-  mockReplaceRowsPrimitive,
-  mockDeleteRowsByIds,
-  mockCreateSecretProvenance,
-  mockIsScopeCompatible,
-  mockLoadSecretProvenance,
-  mockAssertRowCapacity,
-  mockNotifyTableRowUsage,
-  mockQueryRows,
-  mockRecordAudit,
-  mockReplaceRowsWithTx,
-  mockResolveContext,
-  mockResolvePermission,
-  mockSignalRowsChanged,
-  mockSignalRowsChangedByActor,
-  mockUpsertRow,
-  mockWithLockedTable,
-  mockInsertRow,
-  mockBatchInsertRows,
-  mockUpdateRow,
-  mockUpdateRowsByFilter,
-  mockValidateRowData,
-  mockValidateBatchRows,
-  mockBatchUpdateRows,
-  mockGetRowSummaryById,
-  mockLoadExecutionsForRow,
-  mockLoadEnrichmentDetail,
-  mockIsFeatureEnabled,
-  mockGetWorkspaceOrganizationId,
-} = vi.hoisted(() => ({
-  mockReplaceRowsPrimitive: vi.fn(),
-  mockDeleteRowsByIds: vi.fn(),
-  mockCreateSecretProvenance: vi.fn(),
-  mockIsScopeCompatible: vi.fn(),
-  mockLoadSecretProvenance: vi.fn(),
-  mockAssertRowCapacity: vi.fn(),
-  mockNotifyTableRowUsage: vi.fn(),
-  mockQueryRows: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockReplaceRowsWithTx: vi.fn(),
-  mockResolveContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockSignalRowsChanged: vi.fn(),
-  mockSignalRowsChangedByActor: vi.fn(),
-  mockUpsertRow: vi.fn(),
-  mockWithLockedTable: vi.fn(),
-  mockInsertRow: vi.fn(),
-  mockBatchInsertRows: vi.fn(),
-  mockUpdateRow: vi.fn(),
-  mockUpdateRowsByFilter: vi.fn(),
-  mockValidateRowData: vi.fn(),
-  mockValidateBatchRows: vi.fn(),
-  mockBatchUpdateRows: vi.fn(),
-  mockGetRowSummaryById: vi.fn(),
-  mockLoadExecutionsForRow: vi.fn(),
-  mockLoadEnrichmentDetail: vi.fn(),
-  mockIsFeatureEnabled: vi.fn(),
-  mockGetWorkspaceOrganizationId: vi.fn(),
-}))
+const { mockLoadExecutionsForRow, mockLoadEnrichmentDetail, mockRowProvenance } = vi.hoisted(
+  () => ({
+    mockLoadExecutionsForRow: vi.fn(),
+    mockLoadEnrichmentDetail: vi.fn(),
+    mockRowProvenance: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mockRecordAudit,
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/table', () => ({
-  TABLE_LIMITS: {
-    MAX_BATCH_INSERT_SIZE: 1000,
-    MAX_BULK_OPERATION_SIZE: 1000,
-    MAX_QUERY_LIMIT: 1000,
-    MAX_ROW_RUN_STATE_BYTES: 256,
-  },
-  batchInsertRows: mockBatchInsertRows,
-  batchUpdateRows: mockBatchUpdateRows,
-  deleteRow: vi.fn(),
-  deleteRowsByFilter: vi.fn(),
-  deleteRowsByIds: mockDeleteRowsByIds,
-  findRowMatches: vi.fn(),
-  getRowById: vi.fn(),
-  getRowSummaryById: mockGetRowSummaryById,
-  insertRow: mockInsertRow,
-  queryRows: mockQueryRows,
-  replaceTableRows: mockReplaceRowsPrimitive,
-  rowDataNameToId: (data: Record<string, unknown>, idByName: Map<string, string>) =>
-    Object.fromEntries(
-      Object.entries(data).flatMap(([name, value]) => {
-        const id = idByName.get(name)
-        return id ? [[id, value]] : []
-      })
-    ),
-  sortSpecNamesToIds: vi.fn(),
-  updateRow: mockUpdateRow,
-  updateRowsByFilter: mockUpdateRowsByFilter,
-  upsertRow: mockUpsertRow,
-  validateBatchRows: mockValidateBatchRows,
-  validateRowData: mockValidateRowData,
-  withLockedTable: mockWithLockedTable,
+  ...tableMock,
+  TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_ROW_RUN_STATE_BYTES: 256 },
 }))
 
-vi.mock('@/lib/table/billing', () => ({
-  assertRowCapacity: mockAssertRowCapacity,
-  notifyTableRowUsage: mockNotifyTableRowUsage,
-}))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 vi.mock('@/lib/table/column-types', () => ({
   columnTypeOf: (column: { type: string }) => ({ id: column.type }),
 }))
 
+/** The reader classifies each row on its own; `mockRowProvenance` answers per row id. */
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createTableRowSecretProvenanceFromRegistry: mockCreateSecretProvenance,
-  createExactEmptyTableRowSecretProvenance: (data: Record<string, unknown>) => ({
-    complete: true,
-    columns: Object.fromEntries(
-      Object.keys(data).map((columnId) => [columnId, { version: 1, complete: true, entries: [] }])
-    ),
-  }),
-  createUnknownTableRowSecretProvenance: () => ({ complete: false, columns: {} }),
-  TableRowProvenanceReader: class {
-    constructor(scope: unknown) {
-      mockLoadSecretProvenance(scope)
-    }
-    exportProvenance() {
-      return { version: 1, complete: true, entries: [] }
+  ...tableRowsSecretProvenanceMock,
+  TableRowProvenanceReader: class extends tableRowsSecretProvenanceMock.TableRowProvenanceReader {
+    rowProvenance(rowId: string) {
+      return mockRowProvenance(rowId)
     }
   },
 }))
@@ -151,17 +59,9 @@ vi.mock('@/lib/table/validation', () => ({
   coerceRowValues: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/durable-secret-provenance', () => ({
-  isPrivateSecretProvenanceScopeCompatible: mockIsScopeCompatible,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
-vi.mock('@/lib/table/rows/service', () => ({
-  replaceTableRowsWithTx: mockReplaceRowsWithTx,
-}))
-
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mockResolveContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 vi.mock('@/lib/table/import', () => ({
   CSV_MAX_BATCH_SIZE: 5000,
@@ -172,13 +72,15 @@ vi.mock('@/lib/table/rows/executions', () => ({
   loadExecutionsForRow: mockLoadExecutionsForRow,
 }))
 
-vi.mock('@/lib/table/events', () => ({
-  signalTableRowsChanged: mockSignalRowsChanged,
-  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
+import {
+  ContentDeliveryUnobservedError,
+  ContentRefusedError,
+  type ContentSource,
+  observeContentDelivery,
+} from '@/lib/core/application'
 import { TABLE_LIMITS } from '@/lib/table'
-import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
 import {
   batchUpdateTableRows,
   createTableRows,
@@ -197,6 +99,32 @@ import {
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { encodeCursor } from '@/lib/table/rows/cursor'
 
+const {
+  mockReplaceTableRows: mockReplaceRowsPrimitive,
+  mockQueryRows,
+  mockUpsertRow,
+  mockWithLockedTable,
+  mockInsertRow,
+  mockBatchInsertRows,
+  mockUpdateRow,
+  mockUpdateRowsByFilter,
+  mockValidateRowData,
+  mockValidateBatchRows,
+  mockBatchUpdateRows,
+  mockGetRowSummaryById,
+  mockAssertRowCapacity,
+  mockNotifyTableRowUsage,
+} = tableMockFns
+const {
+  mockCreateTableRowSecretProvenanceFromRegistry: mockCreateSecretProvenance,
+  mockTableRowProvenanceReader: mockLoadSecretProvenance,
+} = tableRowsSecretProvenanceMockFns
+const mockReplaceRowsWithTx = tableRowsServiceMockFns.mockReplaceTableRowsWithTx
+const mockResolveContext = tableApplicationContextMockFns.mockResolveActiveTableContext
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockSignalRowsChanged = tableEventsMockFns.mockSignalTableRowsChanged
+
 const TABLE: TableDefinition = {
   id: 'table-1',
   name: 'People',
@@ -212,7 +140,7 @@ const TABLE: TableDefinition = {
   updatedAt: new Date('2026-01-01'),
 }
 
-const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const PRINCIPAL = createSessionPrincipal()
 const GENERIC_WEBHOOK_EXECUTOR = {
   kind: 'delegated' as const,
   serviceId: 'executor' as const,
@@ -267,17 +195,12 @@ describe('replaceProjectedWireRows application command', () => {
       ],
     },
   }
-  const delegatedPrincipal = {
-    kind: 'delegated' as const,
-    serviceId: 'copilot' as const,
-    subjectUserId: 'user-1',
+  const delegatedPrincipal = createDelegatedPrincipal({
     workspaceId: TABLE.workspaceId,
     delegationId: 'copilot-tool:tool-1',
     audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2099-01-01'),
     resourceScope: { tableId: TABLE.id },
-  }
+  })
 
   beforeEach(() => {
     mockResolvePermission.mockResolvedValue('write')
@@ -289,7 +212,6 @@ describe('replaceProjectedWireRows application command', () => {
     )
     mockReplaceRowsWithTx.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
     mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
-    mockIsScopeCompatible.mockReturnValue(true)
   })
 
   it('validates and replaces against the fresh schema held under the table lock', async () => {
@@ -391,10 +313,6 @@ describe('replaceProjectedWireRows application command', () => {
       { 'column-fresh': 'secret-value' },
       registry
     )
-    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
-      { userId: 'user-1', workspaceId: TABLE.workspaceId },
-      { workspaceId: TABLE.workspaceId }
-    )
     expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ secretProvenance: [provenance] }),
@@ -414,7 +332,6 @@ describe('replaceProjectedWireRows application command', () => {
         },
       },
     })
-    mockIsScopeCompatible.mockReturnValue(false)
 
     await replaceProjectedWireRows.execute({
       principal: delegatedPrincipal,
@@ -429,10 +346,6 @@ describe('replaceProjectedWireRows application command', () => {
       },
     })
 
-    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
-      { userId: 'user-1', workspaceId: 'workspace-other' },
-      { workspaceId: TABLE.workspaceId }
-    )
     expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
@@ -481,8 +394,6 @@ describe('row query and upsert application semantics', () => {
   beforeEach(() => {
     mockResolvePermission.mockResolvedValue('write')
     mockResolveContext.mockResolvedValue(contextFor())
-    mockIsFeatureEnabled.mockResolvedValue(true)
-    mockGetWorkspaceOrganizationId.mockResolvedValue('organization-1')
   })
 
   it('rejects a malformed POST query cursor before querying storage', async () => {
@@ -740,7 +651,6 @@ describe('row data keying', () => {
     mockResolveContext.mockResolvedValue(contextFor())
     mockAssertRowCapacity.mockResolvedValue(10_000)
     mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
-    mockIsScopeCompatible.mockReturnValue(true)
   })
 
   it('does not silently drop an id-keyed write, which the name path would', async () => {
@@ -921,11 +831,11 @@ describe('enrichment detail id validation', () => {
 })
 
 /**
- * An internal transport that observes delivery (the Copilot CLI) must see the
- * persisted provenance of every row a row-returning use case hands back, even
- * though the public surface it dispatched never asks for it on the wire.
+ * Chat's gate decides every row a row-returning use case hands back, each by its own persisted
+ * provenance, even though the public surface it dispatched never asks for it on the wire. Every
+ * other caller is served as before, without a provenance read.
  */
-describe('row delivery to an observing transport', () => {
+describe('row delivery to Chat', () => {
   const ENRICHED_TABLE: TableDefinition = {
     ...TABLE,
     schema: {
@@ -956,21 +866,29 @@ describe('row delivery to an observing transport', () => {
     mockUpsertRow.mockResolvedValue({ operation: 'update', row: ROW })
   })
 
+  const CHAT = createDelegatedPrincipal({
+    workspaceId: TABLE.workspaceId,
+    delegationId: 'copilot-tool:tool-1',
+    audience: 'sim:tables',
+    resourceScope: { tableId: TABLE.id },
+  })
+  type Caller = typeof PRINCIPAL | typeof CHAT
+
   const reads = {
-    list: () =>
-      listTableRows.execute({ principal: PRINCIPAL, input: { tableId: TABLE.id, limit: 25 } }),
-    query: () =>
-      queryTableRows.execute({ principal: PRINCIPAL, input: { tableId: TABLE.id, limit: 25 } }),
-    read: () =>
-      readTableRow.execute({ principal: PRINCIPAL, input: { tableId: TABLE.id, rowId: ROW.id } }),
-    enrichment: () =>
+    list: (principal: Caller) =>
+      listTableRows.execute({ principal, input: { tableId: TABLE.id, limit: 25 } }),
+    query: (principal: Caller) =>
+      queryTableRows.execute({ principal, input: { tableId: TABLE.id, limit: 25 } }),
+    read: (principal: Caller) =>
+      readTableRow.execute({ principal, input: { tableId: TABLE.id, rowId: ROW.id } }),
+    enrichment: (principal: Caller) =>
       readTableRowEnrichmentDetail.execute({
-        principal: PRINCIPAL,
+        principal,
         input: { tableId: TABLE.id, rowId: ROW.id, groupId: 'group-1' },
       }),
-    create: () =>
+    create: (principal: Caller) =>
       createTableRows.execute({
-        principal: PRINCIPAL,
+        principal,
         input: {
           kind: 'single',
           tableId: TABLE.id,
@@ -979,9 +897,9 @@ describe('row delivery to an observing transport', () => {
           dataKeying: 'names',
         },
       }),
-    createBatch: () =>
+    createBatch: (principal: Caller) =>
       createTableRows.execute({
-        principal: PRINCIPAL,
+        principal,
         input: {
           kind: 'batch',
           tableId: TABLE.id,
@@ -990,9 +908,9 @@ describe('row delivery to an observing transport', () => {
           dataKeying: 'names',
         },
       }),
-    update: () =>
+    update: (principal: Caller) =>
       updateTableRow.execute({
-        principal: PRINCIPAL,
+        principal,
         input: {
           tableId: TABLE.id,
           rowId: ROW.id,
@@ -1001,9 +919,9 @@ describe('row delivery to an observing transport', () => {
           dataKeying: 'names',
         },
       }),
-    upsert: () =>
+    upsert: (principal: Caller) =>
       upsertTableRow.execute({
-        principal: PRINCIPAL,
+        principal,
         input: {
           tableId: TABLE.id,
           data: { name: 'secret-cell' },
@@ -1012,28 +930,76 @@ describe('row delivery to an observing transport', () => {
         },
       }),
   }
+  const names = Object.keys(reads) as Array<keyof typeof reads>
+  const writes = new Set<keyof typeof reads>(['create', 'createBatch', 'update', 'upsert'])
 
-  it.each(Object.keys(reads) as Array<keyof typeof reads>)(
-    '%s reports the returned rows and their provenance',
+  function gate(verdict: boolean) {
+    return vi.fn(async (sources: readonly ContentSource[]) => sources.map(() => verdict))
+  }
+
+  it.each(names)('%s admits each returned row for Chat by its own provenance', async (name) => {
+    const provenance = { status: 'exact', entries: [] }
+    mockRowProvenance.mockReturnValue(provenance)
+    const admit = gate(true)
+    await observeContentDelivery({ admit }, () => reads[name](CHAT))
+
+    expect(mockLoadSecretProvenance).toHaveBeenCalledWith(
+      { userId: CHAT.subjectUserId, workspaceId: TABLE.workspaceId },
+      undefined
+    )
+    expect(mockRowProvenance).toHaveBeenCalledWith(ROW.id)
+    expect(admit).toHaveBeenCalledTimes(1)
+    expect(admit).toHaveBeenCalledWith([
+      { kind: 'table-row', id: ROW.id, provenance, view: { derived: ROW.data } },
+    ])
+  })
+
+  it.each(names)('%s refuses Chat when no gate observes it', async (name) => {
+    await expect(reads[name](CHAT)).rejects.toBeInstanceOf(ContentDeliveryUnobservedError)
+  })
+
+  it.each(['list', 'query'] as const)(
+    '%s leaves a refused row out of the page rather than withholding it',
     async (name) => {
-      const observe = vi.fn(async () => {})
-      const result = await observeTableRowDelivery(observe, reads[name])
-
-      expect(mockLoadSecretProvenance).toHaveBeenCalledWith({
-        userId: PRINCIPAL.userId,
-        workspaceId: TABLE.workspaceId,
-      })
-      expect(observe).toHaveBeenCalledTimes(1)
-      expect(observe).toHaveBeenCalledWith(
-        { version: 1, complete: true, entries: [] },
-        [ROW.data],
-        {
-          unprovenancedErrorText: false,
-        }
-      )
-      expect((result as { secretProvenance?: unknown }).secretProvenance).toBeUndefined()
+      mockRowProvenance.mockReturnValue({ status: 'unknown' })
+      const result = await observeContentDelivery({ admit: gate(false) }, () => reads[name](CHAT))
+      expect(result.rows).toEqual([])
     }
   )
+
+  it.each(['read', 'enrichment'] as const)('%s refuses a refused row with a 403', async (name) => {
+    mockRowProvenance.mockReturnValue({ status: 'unknown' })
+    await expect(
+      observeContentDelivery({ admit: gate(false) }, () => reads[name](CHAT))
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+  })
+
+  it.each([...writes])(
+    '%s commits and audits the write, then refuses its refused returned row',
+    async (name) => {
+      mockRowProvenance.mockReturnValue({ status: 'unknown' })
+      const refusal = await observeContentDelivery({ admit: gate(false) }, () =>
+        reads[name](CHAT)
+      ).then(
+        () => undefined,
+        (error: unknown) => error
+      )
+      expect(refusal).toBeInstanceOf(ContentRefusedError)
+      expect(refusal).toMatchObject({ message: expect.stringContaining('The change was saved') })
+      expect(mockRecordAudit).toHaveBeenCalled()
+    }
+  )
+
+  it.each(names.filter((name) => !writes.has(name)))(
+    '%s reads no provenance for a session caller, which no gate classifies',
+    async (name) => {
+      const admit = gate(false)
+      await observeContentDelivery({ admit }, () => reads[name](PRINCIPAL))
+      expect(mockLoadSecretProvenance).not.toHaveBeenCalled()
+      expect(admit).not.toHaveBeenCalled()
+    }
+  )
+
   describe('run-state and enrichment error text', () => {
     const CLEAN_RUN = {
       status: 'completed',
@@ -1049,57 +1015,51 @@ describe('row delivery to an observing transport', () => {
       blockErrors: { 'block-1': 'Authorization: Bearer sk-live-secret' },
     }
 
-    async function reportedErrorText(read: () => Promise<unknown>): Promise<boolean> {
-      const observe = vi.fn(async () => {})
-      await observeTableRowDelivery(observe, read)
-      expect(observe).toHaveBeenCalledTimes(1)
-      const extras = observe.mock.calls[0]?.[2] as { unprovenancedErrorText: boolean }
-      return extras.unprovenancedErrorText
+    const withRunState = {
+      list: (principal: Caller) =>
+        listTableRows.execute({
+          principal,
+          input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+        }),
+      query: (principal: Caller) =>
+        queryTableRows.execute({
+          principal,
+          input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+        }),
     }
 
-    const withRunState = {
-      list: () =>
-        listTableRows.execute({
-          principal: PRINCIPAL,
-          input: { tableId: TABLE.id, limit: 25, includeRunState: true },
-        }),
-      query: () =>
-        queryTableRows.execute({
-          principal: PRINCIPAL,
-          input: { tableId: TABLE.id, limit: 25, includeRunState: true },
-        }),
-    }
+    beforeEach(() => {
+      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
+    })
 
     it.each(Object.keys(withRunState) as Array<keyof typeof withRunState>)(
-      '%s signals returned run-state error text',
+      '%s withholds run-state error text from Chat and keeps it for other callers',
       async (name) => {
-        mockQueryRows.mockResolvedValue({
-          ...PAGE,
-          rows: [
-            { ...ROW, executions: { 'group-1': CLEAN_RUN } },
-            { ...ROW, id: 'row-2', executions: { 'group-1': RUN_WITH_ERROR } },
-          ],
-        })
-        expect(await reportedErrorText(withRunState[name])).toBe(true)
-
-        mockQueryRows.mockResolvedValue({
-          ...PAGE,
-          rows: [{ ...ROW, executions: { 'group-1': RUN_WITH_BLOCK_ERROR } }],
-        })
-        expect(await reportedErrorText(withRunState[name])).toBe(true)
+        for (const executions of [
+          { 'group-1': RUN_WITH_ERROR },
+          { 'group-1': RUN_WITH_BLOCK_ERROR },
+        ]) {
+          mockQueryRows.mockResolvedValue({ ...PAGE, rows: [{ ...ROW, executions }] })
+          const chat = await observeContentDelivery({ admit: gate(true) }, () =>
+            withRunState[name](CHAT)
+          )
+          expect(JSON.stringify(chat.rows)).not.toContain('sk-live-secret')
+          expect(chat.rows[0]?.executions?.['group-1']?.status).toBe('error')
+          const session = await withRunState[name](PRINCIPAL)
+          expect(JSON.stringify(session.rows)).toContain('sk-live-secret')
+        }
       }
     )
 
     it.each(Object.keys(withRunState) as Array<keyof typeof withRunState>)(
-      '%s does not signal run state without error text',
+      '%s leaves run state without error text unchanged for Chat',
       async (name) => {
-        mockQueryRows.mockResolvedValue({
-          ...PAGE,
-          rows: [
-            { ...ROW, executions: { 'group-1': { ...CLEAN_RUN, error: '', blockErrors: {} } } },
-          ],
-        })
-        expect(await reportedErrorText(withRunState[name])).toBe(false)
+        const executions = { 'group-1': { ...CLEAN_RUN, error: '', blockErrors: {} } }
+        mockQueryRows.mockResolvedValue({ ...PAGE, rows: [{ ...ROW, executions }] })
+        const chat = await observeContentDelivery({ admit: gate(true) }, () =>
+          withRunState[name](CHAT)
+        )
+        expect(chat.rows[0]?.executions).toEqual(executions)
       }
     )
   })

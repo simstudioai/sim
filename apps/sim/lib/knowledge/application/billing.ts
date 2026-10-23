@@ -9,7 +9,7 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeResourceContext } from '@/lib/knowledge/application/contexts'
 
@@ -70,4 +70,21 @@ export async function resolveKnowledgeUsageAdmission(
       : await resolveKnowledgeBillingAttribution(principal, context)
   const usage = await checkAttributedUsageLimits(billingAttribution)
   return { billingAttribution, usage, userId }
+}
+
+/** {@link resolveKnowledgeUsageAdmission}, refusing once the caller's usage limit is reached. */
+export async function assertKnowledgeUsageAdmitted(
+  principal: Principal,
+  context: KnowledgeResourceContext
+) {
+  const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
+    principal,
+    context
+  )
+  if (usage.isExceeded) {
+    throw new KnowledgeUsageLimitExceededError(
+      usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+    )
+  }
+  return { billingAttribution, userId }
 }

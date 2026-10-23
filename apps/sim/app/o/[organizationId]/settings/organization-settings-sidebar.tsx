@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { ORGANIZATION_SETTINGS_GROUPS } from '@/components/settings/navigation'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import {
   hasPaidSubscriptionStatus,
@@ -30,6 +31,7 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
     useOrganizationContext()
   const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
   const pathname = usePathname()
+  const { data: session } = useSession()
   const queryClient = useQueryClient()
   const refreshPlan = viewer.isAdmin && settingsFeatures.hosted && settingsFeatures.billingEnabled
   const { data: summary, error } = useOrganizationBillingSummary(organization.id, {
@@ -67,11 +69,16 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
       plane='organization'
       activeSection={resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general'}
       groups={ORGANIZATION_SETTINGS_GROUPS}
-      items={organizationSurfaceSettingsNavigation(isAdmin, features, {
-        connectedAccounts: connectedAccountsAvailable,
-        search: searchAccess.memberScoped,
-        knowledgeGraphs,
-      })}
+      items={organizationSurfaceSettingsNavigation(
+        isAdmin,
+        features,
+        {
+          connectedAccounts: connectedAccountsAvailable,
+          search: searchAccess.memberScoped,
+          knowledgeGraphs,
+        },
+        session?.user?.role === 'admin'
+      )}
       hrefForSection={(section) => routes.settingsSection(section)}
       onSectionIntent={(section) =>
         warmOrganizationSettingsSectionQuery(

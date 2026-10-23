@@ -1,3 +1,5 @@
+import { toRecord } from '@sim/utils/object'
+import { bufferInputDescription, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
   BUFFER_IDEA_SELECTION,
@@ -50,7 +52,7 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
     },
     text: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Text content of the idea',
     },
@@ -66,6 +68,36 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
       visibility: 'user-or-llm',
       description: 'Optional idea group (board column) to place the idea in',
     },
+    content: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'IdeaContentInput',
+        'Idea title, text, and media content.'
+      ),
+    },
+    group: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'IdeaGroupInput',
+        'Assign the idea to a group and optionally position it after another idea.'
+      ),
+    },
+    cta: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Call to action tracking value',
+    },
+    templateId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Template ID used to create the idea',
+    },
   },
 
   request: {
@@ -73,14 +105,20 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
     method: 'POST',
     headers: (params) => bufferHeaders(params.apiKey),
     body: (params) => {
-      const content: Record<string, unknown> = { text: params.text }
-      if (params.title) content.title = params.title
-
-      const input: Record<string, unknown> = {
+      const content = params.content ? parseBufferInput('IdeaContentInput', params.content) : {}
+      if (params.text !== undefined) content.text = params.text
+      if (params.title !== undefined) content.title = params.title
+      const input = parseBufferInput('CreateIdeaInput', {
         organizationId: params.organizationId,
         content,
-      }
-      if (params.groupId) input.group = { groupId: params.groupId }
+        ...(params.group
+          ? { group: params.group }
+          : params.groupId
+            ? { group: { groupId: params.groupId } }
+            : {}),
+        ...(params.cta !== undefined ? { cta: params.cta } : {}),
+        ...(params.templateId !== undefined ? { templateId: params.templateId } : {}),
+      })
 
       return {
         query: CREATE_IDEA_MUTATION,
@@ -91,10 +129,10 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
 
   transformResponse: async (response: Response) => {
     const data = await parseBufferGraphQLResponse(response)
-    const result = data.createIdea
-    const idea = result?.__typename === 'Idea' ? result : result?.idea
+    const result = toRecord(data.createIdea)
+    const idea = result.__typename === 'Idea' ? result : toRecord(result.idea)
     if (!idea?.id) {
-      throw new Error(result?.message || 'Failed to create idea')
+      throw new Error(typeof result.message === 'string' ? result.message : 'Failed to create idea')
     }
     return {
       success: true,

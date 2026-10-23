@@ -3,6 +3,7 @@ import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  displayContentOf,
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
@@ -30,11 +31,13 @@ function toRow(
   options?: { chatModel?: string | null; streamId?: string | null }
 ): typeof copilotMessages.$inferInsert {
   const ts = new Date(message.timestamp)
+  const content = stripToolResultOutput(message)
   return {
     chatId,
     messageId: message.id,
     role: message.role,
-    content: stripToolResultOutput(message),
+    content,
+    displayContent: displayContentOf(content),
     seq,
     model: options?.chatModel ?? null,
     streamId: options?.streamId ?? null,
@@ -72,6 +75,7 @@ export async function appendCopilotChatMessages(
       target: [copilotMessages.chatId, copilotMessages.messageId],
       set: {
         content: sql`excluded.content`,
+        displayContent: sql`excluded.display_content`,
         role: sql`excluded.role`,
         model: sql`COALESCE(excluded.model, ${copilotMessages.model})`,
         streamId: sql`COALESCE(excluded.stream_id, ${copilotMessages.streamId})`,
@@ -99,16 +103,26 @@ export async function appendCopilotChatMessages(
  * because the user deleted the conversation after asking — resurrecting it with
  * a reply would undo that deletion, and the caller still has its reply in the
  * response. Throws on a write failure.
+ *
+ * `scope.workspaceId` confines the write to a chat in that workspace; a chat
+ * elsewhere receives nothing, exactly like a deleted one.
  */
 export async function persistCopilotChatTurn(
   chatId: string,
-  messages: PersistedMessage[]
+  messages: PersistedMessage[],
+  scope?: { workspaceId: string }
 ): Promise<void> {
   await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(copilotChats)
       .set({ updatedAt: new Date() })
-      .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          isNull(copilotChats.deletedAt),
+          ...(scope ? [eq(copilotChats.workspaceId, scope.workspaceId)] : [])
+        )
+      )
       .returning({ model: copilotChats.model })
     if (!updated) return
     await appendCopilotChatMessages(chatId, messages, { chatModel: updated.model ?? null }, tx)

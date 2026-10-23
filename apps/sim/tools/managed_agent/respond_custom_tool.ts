@@ -1,5 +1,6 @@
 import {
   ACCESS_TOKEN_PARAM,
+  CLAUDE_PLATFORM_OAUTH,
   CREDENTIAL_PARAM,
   SESSION_ID_PARAM,
 } from '@/tools/managed_agent/shared'
@@ -34,6 +35,7 @@ export const managedAgentRespondCustomToolTool: InternalToolConfig<
   description:
     'Return the result of a custom tool a Managed Agent session is waiting on so it can continue.',
   version: '1.0.0',
+  oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {
     credential: CREDENTIAL_PARAM,

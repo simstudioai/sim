@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
-  email: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -22,9 +22,11 @@ vi.mock('@/lib/table/application/views', () => ({
   updateTableViewUseCase: { operation: { id: 'tables.views.update' }, execute: mocks.update },
   deleteTableViewUseCase: { operation: { id: 'tables.views.delete' }, execute: mocks.remove },
 }))
-vi.mock('@/lib/users/queries', () => ({ getRequiredUserEmail: mocks.email }))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { GET } from '@/app/api/v2/tables/[tableId]/views/[viewId]/route'
+
+const { mockGetRequiredUserEmail } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const principal = {
@@ -77,7 +79,7 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
     mocks.read.mockResolvedValue({ view, columns })
     mocks.update.mockResolvedValue({ view, columns, changed: false })
     mocks.remove.mockResolvedValue({ viewId: 'view-1' })
-    mocks.email.mockResolvedValue('user@example.com')
+    mockGetRequiredUserEmail.mockResolvedValue('user@example.com')
   })
 
   /**

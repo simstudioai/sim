@@ -1,0 +1,62 @@
+{
+  "http": [
+    {
+      "group": "scim",
+      "task": "ci:e2e-scim"
+    },
+    {
+      "group": "cli",
+      "task": "ci:e2e-cli"
+    },
+    {
+      "group": "stop-after",
+      "task": "ci:e2e-stop-after"
+    },
+    {
+      "group": "desktop-inbox",
+      "task": "ci:e2e-desktop-inbox"
+    },
+    {
+      "group": "seo",
+      "task": "ci:e2e-seo"
+    },
+    {
+      "group": "project-files",
+      "task": "ci:e2e-project-files"
+    }
+  ],
+  "production": [
+    {
+      "group": "mobile",
+      "name": "mobile, chromium, 1/2",
+      "browser": "chromium",
+      "shard": "1/2",
+      "artifact": "mobile-chromium-1",
+      "task": "ci:e2e-mobile"
+    },
+    {
+      "group": "mobile",
+      "name": "mobile, chromium, 2/2",
+      "browser": "chromium",
+      "shard": "2/2",
+      "artifact": "mobile-chromium-2",
+      "task": "ci:e2e-mobile"
+    },
+    {
+      "group": "mobile",
+      "name": "mobile, webkit, 1/2",
+      "browser": "webkit",
+      "shard": "1/2",
+      "artifact": "mobile-webkit-1",
+      "task": "ci:e2e-mobile"
+    },
+    {
+      "group": "mobile",
+      "name": "mobile, webkit, 2/2",
+      "browser": "webkit",
+      "shard": "2/2",
+      "artifact": "mobile-webkit-2",
+      "task": "ci:e2e-mobile"
+    }
+  ]
+}

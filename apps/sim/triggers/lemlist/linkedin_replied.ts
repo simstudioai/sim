@@ -1,11 +1,11 @@
 import { LemlistIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildLemlistExtraFields,
   buildLinkedInRepliedOutputs,
   lemlistSetupInstructions,
   lemlistTriggerOptions,
 } from '@/triggers/lemlist/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -23,7 +23,7 @@ export const lemlistLinkedInRepliedTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_linkedin_replied',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('linkedinReplied'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_linkedin_replied'),
   }),
 

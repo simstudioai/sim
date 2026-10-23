@@ -1,6 +1,6 @@
 import type { WorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
 import { normalizeDurableSecretProvenanceEntries } from '@/lib/execution/durable-secret-provenance'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 
 export const WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY = 'workspaceFileSecretProvenance'
 
@@ -48,7 +48,12 @@ export function readWorkspaceFileUploadProvenance(session: {
 
 export function parseWorkspaceFileSecretProvenance(value: unknown): WorkspaceFileSecretProvenance {
   if (!value || typeof value !== 'object' || !('status' in value)) return { status: 'unknown' }
-  if (value.status === 'unknown' || value.status === 'unrecorded') return { status: value.status }
+  if (value.status === 'unknown') return { status: 'unknown' }
+  if (value.status === 'unrecorded') {
+    return !('entries' in value) || (Array.isArray(value.entries) && value.entries.length === 0)
+      ? { status: 'unrecorded' }
+      : { status: 'unknown' }
+  }
   if (value.status !== 'exact' || !('entries' in value)) return { status: 'unknown' }
   const normalized = normalizeDurableSecretProvenanceEntries(value.entries)
   if (!normalized) return { status: 'unknown' }

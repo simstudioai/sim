@@ -191,7 +191,7 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'create_order')
+        handleKalshiError(data, 'create_order')
       }
 
       return {
@@ -280,7 +280,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
 > = {
   id: 'kalshi_create_order_v2',
   name: 'Create Order on Kalshi V2',
-  description: 'Create a new order on a Kalshi prediction market (V2 with full API response)',
+  description: 'Create a new order on a Kalshi prediction market',
   version: '2.0.0',
 
   params: {
@@ -461,7 +461,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'create_order_v2')
+      handleKalshiError(data, 'create_order_v2')
     }
 
     const order = data.order || {}

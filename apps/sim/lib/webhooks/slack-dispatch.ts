@@ -1,7 +1,9 @@
 import type { ExternalUserSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
 import {
   dispatchResolvedWebhookTarget,
   type findWebhooksByRoutingKey,
@@ -74,7 +76,7 @@ export function getSlackDispatchFailureResponse(result: WebhookDispatchResult): 
 /** Reduces a Slack fan-out to one provider acknowledgment or retry response. */
 export function getSlackDispatchResponse(results: WebhookDispatchResult[]): NextResponse {
   const acknowledged = results.some(
-    (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
+    (result) => result.outcome !== 'failed' && !isDroppedDispatch(result)
   )
   if (acknowledged) {
     return new NextResponse(null, { status: 200 })
@@ -108,7 +110,7 @@ export async function dispatchSlackWebhooks(
   return mapWithConcurrency(
     webhooks,
     SLACK_WEBHOOK_DISPATCH_CONCURRENCY,
-    async ({ webhook: foundWebhook, workflow: foundWorkflow }) => {
+    async ({ webhook: foundWebhook, workflow: foundWorkflow, triggerBlockDeployed }) => {
       const result = await dispatchResolvedWebhookTarget(
         foundWebhook,
         foundWorkflow,
@@ -119,12 +121,13 @@ export async function dispatchSlackWebhooks(
           receivedAt,
           triggerTimestampMs,
           subject,
+          triggerBlockDeployed,
         }
       )
 
       if (result.outcome === 'ignored' && result.reason === 'filtered') {
         const rawEvent = payload.event as Record<string, unknown> | undefined
-        const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+        const providerConfig = toRecord(foundWebhook.providerConfig)
         logger.info(
           `[${requestId}] Event skipped by trigger filter for webhook ${foundWebhook.id}`,
           {

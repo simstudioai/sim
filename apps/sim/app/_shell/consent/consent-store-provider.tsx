@@ -7,7 +7,7 @@ import {
   CONSENT_CATEGORIES,
   DEV_CONSENT_COUNTRY,
 } from '@/lib/consent/constants'
-import { GLOBAL_CONSENT_SCRIPTS } from '@/lib/consent/scripts'
+import { getGlobalConsentScripts } from '@/lib/consent/scripts'
 import { CONSENT_STORAGE_CONFIG } from '@/lib/consent/storage'
 
 /**
@@ -28,7 +28,7 @@ const CONSENT_OPTIONS = {
   mode: 'hosted',
   backendURL: CONSENT_BACKEND_URL,
   consentCategories: [...CONSENT_CATEGORIES],
-  scripts: [...GLOBAL_CONSENT_SCRIPTS],
+  scripts: getGlobalConsentScripts(),
   store: {
     storageConfig: CONSENT_STORAGE_CONFIG,
     reloadOnConsentRevoked: true,

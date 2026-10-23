@@ -2,6 +2,7 @@ import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
+import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { NextResponse } from 'next/server'
 import type { AuthContext, EventFilterContext } from '@/lib/webhooks/providers/types'
 
@@ -47,6 +48,49 @@ interface HmacVerifierOptions {
    * auto-registered webhooks) so a missing secret fails closed.
    */
   requireSecret?: boolean
+}
+
+interface StandardWebhookRequestOptions {
+  request: Pick<Request, 'headers'>
+  rawBody: string
+  requestId: string
+  secret: string
+  providerLabel: string
+  /** Header names the provider sends; see {@link verifyStandardWebhook}. */
+  headerPrefix?: 'webhook' | 'svix'
+}
+
+/**
+ * Verifies a Standard Webhooks (Svix-format) delivery and maps a failure to the provider's
+ * 401: `Missing <label> signature headers` when a signature header is absent, otherwise
+ * `Invalid <label> signature`. Returns `null` when the delivery verifies.
+ */
+export function verifyStandardWebhookRequest({
+  request,
+  rawBody,
+  requestId,
+  secret,
+  providerLabel,
+  headerPrefix,
+}: StandardWebhookRequestOptions): NextResponse | null {
+  const verification = verifyStandardWebhook({
+    secret,
+    rawBody,
+    headers: request.headers,
+    headerPrefix,
+  })
+  if (verification.valid) return null
+
+  if (verification.reason === 'missing_headers') {
+    logger.warn(`[${requestId}] ${providerLabel} webhook missing signature headers`)
+    return new NextResponse(`Unauthorized - Missing ${providerLabel} signature headers`, {
+      status: 401,
+    })
+  }
+  logger.warn(`[${requestId}] ${providerLabel} signature verification failed`, {
+    reason: verification.reason,
+  })
+  return new NextResponse(`Unauthorized - Invalid ${providerLabel} signature`, { status: 401 })
 }
 
 /**

@@ -1,36 +1,14 @@
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { databaseMock, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  auditLog: { id: 'id', workspaceId: 'workspace_id' },
-  user: { id: 'id', name: 'name', email: 'email' },
-}))
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(),
-  and: vi.fn(),
-  or: vi.fn(),
-  sql: vi.fn(),
-}))
-const { mockGetRequestContext } = vi.hoisted(() => ({
-  mockGetRequestContext: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  getRequestContext: mockGetRequestContext,
-}))
-vi.mock('@sim/utils/id', () => ({
-  generateId: () => 'test-uuid-123',
-  generateShortId: () => 'test-id-123',
-  isValidUuid: (v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
-}))
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@sim/utils/id', () => idMock)
 
 import { sleep } from '@sim/utils/helpers'
 import {
@@ -41,15 +19,14 @@ import {
   recordAuditOnce,
 } from './index'
 
+idMockFns.mockGenerateId.mockReturnValue('test-uuid-123')
+idMockFns.mockGenerateShortId.mockReturnValue('test-id-123')
+
 const flush = () => sleep(10)
 
 describe('recordAudit', () => {
   beforeEach(() => {
     resetDbChainMock()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('awaits an idempotent audit insert under the caller-owned ID', async () => {
@@ -69,7 +46,9 @@ describe('recordAudit', () => {
         resourceId: 'subscription-1',
       })
     )
-    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'id' })
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({
+      target: schemaMock.auditLog.id,
+    })
   })
 
   it('does not throw when the database insert fails', async () => {

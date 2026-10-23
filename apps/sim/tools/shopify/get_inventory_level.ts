@@ -1,9 +1,9 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type {
   ShopifyGetInventoryLevelParams,
   ShopifyInventoryResponse,
 } from '@/tools/shopify/types'
 import { INVENTORY_LEVEL_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyPageSize, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyGetInventoryLevelTool: ToolConfig<
@@ -18,12 +18,31 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Locations per page when locationId is omitted (default 50, max 250)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from inventoryLevel.pageInfo.endCursor',
+    },
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -42,51 +61,38 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
       if (!params.inventoryItemId) {
         throw new Error('Inventory item ID is required')
       }
 
+      const locationId = params.locationId?.trim()
+      const levelFields = `id
+        quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity }
+        location { id name }`
       return {
-        query: `
-          query getInventoryItem($id: ID!) {
-            inventoryItem(id: $id) {
-              id
-              sku
-              tracked
-              inventoryLevels(first: 50) {
-                edges {
-                  node {
-                    id
-                    quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) {
-                      name
-                      quantity
-                    }
-                    location {
-                      id
-                      name
-                    }
-                  }
+        query: locationId
+          ? `query getInventoryAtLocation($id: ID!, $locationId: ID!) {
+              inventoryItem(id: $id) { id sku tracked inventoryLevel(locationId: $locationId) { ${levelFields} } }
+            }`
+          : `query getInventoryLevels($id: ID!, $first: Int!, $after: String) {
+              inventoryItem(id: $id) { id sku tracked
+                inventoryLevels(first: $first, after: $after) {
+                  edges { node { ${levelFields} } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
                 }
               }
-            }
-          }
-        `,
-        variables: {
-          id: params.inventoryItemId.trim(),
-        },
+            }`,
+        variables: locationId
+          ? { id: params.inventoryItemId.trim(), locationId }
+          : {
+              id: params.inventoryItemId.trim(),
+              first: getShopifyPageSize(params.first),
+              after: params.after?.trim() || null,
+            },
       }
     },
   },
@@ -94,10 +100,10 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
   transformResponse: async (response, params) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to get inventory level',
+        error: data.errors?.[0]?.message || 'Failed to get inventory level',
         output: {},
       }
     }
@@ -112,7 +118,12 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
     }
 
     const requestedLocationId = params?.locationId?.trim()
-    const inventoryLevels = inventoryItem.inventoryLevels.edges
+    const edges = requestedLocationId
+      ? inventoryItem.inventoryLevel
+        ? [{ node: inventoryItem.inventoryLevel }]
+        : []
+      : inventoryItem.inventoryLevels.edges
+    const inventoryLevels = edges
       .map(
         (edge: {
           node: {
@@ -122,7 +133,7 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
           }
         }) => {
           const node = edge.node
-          // Extract quantities into a more usable format
+
           const quantitiesMap: Record<string, number> = {}
           node.quantities.forEach((q) => {
             quantitiesMap[q.name] = q.quantity
@@ -159,6 +170,7 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
           sku: inventoryItem.sku,
           tracked: inventoryItem.tracked,
           levels: inventoryLevels,
+          pageInfo: inventoryItem.inventoryLevels?.pageInfo ?? null,
         },
       },
     }

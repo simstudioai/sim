@@ -1,3 +1,6 @@
+import type { FolderPathIndex } from '@/lib/folders/paths'
+import type { FolderPathFilter } from '@/lib/folders/queries'
+
 /** Minimal shape needed to walk a folder hierarchy — any row with an id and a parent. */
 export interface FolderNode {
   id: string
@@ -118,20 +121,18 @@ export function collectFolderDepths(
   return depths
 }
 
-/**
- * Narrows already-queried rows to the subtree under `rootId`, preserving the
- * query's ordering so a caller's `sortBy` still decides the result order.
- *
- * `tree` is the workspace's full folder set, deliberately separate from `rows`:
- * depths must come from the real hierarchy, or a `search` that excludes an
- * intermediate folder would orphan its matching descendants.
- */
-export function selectFolderSubtreeRows<Row extends { id: string }>(
-  rows: readonly Row[],
-  tree: readonly FolderNode[],
-  rootId: string | null,
-  maxDepth?: number
-): Row[] {
-  const depths = collectFolderDepths(tree, rootId, { maxDepth })
-  return rows.filter((row) => depths.has(row.id))
+/** Converts a resolved path filter into the SQL folder IDs for a shallow or recursive page. */
+export function resolveFolderScope(
+  folderIndex: FolderPathIndex,
+  folderFilter: FolderPathFilter,
+  recursive: boolean | undefined
+): string | null | string[] | undefined {
+  if (folderFilter.kind !== 'folder') return undefined
+  if (!recursive) return folderFilter.folderId
+  if (folderFilter.folderId === null) return undefined
+  const childrenByParent = indexFolderChildren(folderIndex.rowById.values())
+  return [
+    folderFilter.folderId,
+    ...collectDescendantFolderIdsFrom(childrenByParent, folderFilter.folderId),
+  ]
 }

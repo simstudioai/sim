@@ -1,21 +1,19 @@
 /** Local SQL verifies receipt durability, concurrent claims and replay independently of tool completion. */
 
-import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { generateId } from '@sim/utils/id'
 import type { Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
-  url: process.env.TEST_DATABASE_URL,
   schema: `service_meter_${process.pid}`,
   client: null as Sql | null,
 }))
 vi.mock('@sim/db', async () => {
   const { drizzle } = await import('drizzle-orm/postgres-js')
   const { default: postgres } = await import('postgres')
-  if (state.url && !['localhost', '127.0.0.1'].includes(new URL(state.url).hostname))
-    throw new Error('Local test database required')
-  const client = postgres(state.url ?? 'postgres://127.0.0.1:1/unused', {
+  const { readTestDatabaseUrl } = await import('@sim/db/testing/test-infrastructure')
+  const client = postgres(readTestDatabaseUrl(), {
     max: 4,
     connection: { search_path: state.schema },
     onnotice: () => {},
@@ -34,16 +32,16 @@ import { replayServiceUsage } from './service-delivery'
 import {
   beginServiceMeter,
   claimServiceUsage,
+  closeAbandonedServiceMeters,
   finishServiceUsage,
   saveServiceUsage,
-  serviceMeteringHealth,
 } from './service-store'
 
 afterAll(async () => {
   await state.client?.end()
   vi.unstubAllGlobals()
 })
-describe.skipIf(!state.url)('service receipts in SQL', () => {
+describe('service receipts in SQL', () => {
   beforeAll(async () => {
     const client = state.client!
     await client.unsafe(`CREATE SCHEMA "${state.schema}"`)
@@ -70,14 +68,14 @@ describe.skipIf(!state.url)('service receipts in SQL', () => {
   it('claims each known receipt once while preserving incomplete measurement and delivery failures', async () => {
     const client = state.client!
     const base = {
-      streamId: randomUUID(),
+      streamId: generateId(),
       toolCallId: 'tool',
       workerOrigin: 'http://127.0.0.1:8080',
     }
-    const intentId = randomUUID()
+    const intentId = generateId()
     await beginServiceMeter({ ...base, id: intentId })
     const receipt = {
-      id: randomUUID(),
+      id: generateId(),
       streamId: base.streamId,
       toolCallId: base.toolCallId,
       service: 'exa',
@@ -89,8 +87,7 @@ describe.skipIf(!state.url)('service receipts in SQL', () => {
     expect(claims.flat().map((row) => row.id)).toEqual([receipt.id])
     await finishServiceUsage(receipt.id, 'connection interrupted')
     expect(await claimServiceUsage()).toEqual([])
-    await client`UPDATE copilot_service_usage SET next_attempt_at=now(), created_at=now()-interval '10 minutes'`
-    expect((await serviceMeteringHealth())?.unknown).toBe(1)
+    await client`UPDATE copilot_service_usage SET next_attempt_at=now()`
     const fetcher = vi.fn(async (_url: string, options: RequestInit) => {
       const body = JSON.parse(String(options.body))
       expect(body.receipts).toEqual([receipt])
@@ -104,8 +101,61 @@ describe.skipIf(!state.url)('service receipts in SQL', () => {
     expect(row.delivered_at).not.toBeNull()
     expect(Number(row.cost_usd)).toBe(0.5)
     expect(row.worker_origin).toBe(base.workerOrigin)
-    expect((await serviceMeteringHealth())?.pending).toBe(0)
     await finishServiceUsage(intentId)
-    expect((await serviceMeteringHealth())?.unknown).toBe(0)
+    const [intent] =
+      await client`SELECT delivered_at, last_error FROM copilot_service_usage WHERE id=${intentId}`
+    expect(intent.delivered_at).not.toBeNull()
+    expect(intent.last_error).toBeNull()
+  })
+
+  it('closes each abandoned tool meter once and leaves in-flight meters and receipts open', async () => {
+    const client = state.client!
+    const scope = {
+      streamId: generateId(),
+      toolCallId: 'abandoned-tool',
+      workerOrigin: 'http://127.0.0.1:8080',
+    }
+    const abandoned = generateId()
+    const failed = generateId()
+    const inFlight = generateId()
+    for (const id of [abandoned, failed, inFlight]) await beginServiceMeter({ ...scope, id })
+    await finishServiceUsage(failed, 'provider pricing unavailable')
+    const receipt = {
+      id: generateId(),
+      streamId: scope.streamId,
+      toolCallId: scope.toolCallId,
+      service: 'exa',
+      costUsd: 0.25,
+    }
+    await saveServiceUsage(receipt, scope.workerOrigin)
+    await client`UPDATE copilot_service_usage SET created_at = now() - interval '1 day' WHERE id IN ${client([abandoned, failed, receipt.id])}`
+    // Past the longest tool watchdog, but a tool can still be cleaning up after it.
+    await client`UPDATE copilot_service_usage SET created_at = now() - interval '61 minutes' WHERE id = ${inFlight}`
+
+    const closed = (
+      await Promise.all([closeAbandonedServiceMeters(), closeAbandonedServiceMeters()])
+    ).flat()
+    expect(closed).toHaveLength(2)
+    expect(new Map(closed.map((meter) => [meter.id, meter.lastError]))).toEqual(
+      new Map([
+        [abandoned, expect.any(String)],
+        [failed, 'provider pricing unavailable'],
+      ])
+    )
+    expect(closed.every((meter) => meter.streamId === scope.streamId)).toBe(true)
+    expect(await closeAbandonedServiceMeters()).toEqual([])
+    // The watchdog only stops the chat waiting, so the owner can still finish after the close.
+    await finishServiceUsage(abandoned)
+    await finishServiceUsage(failed, 'late failure')
+    const lateRows =
+      await client`SELECT id, last_error FROM copilot_service_usage WHERE id IN ${client([abandoned, failed])}`
+    expect(new Map(lateRows.map((row) => [row.id, row.last_error]))).toEqual(
+      new Map(closed.map((meter) => [meter.id, meter.lastError]))
+    )
+
+    const open =
+      await client`SELECT id FROM copilot_service_usage WHERE stream_id = ${scope.streamId} AND delivered_at IS NULL`
+    expect(open.map((row) => row.id).sort()).toEqual([inFlight, receipt.id].sort())
+    expect((await claimServiceUsage()).map((row) => row.id)).toEqual([receipt.id])
   })
 })

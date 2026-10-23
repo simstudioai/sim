@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
-import { escapeRegExp } from '@sim/utils/string'
 import { useQueries } from '@tanstack/react-query'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
   isAssistantImageType,
@@ -24,9 +24,10 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
+import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
+import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
-import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
@@ -48,6 +49,8 @@ interface ComposerProps {
   restoredContexts?: ChatContext[]
   onSubmit: (text: string, contexts?: ChatContext[]) => void
   onSendQueuedHead?: () => void
+  onEditQueuedTail?: () => boolean
+  messages?: readonly ChatMessage[]
   onStop: () => void
 }
 
@@ -68,6 +71,8 @@ export function Composer({
   onChange,
   onSubmit,
   onSendQueuedHead,
+  onEditQueuedTail,
+  messages,
   restoredContexts,
   onStop,
 }: ComposerProps) {
@@ -99,7 +104,32 @@ export function Composer({
     initialContexts: restoredContexts,
     onPasteFiles: files.processFiles,
   })
+  const history = usePromptHistory({
+    editor,
+    attachedFiles: files.attachedFiles,
+    restoreAttachedFiles: files.restoreAttachedFiles,
+    getMessages: () => messages ?? [],
+  })
   const { textareaRef } = editor
+  const searchBlocked =
+    editor.getActiveContexts().length > 0 ||
+    files.attachedFiles.some((file) => !isAssistantImageType(file.type))
+  const handleModeChange = (mode: ChatRequestMode) => {
+    if (mode === 'assistant' && searchBlocked) {
+      toast.info(
+        'Remove resource and skill mentions and non-image attachments before switching to Search.'
+      )
+      return
+    }
+    onModeChange?.(mode)
+  }
+  const handleModeShortcut = useConversationModeShortcut({
+    value: requestMode,
+    searchEnabled: searchEnabled && !searchBlocked,
+    onChange: showModeSelector && onModeChange ? handleModeChange : undefined,
+    textareaRef,
+    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
+  })
   const editorRef = useRef(editor)
   editorRef.current = editor
   const lastPublished = useRef(value)
@@ -123,19 +153,13 @@ export function Composer({
   }, [editor.value, editor.contexts, onChange])
   useEffect(() => {
     if (!restoredContexts) return
-    // A queued skill may belong to a workspace whose picker has never opened here.
-    // Restore its existing chip from the saved context, without rediscovering it.
-    let restoredText = editorRef.current.getValue()
-    for (const context of restoredContexts) {
-      if (context.kind !== 'skill') continue
-      restoredText = restoredText.replace(
-        new RegExp(`(^|\\s)/${escapeRegExp(context.label)}(?=\\s|$)`, 'g'),
-        `$1${SKILL_CHIP_TRIGGER}${context.label}`
-      )
-    }
-    editorRef.current.setValue(restoredText, { chipify: false })
-    editorRef.current.setContexts(restoredContexts)
-  }, [restoredContexts])
+    history.reset()
+    const { hasUnavailableContexts } = editorRef.current.restorePrompt(
+      editorRef.current.getPlainValue(),
+      restoredContexts
+    )
+    if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
+  }, [restoredContexts, history.reset])
   useChatInputFocus({ textareaRef })
   const voice = useVoiceInput({
     organizationId: organization.id,
@@ -164,6 +188,7 @@ export function Composer({
     voice.resetTranscript()
     const contexts = imagesOnly ? [] : editor.getActiveContexts()
     onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
+    history.reset()
     editor.clear()
   }
 
@@ -187,13 +212,22 @@ export function Composer({
     </Tooltip.Root>
   )
 
+  const recallQueuedTail = () => {
+    if (attachedFilesRef.current.length > 0) return false
+    return onEditQueuedTail?.() ?? false
+  }
   const promptEditor = (
     <PromptEditor
       editor={editor}
       placeholder={placeholder}
       aria-label='Ask Sim'
       onSubmit={submit}
-      className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+      onNavigateHistory={history.navigate}
+      onArrowUpOnEmpty={recallQueuedTail}
+      className={cn(
+        'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
+        isInitialView && 'min-h-[56px] max-md:min-h-0'
+      )}
     />
   )
 
@@ -222,30 +256,14 @@ export function Composer({
         <ConversationModeSelector
           value={requestMode}
           searchEnabled={searchEnabled}
-          onChange={
-            onModeChange
-              ? (mode) => {
-                  if (
-                    mode === 'assistant' &&
-                    (editor.getActiveContexts().length > 0 ||
-                      files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
-                  ) {
-                    toast.info(
-                      'Remove resource and skill mentions and non-image attachments before switching to Search.'
-                    )
-                    return
-                  }
-                  onModeChange(mode)
-                }
-              : undefined
-          }
+          onChange={onModeChange ? handleModeChange : undefined}
         />
       )}
     </>
   )
   const voiceControl = voice.isSupported && (
     <MicButton
-      audioLevelsRef={voice.audioLevelsRef}
+      audioLevels={voice.audioLevels}
       isListening={voice.isListening}
       onToggle={voice.toggleListening}
     />
@@ -276,6 +294,7 @@ export function Composer({
 
   return (
     <div
+      onKeyDown={handleModeShortcut}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
       onDragOver={files.handleDragOver}
@@ -300,6 +319,12 @@ export function Composer({
           onChange={(text) => editor.setValue(text)}
           onSubmit={submit}
           onPaste={editor.handlePaste}
+          onKeyDown={(event) =>
+            editor.handleKeyDown(event, {
+              onNavigateHistory: history.navigate,
+              onArrowUpOnEmpty: recallQueuedTail,
+            })
+          }
           placeholder={placeholder}
           aria-label='Ask Sim'
           leadingControls={leadingControls}

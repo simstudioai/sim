@@ -1,11 +1,16 @@
 import { db } from '@sim/db'
-import { member, organization, settings, user, userStats } from '@sim/db/schema'
+import { member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import {
+  type CreditsThresholdClaim,
+  claimCreditsThreshold,
+  isCreditsThresholdUnclaimed,
+  resolveLimitEmailRecipients,
+} from '@/lib/billing/core/limit-notifications'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
@@ -26,6 +31,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
+  getFreeTierAllowance,
   getFreeTierLimit,
   getPerUserMinimumLimit,
   getPlanPricing,
@@ -38,9 +44,12 @@ import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { DbClient } from '@/lib/db/types'
-import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import {
+  isDeletedAccountIdentity,
+  userHasDeletedAccountIdentity,
+} from '@/lib/users/deleted-identity'
 
 const logger = createLogger('UsageManagement')
 
@@ -174,15 +183,47 @@ function calculateOrgUsageLimit(
 }
 
 /**
- * Handle new user setup when they join the platform
- * Creates userStats record with default free credits
+ * Users created in an auth request, keyed by Better Auth's endpoint context.
+ * `user.create.after` and `account.create.after` of one signup receive the same
+ * context object, which is how {@link handleNewSignInAccount} and
+ * {@link ensureUserStatsExists} tell a signup's first sign-in apart from a
+ * sign-in linked to an existing user later.
  */
-export async function handleNewUser(userId: string): Promise<void> {
+const usersCreatedInAuthRequest = new WeakMap<object, string>()
+
+function isUserCreatedInAuthRequest(
+  userId: string,
+  authRequest: object | null | undefined
+): boolean {
+  return authRequest ? usersCreatedInAuthRequest.get(authRequest) === userId : false
+}
+
+/**
+ * Handle new user setup when they join the platform.
+ * Creates the userStats record with the free allowance, which is zero when the
+ * user's email or an already-linked social sign-in belongs to an account
+ * deleted within the retention window. Every user Better Auth creates comes
+ * through here, including SCIM- and SSO-provisioned users, so their email is
+ * always checked at creation.
+ *
+ * @param authRequest Better Auth's endpoint context for the signup request, when there is one
+ */
+export async function handleNewUser(userId: string, authRequest?: object | null): Promise<void> {
+  if (authRequest) usersCreatedInAuthRequest.set(authRequest, userId)
   try {
+    const freeTierEligible = !(await userHasDeletedAccountIdentity(userId, {
+      includeSignIns: true,
+    }))
+    if (!freeTierEligible) {
+      logger.info('Withholding the free allowance from a returning deleted-account identity', {
+        userId,
+      })
+    }
     await db.insert(userStats).values({
       id: generateId(),
       userId: userId,
-      currentUsageLimit: getFreeTierLimit().toString(),
+      currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
+      freeTierEligible,
       usageLimitUpdatedAt: new Date(),
     })
 
@@ -197,26 +238,93 @@ export async function handleNewUser(userId: string): Promise<void> {
 }
 
 /**
+ * The account-creation half of the signup check, for a social sign-in that was
+ * not yet linked when {@link handleNewUser} ran. Only an account created in the
+ * same auth request as its user is a signup. A sign-in linked to an existing
+ * user in a later request never withholds anything; that includes a SCIM- or
+ * SSO-provisioned user, whose email was already checked when it was created.
+ * Only GitHub and Microsoft subjects are matched (see `lib/users/deleted-identity`);
+ * a Google sign-in is matched by its email, and integration connections never are.
+ *
+ * @param authRequest Better Auth's endpoint context for the request creating the account
+ */
+export async function handleNewSignInAccount(
+  {
+    userId,
+    providerId,
+    accountId,
+  }: {
+    userId: string
+    providerId: string
+    accountId: string
+  },
+  authRequest: object | null | undefined
+): Promise<void> {
+  if (!isUserCreatedInAuthRequest(userId, authRequest)) return
+  if (!(await isDeletedAccountIdentity({ oauthSubjects: [{ providerId, accountId }] }))) return
+  await forfeitFreeTierAllowance(db, userId)
+}
+
+/**
  * Ensures a userStats record exists for a user.
  * Creates one with default values if missing.
  * This is a fallback for cases where the user.create.after hook didn't fire
- * (e.g., OAuth account linking to existing users).
+ * or failed (e.g., OAuth account linking to existing users). A row created
+ * here gets only the check signup would have made: the email always, and the
+ * linked sign-ins only when the user was created in `authRequest`, so a sign-in
+ * linked later never withholds. A failed check leaves the allowance in place
+ * and never fails the caller.
  *
  * Always writes to the primary — never takes a read-routing executor.
+ *
+ * @param authRequest Better Auth's endpoint context, when called from an auth hook
  */
-export async function ensureUserStatsExists(userId: string): Promise<void> {
-  await db
+export async function ensureUserStatsExists(
+  userId: string,
+  authRequest?: object | null
+): Promise<void> {
+  await createUserStatsIfMissing(db, userId, {
+    includeSignIns: isUserCreatedInAuthRequest(userId, authRequest),
+  })
+}
+
+/**
+ * Creates a user's `user_stats` row with the free allowance when none exists, on `executor`
+ * (the caller's transaction, or `db`). Only a row this call creates gets the deleted-identity
+ * check signup makes: the email always, and the linked sign-ins only when `includeSignIns` is
+ * set. An existing row costs only the conflicting insert. A failed check leaves the allowance in
+ * place and never fails the caller or aborts its transaction.
+ *
+ * @returns whether this call created the row
+ */
+export async function createUserStatsIfMissing(
+  executor: DbOrTx,
+  userId: string,
+  { includeSignIns = false }: { includeSignIns?: boolean } = {}
+): Promise<boolean> {
+  const created = await executor
     .insert(userStats)
     .values({
       id: generateId(),
-      userId: userId,
+      userId,
       currentUsageLimit: getFreeTierLimit().toString(),
       usageLimitUpdatedAt: new Date(),
     })
     .onConflictDoNothing({ target: userStats.userId })
+    .returning({ id: userStats.id })
+  if (created.length === 0) return false
+
+  try {
+    if (await userHasDeletedAccountIdentity(userId, { includeSignIns }, executor)) {
+      await forfeitFreeTierAllowance(executor, userId)
+    }
+  } catch (error) {
+    logger.error('Failed to withhold the free allowance from a new stats row', { userId, error })
+  }
+  return true
 }
 
-export interface ResolvedUserUsageData {
+interface ResolvedUserUsageData {
   usage: UsageData
   subscription: HighestPrioritySubscription
   /** The personal balance from the same user-stats row used to calculate usage. */
@@ -224,7 +332,7 @@ export interface ResolvedUserUsageData {
 }
 
 /** Resolves comprehensive usage and the subscription that determined its billing scope. */
-export async function getResolvedUserUsageData(
+async function getResolvedUserUsageData(
   userId: string,
   executor: DbClient = db
 ): Promise<ResolvedUserUsageData> {
@@ -289,7 +397,7 @@ export async function getResolvedUserUsageData(
     } else {
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
-        : getFreeTierLimit()
+        : getFreeTierAllowance(stats.freeTierEligible)
     }
 
     const billingPeriodStart = billingPeriod.source === 'default' ? null : billingPeriod.start
@@ -380,8 +488,8 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     } else {
       currentLimit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
-        : getFreeTierLimit()
-      minimumLimit = getPerUserMinimumLimit(subscription)
+        : getFreeTierAllowance(stats.freeTierEligible)
+      minimumLimit = getPerUserMinimumLimit(subscription, stats.freeTierEligible)
       canEdit = canEditUsageLimit(subscription)
     }
 
@@ -429,7 +537,8 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'An active subscription is required to edit usage limits' }
     }
 
-    const minimumLimit = getPerUserMinimumLimit(subscription)
+    // Reached only with a usable paid personal plan, whose floor never depends on the free allowance.
+    const minimumLimit = getPerUserMinimumLimit(subscription, true)
 
     logger.info('Applying plan-based validation', {
       userId,
@@ -507,6 +616,7 @@ export async function getUserUsageLimit(
     .select({
       currentUsageLimit: userStats.currentUsageLimit,
       creditBalance: userStats.creditBalance,
+      freeTierEligible: userStats.freeTierEligible,
     })
     .from(userStats)
     .where(eq(userStats.userId, userId))
@@ -521,8 +631,8 @@ export async function getUserUsageLimit(
   if (!userStatsQuery[0].currentUsageLimit) {
     const baseLimit =
       subscription && hasPaidSubscriptionStatus(subscription.status)
-        ? getPerUserMinimumLimit(subscription)
-        : getFreeTierLimit()
+        ? getPerUserMinimumLimit(subscription, userStatsQuery[0].freeTierEligible)
+        : getFreeTierAllowance(userStatsQuery[0].freeTierEligible)
     const fallbackLimit = toDecimal(baseLimit).plus(toDecimal(userStatsQuery[0].creditBalance))
 
     try {
@@ -594,24 +704,44 @@ export async function checkUsageStatus(userId: string): Promise<{
 }
 
 /**
+ * Withholds the free allowance from a new account found to reuse the sign-in
+ * identity of a recently deleted one after its stats row was created. The flag
+ * and the limit it implies commit together (a transaction on `db`, a savepoint
+ * inside a caller's transaction), so a failed re-derivation can never leave the
+ * account flagged but still holding the free limit; repeating the call is harmless.
+ */
+async function forfeitFreeTierAllowance(executor: DbOrTx, userId: string): Promise<void> {
+  await executor.transaction(async (tx) => {
+    await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
+    await syncUsageLimitsFromSubscription(userId, tx)
+  })
+  logger.info('Withheld the free allowance from a returning deleted-account identity', { userId })
+}
+
+/**
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
  */
-export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
+export async function syncUsageLimitsFromSubscription(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<void> {
   const [subscription, currentUserStats] = await Promise.all([
-    getHighestPriorityPersonalSubscription(userId, { onError: 'throw' }),
-    db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+    getHighestPriorityPersonalSubscription(userId, { onError: 'throw', executor }),
+    executor.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
   ])
 
   if (currentUserStats.length === 0) {
     throw new Error(`User stats not found for userId: ${userId}`)
   }
 
-  const baseLimit = toDecimal(getPerUserMinimumLimit(subscription)).toString()
+  const baseLimit = toDecimal(
+    getPerUserMinimumLimit(subscription, currentUserStats[0].freeTierEligible)
+  ).toString()
   const hasEntitledPersonalSubscription =
     subscription !== null && hasPaidSubscriptionStatus(subscription.status)
   const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`
-  await db
+  await executor
     .update(userStats)
     .set({
       currentUsageLimit: hasEntitledPersonalSubscription
@@ -686,28 +816,56 @@ export async function getEffectiveCurrentPeriodCost(
 }
 
 /**
- * Send usage threshold notification when crossing from <80% to ≥80%.
+ * Send the usage threshold notification for the level usage is at: the 80% warning or the 100%
+ * limit-reached email, each at most once per billing period and limit.
+ * - Level-triggered: any caller at or above a threshold may send it, so it tolerates a usage read
+ *   that lags the ledger, and the claim ({@link claimCreditsThreshold}) is what keeps repeated or
+ *   concurrent callers to one email. A new period or a changed limit re-arms both thresholds.
  * - Skips when billing is disabled.
- * - Respects user-level notifications toggle and unsubscribe preferences.
+ * - Returns after one indexed read once the threshold is claimed, so the completions that follow
+ *   in the period cost no recipient lookup or write.
+ * - Respects user-level notifications toggle and unsubscribe preferences, resolved before the
+ *   claim so an account with nobody to notify never consumes it.
  * - For organization plans, emails owners/admins who have notifications enabled.
  */
 export async function maybeSendUsageThresholdEmail(params: {
   scope: 'user' | 'organization'
   planName: string
-  percentBefore: number
-  percentAfter: number
+  /** Start of the billing period the usage belongs to. */
+  periodStart: Date
   userId?: string
   userEmail?: string
   userName?: string
   organizationId?: string
   /** Workspace the usage occurred in, used to build a live upgrade/billing link. */
   workspaceId?: string
-  currentUsageAfter: number
+  /** Usage before this completion was recorded. */
+  usageBefore: number
+  /** Cost this completion recorded; one that recorded nothing cannot move usage. */
+  costDelta: number
   limit: number
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
-    if (params.limit <= 0 || params.currentUsageAfter <= 0) return
+    if (params.limit <= 0 || params.costDelta <= 0) return
+
+    const currentUsage = params.usageBefore + params.costDelta
+    const percentUsed = (currentUsage / params.limit) * 100
+    const threshold = percentUsed >= 100 ? 100 : percentUsed >= 80 ? 80 : undefined
+    if (threshold === undefined) return
+    const stateId = params.scope === 'user' ? params.userId : params.organizationId
+    if (!stateId) return
+    const claim: CreditsThresholdClaim = {
+      scope: params.scope,
+      id: stateId,
+      periodStart: params.periodStart,
+      limit: params.limit,
+      threshold,
+    }
+    if (!(await isCreditsThresholdUnclaimed(claim))) return
+    const recipients = await resolveLimitEmailRecipients(params.scope, params)
+    if (recipients.length === 0) return
+    if (!(await claimCreditsThreshold(claim))) return
 
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
@@ -726,66 +884,15 @@ export async function maybeSendUsageThresholdEmail(params: {
         ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
         : `${baseUrl}/account/settings/billing`
 
-    // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)
-    const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
-    // Check for 100% threshold — every plan and scope (usage limit reached)
-    const crosses100 = params.percentBefore < 100 && params.percentAfter >= 100
-
-    // Skip if no thresholds crossed
-    if (!crosses80 && !crosses100) return
-
-    /**
-     * Delivers to the account's notification recipients: the payer for personal
-     * scope, every org admin/owner for organization scope. Honors the per-user
-     * billing-notification toggle in both.
-     */
-    const deliverToScope = async (send: (email: string, name?: string) => Promise<void>) => {
-      if (params.scope === 'user' && params.userId && params.userEmail) {
-        const rows = await db
-          .select({ enabled: settings.billingUsageNotificationsEnabled })
-          .from(settings)
-          .where(eq(settings.userId, params.userId))
-          .limit(1)
-        if (rows.length > 0 && rows[0].enabled === false) return
-        await send(params.userEmail, params.userName)
-        return
-      }
-
-      if (params.scope === 'organization' && params.organizationId) {
-        const admins = await db
-          .select({
-            email: user.email,
-            name: user.name,
-            enabled: settings.billingUsageNotificationsEnabled,
-            role: member.role,
-          })
-          .from(member)
-          .innerJoin(user, eq(member.userId, user.id))
-          .leftJoin(settings, eq(settings.userId, member.userId))
-          .where(eq(member.organizationId, params.organizationId))
-
-        for (const a of admins) {
-          if (!isOrgAdminRole(a.role)) continue
-          if (a.enabled === false) continue
-          if (!a.email) continue
-          await send(a.email, a.name || undefined)
-        }
-      }
-    }
-
-    // !crosses100: one "reached" email, not a "nearing" and a "reached" in the same moment
-    if (crosses80 && !isFreeUser && !crosses100) {
+    if (threshold === 80 && !isFreeUser) {
       const ctaLink = billingSettingsLink
-      await deliverToScope(async (email, name) => {
-        const prefs = await getEmailPreferences(email)
-        if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
-
+      for (const { email, name } of recipients) {
         const { renderUsageThresholdEmail, getEmailSubject, sendEmail } = await loadEmailDelivery()
         const html = await renderUsageThresholdEmail({
           userName: name,
           planName: params.planName,
-          percentUsed: Math.min(100, Math.round(params.percentAfter)),
-          currentUsage: params.currentUsageAfter,
+          percentUsed: Math.round(percentUsed),
+          currentUsage,
           limit: params.limit,
           ctaLink,
         })
@@ -796,21 +903,17 @@ export async function maybeSendUsageThresholdEmail(params: {
           html,
           emailType: 'notifications',
         })
-      })
+      }
     }
 
-    // For 80% threshold email (free users only — skip if they also crossed 100% in same call)
-    if (crosses80 && isFreeUser && !crosses100) {
+    if (threshold === 80 && isFreeUser) {
       const upgradeLink = upgradeCreditsLink
-      await deliverToScope(async (email, name) => {
-        const prefs = await getEmailPreferences(email)
-        if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
-
+      for (const { email, name } of recipients) {
         const { renderFreeTierUpgradeEmail, getEmailSubject, sendEmail } = await loadEmailDelivery()
         const html = await renderFreeTierUpgradeEmail({
           userName: name,
-          percentUsed: Math.min(100, Math.round(params.percentAfter)),
-          currentUsage: params.currentUsageAfter,
+          percentUsed: Math.round(percentUsed),
+          currentUsage,
           limit: params.limit,
           upgradeLink,
         })
@@ -824,21 +927,17 @@ export async function maybeSendUsageThresholdEmail(params: {
 
         logger.info('Free tier upgrade email sent', {
           email,
-          percentUsed: Math.round(params.percentAfter),
-          currentUsage: params.currentUsageAfter,
+          percentUsed: Math.round(percentUsed),
+          currentUsage,
           limit: params.limit,
         })
-      })
+      }
     }
 
-    // Paid and org accounts get raise-your-limit copy — upgrading is not their remedy
-    if (crosses100) {
+    if (threshold === 100) {
       const useFreeCopy = isFreeUser && params.scope === 'user'
 
-      await deliverToScope(async (email, name) => {
-        const prefs = await getEmailPreferences(email)
-        if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
-
+      for (const { email, name } of recipients) {
         const {
           renderCreditsExhaustedEmail,
           renderUsageLimitReachedEmail,
@@ -856,7 +955,7 @@ export async function maybeSendUsageThresholdEmail(params: {
               userName: name,
               planName: params.planName,
               scope: params.scope,
-              currentUsage: params.currentUsageAfter,
+              currentUsage,
               limit: params.limit,
               ctaLink: billingSettingsLink,
             })
@@ -874,10 +973,10 @@ export async function maybeSendUsageThresholdEmail(params: {
           email,
           scope: params.scope,
           planName: params.planName,
-          currentUsage: params.currentUsageAfter,
+          currentUsage,
           limit: params.limit,
         })
-      })
+      }
     }
   } catch (error) {
     logger.error('Failed to send usage threshold email', {

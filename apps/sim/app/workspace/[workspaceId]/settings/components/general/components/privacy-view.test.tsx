@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,9 +16,7 @@ vi.mock('@/hooks/queries/general-settings', () => ({
   useGeneralSettings: () => ({ data: settings }),
   useUpdateGeneralSetting: () => ({ mutateAsync: mutate, isPending: false }),
 }))
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({ hosted: false }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@sim/emcn', () => ({
   ArrowLeft: () => null,
   Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -73,7 +72,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   localStorage.clear()
-  vi.clearAllMocks()
 })
 
 function clickToggle() {

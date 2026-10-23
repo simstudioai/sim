@@ -10,12 +10,7 @@ import {
   estimateOutputTokens,
   estimateTokenCount,
 } from '@/lib/tokenization/estimators'
-import type {
-  CostBreakdown,
-  StreamingCostResult,
-  TokenizationInput,
-  TokenUsage,
-} from '@/lib/tokenization/types'
+import type { CostBreakdown, StreamingCostResult, TokenUsage } from '@/lib/tokenization/types'
 import {
   getProviderForTokenization,
   logTokenizationDetails,
@@ -108,38 +103,5 @@ export function calculateStreamingCost(
       `Failed to calculate streaming cost: ${toError(error).message}`,
       { model, inputLength: inputText?.length || 0, outputLength: outputText?.length || 0 }
     )
-  }
-}
-
-/**
- * Calculates cost for tokenization input object
- */
-export function calculateTokenizationCost(input: TokenizationInput): StreamingCostResult {
-  return calculateStreamingCost(
-    input.model,
-    input.inputText,
-    input.outputText,
-    input.systemPrompt,
-    input.context,
-    input.messages
-  )
-}
-
-/**
- * Creates a streaming cost result from existing provider response data
- */
-export function createCostResultFromProviderData(
-  model: string,
-  providerTokens: TokenUsage,
-  providerCost: CostBreakdown
-): StreamingCostResult {
-  const providerId = getProviderForTokenization(model)
-
-  return {
-    tokens: providerTokens,
-    cost: providerCost,
-    model,
-    provider: providerId,
-    method: 'provider_response',
   }
 }

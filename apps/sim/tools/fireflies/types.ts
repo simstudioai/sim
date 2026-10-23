@@ -295,15 +295,3 @@ export interface FirefliesListContactsResponse extends ToolResponse {
     contacts?: FirefliesContact[]
   }
 }
-
-export type FirefliesResponse =
-  | FirefliesListTranscriptsResponse
-  | FirefliesGetTranscriptResponse
-  | FirefliesGetUserResponse
-  | FirefliesUploadAudioResponse
-  | FirefliesDeleteTranscriptResponse
-  | FirefliesAddToLiveMeetingResponse
-  | FirefliesListUsersResponse
-  | FirefliesCreateBiteResponse
-  | FirefliesListBitesResponse
-  | FirefliesListContactsResponse

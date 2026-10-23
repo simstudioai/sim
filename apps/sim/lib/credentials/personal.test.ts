@@ -1,12 +1,17 @@
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
 import { eq, ne } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { enrolled } = vi.hoisted(() => ({ enrolled: vi.fn() }))
-vi.mock('@/lib/credentials/environment', () => ({ getEnrolledManagedOAuthCredentials: enrolled }))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import { getPersonalOAuthCredentials } from '@/lib/credentials/personal'
+
+const enrolled = credentialsEnvironmentMockFns.mockGetEnrolledManagedOAuthCredentials
 
 describe('personal OAuth queries', () => {
   beforeEach(() => {

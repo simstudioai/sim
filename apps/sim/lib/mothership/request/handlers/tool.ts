@@ -1,16 +1,18 @@
-import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
-import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { withinDeadline } from '@/lib/core/utils/deadline'
+import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
+import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
-import { upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
+import { getAsyncToolCall, upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
-  STREAM_TIMEOUT_MS,
+  DESKTOP_TOOL_PICKUP_GRACE_MS,
 } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -32,7 +34,21 @@ import { markToolResultSeen, wasToolResultSeen } from '@/lib/mothership/request/
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
-import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
+import {
+  capToToolDeadline,
+  frameToolDeadlineAt,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  TOOL_DEADLINE_EXCEEDED_MESSAGE,
+  toDeadlineDate,
+  toolDeadlinePassed,
+  toolStartWindowClosed,
+} from '@/lib/mothership/request/tools/deadline'
+import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
+import {
+  executeToolAndReport,
+  failPendingToolCall,
+  failUnstartedToolCall,
+} from '@/lib/mothership/request/tools/executor'
 import {
   runGatedToolExecution,
   TOOL_AWAITING_APPROVAL_STATUS,
@@ -47,19 +63,21 @@ import type {
   ToolCallState,
 } from '@/lib/mothership/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
+import { readCallActivity, readFrameActivity } from '@/lib/mothership/tools/activity'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
-import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
+import {
+  isBackgroundDesktopToolCall,
+  isClaimedOnPickup,
+} from '@/lib/mothership/tools/desktop-tools'
 import {
   getToolDisplayTitle,
   normalizeToolActivityDescription,
   refineStreamingCliToolName,
-} from '@/lib/mothership/tools/tool-display'
-import {
-  isWorkflowToolName,
-  resolveWorkflowToolTargetId,
-} from '@/lib/mothership/tools/workflow-tools'
+} from '@/lib/mothership/tools/display'
+import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import { resolveWorkflowToolTargetId } from '@/lib/mothership/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import {
   abortPendingToolIfStreamDead,
@@ -135,9 +153,10 @@ function handleToolArgsDelta(
   if (!toolCall) return
   toolCall.streamingArgs = `${toolCall.streamingArgs ?? ''}${data.argumentsDelta}`
 
-  // Progressive CLI title: the row upgrades from "Running CLI command" to the
-  // specific verb as soon as enough argv tokens have streamed to name it —
-  // no wait for the full (possibly huge) argument payload.
+  // Progressive CLI title: the row upgrades from its placeholder to the specific
+  // verb as soon as enough argv tokens have streamed to name it — no wait for the
+  // full (possibly huge) argument payload. The activity header holds it back until
+  // the model's description arrives (see `isAwaitingTitle`).
   if (toolCall.name === 'sim_cli' || toolCall.name.startsWith('cli_')) {
     const refined = refineStreamingCliToolName(toolCall.streamingArgs)
     if (refined && refined !== toolCall.name) {
@@ -188,8 +207,27 @@ function rebindResolvedIntegrationCall(
   }
   toolCall.name = toolName
   toolCall.params = args
+  toolCall.resolvedOperation = true
   applyToolDisplay(toolCall)
   return true
+}
+
+/** Reads the run's device binding once per streaming context. */
+async function resolveRunDesktopDevice(context: StreamingContext): Promise<string | null> {
+  if (context.desktopDeviceId === undefined)
+    context.desktopDeviceId = context.runId ? await getRunDesktopDeviceId(context.runId) : null
+  return context.desktopDeviceId
+}
+
+/**
+ * Whether this turn's desktop claims local reads before reading them: a desktop that declared it
+ * does, and a bound device's background executor claims every desktop call.
+ */
+function desktopClaimsLocalReads(
+  options: OrchestratorOptions | undefined,
+  desktopDeviceId: string | null
+): boolean {
+  return options?.desktopClaimsLocalReads === true || desktopDeviceId !== null
 }
 
 /**
@@ -216,10 +254,13 @@ export async function prePersistClientExecutableToolCall(
   if (!isToolCallStreamEvent(event)) return
 
   const data = event.payload
-  if (data.replay) return
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
-  if (isPartial) return
+  // Only a live, complete call can be held behind a prompt; drop the stamp on any other frame.
+  if (data.replay || isPartial) {
+    if (data.status === TOOL_AWAITING_APPROVAL_STATUS) data.status = undefined
+    return
+  }
 
   const ui = getToolCallUI(data)
   const catalogEntry = getToolEntry(data.toolName)
@@ -298,25 +339,35 @@ export async function prePersistClientExecutableToolCall(
     }
   }
 
+  const desktopDeviceId = isBackgroundDesktopToolCall(data.toolName, data.arguments)
+    ? await resolveRunDesktopDevice(context)
+    : null
+
   await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: data.toolCallId,
     toolName: data.toolName,
     args: data.arguments,
     sealedContext,
-    /**
-     * Native desktop actions remain pending until Electron atomically claims
-     * them at authorization. Gated tools also await dispatch; other client
-     * tools retain their established already-dispatched running state.
-     */
+    // Desktop calls the desktop claims on pickup (browser, terminal, import,
+    // and local reads when this turn's desktop or its bound background
+    // executor claims them) cross a second, native authorization boundary.
+    // Leave those rows pending until the desktop atomically claims them, so a
+    // replayed event cannot act twice and a call nobody picks up can fail fast.
+    // All other client tools retain the established "already dispatched"
+    // running state. A gated tool is likewise pending: nothing has been
+    // dispatched yet.
     status:
       gated ||
-      isCurrentBrowserToolName(data.toolName) ||
-      isTerminalToolName(data.toolName) ||
-      data.toolName === 'import_local_files' ||
-      data.toolName === 'computer'
+      isClaimedOnPickup(
+        data.toolName,
+        data.arguments,
+        desktopClaimsLocalReads(options, desktopDeviceId)
+      )
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
+    permissionRequested: gated,
+    executionDeadlineAt: toDeadlineDate(frameToolDeadlineAt(data.deadlineMs, Date.now())),
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
@@ -325,6 +376,8 @@ export async function prePersistClientExecutableToolCall(
       error: getErrorMessage(err),
     })
   })
+  // The device lists the call for the user's decision; it claims it only once allowed.
+  if (gated && desktopDeviceId) ringDesktopInbox(desktopDeviceId, 'approval')
 }
 
 /**
@@ -464,6 +517,48 @@ function stampToolCallBlockEnd(
   }
 }
 
+/** How long a client wait lasts at least: enough to read a result the client already saved. */
+const STORED_RESULT_READ_MS = 5_000
+
+/**
+ * The completion a client wait reports for a call Sim settled itself: whatever the settlement
+ * left on the call, which is the desktop's own result when that landed first.
+ */
+function settledClientCompletion(toolCall: ToolCallState): AsyncTerminalCompletionSnapshot {
+  const status =
+    toolCall.status === MothershipStreamV1ToolOutcome.success ||
+    toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+      ? toolCall.status
+      : MothershipStreamV1ToolOutcome.error
+  return {
+    status,
+    ...(toolCall.error ? { message: toolCall.error } : {}),
+    ...(toolCall.result?.output !== undefined ? { data: toolCall.result.output } : {}),
+  }
+}
+
+/**
+ * Adopts the deadline recorded when the call was first handed (a takeover re-hands its parked
+ * calls), so an approval or client wait gets only what remains of it. Server executions adopt it
+ * from their own upsert. A recorded deadline that cannot be read before the frame's runs out
+ * counts as spent: the frame's could be later than the one the worker is holding the call to.
+ */
+async function adoptRecordedToolDeadline(toolCall: ToolCallState): Promise<void> {
+  if (toolCall.deadlineAt === undefined) return
+  try {
+    const recorded = (
+      await withinDeadline(() => getAsyncToolCall(toolCall.id), toolCall.deadlineAt)
+    )?.executionDeadlineAt
+    if (recorded) toolCall.deadlineAt = recorded.getTime()
+  } catch (error) {
+    logger.warn('Could not read a tool call deadline; treating it as spent', {
+      toolCallId: toolCall.id,
+      error: getErrorMessage(error),
+    })
+    toolCall.deadlineAt = Date.now()
+  }
+}
+
 async function handleCallPhase(
   data: ToolCallStreamEvent['payload'],
   context: StreamingContext,
@@ -486,15 +581,17 @@ async function handleCallPhase(
     existing.activityDescription ??= activityDescription
   }
   /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
-  const suppliedActivity = readToolActivity(args) ?? readToolActivity(existing?.params)
+  const suppliedActivity =
+    readFrameActivity({ toolName, args }, existing) ?? readCallActivity(existing)
   const activity = suppliedActivity?.completedTitle
     ? suppliedActivity
     : suppliedActivity &&
       Array.from(context.toolCalls.values())
         .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
-        .map((tool) => readToolActivity(tool.params))
+        .map(readCallActivity)
         .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
-  const displayArgs = activity ? { ...args, activity } : args
+  // Kept off `args`, which execute as given (an MCP schema refuses keys it never declared).
+  if (existing && activity) existing.activity = activity
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
@@ -512,8 +609,8 @@ async function handleCallPhase(
 
   if (isSubagent) {
     if (wasToolResultSeen(context, toolCallId) || existing?.endTime) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
-        if (existing) updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        if (existing) updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -523,8 +620,8 @@ async function handleCallPhase(
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
-      if (!rebindResolvedIntegrationCall(existing, toolName, displayArgs)) {
-        updateToolCallFromFrame(existing, toolName, displayArgs, !isPartial)
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -536,7 +633,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      displayArgs,
+      args,
       parentToolCallId!,
       agentId,
       ui,
@@ -549,7 +646,7 @@ async function handleCallPhase(
       context,
       toolCallId,
       toolName,
-      displayArgs,
+      args,
       existing,
       agentId,
       ui,
@@ -560,6 +657,7 @@ async function handleCallPhase(
 
   const registered = context.toolCalls.get(toolCallId)
   if (registered && data.workspaceId) registered.targetWorkspaceId = data.workspaceId
+  if (registered && activity) registered.activity = activity
   if (isPartial || data.replay) return
   if (!isSubagent && wasToolResultSeen(context, toolCallId)) return
   if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
@@ -574,6 +672,7 @@ async function handleCallPhase(
   // apply_file_edit intent handoff to one file subagent under concurrency.
   if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
   if (data.execName) toolCall.execName = data.execName
+  toolCall.deadlineAt ??= frameToolDeadlineAt(data.deadlineMs, Date.now())
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
@@ -852,7 +951,9 @@ async function dispatchToolExecution(
     return fireToolExecution()
   }
 
-  if (toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)) {
+  const gated = toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)
+  if (gated || clientExecutable) await adoptRecordedToolDeadline(toolCall)
+  if (gated) {
     registerPendingToolPromise(
       context,
       toolCallId,
@@ -882,7 +983,12 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const timeoutMs = options.timeout || STREAM_TIMEOUT_MS
+    const ownTimeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
+    // Even past its deadline a wait lasts long enough to read a result the client already saved.
+    const timeoutMs = Math.max(
+      capToToolDeadline(ownTimeoutMs, toolCall.deadlineAt, Date.now()),
+      Math.min(ownTimeoutMs, STORED_RESULT_READ_MS)
+    )
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {
@@ -893,7 +999,23 @@ async function dispatchToolExecution(
       },
       async (span) => {
         let completion: AsyncTerminalCompletionSnapshot | null
-        if (isWorkflowToolName(toolName)) {
+        const desktopDeviceId = isBackgroundDesktopToolCall(toolName, args)
+          ? await resolveRunDesktopDevice(context)
+          : null
+        // An approval wait or a spent recorded deadline left no time. Only a call nothing claimed
+        // provably never ran; a claimed one (a takeover re-hands calls) is read, then settled
+        // below as outcome unknown.
+        if (
+          toolStartWindowClosed(toolCall.deadlineAt, Date.now()) &&
+          (await failUnstartedToolCall(
+            toolCallId,
+            context,
+            execContext,
+            TOOL_DEADLINE_BEFORE_START_MESSAGE
+          ))
+        ) {
+          completion = settledClientCompletion(toolCall)
+        } else if (isWorkflowToolName(toolName)) {
           const race = await raceWorkflowToolClientPickup({
             toolCallId,
             select:
@@ -904,6 +1026,7 @@ async function dispatchToolExecution(
                 : undefined,
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
             timeoutMs,
+            deadlineAt: toolCall.deadlineAt,
             // The caller declared its executors at turn setup (ChatRequest.clientCapabilities):
             // no pickup capability → zero grace, the race resolves straight to the server
             // claim. Same claim arbitration either way — the grace only encodes how long a
@@ -937,6 +1060,19 @@ async function dispatchToolExecution(
             return race.signal ?? errorCompletion('Tool completion missing')
           }
           completion = race.completion ?? null
+        } else if (
+          isClaimedOnPickup(toolName, args, desktopClaimsLocalReads(options, desktopDeviceId))
+        ) {
+          completion = await waitForDesktopToolCall({
+            toolCallId,
+            runId: context.runId,
+            userId: execContext.userId,
+            timeoutMs,
+            pickupGraceMs: DESKTOP_TOOL_PICKUP_GRACE_MS,
+            desktopDeviceId,
+            abortSignal: options.abortSignal,
+            registry: execContext.resolvedSecretTraceRegistry,
+          })
         } else {
           completion = await waitForClientToolCompletion({
             toolCallId,
@@ -948,6 +1084,25 @@ async function dispatchToolExecution(
           })
         }
         span.setAttribute(TraceAttr.ToolExecutor, MothershipStreamV1ToolExecutor.client)
+        if (completion === null && toolDeadlinePassed(toolCall.deadlineAt, Date.now())) {
+          // A call nothing claimed never ran. A claimed one is settled durably as outcome
+          // unknown, so a desktop that claimed it stops renewing it.
+          if (
+            !(await failUnstartedToolCall(
+              toolCallId,
+              context,
+              execContext,
+              TOOL_DEADLINE_BEFORE_START_MESSAGE
+            ))
+          )
+            await failPendingToolCall(
+              toolCallId,
+              context,
+              execContext,
+              TOOL_DEADLINE_EXCEEDED_MESSAGE
+            )
+          completion = settledClientCompletion(toolCall)
+        }
         // Both waiters resolve `T | null`, never undefined — comparing against
         // undefined made this a constant `true` and hid every timeout.
         span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== null)

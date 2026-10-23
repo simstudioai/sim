@@ -1,35 +1,6 @@
 import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type {
-  AthenaBatchGetNamedQueryResponse,
-  AthenaBatchGetPreparedStatementResponse,
-  AthenaBatchGetQueryExecutionResponse,
-  AthenaCreateNamedQueryResponse,
-  AthenaCreatePreparedStatementResponse,
-  AthenaDeleteNamedQueryResponse,
-  AthenaDeletePreparedStatementResponse,
-  AthenaGetDatabaseResponse,
-  AthenaGetDataCatalogResponse,
-  AthenaGetNamedQueryResponse,
-  AthenaGetPreparedStatementResponse,
-  AthenaGetQueryExecutionResponse,
-  AthenaGetQueryResultsResponse,
-  AthenaGetQueryRuntimeStatisticsResponse,
-  AthenaGetTableMetadataResponse,
-  AthenaGetWorkGroupResponse,
-  AthenaListDatabasesResponse,
-  AthenaListDataCatalogsResponse,
-  AthenaListNamedQueriesResponse,
-  AthenaListPreparedStatementsResponse,
-  AthenaListQueryExecutionsResponse,
-  AthenaListTableMetadataResponse,
-  AthenaListWorkGroupsResponse,
-  AthenaStartQueryResponse,
-  AthenaStopQueryResponse,
-  AthenaUpdateNamedQueryResponse,
-  AthenaUpdatePreparedStatementResponse,
-} from '@/tools/athena/types'
 
 /**
  * Normalizes a switch value that may arrive as a boolean or as the strings 'true' / 'false'.
@@ -41,40 +12,12 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
-export const AthenaBlock: BlockConfig<
-  | AthenaStartQueryResponse
-  | AthenaGetQueryExecutionResponse
-  | AthenaGetQueryResultsResponse
-  | AthenaGetQueryRuntimeStatisticsResponse
-  | AthenaStopQueryResponse
-  | AthenaListQueryExecutionsResponse
-  | AthenaBatchGetQueryExecutionResponse
-  | AthenaCreateNamedQueryResponse
-  | AthenaGetNamedQueryResponse
-  | AthenaBatchGetNamedQueryResponse
-  | AthenaUpdateNamedQueryResponse
-  | AthenaListNamedQueriesResponse
-  | AthenaDeleteNamedQueryResponse
-  | AthenaCreatePreparedStatementResponse
-  | AthenaGetPreparedStatementResponse
-  | AthenaBatchGetPreparedStatementResponse
-  | AthenaUpdatePreparedStatementResponse
-  | AthenaListPreparedStatementsResponse
-  | AthenaDeletePreparedStatementResponse
-  | AthenaListDataCatalogsResponse
-  | AthenaGetDataCatalogResponse
-  | AthenaListDatabasesResponse
-  | AthenaGetDatabaseResponse
-  | AthenaListTableMetadataResponse
-  | AthenaGetTableMetadataResponse
-  | AthenaListWorkGroupsResponse
-  | AthenaGetWorkGroupResponse
-> = {
+export const AthenaBlock: BlockConfig = {
   type: 'athena',
   name: 'Athena',
   description: 'Run SQL queries on data in Amazon S3 using AWS Athena',
   longDescription:
-    'Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.',
+    'Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/athena',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

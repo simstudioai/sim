@@ -13,6 +13,6 @@ export const POST = defineInternalJsonRoute({
   operation: reconnectPersonalOrganizationAccount.operation,
   rateLimit: internalRateLimits.none({ reason: 'Current-user connected account management' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params }) => params,
+  mapInput: ({ params, query }) => ({ ...params, ...query }),
   useCase: reconnectPersonalOrganizationAccount,
 })

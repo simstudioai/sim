@@ -1,10 +1,17 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  assertExcelSuccess,
+  EXCEL_TABLE_OUTPUT,
+  EXCEL_WORKBOOK_PARAMS,
+  excelHeaders,
+  mapExcelTable,
+} from '@/tools/microsoft_excel/shared'
 import type {
   MicrosoftExcelCreateTableParams,
   MicrosoftExcelCreateTableResponse,
 } from '@/tools/microsoft_excel/types'
 import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Creates a new table over a range of cells.
@@ -26,6 +33,7 @@ export const createTableTool: ToolConfig<
   },
 
   params: {
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -43,7 +51,7 @@ export const createTableTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     address: {
       type: 'string',
@@ -70,15 +78,7 @@ export const createTableTool: ToolConfig<
       return `${basePath}/workbook/tables/add`
     },
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: excelHeaders,
     body: (params) => {
       const address = params.address?.trim()
       if (!address) {
@@ -91,7 +91,12 @@ export const createTableTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelCreateTableParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelCreateTableParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const data = await response.json()
 
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
@@ -101,12 +106,13 @@ export const createTableTool: ToolConfig<
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     return {
       success: true,
       output: {
         table: {
+          ...mapExcelTable(data),
           id: data.id ?? '',
           name: data.name ?? '',
           showHeaders: data.showHeaders ?? true,
@@ -122,17 +128,7 @@ export const createTableTool: ToolConfig<
   },
 
   outputs: {
-    table: {
-      type: 'object',
-      description: 'Details of the newly created table',
-      properties: {
-        id: { type: 'string', description: 'The unique ID of the table' },
-        name: { type: 'string', description: 'The name of the table' },
-        showHeaders: { type: 'boolean', description: 'Whether the header row is shown' },
-        showTotals: { type: 'boolean', description: 'Whether the totals row is shown' },
-        style: { type: 'string', description: 'The table style name' },
-      },
-    },
+    table: { ...EXCEL_TABLE_OUTPUT },
     metadata: {
       type: 'object',
       description: 'Spreadsheet metadata',

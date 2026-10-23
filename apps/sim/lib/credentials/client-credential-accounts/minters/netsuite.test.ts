@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from 'node:crypto'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { jwtVerify } from 'jose'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
 
 const ORIGIN = 'https://1234567-sb1.suitetalk.api.netsuite.com'
@@ -36,13 +37,6 @@ const FIELDS = {
   privateKey: RSA_PRIVATE_KEY,
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 function assertionFrom(init: RequestInit): string {
   const body = new URLSearchParams(String(init.body))
   expect(body.get('grant_type')).toBe('client_credentials')
@@ -55,11 +49,6 @@ function assertionFrom(init: RequestInit): string {
 }
 
 describe('mintNetSuiteServiceAccountToken', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
-
   it('signs the Oracle client assertion with PS256 and returns the minted token', async () => {
     const fetchMock = vi
       .fn()

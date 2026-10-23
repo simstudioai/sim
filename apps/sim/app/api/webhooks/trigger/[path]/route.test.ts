@@ -1,16 +1,25 @@
 /**
  * Integration tests for webhook trigger API route
  */
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
 import {
-  createMockRequest,
-  encryptionMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
-  loggingSessionMock,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import { loggingSessionMock } from '@sim/testing/mocks/logging-session.mock'
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
-  workflowsUtilsMock,
-} from '@sim/testing'
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workflowsUtilsMock } from '@sim/testing/mocks/workflows-utils.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { type NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -109,14 +118,11 @@ const {
   processGenericDeduplicationMock,
   processWebhookMock,
   executeMock,
-  getWorkspaceBilledAccountUserIdMock,
   checkWebhookPreprocessingMock,
   handleWebhookEventFilterMock,
   queueWebhookExecutionMock,
   dispatchResolvedWebhookTargetMock,
   shouldSkipWebhookEventMock,
-  admissionRejectedResponseMock,
-  tryAdmitMock,
   getLegacySlackCustomBotCredentialIdMock,
   verifySlackCustomBotCredentialRequestMock,
   dispatchSlackCustomBotCredentialMock,
@@ -136,11 +142,6 @@ const {
       endTime: new Date().toISOString(),
     },
   }),
-  getWorkspaceBilledAccountUserIdMock: vi
-    .fn()
-    .mockImplementation(async (workspaceId: string | null | undefined) =>
-      workspaceId ? 'test-user-id' : null
-    ),
   checkWebhookPreprocessingMock: vi.fn().mockResolvedValue({
     error: null,
     actorUserId: 'test-user-id',
@@ -175,29 +176,17 @@ const {
   }),
   dispatchResolvedWebhookTargetMock: vi.fn(),
   shouldSkipWebhookEventMock: vi.fn().mockReturnValue(false),
-  admissionRejectedResponseMock: vi.fn(),
-  tryAdmitMock: vi.fn<() => { release: () => void } | null>(() => ({ release: vi.fn() })),
   getLegacySlackCustomBotCredentialIdMock: vi.fn(),
   verifySlackCustomBotCredentialRequestMock: vi.fn(),
   dispatchSlackCustomBotCredentialMock: vi.fn(),
 }))
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  admissionRejectedResponse: admissionRejectedResponseMock,
-  tryAdmit: tryAdmitMock,
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@/lib/webhooks/slack-custom-ingress', () => ({
   getLegacySlackCustomBotCredentialId: getLegacySlackCustomBotCredentialIdMock,
   verifySlackCustomBotCredentialRequest: verifySlackCustomBotCredentialRequestMock,
   dispatchSlackCustomBotCredential: dispatchSlackCustomBotCredentialMock,
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: {
-    trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
-  },
-  task: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('@/background/webhook-execution', () => ({
@@ -228,29 +217,9 @@ vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: vi.fn().mockResolvedValue(null),
-  getWorkspaceBilledAccountUserId: getWorkspaceBilledAccountUserIdMock,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: vi.fn().mockImplementation(() => ({
-    checkRateLimit: vi.fn().mockResolvedValue({
-      allowed: true,
-      remaining: 10,
-      resetAt: new Date(),
-    }),
-  })),
-  RateLimitError: class RateLimitError extends Error {
-    constructor(
-      message: string,
-      public statusCode = 429
-    ) {
-      super(message)
-      this.name = 'RateLimitError'
-    }
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
@@ -466,6 +435,16 @@ import {
 } from '@/lib/webhooks/processor'
 import { DELETE, GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
 
+const getWorkspaceBilledAccountUserIdMock =
+  workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId
+getWorkspaceBilledAccountUserIdMock.mockImplementation(
+  async (workspaceId: string | null | undefined) => (workspaceId ? 'test-user-id' : null)
+)
+workspacesUtilsMockFns.mockGetWorkspaceBillingSettings.mockResolvedValue(null)
+
+const { mockAdmissionRejectedResponse: admissionRejectedResponseMock, mockTryAdmit: tryAdmitMock } =
+  admissionGateMockFns
+
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
     const gateDescriptor = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
@@ -540,9 +519,10 @@ describe('Webhook Trigger API Route', () => {
   it('returns a stable retryable response when the webhook admission gate is full', async () => {
     tryAdmitMock.mockReturnValueOnce(null)
 
-    const response = await POST(createMockRequest('POST', { event: 'test' }), {
-      params: Promise.resolve({ path: 'test-path' }),
-    })
+    const response = await POST(
+      createMockRequest('POST', { event: 'test' }),
+      createRouteContext({ path: 'test-path' })
+    )
 
     expect(response.status).toBe(429)
     expect(response.headers.get('Retry-After')).toBe(String(ADMISSION_RETRY_AFTER_SECONDS))
@@ -639,7 +619,7 @@ describe('Webhook Trigger API Route', () => {
         'http://localhost:3000/api/webhooks/trigger/verify-path?hub.challenge=hub-challenge-123'
       )
 
-      const response = await GET(req, { params: Promise.resolve({ path: 'verify-path' }) })
+      const response = await GET(req, createRouteContext({ path: 'verify-path' }))
 
       expect(response.status).toBe(200)
       await expect(response.text()).resolves.toBe('hub-challenge-123')
@@ -663,7 +643,7 @@ describe('Webhook Trigger API Route', () => {
         'http://localhost:3000/api/webhooks/trigger/verify-path?hub.challenge=hub-challenge-123'
       )
 
-      const response = await GET(req, { params: Promise.resolve({ path: 'verify-path' }) })
+      const response = await GET(req, createRouteContext({ path: 'verify-path' }))
 
       await expect(response.text()).resolves.toBe('hub-challenge-123')
       expect(handlePreLookupWebhookVerification).not.toHaveBeenCalled()
@@ -692,7 +672,7 @@ describe('Webhook Trigger API Route', () => {
         'http://localhost:3000/api/webhooks/trigger/opt-out-path?srcId=123'
       )
 
-      const response = await GET(req, { params: Promise.resolve({ path: 'opt-out-path' }) })
+      const response = await GET(req, createRouteContext({ path: 'opt-out-path' }))
 
       expect(response.status).toBe(405)
       expect(response.headers.get('Allow')).toBe('POST')
@@ -716,11 +696,102 @@ describe('Webhook Trigger API Route', () => {
         'http://localhost:3000/api/webhooks/trigger/post-only-path'
       )
 
-      const response = await GET(req, { params: Promise.resolve({ path: 'post-only-path' }) })
+      const response = await GET(req, createRouteContext({ path: 'post-only-path' }))
 
       expect(response.status).toBe(405)
       expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
     })
+  })
+
+  it('does not let an acknowledged admission refusal mask another target that must retry', async () => {
+    testData.webhooks.push(
+      {
+        id: 'refused-webhook',
+        provider: 'generic',
+        path: 'fan-out-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      },
+      {
+        id: 'failing-webhook',
+        provider: 'generic',
+        path: 'fan-out-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      }
+    )
+    dispatchResolvedWebhookTargetMock
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        reason: 'admission-rejected',
+        response: new NextResponse(null, { status: 200 }),
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        reason: 'preprocessing',
+        response: new NextResponse(null, { status: 503 }),
+      })
+
+    const response = await POST(
+      createMockRequest('POST', { event: 'x' }),
+      createRouteContext({ path: 'fan-out-path' })
+    )
+
+    expect(response.status).toBe(503)
+  })
+
+  it('answers with a failing target rather than a missing block so the sender retries', async () => {
+    testData.webhooks.push(
+      {
+        id: 'missing-block-webhook',
+        provider: 'generic',
+        path: 'mixed-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      },
+      {
+        id: 'failing-webhook',
+        provider: 'generic',
+        path: 'mixed-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      }
+    )
+    dispatchResolvedWebhookTargetMock
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        reason: 'block-missing',
+        response: new NextResponse('Trigger block not found in deployment', {
+          status: 404,
+          headers: { 'x-slack-no-retry': '1' },
+        }),
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        reason: 'queue-failed',
+        response: new NextResponse(null, { status: 500 }),
+      })
+
+    const response = await POST(
+      createMockRequest('POST', { event: 'x' }),
+      createRouteContext({ path: 'mixed-path' })
+    )
+
+    expect(response.status).toBe(500)
+    expect(response.headers.get('x-slack-no-retry')).toBeNull()
+  })
+
+  it('tells Slack not to redeliver a POST to a path with no webhook', async () => {
+    const req = createMockRequest('POST', { type: 'event_callback' })
+
+    const response = await POST(req, createRouteContext({ path: 'deleted-path' }))
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('x-slack-no-retry')).toBe('1')
   })
 
   describe('PUT, PATCH and DELETE deliveries', () => {
@@ -746,7 +817,7 @@ describe('Webhook Trigger API Route', () => {
         'http://localhost:3000/api/webhooks/trigger/internal-path'
       )
 
-      const response = await DELETE(req, { params: Promise.resolve({ path: 'internal-path' }) })
+      const response = await DELETE(req, createRouteContext({ path: 'internal-path' }))
 
       expect(response.status).toBe(405)
       expect(response.headers.get('Allow')).toBe('POST')
@@ -770,9 +841,10 @@ describe('Webhook Trigger API Route', () => {
         workflowId: 'test-workflow-id',
       })
 
-      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
-        params: Promise.resolve({ path: 'legacy-slack-path' }),
-      })
+      const response = await POST(
+        createMockRequest('POST', { type: 'event_callback' }),
+        createRouteContext({ path: 'legacy-slack-path' })
+      )
 
       expect(response.status).toBe(200)
       expect(verifySlackCustomBotCredentialRequestMock).toHaveBeenCalledWith(
@@ -802,9 +874,10 @@ describe('Webhook Trigger API Route', () => {
         new NextResponse('Unauthorized', { status: 401 })
       )
 
-      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
-        params: Promise.resolve({ path: 'legacy-slack-path' }),
-      })
+      const response = await POST(
+        createMockRequest('POST', { type: 'event_callback' }),
+        createRouteContext({ path: 'legacy-slack-path' })
+      )
 
       expect(response.status).toBe(401)
       expect(dispatchSlackCustomBotCredentialMock).not.toHaveBeenCalled()
@@ -845,9 +918,10 @@ describe('Webhook Trigger API Route', () => {
           credentialId === 'missing-credential' ? new NextResponse(null, { status: 404 }) : null
       )
 
-      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
-        params: Promise.resolve({ path: 'shared-legacy-slack-path' }),
-      })
+      const response = await POST(
+        createMockRequest('POST', { type: 'event_callback' }),
+        createRouteContext({ path: 'shared-legacy-slack-path' })
+      )
 
       expect(response.status).toBe(200)
       expect(dispatchSlackCustomBotCredentialMock).toHaveBeenCalledOnce()
@@ -878,9 +952,10 @@ describe('Webhook Trigger API Route', () => {
         },
       ])
 
-      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
-        params: Promise.resolve({ path: 'legacy-slack-path' }),
-      })
+      const response = await POST(
+        createMockRequest('POST', { type: 'event_callback' }),
+        createRouteContext({ path: 'legacy-slack-path' })
+      )
 
       expect(response.status).toBe(500)
       expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
@@ -908,9 +983,10 @@ describe('Webhook Trigger API Route', () => {
         },
       ])
 
-      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
-        params: Promise.resolve({ path: 'legacy-slack-path' }),
-      })
+      const response = await POST(
+        createMockRequest('POST', { type: 'event_callback' }),
+        createRouteContext({ path: 'legacy-slack-path' })
+      )
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual({ message: 'Webhook event ignored' })
@@ -930,9 +1006,10 @@ describe('Webhook Trigger API Route', () => {
       })
       shouldSkipWebhookEventMock.mockReturnValueOnce(true)
 
-      await POST(createMockRequest('POST', { event: 'ignored' }), {
-        params: Promise.resolve({ path: 'filtered-path' }),
-      })
+      await POST(
+        createMockRequest('POST', { event: 'ignored' }),
+        createRouteContext({ path: 'filtered-path' })
+      )
 
       expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
       expect(queueWebhookExecutionMock).not.toHaveBeenCalled()

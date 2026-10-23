@@ -1,38 +1,532 @@
 ---
 title: Microsoft Excel
-description: Read and write data with sheet selection
+description: Manage worksheets, tables, rows, and workbook sessions
+integration:
+  type: "microsoft_excel_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_excel_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Microsoft Excel](https://www.microsoft.com/en-us/microsoft-365/excel) in Sim to read and write workbook data. Select a worksheet and range, such as `A1:D10`, to target the cells an operation uses. Additional actions clear, format, and sort ranges, create tables, and delete worksheets.
+Use [Microsoft Excel](https://www.microsoft.com/microsoft-365/excel) in Sim to manage worksheets, table rows, and cell ranges in `.xlsx` workbooks on OneDrive for Business or SharePoint. Discover worksheets and tables, add or update records, write formulas and number formats, apply formatting, and calculate workbook results.
+
+Choose a Microsoft account with access to the workbook. SharePoint site browsing requires the `Sites.Read.All` permission; reconnect an existing account to consent to the added scope. Enter a workbook ID and, for SharePoint, its drive ID, or use the selectors.
+
+Use **Create Session** when several operations work on the same workbook. Turn on **Save Changes** to persist edits, or leave it off for a temporary copy. Pass the returned `sessionId` to every operation in that sequence, then close the session. Requests without a session ID save their changes directly. List operations return one page and expose `top` and `skip`; increase `skip` by the page count until fewer than `top` items are returned. Range reads should use an explicit bounded range for large worksheets; returned cell values retain the existing trimming of trailing empty rows and columns, while formula and format matrices describe the full returned range.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Excel account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-excel` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Files.Read` | Read OneDrive files |
+| `Files.ReadWrite` | Read and write OneDrive files |
+| `Sites.Read.All` | Read documents and list items in all SharePoint sites |
+| `offline_access` | Access account when not using the application |
 
+## Use the block [#usage-instructions]
+
+Read and write values and formulas, manage worksheets and table rows, format ranges, and calculate workbooks with persistent or temporary sessions.
 
 ## Actions
 
-### Read from Microsoft Excel V2
+### Add to Microsoft Excel Table
 
-Read data from a specific sheet in a Microsoft Excel spreadsheet
+Add new rows to a Microsoft Excel table
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook containing the table \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
+| `tableName` | string | Yes | The name of the table to add rows to \(e.g., "Table1", "SalesTable"\) |
+| `index` | number | No | Zero-based insertion index. Omit to append at the end. |
+| `values` | array | No | Data rows in table column order, without headers \(e.g., \[\["Value", 30\]\]\). Object rows are also accepted in key order for compatibility. Omit to add a blank row. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | number | Index of the first row that was added |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+</ReferenceDetails>
+
+### Add Worksheet to Microsoft Excel
+
+Create a new worksheet (sheet) in a Microsoft Excel workbook
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `spreadsheetId` | string | Yes | The ID of the Excel workbook to add the worksheet to \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
+| `worksheetName` | string | No | The name of the new worksheet \(e.g., "Sales Q1", "Data"\). Omit for an automatic name. Supplied names must be unique within the workbook and cannot exceed 31 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Details of the newly created worksheet |
+|   ↳ `id` | string | The unique ID of the worksheet |
+|   ↳ `name` | string | The name of the worksheet |
+|   ↳ `position` | number | The zero-based position of the worksheet |
+|   ↳ `visibility` | string | The visibility state of the worksheet \(Visible/Hidden/VeryHidden\) |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+</ReferenceDetails>
+
+### Microsoft Excel List Worksheets
+
+List Worksheets in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `top` | number | No | Page size \($top\), from 1 to 1000. Defaults to 100. |
+| `skip` | number | No | Number of items to skip \($skip\). Defaults to 0. Increase by the returned count to read the next page. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheets` | array | Worksheets in this page. |
+|   ↳ `id` | string | Stable worksheet identifier. |
+|   ↳ `name` | string | Worksheet display name. |
+|   ↳ `position` | number | Zero-based position in the workbook. |
+|   ↳ `visibility` | string | Visible, Hidden, or VeryHidden. |
+| `nextLink` | string | Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically. |
+| `count` | number | Number of items returned in this page, not a total count. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Get Worksheet
+
+Get Worksheet in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `sheetName` | string | Yes | Worksheet ID or name within the workbook. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Worksheet properties. |
+|   ↳ `id` | string | Stable worksheet identifier. |
+|   ↳ `name` | string | Worksheet display name. |
+|   ↳ `position` | number | Zero-based position in the workbook. |
+|   ↳ `visibility` | string | Visible, Hidden, or VeryHidden. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Update Worksheet
+
+Update Worksheet in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `sheetName` | string | Yes | Worksheet ID or name within the workbook. |
+| `name` | string | No | New worksheet name, unique within the workbook \(maximum 31 characters\). |
+| `position` | number | No | New zero-based worksheet position. |
+| `visibility` | string | No | Visible, Hidden, or VeryHidden. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Worksheet properties. |
+|   ↳ `id` | string | Stable worksheet identifier. |
+|   ↳ `name` | string | Worksheet display name. |
+|   ↳ `position` | number | Zero-based position in the workbook. |
+|   ↳ `visibility` | string | Visible, Hidden, or VeryHidden. |
+
+</ReferenceDetails>
+
+### Microsoft Excel List Tables
+
+List Tables in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `top` | number | No | Page size \($top\), from 1 to 1000. Defaults to 100. |
+| `skip` | number | No | Number of items to skip \($skip\). Defaults to 0. Increase by the returned count to read the next page. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Tables in this page. |
+|   ↳ `id` | string | Stable table identifier. |
+|   ↳ `name` | string | Table name. |
+|   ↳ `showHeaders` | boolean | Whether the header row is visible. |
+|   ↳ `showTotals` | boolean | Whether the totals row is visible. |
+|   ↳ `style` | string | Built-in or custom table style. |
+|   ↳ `highlightFirstColumn` | boolean | Whether the first column has special formatting. |
+|   ↳ `highlightLastColumn` | boolean | Whether the last column has special formatting. |
+|   ↳ `showBandedColumns` | boolean | Whether alternating columns are formatted differently. |
+|   ↳ `showBandedRows` | boolean | Whether alternating rows are formatted differently. |
+|   ↳ `showFilterButton` | boolean | Whether header filter buttons are visible. |
+|   ↳ `legacyId` | string | Opaque legacy identifier used by older Excel clients. |
+| `nextLink` | string | Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically. |
+| `count` | number | Number of items returned in this page, not a total count. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Get Table
+
+Get Table in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `table` | object | Table properties. |
+|   ↳ `id` | string | Stable table identifier. |
+|   ↳ `name` | string | Table name. |
+|   ↳ `showHeaders` | boolean | Whether the header row is visible. |
+|   ↳ `showTotals` | boolean | Whether the totals row is visible. |
+|   ↳ `style` | string | Built-in or custom table style. |
+|   ↳ `highlightFirstColumn` | boolean | Whether the first column has special formatting. |
+|   ↳ `highlightLastColumn` | boolean | Whether the last column has special formatting. |
+|   ↳ `showBandedColumns` | boolean | Whether alternating columns are formatted differently. |
+|   ↳ `showBandedRows` | boolean | Whether alternating rows are formatted differently. |
+|   ↳ `showFilterButton` | boolean | Whether header filter buttons are visible. |
+|   ↳ `legacyId` | string | Opaque legacy identifier used by older Excel clients. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Update Table
+
+Update Table in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+| `name` | string | No | New unique table name. |
+| `showHeaders` | boolean | No | Whether to show the header row. |
+| `showTotals` | boolean | No | Whether to show the totals row. |
+| `style` | string | No | Built-in table style \(TableStyleLight1–21, TableStyleMedium1–28, TableStyleDark1–11\) or a custom style already in the workbook. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `table` | object | Table properties. |
+|   ↳ `id` | string | Stable table identifier. |
+|   ↳ `name` | string | Table name. |
+|   ↳ `showHeaders` | boolean | Whether the header row is visible. |
+|   ↳ `showTotals` | boolean | Whether the totals row is visible. |
+|   ↳ `style` | string | Built-in or custom table style. |
+|   ↳ `highlightFirstColumn` | boolean | Whether the first column has special formatting. |
+|   ↳ `highlightLastColumn` | boolean | Whether the last column has special formatting. |
+|   ↳ `showBandedColumns` | boolean | Whether alternating columns are formatted differently. |
+|   ↳ `showBandedRows` | boolean | Whether alternating rows are formatted differently. |
+|   ↳ `showFilterButton` | boolean | Whether header filter buttons are visible. |
+|   ↳ `legacyId` | string | Opaque legacy identifier used by older Excel clients. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Delete Table
+
+Delete Table in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the table was deleted. |
+
+</ReferenceDetails>
+
+### Microsoft Excel List Table Rows
+
+List Table Rows in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `top` | number | No | Page size \($top\), from 1 to 1000. Defaults to 100. |
+| `skip` | number | No | Number of items to skip \($skip\). Defaults to 0. Increase by the returned count to read the next page. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Table Rows in this page. |
+|   ↳ `index` | number | Zero-based row index. |
+|   ↳ `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
+| `nextLink` | string | Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically. |
+| `count` | number | Number of items returned in this page, not a total count. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Get Table Row
+
+Get Table Row in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+| `index` | number | Yes | Zero-based table row index. Indexes can change when rows are inserted or deleted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | number | Zero-based table row index. |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Update Table Row
+
+Update Table Row in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+| `index` | number | Yes | Zero-based table row index. Indexes can change when rows are inserted or deleted. |
+| `values` | array | Yes | Exactly one row as a two-dimensional array, in table column order. Use null to leave a cell unchanged. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | number | Zero-based table row index. |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Delete Table Row
+
+Delete Table Row in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `tableName` | string | Yes | Table ID or name within the workbook. |
+| `index` | number | Yes | Zero-based table row index. Indexes can change when rows are inserted or deleted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the table row was deleted. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Create Session
+
+Create Session in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `persistChanges` | boolean | Yes | True saves changes; false creates a temporary workbook copy whose changes are discarded when the session ends. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | Pass this ID as sessionId on subsequent workbook operations. |
+| `persistChanges` | boolean | Whether changes in this session are saved. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Refresh Session
+
+Refresh Session in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | Yes | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `refreshed` | boolean | Whether the workbook session was refreshed. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Close Session
+
+Close Session in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | Yes | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `closed` | boolean | Whether the workbook session was closed. |
+
+</ReferenceDetails>
+
+### Microsoft Excel Calculate
+
+Calculate in a Microsoft Excel workbook.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Workbook drive item ID. |
+| `driveId` | string | No | Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
+| `calculationType` | string | Yes | Recalculate recalculates dirty cells; Full recalculates all cells; FullRebuild rebuilds dependencies and recalculates all cells. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `calculated` | boolean | Whether workbook calculation completed. |
+
+</ReferenceDetails>
+
+### Read from Microsoft Excel V2
+
+Read data from a specific sheet in a Microsoft Excel spreadsheet
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook to read from \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `sheetName` | string | Yes | The name of the sheet/tab to read from \(e.g., "Sheet1", "Sales Data"\) |
 | `cellRange` | string | No | The cell range to read \(e.g., "A1:D10"\). If not specified, reads the entire used range. |
 
@@ -40,32 +534,73 @@ Read data from a specific sheet in a Microsoft Excel spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
+| `addressLocal` | string | Localized range address. |
+| `cellCount` | number | Cell count in the returned range. |
+| `columnCount` | number | Column count in the returned range. |
+| `columnHidden` | boolean | Whether all columns are hidden. |
+| `columnIndex` | number | Zero-based first column index. |
+| `formulas` | array | A1 formulas for the full returned range. |
+| `formulasLocal` | array | Localized A1 formulas for the full returned range. |
+| `formulasR1C1` | array | R1C1 formulas for the full returned range. |
+| `hidden` | boolean | Whether all cells are hidden. |
+| `numberFormat` | array | Number format codes for the full returned range. |
+| `rowCount` | number | Row count in the returned range. |
+| `rowHidden` | boolean | Whether all rows are hidden. |
+| `rowIndex` | number | Zero-based first row index. |
+| `text` | array | Formatted text for the full returned range. |
+| `valueTypes` | array | Cell value types for the full returned range. |
 | `sheetName` | string | Name of the sheet that was read |
 | `range` | string | The range that was read |
-| `values` | array | Array of rows containing cell values |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
 |   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+</ReferenceDetails>
 
 ### Write to Microsoft Excel V2
 
 Write data to a specific sheet in a Microsoft Excel spreadsheet
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `formulas` | array | No | A1-style formulas as a two-dimensional array. Null leaves a cell unchanged. |
+| `formulasLocal` | array | No | A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged. |
+| `formulasR1C1` | array | No | R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged. |
+| `numberFormat` | array | No | Excel number format codes as a two-dimensional array. Null leaves a cell unchanged. |
+| `columnHidden` | boolean | No | Hide all columns in the target range. |
+| `rowHidden` | boolean | No | Hide all rows in the target range. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook to write to \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `sheetName` | string | Yes | The name of the sheet/tab to write to \(e.g., "Sheet1", "Sales Data"\) |
 | `cellRange` | string | No | The cell range to write to \(e.g., "A1:D10", "A1"\). Defaults to "A1" if not specified. |
-| `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
-| `valueInputOption` | string | No | The format of the data to write |
+| `values` | array | No | The data to write as a 2D array \(used exactly as provided\) or array of objects. For object rows, their keys become a header row. Use a 2D array to write data without added headers. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
+| `addressLocal` | string | Localized range address. |
+| `cellCount` | number | Cell count in the returned range. |
+| `columnCount` | number | Column count in the returned range. |
+| `columnHidden` | boolean | Whether all columns are hidden. |
+| `columnIndex` | number | Zero-based first column index. |
+| `formulas` | array | A1 formulas for the full returned range. |
+| `formulasLocal` | array | Localized A1 formulas for the full returned range. |
+| `formulasR1C1` | array | R1C1 formulas for the full returned range. |
+| `hidden` | boolean | Whether all cells are hidden. |
+| `numberFormat` | array | Number format codes for the full returned range. |
+| `rowCount` | number | Row count in the returned range. |
+| `rowHidden` | boolean | Whether all rows are hidden. |
+| `rowIndex` | number | Zero-based first row index. |
+| `text` | array | Formatted text for the full returned range. |
+| `valueTypes` | array | Cell value types for the full returned range. |
 | `updatedRange` | string | Range of cells that were updated |
 | `updatedRows` | number | Number of rows updated |
 | `updatedColumns` | number | Number of columns updated |
@@ -74,16 +609,21 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 |   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+</ReferenceDetails>
+
 ### Clear Microsoft Excel Range
 
 Clear the values and/or formatting of a range in a Microsoft Excel worksheet
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). If omitted, the range must use the combined "Sheet1!A1:B2" format. |
 | `range` | string | Yes | The cell range to clear \(e.g., "A1:D10" or "Sheet1!A1:D10"\) |
 | `applyTo` | string | No | What to clear: "All", "Formats", or "Contents". Defaults to "All". |
@@ -99,16 +639,21 @@ Clear the values and/or formatting of a range in a Microsoft Excel worksheet
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Format Microsoft Excel Range
 
 Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). If omitted, the range must use the combined "Sheet1!A1:B2" format. |
 | `range` | string | Yes | The cell range to format \(e.g., "A1:D10" or "Sheet1!A1:D10"\) |
 | `fillColor` | string | No | Background fill color as an HTML hex code \(e.g., "#FFFF00"\). |
@@ -116,6 +661,7 @@ Apply fill color and/or font formatting to a range in a Microsoft Excel workshee
 | `fontItalic` | boolean | No | Whether the font is italic. |
 | `fontColor` | string | No | Font color as an HTML hex code \(e.g., "#FF0000"\). |
 | `fontSize` | number | No | Font size in points \(e.g., 12\). |
+| `fontUnderline` | string | No | None, Single, Double, SingleAccountant, or DoubleAccountant. |
 | `fontName` | string | No | Font name \(e.g., "Calibri"\). |
 
 #### Output
@@ -131,21 +677,27 @@ Apply fill color and/or font formatting to a range in a Microsoft Excel workshee
 |   ↳ `italic` | boolean | Whether the font is italic |
 |   ↳ `color` | string | The font color |
 |   ↳ `name` | string | The font name |
+|   ↳ `underline` | string | Underline style. |
 |   ↳ `size` | number | The font size in points |
 | `metadata` | object | Spreadsheet metadata |
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Create Microsoft Excel Table
 
 Create a new table over a range of cells in a Microsoft Excel workbook
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `address` | string | Yes | The range address for the table data source \(e.g., "Sheet1!A1:D5"\). If no sheet name is included, the active sheet is used. |
 | `hasHeaders` | boolean | No | Whether the first row of the range contains column headers. Defaults to true. |
 
@@ -153,26 +705,37 @@ Create a new table over a range of cells in a Microsoft Excel workbook
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `table` | object | Details of the newly created table |
-|   ↳ `id` | string | The unique ID of the table |
-|   ↳ `name` | string | The name of the table |
-|   ↳ `showHeaders` | boolean | Whether the header row is shown |
-|   ↳ `showTotals` | boolean | Whether the totals row is shown |
-|   ↳ `style` | string | The table style name |
+| `table` | object | Table properties. |
+|   ↳ `id` | string | Stable table identifier. |
+|   ↳ `name` | string | Table name. |
+|   ↳ `showHeaders` | boolean | Whether the header row is visible. |
+|   ↳ `showTotals` | boolean | Whether the totals row is visible. |
+|   ↳ `style` | string | Built-in or custom table style. |
+|   ↳ `highlightFirstColumn` | boolean | Whether the first column has special formatting. |
+|   ↳ `highlightLastColumn` | boolean | Whether the last column has special formatting. |
+|   ↳ `showBandedColumns` | boolean | Whether alternating columns are formatted differently. |
+|   ↳ `showBandedRows` | boolean | Whether alternating rows are formatted differently. |
+|   ↳ `showFilterButton` | boolean | Whether header filter buttons are visible. |
+|   ↳ `legacyId` | string | Opaque legacy identifier used by older Excel clients. |
 | `metadata` | object | Spreadsheet metadata |
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+</ReferenceDetails>
 
 ### Delete Microsoft Excel Worksheet
 
 Delete a worksheet (sheet) from a Microsoft Excel workbook
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `worksheetName` | string | Yes | The name of the worksheet to delete \(e.g., "Sheet1", "Old Data"\) |
 
 #### Output
@@ -185,20 +748,28 @@ Delete a worksheet (sheet) from a Microsoft Excel workbook
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
+</ReferenceDetails>
+
 ### Sort Microsoft Excel Range
 
-Sort a range or table by a column in a Microsoft Excel worksheet
+Sort a range or table by one or more fields in a Microsoft Excel worksheet
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sortFields` | array | No | Sort conditions \[\{key, ascending, sortOn, color, dataOption, icon\}\]. Overrides sortColumn/sortAscending; ascending defaults to true for each condition; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index. |
+| `sortMethod` | string | No | Chinese character ordering: PinYin or StrokeCount. |
+| `orientation` | string | No | Rows \(default\) or Columns. Applies only to range sorts. |
+| `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
-| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `tableName` | string | No | The name of the table to sort. When provided, the table is sorted and range/sheetName are ignored. |
 | `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). Used for range sorts when the range does not include a sheet name. |
 | `range` | string | No | The cell range to sort \(e.g., "A1:D10" or "Sheet1!A1:D10"\). Required when no table name is provided. |
-| `sortColumn` | number | Yes | The zero-based column index within the range or table to sort on \(0 = first column\). |
+| `sortColumn` | number | No | Zero-based sort key: column offset for Rows orientation, row offset for Columns orientation. |
 | `sortAscending` | boolean | No | Whether to sort in ascending order. Defaults to true. |
 | `hasHeaders` | boolean | No | Whether the range has a header row that should be excluded from sorting. Only applies to range sorts. Defaults to false. |
 | `matchCase` | boolean | No | Whether casing affects string ordering. Defaults to false. |
@@ -209,10 +780,12 @@ Sort a range or table by a column in a Microsoft Excel worksheet
 | --------- | ---- | ----------- |
 | `sorted` | boolean | Whether the sort was applied |
 | `target` | string | The range or table name that was sorted |
-| `sortColumn` | number | The zero-based column index that was sorted on |
+| `sortColumn` | number | The zero-based key of the first sort condition |
 | `ascending` | boolean | Whether the sort was ascending |
 | `metadata` | object | Spreadsheet metadata |
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
 |   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+</ReferenceDetails>
 
 

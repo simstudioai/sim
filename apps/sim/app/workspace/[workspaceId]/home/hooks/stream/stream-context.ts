@@ -5,7 +5,10 @@ import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-red
 import { captureRevealedSimKeys } from '@/lib/mothership/chat/sim-key-redaction'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
-import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
+import type {
+  ChatResourceAddress,
+  MothershipResourceUpdate,
+} from '@/lib/mothership/resources/types'
 import {
   createTurnModel,
   type TurnModel,
@@ -20,9 +23,11 @@ import type {
   ChatMessage,
   ContentBlock,
   MothershipResource,
-  MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
+import {
+  type MothershipChatHistory,
+  refreshMothershipChatDetail,
+} from '@/hooks/queries/mothership-chats'
 
 /** Minimum spacing between text-driven snapshot flushes (see flushText). */
 const MIN_TEXT_FLUSH_INTERVAL_MS = 50
@@ -56,6 +61,11 @@ export interface StreamLoopOptions {
    */
   deferFlushes?: boolean
   suppressedWorkflowToolStartIds?: ReadonlySet<string>
+  /**
+   * The desktop app's background executor runs this turn's desktop tools, as Sim says when it
+   * serves the stream. The view then only shows those calls: it never starts or reports them.
+   */
+  desktopToolsOnDevice?: boolean
   targetChatId?: string
   shouldContinue?: () => boolean
 }
@@ -78,6 +88,8 @@ export interface StreamLoopState {
   scheduledTextFlushFrame: number | null
   /** Trailing timer for the min-interval text-flush gate (see flushText). */
   scheduledTextFlushTimer: ReturnType<typeof setTimeout> | null
+  /** Chats a batch replay recovered resources for, reloaded once by its terminal flush. */
+  deferredChatDetailRefreshes: Set<string>
 }
 
 export interface StreamEventScope {
@@ -106,11 +118,9 @@ export interface StreamLoopDeps {
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
   addResource: (resource: MothershipResourceUpdate) => boolean
-  removeResource: (
-    resourceType: MothershipResourceType,
-    resourceId: string,
-    workspaceId?: string
-  ) => void
+  removeResource: (resource: ChatResourceAddress) => void
+  /** Drops a queued client write that would re-add a resource the server already removed. */
+  discardPendingResourceUpsert: (resource: ChatResourceAddress) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientComputerTool: (id: string, args: Record<string, unknown>, ts?: string) => void
@@ -168,7 +178,7 @@ export interface StreamLoopDeps {
   chatIdRef: MutableRefObject<string | undefined>
   selectedChatIdRef: MutableRefObject<string | undefined>
   streamIdRef: MutableRefObject<string | undefined>
-  revealedSimKeysRef: MutableRefObject<RevealedSimKeysByMessage>
+  revealedSimKeys: RevealedSimKeysByMessage
   pendingUserMsgRef: MutableRefObject<PersistedMessage | null>
   activeTurnRef: MutableRefObject<ActiveTurn | null>
   resourcesRef: MutableRefObject<MothershipResource[]>
@@ -183,17 +193,21 @@ export interface StreamLoopDeps {
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
   latestPreviewTargetToolCallIdRef: MutableRefObject<string | null>
   activePreviewSessionIdRef: MutableRefObject<string | null>
-  completedPreviewResourceHandoffRef: MutableRefObject<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >
-  previewActivationOwnerRef: MutableRefObject<Map<string, string | null>>
+  completedPreviewResourceHandoffRef: MutableRefObject<Map<
+    string,
+    { sessionId: string; suppressActivation: boolean }
+  > | null>
+  previewActivationOwnerRef: MutableRefObject<Map<string, string | null> | null>
 }
 
 export interface StreamLoopOps {
   isStale: () => boolean
   flush: () => void
   flushText: () => void
-  /** Real flush that bypasses `deferFlushes` — the batch-replay terminal flush. */
+  /**
+   * Real flush that bypasses `deferFlushes` — the batch-replay terminal flush — then
+   * reloads each chat the replay recovered resources for.
+   */
   forceFlush: () => void
 }
 
@@ -229,6 +243,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     browserAgentRunIds: new Set(),
     scheduledTextFlushFrame: null,
     scheduledTextFlushTimer: null,
+    deferredChatDetailRefreshes: new Set(),
   }
 
   if (preserveState) {
@@ -265,7 +280,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     deps.streamingBlocksRef.current = modelBlocks
     deps.streamingContentRef.current = modelContent
     captureRevealedSimKeys(
-      deps.revealedSimKeysRef.current,
+      deps.revealedSimKeys,
       [deps.assistantId, state.streamRequestId],
       modelContent,
       modelBlocks
@@ -366,7 +381,13 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       flushAndStamp()
     },
     flushText,
-    forceFlush: flush,
+    forceFlush: () => {
+      flush()
+      for (const chatId of state.deferredChatDetailRefreshes) {
+        refreshMothershipChatDetail(deps.queryClient, chatId)
+      }
+      state.deferredChatDetailRefreshes.clear()
+    },
   }
 
   return { state, ops, deps }

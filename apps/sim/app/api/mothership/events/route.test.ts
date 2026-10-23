@@ -5,25 +5,32 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { HEARTBEAT_INTERVAL_MS } from '@/lib/events/sse-endpoint'
+import { HEARTBEAT_INTERVAL_MS, OPENED_COMMENT } from '@/lib/events/sse-endpoint'
 import type { ChatStatusEvent } from '@/lib/mothership/chat-status'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
-const { authorize, subscribe, unsubscribe } = vi.hoisted(() => ({
-  authorize: vi.fn(),
-  subscribe: vi.fn(),
+const { unsubscribe } = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatEvents: { execute: authorize },
-}))
-vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: { onStatusChanged: subscribe } }))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/mothership/events/route'
+
+const authorize = mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatEvents
+const subscribe = mothershipChatStatusMockFns.mockOnStatusChanged
 
 function request(query: string, signal?: AbortSignal) {
   return new NextRequest(`http://localhost/api/mothership/events?${query}`, { signal })
@@ -34,13 +41,15 @@ function emit(event: ChatStatusEvent) {
   handler(event)
 }
 
+/** Every chunk after the stream's opening comment. */
 async function collect(body: ReadableStream<Uint8Array>, chunks: string[]) {
   const reader = body.getReader()
   const decoder = new TextDecoder()
   while (true) {
     const { done, value } = await reader.read()
     if (done) return
-    chunks.push(decoder.decode(value))
+    const chunk = decoder.decode(value)
+    if (chunk !== OPENED_COMMENT) chunks.push(chunk)
   }
 }
 
@@ -55,6 +64,7 @@ describe('Mothership owner-scoped event stream', () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
     authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'user-1', role: 'member' })
     subscribe.mockReturnValue(unsubscribe)
+    mothershipChatStatusMockFns.mockReady.mockReset().mockResolvedValue(undefined)
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -147,6 +157,7 @@ describe('Mothership owner-scoped event stream', () => {
     const response = await GET(request('organizationId=org-1'))
     const chunks: string[] = []
     const collected = collect(response.body!, chunks)
+    await vi.advanceTimersByTimeAsync(0)
     let authorizeDone: (() => void) | undefined
     authorize.mockReturnValueOnce(
       new Promise<void>((resolve) => {
@@ -164,11 +175,40 @@ describe('Mothership owner-scoped event stream', () => {
     expect(chunks).toEqual([])
   })
 
+  it.each(['workspaceId=ws-1', 'organizationId=org-1'])(
+    'opens the %s stream once chat status events reach this process',
+    async (query) => {
+      let live: () => void = () => {}
+      mothershipChatStatusMockFns.mockReady.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          live = resolve
+        })
+      )
+      const response = await GET(request(query))
+      let first: string | undefined
+      if (!response.body) throw new Error('The event stream has no body')
+      void response.body
+        .getReader()
+        .read()
+        .then(({ value }) => {
+          first = new TextDecoder().decode(value)
+        })
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(first).toBeUndefined()
+
+      live()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(first).toBe(OPENED_COMMENT)
+    }
+  )
+
   it('preserves workspace status events and excludes organization events', async () => {
     const abort = new AbortController()
     const response = await GET(request('workspaceId=ws-1', abort.signal))
     const chunks: string[] = []
     const collected = collect(response.body!, chunks)
+    await vi.advanceTimersByTimeAsync(0)
     emit({ organizationId: 'org-1', userId: 'user-1', chatId: 'org-chat', type: 'created' })
     emit({ workspaceId: 'ws-2', chatId: 'other-workspace-chat', type: 'created' })
     emit({ workspaceId: 'ws-1', chatId: 'workspace-chat', type: 'renamed' })
@@ -179,5 +219,26 @@ describe('Mothership owner-scoped event stream', () => {
     expect(chunks[0]).not.toMatch(/org-chat|other-workspace-chat/)
     expect(authorize).not.toHaveBeenCalled()
     expect(authMockFns.mockGetSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('tells each member whether a workspace chat is their own, never whose it is', async () => {
+    const abort = new AbortController()
+    const response = await GET(request('workspaceId=ws-1', abort.signal))
+    if (!response.body) throw new Error('The event stream has no body')
+    const chunks: string[] = []
+    const collected = collect(response.body, chunks)
+    await vi.advanceTimersByTimeAsync(0)
+    emit({ workspaceId: 'ws-1', userId: 'user-1', chatId: 'own-chat', type: 'started' })
+    emit({ workspaceId: 'ws-1', userId: 'teammate-1', chatId: 'teammate-chat', type: 'started' })
+    emit({ workspaceId: 'ws-1', chatId: 'unknown-owner-chat', type: 'started' })
+    abort.abort()
+    await collected
+    const payloads = chunks.map((chunk) => JSON.parse(chunk.split('data: ')[1]))
+    expect(payloads).toEqual([
+      expect.objectContaining({ chatId: 'own-chat', ownChat: true }),
+      expect.objectContaining({ chatId: 'teammate-chat', ownChat: false }),
+      expect.not.objectContaining({ ownChat: expect.anything() }),
+    ])
+    expect(chunks.join('')).not.toMatch(/userId|teammate-1|user-1/)
   })
 })

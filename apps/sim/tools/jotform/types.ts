@@ -7,7 +7,7 @@ import type { ToolResponse } from '@/tools/types'
  */
 
 /** Credentials and host selection every Jotform tool takes. */
-export interface JotformAuthParams {
+interface JotformAuthParams {
   apiKey: string
   region?: string
 }
@@ -89,7 +89,7 @@ export interface JotformFile {
   url: string | null
 }
 
-export interface JotformPagination {
+interface JotformPagination {
   offset: number | null
   limit: number | null
   count: number | null
@@ -370,7 +370,7 @@ export interface JotformGetHistoryParams extends JotformAuthParams {
   endDate?: string
 }
 
-export interface JotformHistoryEntry {
+interface JotformHistoryEntry {
   type: string | null
   formID: string | null
   username: string | null
@@ -403,7 +403,7 @@ export interface JotformCreateQuestionsParams extends JotformAuthParams {
   questions: unknown[] | string
 }
 
-export interface JotformSubUserPermission {
+interface JotformSubUserPermission {
   type: string | null
   resource_id: string | null
   access_type: string | null

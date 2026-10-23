@@ -2,7 +2,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CalendlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -25,14 +24,14 @@ function parseJsonArray(value: unknown, field: string): unknown {
   }
 }
 
-export const CalendlyBlock: BlockConfig<ToolResponse> = {
+export const CalendlyBlock: BlockConfig = {
   type: 'calendly',
   name: 'Calendly',
   description: 'Manage Calendly scheduling and events',
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
-    'Integrate Calendly into your workflow. Manage event types, scheduled events, invitees, and webhooks. Can also trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.',
+    'Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.',
   docsLink: 'https://docs.sim.ai/integrations/calendly',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

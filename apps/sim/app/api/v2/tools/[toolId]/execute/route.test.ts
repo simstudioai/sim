@@ -14,8 +14,10 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/tool-execution/application/execute-tool', () => ({
   executeToolForCaller: { operation: { id: 'tools.execute' }, execute: mocks.execute },
+  ToolUsageLimitExceededError: class ToolUsageLimitExceededError extends Error {},
 }))
 
+import { ToolUsageLimitExceededError } from '@/lib/tool-execution/application/execute-tool'
 import { POST } from '@/app/api/v2/tools/[toolId]/execute/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -74,6 +76,15 @@ describe('POST /api/v2/tools/{toolId}/execute', () => {
     const body = await response.json()
     expect(body.data.status).toBe('failed')
     expect(body.data.error.message).toBe('Firecrawl returned 402')
+  })
+
+  it('answers 402 when the workspace is over its usage limit', async () => {
+    mocks.execute.mockRejectedValue(new ToolUsageLimitExceededError('Usage limit exceeded'))
+
+    const response = await post({ workspaceId: WORKSPACE_ID })
+
+    expect(response.status).toBe(402)
+    expect((await response.json()).error.code).toBe('USAGE_LIMIT_EXCEEDED')
   })
 
   it('rejects a timeout beyond the ceiling', async () => {

@@ -1,4 +1,5 @@
 import type { GetDomainParams, GetDomainResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> = {
@@ -14,6 +15,12 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
       visibility: 'user-only',
       description: 'Mailgun API key',
     },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
+    },
     domain: {
       type: 'string',
       required: true,
@@ -23,14 +30,14 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
   },
 
   request: {
-    url: (params) => `https://api.mailgun.net/v3/domains/${params.domain}`,
+    url: (params) => `${getMailgunApiBaseUrl(params.region)}/domains/${params.domain}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
     }),
   },
 
-  transformResponse: async (response, params): Promise<GetDomainResult> => {
+  transformResponse: async (response): Promise<GetDomainResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to get domain')

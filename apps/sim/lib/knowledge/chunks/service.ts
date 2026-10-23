@@ -180,29 +180,10 @@ export async function queryChunks(
   }
 }
 
-/**
- * Create a new chunk for a document.
- *
- * Assigns `chunkIndex` as `max(chunkIndex) + 1` under a transactional
- * `pg_advisory_xact_lock` keyed on the document, so concurrent calls for the
- * same document serialize instead of computing the same index and colliding
- * on the `(document_id, chunk_index)` unique constraint. A `SELECT ... FOR
- * UPDATE` on the current max row doesn't prevent that collision, since the
- * row it would lock is unrelated to the not-yet-inserted next row. A row
- * lock on `document` instead of an advisory lock would also work, but would
- * invert the embedding-before-document lock order every other chunk
- * mutation path uses (see lock-order.test.ts) — the advisory lock is a
- * separate namespace, so it can't deadlock against that convention.
- *
- * `pg_advisory_xact_lock` auto-releases at transaction end, so there's no
- * session lock to leak onto a pooled connection, and `lock_timeout` bounds
- * the wait (it raises SQLSTATE 55P03 instead of hanging a pooled connection)
- * if a same-document holder is stuck.
- */
+/** Assigns the next chunk index under the document row lock, shared by its metadata and chunk writers. */
 export async function createChunk(
   knowledgeBaseId: string,
   documentId: string,
-  docTags: Record<string, string | number | boolean | Date | null>,
   chunkData: CreateChunkData,
   requestId: string,
   workspaceId?: string | null,
@@ -239,12 +220,28 @@ export async function createChunk(
     await tx.execute(
       sql`select set_config('lock_timeout', ${`${KB_CHUNK_LOCK_TIMEOUT_MS}ms`}, true)`
     )
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`kb_chunk_seq:${documentId}`}, 0))`
-    )
 
     const activeDocument = await tx
-      .select({ id: document.id })
+      .select({
+        id: document.id,
+        tag1: document.tag1,
+        tag2: document.tag2,
+        tag3: document.tag3,
+        tag4: document.tag4,
+        tag5: document.tag5,
+        tag6: document.tag6,
+        tag7: document.tag7,
+        number1: document.number1,
+        number2: document.number2,
+        number3: document.number3,
+        number4: document.number4,
+        number5: document.number5,
+        date1: document.date1,
+        date2: document.date2,
+        boolean1: document.boolean1,
+        boolean2: document.boolean2,
+        boolean3: document.boolean3,
+      })
       .from(document)
       .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
       .where(
@@ -257,10 +254,13 @@ export async function createChunk(
         )
       )
       .limit(1)
+      .for('update', { of: document })
 
     if (activeDocument.length === 0) {
       throw new Error('Document not found')
     }
+
+    const docTags = activeDocument[0]
 
     const lastChunk = await tx
       .select({ chunkIndex: embedding.chunkIndex })
@@ -285,23 +285,23 @@ export async function createChunk(
       embeddingModel: kbEmbeddingModel,
       startOffset: 0, // Manual chunks don't have document offsets
       endOffset: chunkData.content.length,
-      tag1: docTags.tag1 as string | null,
-      tag2: docTags.tag2 as string | null,
-      tag3: docTags.tag3 as string | null,
-      tag4: docTags.tag4 as string | null,
-      tag5: docTags.tag5 as string | null,
-      tag6: docTags.tag6 as string | null,
-      tag7: docTags.tag7 as string | null,
-      number1: docTags.number1 as number | null,
-      number2: docTags.number2 as number | null,
-      number3: docTags.number3 as number | null,
-      number4: docTags.number4 as number | null,
-      number5: docTags.number5 as number | null,
-      date1: docTags.date1 as Date | null,
-      date2: docTags.date2 as Date | null,
-      boolean1: docTags.boolean1 as boolean | null,
-      boolean2: docTags.boolean2 as boolean | null,
-      boolean3: docTags.boolean3 as boolean | null,
+      tag1: docTags.tag1,
+      tag2: docTags.tag2,
+      tag3: docTags.tag3,
+      tag4: docTags.tag4,
+      tag5: docTags.tag5,
+      tag6: docTags.tag6,
+      tag7: docTags.tag7,
+      number1: docTags.number1,
+      number2: docTags.number2,
+      number3: docTags.number3,
+      number4: docTags.number4,
+      number5: docTags.number5,
+      date1: docTags.date1,
+      date2: docTags.date2,
+      boolean1: docTags.boolean1,
+      boolean2: docTags.boolean2,
+      boolean3: docTags.boolean3,
       enabled: chunkData.enabled ?? true,
       createdAt: now,
       updatedAt: now,
@@ -372,6 +372,11 @@ export async function batchChunkOperation(
   if (operation === 'delete') {
     // Handle batch delete with transaction for consistency
     await db.transaction(async (tx) => {
+      await tx
+        .select({ id: document.id })
+        .from(document)
+        .where(eq(document.id, documentId))
+        .for('update')
       // Get chunks to delete for statistics update
       const chunksToDelete = await tx
         .select({
@@ -510,6 +515,11 @@ export async function updateChunk(
       }
 
       const result = await db.transaction(async (tx) => {
+        await tx
+          .select({ id: document.id })
+          .from(document)
+          .where(eq(document.id, preRead.documentId))
+          .for('update')
         const currentChunk = await tx
           .select({
             documentId: embedding.documentId,
@@ -662,6 +672,11 @@ export async function deleteChunk(
   requestId: string
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    await tx
+      .select({ id: document.id })
+      .from(document)
+      .where(eq(document.id, documentId))
+      .for('update')
     // Get chunk data before deletion for statistics update
     const chunkToDelete = await tx
       .select({

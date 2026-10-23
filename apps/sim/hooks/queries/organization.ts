@@ -1,12 +1,4 @@
-import { createLogger } from '@sim/logger'
-import { isRecordLike, toRecord } from '@sim/utils/object'
-import {
-  queryOptions,
-  type UseQueryResult,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -34,27 +26,17 @@ import {
   updateOrganizationMemberUsageLimitContract,
   updateOrganizationUsageLimitContract,
 } from '@/lib/api/contracts/organization'
-import {
-  getOrganizationBillingContract,
-  type OrganizationBillingApiResponse,
-} from '@/lib/api/contracts/subscription'
-import { client } from '@/lib/auth/auth-client'
-import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
+import { client } from '@/lib/auth/client'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-const logger = createLogger('OrganizationQueries')
 const invitationListsKey = ['invitations', 'list'] as const
 
 export const ORGANIZATION_ROSTER_STALE_TIME = 30 * 1000
-export const ORGANIZATION_LIST_STALE_TIME = 30 * 1000
 export const ORGANIZATION_DETAIL_STALE_TIME = 30 * 1000
-export const ORGANIZATION_SUBSCRIPTION_STALE_TIME = 30 * 1000
-export const ORGANIZATION_BILLING_STALE_TIME = 30 * 1000
-export const ORGANIZATION_MEMBERS_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
 /**
  * Zero: removal impact is a consent disclosure, so every dialog open must
@@ -63,36 +45,9 @@ export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
  */
 export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 0
 
-type OrganizationBillingQueryResult = UseQueryResult<OrganizationBillingApiResponse | null, Error>
-
-function readNumber(value: unknown): number | undefined {
-  if (typeof value === 'number') return value
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value)
-    return Number.isFinite(parsed) ? parsed : undefined
-  }
-  return undefined
-}
-
 export { organizationKeys }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
-
-/** Better Auth owns the authenticated membership-list endpoint. */
-export function useOrganizationList() {
-  return useQuery({
-    queryKey: organizationKeys.lists(),
-    queryFn: async ({ signal }) => {
-      const response = await client.organization.list({ fetchOptions: { signal } })
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to load organizations')
-      }
-      return response.data ?? []
-    },
-    enabled: isOrganizationsEnabled,
-    staleTime: ORGANIZATION_LIST_STALE_TIME,
-  })
-}
 
 async function fetchOrganizationRoster(
   orgId: string,
@@ -196,45 +151,6 @@ export function useOrganization(orgId: string) {
 }
 
 /**
- * Fetch organization billing data
- */
-async function fetchOrganizationBilling(
-  orgId: string,
-  signal?: AbortSignal
-): Promise<OrganizationBillingApiResponse | null> {
-  try {
-    return await requestJson(getOrganizationBillingContract, {
-      query: { context: 'organization', id: orgId },
-      signal,
-    })
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return null
-    }
-    throw error
-  }
-}
-
-export function organizationBillingQueryOptions(orgId: string) {
-  return queryOptions({
-    queryKey: organizationKeys.billing(orgId),
-    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
-    retry: false,
-    staleTime: ORGANIZATION_BILLING_STALE_TIME,
-  })
-}
-
-export function useOrganizationBilling(
-  orgId: string,
-  options?: { enabled?: boolean }
-): OrganizationBillingQueryResult {
-  return useQuery({
-    ...organizationBillingQueryOptions(orgId),
-    enabled: !!orgId && (options?.enabled ?? true),
-  })
-}
-
-/**
  * Update organization usage limit mutation with optimistic updates
  */
 type UpdateOrganizationUsageLimitParams = Pick<
@@ -255,44 +171,8 @@ export function useUpdateOrganizationUsageLimit() {
       await queryClient.cancelQueries({
         queryKey: organizationKeys.billing(organizationId),
       })
-      await queryClient.cancelQueries({
-        queryKey: organizationKeys.subscription(organizationId),
-      })
-
-      const previousBillingData = queryClient.getQueryData(organizationKeys.billing(organizationId))
       const previousBillingSummary = queryClient.getQueryData(
         organizationKeys.billingSummary(organizationId)
-      )
-      const previousSubscriptionData = queryClient.getQueryData(
-        organizationKeys.subscription(organizationId)
-      )
-
-      queryClient.setQueryData<unknown>(
-        organizationKeys.billing(organizationId),
-        (old: unknown) => {
-          if (!isRecordLike(old) || !isRecordLike(old.data)) return old
-          const usage = toRecord(old.data.usage)
-          const currentUsage =
-            readNumber(old.data.currentUsage) ??
-            readNumber(usage.current) ??
-            readNumber(old.data.totalCurrentUsage) ??
-            0
-          const newPercentUsed = limit > 0 ? (currentUsage / limit) * 100 : 0
-
-          return {
-            ...old,
-            data: {
-              ...old.data,
-              totalUsageLimit: limit,
-              usage: {
-                ...usage,
-                limit,
-                percentUsed: newPercentUsed,
-              },
-              percentUsed: newPercentUsed,
-            },
-          }
-        }
       )
 
       queryClient.setQueryData<{
@@ -308,25 +188,11 @@ export function useUpdateOrganizationUsageLimit() {
       )
 
       return {
-        previousBillingData,
         previousBillingSummary,
-        previousSubscriptionData,
         organizationId,
       }
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousBillingData && context?.organizationId) {
-        queryClient.setQueryData(
-          organizationKeys.billing(context.organizationId),
-          context.previousBillingData
-        )
-      }
-      if (context?.previousSubscriptionData && context?.organizationId) {
-        queryClient.setQueryData(
-          organizationKeys.subscription(context.organizationId),
-          context.previousSubscriptionData
-        )
-      }
       if (context?.previousBillingSummary && context?.organizationId) {
         queryClient.setQueryData(
           organizationKeys.billingSummary(context.organizationId),

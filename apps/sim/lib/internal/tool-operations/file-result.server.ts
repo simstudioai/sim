@@ -52,7 +52,9 @@ function resolveCopilotUserId(context: InternalToolOperationContext): string {
 }
 
 function resolveFileStorageScope(context: InternalToolOperationContext): FileStorageScope {
-  if (context.executionId) {
+  // A workspace Copilot turn's executionId names the turn, not a workflow run.
+  const isWorkflowlessCopilotTurn = context.copilotToolExecution && !context.workflowId.trim()
+  if (context.executionId && !isWorkflowlessCopilotTurn) {
     if (!context.workspaceId?.trim() || !context.workflowId.trim() || !context.executionId.trim()) {
       throw new Error('Execution file output requires a complete trusted execution scope')
     }

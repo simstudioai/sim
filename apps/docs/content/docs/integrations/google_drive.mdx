@@ -1,31 +1,45 @@
 ---
 title: Google Drive
 description: Manage files, folders, and permissions
+integration:
+  type: "google_drive"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_drive"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Drive](https://drive.google.com) to manage files, folders, metadata, and permissions. Download and content actions export Google Workspace files; the Export action lets you choose a supported output format.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google Drive account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Google Drive into the workflow. Can create, upload, download, copy, move, delete, share files and manage permissions.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-drive` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
 
+## Use the block [#usage-instructions]
+
+Create, upload, download, export, copy, move, delete, or share files and folders, and manage their metadata and permissions.
 
 ## Actions
 
 ### List Google Drive Files
 
 List files and folders in Google Drive with complete metadata
+
+<ReferenceDetails>
 
 #### Input
 
@@ -96,9 +110,13 @@ List files and folders in Google Drive with complete metadata
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 | `nextPageToken` | string | Page token for the next page of files; absent from the response when the end of the files list has been reached |
 
+</ReferenceDetails>
+
 ### Get Google Drive File
 
 Get metadata for a specific file in Google Drive by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +153,13 @@ Get metadata for a specific file in Google Drive by its ID
 |   ↳ `md5Checksum` | string | MD5 hash |
 |   ↳ `version` | string | Version number |
 
+</ReferenceDetails>
+
 ### Get Content from Google Drive
 
 Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -207,9 +229,13 @@ Get content from a file in Google Drive with complete metadata (exports Google W
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 |   ↳ `revisions` | json | File revision history \(first 100 revisions only\) |
 
+</ReferenceDetails>
+
 ### Create Folder in Google Drive
 
 Create a new folder in Google Drive with complete metadata returned
+
+<ReferenceDetails>
 
 #### Input
 
@@ -262,9 +288,13 @@ Create a new folder in Google Drive with complete metadata returned
 |   ↳ `contentRestrictions` | json | Content restrictions |
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 
+</ReferenceDetails>
+
 ### Upload to Google Drive
 
 Upload a file to Google Drive with complete metadata returned
+
+<ReferenceDetails>
 
 #### Input
 
@@ -335,9 +365,13 @@ Upload a file to Google Drive with complete metadata returned
 |   ↳ `contentRestrictions` | json | Content restrictions |
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 
+</ReferenceDetails>
+
 ### Download File from Google Drive
 
 Download a file from Google Drive with complete metadata (exports Google Workspace files automatically)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -408,9 +442,13 @@ Download a file from Google Drive with complete metadata (exports Google Workspa
 |   ↳ `linkShareMetadata` | json | Link share metadata |
 |   ↳ `revisions` | json | File revision history \(first 100 revisions only\) |
 
+</ReferenceDetails>
+
 ### Copy Google Drive File
 
 Create a copy of a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -436,9 +474,13 @@ Create a copy of a file in Google Drive
 |   ↳ `owners` | json | List of file owners |
 |   ↳ `size` | string | File size in bytes |
 
+</ReferenceDetails>
+
 ### Move Google Drive File
 
 Move a file or folder to a different folder in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -446,7 +488,7 @@ Move a file or folder to a different folder in Google Drive
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file or folder to move |
 | `destinationFolderId` | string | Yes | The ID of the destination folder |
-| `removeFromCurrent` | boolean | No | Whether to remove the file from its current parent folder \(default: true\). Set to false to add the file to the destination without removing it from the current location. |
+| `removeFromCurrent` | boolean | No | Whether to remove the current parent when adding the destination \(default: true\). Google Drive supports one parent folder, so false can be rejected when the file already has a different parent. |
 
 #### Output
 
@@ -464,9 +506,13 @@ Move a file or folder to a different folder in Google Drive
 |   ↳ `owners` | json | List of file owners |
 |   ↳ `size` | string | File size in bytes |
 
+</ReferenceDetails>
+
 ### Search Google Drive Files
 
 Search for files in Google Drive using advanced query syntax (e.g., fullText contains, mimeType, modifiedTime, etc.)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -509,9 +555,13 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 |   ↳ `version` | string | Version number |
 | `nextPageToken` | string | Page token for the next page of files; absent from the response when the end of the files list has been reached |
 
+</ReferenceDetails>
+
 ### Update Google Drive File
 
 Update file metadata in Google Drive (rename, move, star, add description)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -539,9 +589,13 @@ Update file metadata in Google Drive (rename, move, star, add description)
 |   ↳ `parents` | json | Parent folder IDs |
 |   ↳ `modifiedTime` | string | Last modification time |
 
+</ReferenceDetails>
+
 ### Trash Google Drive File
 
 Move a file to the trash in Google Drive (can be restored later)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -562,9 +616,13 @@ Move a file to the trash in Google Drive (can be restored later)
 |   ↳ `trashedTime` | string | When file was trashed |
 |   ↳ `webViewLink` | string | URL to view in browser |
 
+</ReferenceDetails>
+
 ### Restore Google Drive File
 
 Restore a file from the trash in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -585,9 +643,13 @@ Restore a file from the trash in Google Drive
 |   ↳ `webViewLink` | string | URL to view in browser |
 |   ↳ `parents` | json | Parent folder IDs |
 
+</ReferenceDetails>
+
 ### Delete Google Drive File
 
 Permanently delete a file from Google Drive (bypasses trash)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -602,9 +664,13 @@ Permanently delete a file from Google Drive (bypasses trash)
 | `deleted` | boolean | Whether the file was successfully deleted |
 | `fileId` | string | The ID of the deleted file |
 
+</ReferenceDetails>
+
 ### Share Google Drive File
 
 Share a file with a user, group, domain, or make it public
+
+<ReferenceDetails>
 
 #### Input
 
@@ -634,9 +700,13 @@ Share a file with a user, group, domain, or make it public
 |   ↳ `expirationTime` | string | Expiration time |
 |   ↳ `deleted` | boolean | Whether grantee is deleted |
 
+</ReferenceDetails>
+
 ### Unshare Google Drive File
 
 Remove a permission from a file (revoke access)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -653,9 +723,13 @@ Remove a permission from a file (revoke access)
 | `fileId` | string | The ID of the file |
 | `permissionId` | string | The ID of the removed permission |
 
+</ReferenceDetails>
+
 ### List Google Drive Permissions
 
 List all permissions (who has access) for a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -683,9 +757,13 @@ List all permissions (who has access) for a file in Google Drive
 |   ↳ `permissionDetails` | json | Details about inherited permissions |
 | `nextPageToken` | string | Page token for the next page of permissions; absent from the response when the end of the permissions list has been reached |
 
+</ReferenceDetails>
+
 ### Export Google Drive File
 
 Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV
+
+<ReferenceDetails>
 
 #### Input
 
@@ -702,9 +780,13 @@ Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen form
 | `file` | file | Exported file stored in execution files |
 | `exportedMimeType` | string | The MIME type the file was exported to |
 
+</ReferenceDetails>
+
 ### List Google Drive Revisions
 
 List the revision history of a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -732,9 +814,13 @@ List the revision history of a file in Google Drive
 |   ↳ `exportLinks` | json | Export format links for the revision |
 | `nextPageToken` | string | Page token for the next page of revisions; absent from the response when the end of the revisions list has been reached |
 
+</ReferenceDetails>
+
 ### Get Google Drive Revision
 
 Get metadata for a specific revision of a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -760,9 +846,13 @@ Get metadata for a specific revision of a file in Google Drive
 |   ↳ `size` | string | Size of the revision in bytes |
 |   ↳ `exportLinks` | json | Export format links for the revision |
 
+</ReferenceDetails>
+
 ### List Google Drive Comments
 
 List comments on a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -792,9 +882,13 @@ List comments on a file in Google Drive
 |   ↳ `replies` | json | Threaded replies to the comment |
 | `nextPageToken` | string | Page token for the next page of comments; absent from the response when the end of the comments list has been reached |
 
+</ReferenceDetails>
+
 ### Create Google Drive Comment
 
 Add a comment to a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -821,9 +915,13 @@ Add a comment to a file in Google Drive
 |   ↳ `quotedFileContent` | json | The file content the comment quotes |
 |   ↳ `replies` | json | Threaded replies to the comment |
 
+</ReferenceDetails>
+
 ### Delete Google Drive Comment
 
 Delete a comment from a file in Google Drive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -840,9 +938,13 @@ Delete a comment from a file in Google Drive
 | `fileId` | string | The ID of the file |
 | `commentId` | string | The ID of the deleted comment |
 
+</ReferenceDetails>
+
 ### Get Google Drive Info
 
 Get information about the user and their Google Drive (storage quota, capabilities)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -869,13 +971,15 @@ Get information about the user and their Google Drive (storage quota, capabiliti
 | `exportFormats` | json | Map of Google Workspace MIME types and their exportable formats |
 | `maxUploadSize` | string | Maximum upload size in bytes |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### Google Drive File Trigger
 
@@ -896,7 +1000,7 @@ Triggers when files are created, modified, or deleted in Google Drive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | object | file output from the tool |
+| `file` | object |  |
 |   ↳ `id` | string | Google Drive file ID |
 |   ↳ `name` | string | File name |
 |   ↳ `mimeType` | string | File MIME type |

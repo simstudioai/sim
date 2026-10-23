@@ -9,6 +9,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -22,18 +23,18 @@ import {
 import {
   deleteKnowledgeConnector,
   listKnowledgeConnectorDocuments,
+  updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
 import {
+  bulkUpdateKnowledgeDocuments,
   listKnowledgeDocuments,
   readKnowledgeDocument,
   updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
-import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
-import { listSearchSources } from '@/lib/knowledge/application/search-sources'
-import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
-import * as documentProcessor from '@/lib/knowledge/documents/document-processor'
+import * as documentProcessor from '@/lib/knowledge/documents/processor'
 import { processDocumentAsync, retryDocumentProcessing } from '@/lib/knowledge/documents/service'
 
 const ids = createKnowledgeAclFixtureIds()
@@ -41,15 +42,10 @@ const alice = { kind: 'session' as const, userId: ids.aliceId, sessionId: 'fixtu
 const bob = { kind: 'session' as const, userId: ids.bobId, sessionId: 'fixture-bob' }
 const failedId = generateId()
 const pendingId = generateId()
-const input = { workspaceId: ids.workspaceId, connectorIds: [ids.connectorId] }
 
-/** Drive models the mirrored email grants exercised by these provider-independent progress tests. */
+/** Drive models the mirrored email grants exercised by these document recovery tests. */
 beforeAll(async () => {
   await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
-  await db
-    .update(knowledgeBase)
-    .set({ isSearchIndex: true })
-    .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
   await db
     .update(knowledgeConnector)
     .set({ status: 'active', syncLockToken: null })
@@ -74,38 +70,13 @@ beforeAll(async () => {
   )
 })
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
   await db.delete(organization).where(eq(organization.id, ids.organizationId))
   await db.delete(user).where(eq(user.id, ids.aliceId))
   await db.delete(user).where(eq(user.id, ids.bobId))
 })
 
-describe('viewer-isolated indexing progress and recovery lists', () => {
-  it('keeps failed and pending state scoped to the viewer, including admins', async () => {
-    expect((await readSearchSourceProgress.execute({ principal: alice, input })).sources).toEqual([
-      {
-        connectorId: ids.connectorId,
-        isSyncing: false,
-        hasSyncError: false,
-        hasIndexingError: true,
-      },
-    ])
-    expect((await readSearchSourceProgress.execute({ principal: bob, input })).sources).toEqual([
-      {
-        connectorId: ids.connectorId,
-        isSyncing: true,
-        hasSyncError: false,
-        hasIndexingError: false,
-      },
-    ])
-    const [aliceSources, bobSources] = await Promise.all(
-      [alice, bob].map((principal) =>
-        listSearchSources.execute({ principal, input: { workspaceId: ids.workspaceId } })
-      )
-    )
-    expect(aliceSources.sources[0].viewerFailedDocumentCount).toBe(1)
-    expect(bobSources.sources[0].viewerFailedDocumentCount).toBe(0)
-  })
+describe('viewer-isolated knowledge-base recovery lists', () => {
   it('only lists accessible failures, with authoritative filtered pagination', async () => {
     const read = (principal: typeof alice) =>
       listKnowledgeConnectorDocuments.execute({
@@ -123,28 +94,99 @@ describe('viewer-isolated indexing progress and recovery lists', () => {
     expect(result.hasMore).toBe(false)
     expect((await read(bob)).documents).toEqual([])
   })
-  it('does not report excluded or deleted failures as actionable', async () => {
-    await db.update(document).set({ userExcluded: true }).where(eq(document.id, failedId))
-    expect(
-      (await readSearchSourceProgress.execute({ principal: alice, input })).sources[0]
-        .hasIndexingError
-    ).toBe(false)
+})
+
+describe('retired Search document admission', () => {
+  const fixture = createKnowledgeAclFixtureIds()
+  const viewer = {
+    kind: 'session' as const,
+    userId: fixture.aliceId,
+    sessionId: 'fixture-retirement',
+  }
+  const documentId = generateId()
+
+  beforeAll(async () => {
+    await seedKnowledgeAclFixture(fixture, { connectorType: 'google_drive' })
+    await db.insert(document).values({
+      id: documentId,
+      knowledgeBaseId: fixture.knowledgeBaseId,
+      connectorId: fixture.connectorId,
+      externalId: documentId,
+      filename: 'Retirement fixture',
+      fileUrl: '',
+      fileSize: 0,
+      mimeType: 'text/plain',
+      processingStatus: 'completed',
+      acl: [`u:${fixture.aliceId}@fixture.test`],
+      aclVerifiedAt: new Date(),
+    })
+  })
+  afterAll(async () => {
+    await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
+    await db.delete(organization).where(eq(organization.id, fixture.organizationId))
+    await db.delete(user).where(inArray(user.id, [fixture.aliceId, fixture.bobId]))
+  })
+
+  it.each([
+    'connector restore',
+    'document enable',
+    'document updates enable',
+    'selected documents enable',
+    'all documents enable',
+  ] as const)('refuses %s for retired Search while preserving ordinary KBs', async (operation) => {
+    const change = () => {
+      const input = { knowledgeBaseId: fixture.knowledgeBaseId, documentId }
+      if (operation === 'connector restore')
+        return updateKnowledgeConnectorDocuments.execute({
+          principal: viewer,
+          input: {
+            ...input,
+            connectorId: fixture.connectorId,
+            operation: 'restore',
+            documentIds: [documentId],
+          },
+        })
+      if (operation === 'document enable')
+        return updateKnowledgeDocument.execute({
+          principal: viewer,
+          input: { ...input, enabled: true },
+        })
+      if (operation === 'document updates enable')
+        return updateKnowledgeDocument.execute({
+          principal: viewer,
+          input: { ...input, updates: { enabled: true } },
+        })
+      return bulkUpdateKnowledgeDocuments.execute({
+        principal: viewer,
+        input: {
+          knowledgeBaseId: fixture.knowledgeBaseId,
+          operation: 'enable',
+          ...(operation === 'all documents enable'
+            ? { selectAll: true }
+            : { documentIds: [documentId] }),
+        },
+      })
+    }
     await db
       .update(document)
-      .set({ userExcluded: false, deletedAt: new Date() })
-      .where(eq(document.id, failedId))
-    expect(
-      (await readSearchSourceProgress.execute({ principal: alice, input })).sources[0]
-        .hasIndexingError
-    ).toBe(false)
-  })
-  it('rechecks membership before showing progress', async () => {
+      .set({ enabled: false, userExcluded: operation === 'connector restore' })
+      .where(eq(document.id, documentId))
     await db
-      .delete(permissions)
-      .where(and(eq(permissions.entityId, ids.workspaceId), eq(permissions.userId, ids.bobId)))
-    await expect(readSearchSourceProgress.execute({ principal: bob, input })).rejects.toThrow(
-      'Insufficient workspace permissions'
-    )
+      .update(knowledgeBase)
+      .set({ isSearchIndex: true })
+      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+    const [before] = await db.select().from(document).where(eq(document.id, documentId))
+
+    await expect(change()).rejects.toMatchObject({ code: 'validation' })
+    expect(await db.select().from(document).where(eq(document.id, documentId))).toEqual([before])
+
+    await db
+      .update(knowledgeBase)
+      .set({ isSearchIndex: false })
+      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+    await change()
+    const [restored] = await db.select().from(document).where(eq(document.id, documentId))
+    expect(restored).toMatchObject({ enabled: true, userExcluded: false, acl: before.acl })
   })
 })
 
@@ -204,7 +246,7 @@ describe('connector document filename search and document sets', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
     await db.delete(organization).where(eq(organization.id, fixture.organizationId))
     await db.delete(user).where(eq(user.id, fixture.aliceId))
     await db.delete(user).where(eq(user.id, fixture.bobId))
@@ -322,10 +364,6 @@ describe('intentional skips and genuine failures across document reads', () => {
 
   beforeAll(async () => {
     await seedKnowledgeAclFixture(fixture, { connectorType: 'google_drive' })
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
     const rows: Array<Partial<typeof document.$inferInsert> & { id: string; filename: string }> = [
       {
         id: legacySkipId,
@@ -408,7 +446,7 @@ describe('intentional skips and genuine failures across document reads', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
     await db.delete(organization).where(eq(organization.id, fixture.organizationId))
     await db.delete(user).where(eq(user.id, fixture.aliceId))
     await db.delete(user).where(eq(user.id, fixture.bobId))
@@ -453,29 +491,7 @@ describe('intentional skips and genuine failures across document reads', () => {
     expect(legacyFailures.documents.map((row) => row.id)).toEqual(failureIds)
   })
 
-  it('does not turn another viewer’s skips into indexing errors or expose their documents', async () => {
-    for (const [principal, failedCount] of [
-      [viewer, 2],
-      [otherViewer, 0],
-    ] as const) {
-      const sources = await listSearchSources.execute({
-        principal,
-        input: { workspaceId: fixture.workspaceId },
-      })
-      expect(sources.sources[0].viewerFailedDocumentCount).toBe(failedCount)
-      const progress = await readSearchSourceProgress.execute({
-        principal,
-        input: { workspaceId: fixture.workspaceId, connectorIds: [fixture.connectorId] },
-      })
-      expect(progress.sources).toEqual([
-        {
-          connectorId: fixture.connectorId,
-          isSyncing: false,
-          hasSyncError: false,
-          hasIndexingError: failedCount > 0,
-        },
-      ])
-    }
+  it('does not expose another viewer’s skipped documents or failures', async () => {
     for (const filter of ['active', 'skipped', 'failed'] as const) {
       const result = await listKnowledgeConnectorDocuments.execute({
         principal: otherViewer,
@@ -614,10 +630,6 @@ describe('intentional skips and genuine failures across document reads', () => {
         input: { ...scope, deleteDocuments: false },
       })
     ).rejects.toThrow('cannot be kept')
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: false })
-      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
     await db
       .update(knowledgeConnector)
       .set({ accessMode: 'workspace' })

@@ -4,7 +4,7 @@ import {
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
   withCatalogBlockScope,
-} from '@/lib/catalog/application/catalog-context'
+} from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { type CatalogBlockDetail, projectBlockDetail } from '@/lib/catalog/projection/block-detail'
 import { getContainerBlockDetail } from '@/lib/catalog/projection/container-blocks'
@@ -42,7 +42,7 @@ export const getCatalogBlock = defineAuthorizedWorkspaceUseCase({
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<GetCatalogBlockResult> => {
-    const gate = await resolveCatalogGate(principal, context)
+    const gate = await resolveCatalogGate(principal, context, { customBlockInputs: true })
 
     const detail = await withCatalogBlockScope(gate, async () => {
       // Containers (loop/parallel) are authorable types outside the registry;

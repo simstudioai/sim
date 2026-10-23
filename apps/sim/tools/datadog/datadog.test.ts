@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { describe, expect, it, vi } from 'vitest'
 import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/update-slo'
 import * as datadogTools from '@/tools/datadog'
 import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
@@ -28,14 +29,6 @@ import {
 } from '@/tools/datadog/utils'
 
 const auth = { apiKey: 'key', applicationKey: 'app-key' } as const
-
-function jsonResponse(body: unknown, init?: { status?: number; statusText?: string }): Response {
-  return new Response(JSON.stringify(body), {
-    status: init?.status ?? 200,
-    statusText: init?.statusText ?? 'OK',
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function callBody<TParams>(
   tool: { request: { body?: (params: TParams) => unknown } },
@@ -158,8 +151,6 @@ describe('SLO payloads', () => {
 })
 
 describe('update_slo read-modify-write', () => {
-  beforeEach(() => vi.restoreAllMocks())
-
   it('reads the stored SLO before replacing it', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')

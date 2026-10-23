@@ -7,7 +7,7 @@ import {
   cliFlagValue,
   cliFlagValues,
   getToolDisplayTitle,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { getBlock } from '@/blocks/registry'
 import { skillsKeys } from '@/hooks/queries/skills'
@@ -36,7 +36,11 @@ function inventoryKeys(type: NamedResource, workspaceId: string): readonly Query
     case 'table':
       return [tableKeys.list(workspaceId), tableKeys.list(workspaceId, 'archived')]
     case 'knowledgebase':
-      return [knowledgeKeys.list(workspaceId), knowledgeKeys.list(workspaceId, 'archived')]
+      return [
+        knowledgeKeys.list(workspaceId),
+        knowledgeKeys.countedList(workspaceId),
+        knowledgeKeys.list(workspaceId, 'archived'),
+      ]
     case 'file':
       return [
         workspaceFilesKeys.list(workspaceId),

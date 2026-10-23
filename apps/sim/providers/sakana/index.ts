@@ -17,11 +17,16 @@ import {
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
-import { createReadableStreamFromSakanaStream } from '@/providers/sakana/utils'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -104,14 +109,7 @@ export const sakanaProvider: ProviderConfig = {
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
       const responseFormatPayload = request.responseFormat
-        ? {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: request.responseFormat.name || 'response_schema',
-              schema: request.responseFormat.schema || request.responseFormat,
-              strict: request.responseFormat.strict !== false,
-            },
-          }
+        ? buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -170,29 +168,32 @@ export const sakanaProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromSakanaStream(
+            createOpenAICompatibleAgentEventStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
               streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (content, usage) => {
-                output.content = content
-                output.tokens = {
-                  input: usage.prompt_tokens,
-                  output: usage.completion_tokens,
-                  total: usage.total_tokens,
-                }
+              {
+                providerName: 'Sakana',
+                request,
+                onComplete: ({ content, usage }) => {
+                  output.content = content
+                  output.tokens = {
+                    input: usage.prompt_tokens,
+                    output: usage.completion_tokens,
+                    total: usage.total_tokens,
+                  }
 
-                const costResult = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                output.cost = {
-                  input: costResult.input,
-                  output: costResult.output,
-                  total: costResult.total,
-                }
-              },
-              request
+                  const costResult = calculateCost(
+                    request.model,
+                    usage.prompt_tokens,
+                    usage.completion_tokens
+                  )
+                  output.cost = {
+                    input: costResult.input,
+                    output: costResult.output,
+                    total: costResult.total,
+                  }
+                },
+              }
             ),
         })
 
@@ -588,7 +589,9 @@ export const sakanaProvider: ProviderConfig = {
           }
         }
       } catch (error) {
-        logger.error('Error in Sakana request:', { error })
+        logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Sakana request:', {
+          error,
+        })
         throw error
       }
 
@@ -720,7 +723,7 @@ export const sakanaProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Sakana request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Sakana request:', {
         error,
         duration: totalDuration,
       })

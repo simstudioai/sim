@@ -1,31 +1,29 @@
 ---
 title: ServiceNow
 description: Create, read, update, and delete ServiceNow records
+integration:
+  type: "servicenow_v2"
+  color: "#032D42"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="servicenow_v2"
-  color="#032D42"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [ServiceNow](https://www.servicenow.com/) in Sim to create, read, update, and delete records in your ServiceNow instance. Operations accept a table name, such as an incident, task, change-request, or user table, and the fields required by that operation.
+Use [ServiceNow](https://www.servicenow.com/) in Sim to create or update incidents and change requests, order catalog items, and process approvals. Read configuration items, knowledge articles, users, and groups, and transfer attachments. Generic record and aggregate operations accept a table name, such as incident, task, change_request, or sys_user, and the fields required by the operation. List Attachments and Upload Attachment also require a table name. Connect with your ServiceNow instance URL, username, and password.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.
-
-
+Create or update incidents and change requests, order catalog items, and process approvals. Read configuration items, knowledge articles, users, and groups, and transfer attachments. Generic record, aggregate, and table-scoped attachment operations accept a table name. Connect with your ServiceNow instance URL, username, and password.
 
 ## Actions
 
 ### Create ServiceNow Record
 
 Create a new record in a ServiceNow table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +42,13 @@ Create a new record in a ServiceNow table
 | `record` | json | Created ServiceNow record with sys_id and other fields |
 | `metadata` | json | Operation metadata |
 
+</ReferenceDetails>
+
 ### Read ServiceNow Records
 
 Read records from a ServiceNow table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,9 +73,13 @@ Read records from a ServiceNow table
 | `records` | array | Array of ServiceNow records |
 | `metadata` | json | Operation metadata |
 
+</ReferenceDetails>
+
 ### Update ServiceNow Record
 
 Update an existing record in a ServiceNow table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -93,9 +99,13 @@ Update an existing record in a ServiceNow table
 | `record` | json | Updated ServiceNow record |
 | `metadata` | json | Operation metadata |
 
+</ReferenceDetails>
+
 ### Delete ServiceNow Record
 
 Delete a record from a ServiceNow table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +124,13 @@ Delete a record from a ServiceNow table
 | `success` | boolean | Whether the deletion was successful |
 | `metadata` | json | Operation metadata |
 
+</ReferenceDetails>
+
 ### Aggregate ServiceNow Records
 
 Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +158,13 @@ Compute aggregate statistics (count, sum, average, min, max, group by) over a Se
 | `count` | number | Total matching record count \(only present for ungrouped count queries\) |
 | `metadata` | json | Operation metadata \(grouped, groupCount\) |
 
+</ReferenceDetails>
+
 ### List ServiceNow Attachments
 
 List the attachments on a ServiceNow record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +189,13 @@ List the attachments on a ServiceNow record
 |   ↳ `download_link` | string | Direct download URL for the file |
 | `metadata` | json | Operation metadata \(recordCount\) |
 
+</ReferenceDetails>
+
 ### Download ServiceNow Attachment
 
 Download an attachment file from ServiceNow by its sys_id
+
+<ReferenceDetails>
 
 #### Input
 
@@ -190,9 +212,13 @@ Download an attachment file from ServiceNow by its sys_id
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded attachment stored in execution files |
 
+</ReferenceDetails>
+
 ### Upload ServiceNow Attachment
 
 Attach a file to a ServiceNow record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +239,13 @@ Attach a file to a ServiceNow record
 | `attachment` | json | Created attachment metadata \(sys_id, file_name, content_type, download_link\) |
 | `metadata` | json | Operation metadata |
 
+</ReferenceDetails>
+
 ### Create ServiceNow Incident
 
 Create an incident in ServiceNow. Reference fields (caller, assignment group, assigned to, configuration item) take sys_ids unless input display value is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -277,9 +307,13 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Get ServiceNow Incident
 
 Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Reference fields are returned with both their sys_id and their label by default.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -325,9 +359,13 @@ Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Re
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### List ServiceNow Incidents
 
 Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,9 +419,13 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Update ServiceNow Incident
 
 Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +485,13 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Resolve ServiceNow Incident
 
 Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -494,11 +540,15 @@ Move a ServiceNow incident to Resolved (state 6) with a resolution code and reso
 | `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
+
+</ReferenceDetails>
 
 ### Close ServiceNow Incident
 
 Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -547,9 +597,13 @@ Move a ServiceNow incident to Closed (state 7) with a resolution code and resolu
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Add ServiceNow Incident Comment
 
 Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -597,9 +651,13 @@ Append an internal work note or a customer-visible additional comment to a Servi
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Create ServiceNow Change Request
 
 Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -662,9 +720,13 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Get ServiceNow Change Request
 
 Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_id. Reference fields are returned with both their sys_id and their label by default.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -710,9 +772,13 @@ Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### List ServiceNow Change Requests
 
 Search ServiceNow change requests by state, type, risk, assignment, or text. All filters are ANDed together.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -766,9 +832,13 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Update ServiceNow Change Request
 
 Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -828,9 +898,13 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Move ServiceNow Change State
 
 Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -881,9 +955,13 @@ Move a ServiceNow change request to another state. Base-system change model stat
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### List ServiceNow Change Tasks
 
 List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as \{value, display_value\}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -906,9 +984,13 @@ List the change tasks belonging to a ServiceNow change request, via the Change M
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of change tasks returned |
 
+</ReferenceDetails>
+
 ### Get ServiceNow Change Next States
 
 Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -939,9 +1021,13 @@ Read the states a ServiceNow change request can actually move to next, with the 
 | `metadata` | json | Operation metadata |
 |   ↳ `transitionCount` | number | Number of transitions returned |
 
+</ReferenceDetails>
+
 ### List ServiceNow Catalog Items
 
 Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -981,9 +1067,13 @@ Browse or search the ServiceNow service catalog. Returns each item with its sys_
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of catalog items returned |
 
+</ReferenceDetails>
+
 ### Order ServiceNow Catalog Item
 
 Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1007,9 +1097,13 @@ Submit a service catalog request for a catalog item using the Service Catalog AP
 | `requestId` | string | Sys_id of the order request |
 | `table` | string | Table name of the request |
 
+</ReferenceDetails>
+
 ### List ServiceNow Requested Items
 
 List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a parent request or a catalog item. To scope by requester, pass an encoded query against the parent request, for example "request.requested_for=&lt;sys_id&gt;".
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1059,9 +1153,13 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Get ServiceNow Requested Item
 
 Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001) or sys_id from the Requested Item [sc_req_item] table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1107,9 +1205,13 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### List ServiceNow Approvals
 
 List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "requested" state, which is what a user's pending approvals look like.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1159,9 +1261,13 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Approve or Reject ServiceNow Approval
 
 Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1209,9 +1315,13 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Search ServiceNow Configuration Items
 
 Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1261,9 +1371,13 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Get ServiceNow Configuration Item
 
 Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1292,9 +1406,13 @@ Retrieve a configuration item and its CMDB relationships through the CMDB Instan
 |   ↳ `inboundCount` | number | Number of inbound relations |
 |   ↳ `outboundCount` | number | Number of outbound relations |
 
+</ReferenceDetails>
+
 ### List ServiceNow CI Relationships
 
 List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item. Each row carries the parent CI, the child CI, and the relationship type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1343,9 +1461,13 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### Search ServiceNow Knowledge
 
 Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1379,9 +1501,13 @@ Search ServiceNow knowledge base articles through the Knowledge Management API. 
 |   ↳ `recordCount` | number | Number of articles returned |
 |   ↳ `totalCount` | number | Total number of available articles reported by ServiceNow |
 
+</ReferenceDetails>
+
 ### Get ServiceNow Knowledge Article
 
 Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1410,9 +1536,13 @@ Retrieve the full content of a ServiceNow knowledge article by sys_id or KB numb
 |   ↳ `size_bytes` | string | Attachment size in bytes |
 |   ↳ `state` | string | Attachment state: available, available_conditionally, not_available, or pending |
 
+</ReferenceDetails>
+
 ### Find ServiceNow User
 
 Look up ServiceNow users by email, user name, or display name. Use this to resolve the sys_id needed by reference fields such as caller_id, assigned_to, and approver.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1463,9 +1593,13 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 ### List ServiceNow Group Members
 
 List the members of a ServiceNow group from the Group Member [sys_user_grmember] table. Each row links a user to a group, so use it to find who can be assigned work for an assignment group.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1514,16 +1648,20 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 | `title` | string | Knowledge article title |
 | `fields` | json | Requested knowledge article field values |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### ServiceNow Change Request Created
 
 Trigger workflow when a new change request is created in ServiceNow
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1557,13 +1695,14 @@ Trigger workflow when a new change request is created in ServiceNow
 | `category` | string | Change category |
 | `record` | json | Full change request record data |
 
-
----
+</ReferenceDetails>
 
 ### ServiceNow Change Request Updated
 
 Trigger workflow when a change request is updated in ServiceNow
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1597,13 +1736,14 @@ Trigger workflow when a change request is updated in ServiceNow
 | `category` | string | Change category |
 | `record` | json | Full change request record data |
 
-
----
+</ReferenceDetails>
 
 ### ServiceNow Incident Created
 
 Trigger workflow when a new incident is created in ServiceNow
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1638,13 +1778,14 @@ Trigger workflow when a new incident is created in ServiceNow
 | `closeNotes` | string | Notes added when the incident was closed |
 | `record` | json | Full incident record data |
 
-
----
+</ReferenceDetails>
 
 ### ServiceNow Incident Updated
 
 Trigger workflow when an incident is updated in ServiceNow
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1679,8 +1820,7 @@ Trigger workflow when an incident is updated in ServiceNow
 | `closeNotes` | string | Notes added when the incident was closed |
 | `record` | json | Full incident record data |
 
-
----
+</ReferenceDetails>
 
 ### ServiceNow Webhook (All Events)
 

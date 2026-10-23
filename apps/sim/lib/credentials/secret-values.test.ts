@@ -6,41 +6,29 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockEncryptSecret,
-  mockDecryptSecret,
-  mockDeletePersonalEnvCredentialForUser,
-  mockInvalidateEffectiveDecryptedEnvCache,
-} = vi.hoisted(() => ({
-  mockEncryptSecret: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-  mockDeletePersonalEnvCredentialForUser: vi.fn(),
-  mockInvalidateEffectiveDecryptedEnvCache: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
-vi.mock('@/lib/credentials/environment', () => ({
-  createWorkspaceEnvCredentials: vi.fn(),
-  deleteWorkspaceEnvCredentials: vi.fn(),
-  upsertPersonalEnvCredentialForUser: vi.fn(),
-  deletePersonalEnvCredentialForUser: mockDeletePersonalEnvCredentialForUser,
-}))
-vi.mock('@/lib/environment/utils', () => ({
-  invalidateEffectiveDecryptedEnvCache: mockInvalidateEffectiveDecryptedEnvCache,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
-  readWorkspaceSecretValues,
   setWorkspaceSecret,
   updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
+
+const mockInvalidateEffectiveDecryptedEnvCache =
+  environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache
+const mockDeletePersonalEnvCredentialForUser =
+  credentialsEnvironmentMockFns.mockDeletePersonalEnvCredentialForUser
 
 describe('secret value storage', () => {
   beforeEach(() => {
@@ -123,51 +111,6 @@ describe('secret value storage', () => {
     expect(deleted).toBe(false)
     expect(mockDeletePersonalEnvCredentialForUser).not.toHaveBeenCalled()
     expect(mockInvalidateEffectiveDecryptedEnvCache).not.toHaveBeenCalled()
-  })
-})
-
-describe('readWorkspaceSecretValues', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
-      decrypted: `decrypted:${encrypted}`,
-    }))
-  })
-
-  it('decrypts only the requested names and omits absent or undecryptable ones', async () => {
-    queueTableRows(schemaMock.workspaceEnvironment, [
-      {
-        id: 'env-1',
-        variables: {
-          VISIBLE_KEY: 'encrypted-visible',
-          BROKEN_KEY: 'encrypted-broken',
-          OTHER_KEY: 'encrypted-other',
-        },
-      },
-    ])
-    mockDecryptSecret.mockImplementation(async (encrypted: string) => {
-      if (encrypted === 'encrypted-broken') throw new Error('cannot decrypt')
-      return { decrypted: `decrypted:${encrypted}` }
-    })
-
-    await expect(
-      readWorkspaceSecretValues({
-        workspaceId: 'workspace-1',
-        names: ['VISIBLE_KEY', 'BROKEN_KEY', 'MISSING_KEY'],
-      })
-    ).resolves.toEqual({ VISIBLE_KEY: 'decrypted:encrypted-visible' })
-    expect(mockDecryptSecret).not.toHaveBeenCalledWith('encrypted-other')
-  })
-
-  it('never reads an inherited prototype member for a missing key', async () => {
-    queueTableRows(schemaMock.workspaceEnvironment, [
-      { id: 'env-1', variables: { OTHER_KEY: 'encrypted-other' } },
-    ])
-
-    await expect(
-      readWorkspaceSecretValues({ workspaceId: 'workspace-1', names: ['constructor', 'toString'] })
-    ).resolves.toEqual({})
-    expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 })
 

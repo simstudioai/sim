@@ -3,14 +3,15 @@
  */
 import { act } from 'react'
 import { DESKTOP_TITLE_BAR_ATTRIBUTE } from '@sim/desktop-bridge'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetDesktopBridge } = vi.hoisted(() => ({ mockGetDesktopBridge: vi.fn() }))
-
-vi.mock('@/lib/desktop', () => ({ getDesktopBridge: mockGetDesktopBridge }))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 import { DesktopTitleBarController } from '@/app/_shell/desktop-title-bar'
+
+const mockGetDesktopBridge = libDesktopMockFns.mockGetDesktopBridge
 
 let container: HTMLDivElement
 let root: Root

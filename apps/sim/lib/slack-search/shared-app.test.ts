@@ -1,25 +1,12 @@
 import { db } from '@sim/db'
 import { slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
-  hosted: true,
-  flag: vi.fn(),
-  env: {
-    SLACK_SEARCH_APP_ID: 'A1',
-    SLACK_SEARCH_CLIENT_ID: 'client',
-    SLACK_SEARCH_CLIENT_SECRET: 'secret',
-    SLACK_SEARCH_SIGNING_SECRET: 'signing',
-  },
-}))
-vi.mock('@/lib/core/config/env', () => ({ env: m.env }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return m.hosted
-  },
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: m.flag }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import {
   findSharedSlackSearchInstallation,
@@ -27,10 +14,14 @@ import {
   requireSlackSearchAppAvailable,
 } from '@/lib/slack-search/shared-app'
 
+const m = {
+  flag: featureFlagsMockFns.mockIsFeatureEnabled,
+}
+
 beforeEach(() => {
   resetDbChainMock()
-  m.hosted = true
-  Object.assign(m.env, {
+  setEnvFlags({ isHosted: true })
+  Object.assign(mockEnvObject, {
     SLACK_SEARCH_APP_ID: 'A1',
     SLACK_SEARCH_CLIENT_ID: 'client',
     SLACK_SEARCH_CLIENT_SECRET: 'secret',
@@ -49,14 +40,14 @@ describe('shared Slack rollout', () => {
     expect(db.select).not.toHaveBeenCalled()
   })
   it('requires a hosted deployment even when configured and enabled', async () => {
-    m.hosted = false
+    setEnvFlags({ isHosted: false })
     await expect(readSharedSlackSearchApp('org')).resolves.toBeNull()
     await expect(requireSlackSearchAppAvailable('A1', 'org')).rejects.toThrow('unavailable')
     expect(m.flag).not.toHaveBeenCalled()
   })
   it.each([false, true])('requires both flag and configured app (flag=%s)', async (flag) => {
     m.flag.mockResolvedValue(flag)
-    if (flag) m.env.SLACK_SEARCH_APP_ID = ''
+    if (flag) mockEnvObject.SLACK_SEARCH_APP_ID = ''
     await expect(readSharedSlackSearchApp('org')).resolves.toBeNull()
   })
   it('refuses a shared bot while the shared flag is off', async () => {

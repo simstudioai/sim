@@ -1,6 +1,7 @@
 // GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/protocol.ts
 // Regenerate with `bun run contracts:sync` in the worker.
 
+import { FileOwnerContext } from "./file-owner";
 /**
  * The sim⇄worker wire protocol surface — THE shared source of truth (P3, S31).
  *
@@ -18,6 +19,7 @@
 import { z } from "zod";
 import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
 import { IntegrationCatalogContext } from "./integration-catalog";
+import { ResourceAddress } from "./resources";
 import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 2;
@@ -70,7 +72,9 @@ const WorkspaceInventorySchema = z.object({
   tables: z.array(InventoryNamed),
   knowledgeBases: z.array(InventoryNamed),
   files: z.array(z.object({ path: z.string(), size: z.number().optional() })),
-  skills: z.array(z.object({ name: z.string() })),
+  skills: z.array(
+    z.object({ id: z.string().optional(), name: z.string(), description: z.string().optional() }),
+  ),
   customTools: z.array(z.object({ id: z.string(), title: z.string() })),
   mcpServers: z.array(InventoryNamed),
   credentials: z.array(
@@ -131,6 +135,23 @@ export const DesktopContextSchema = z.object({
 });
 export type DesktopContext = z.infer<typeof DesktopContextSchema>;
 
+/**
+ * Capabilities Sim computes for a turn's owner from organization flags, plan and ownership.
+ * The worker hides a gated command, skill or prompt section when its entitlement is absent.
+ * This only controls what the agent is told about: Sim re-checks every operation, because
+ * the list travels in a forgeable payload. The wire accepts any name, so Sim can add one
+ * before the worker learns it.
+ */
+export const ENTITLEMENTS = { dashboards: "dashboards", tests: "tests", changelog: "changelog" } as const;
+export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
+export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
+
+/** What opened a turn when no person typed it: "task", Sim's wake for a background-task
+ * notification (21-background-tasks.md); "job", Sim's schedule for one occurrence of a scheduled
+ * job (D92), its message the job brief. Absent on a person's turn. */
+export const TurnOrigin = z.enum(["task", "job"]);
+export type TurnOrigin = z.infer<typeof TurnOrigin>;
+
 export const ChatPayloadSchema = z
   .strictObject({
     desktop: DesktopContextSchema.optional(),
@@ -154,6 +175,7 @@ export const ChatPayloadSchema = z
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
     integrationCatalog: IntegrationCatalogContext.optional(),
+    entitlements: Entitlements.default([]),
     /** Accepted for wire compatibility with current sim builds; unused — the CLI now
      * executes on the sim side under sim's own authentication, so no credential crosses. */
     delegationToken: z.string().optional(),
@@ -168,6 +190,7 @@ export const ChatPayloadSchema = z
           content: z.string(),
           tag: z.string().optional(),
           path: z.string().optional(),
+          resource: ResourceAddress.optional(),
         }),
       )
       .default([]),
@@ -175,14 +198,16 @@ export const ChatPayloadSchema = z
     /** Explicit client-executor declaration (see contracts ChatRequest.clientCapabilities);
      * the worker accepts and ignores it — dispatch semantics live on the sim side. */
     clientCapabilities: z.array(z.string()).default([]),
-    /** "task": sim opened this turn for a background-task notification, not for a typed
-     * message (21-background-tasks.md); recorded on the turn's user_message event. */
-    origin: z.enum(["task"]).optional(),
+    /** Recorded on the turn's user_message event. */
+    origin: TurnOrigin.optional(),
     /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
     effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
     modelSelection: ModelSelectionSchema.optional(),
     /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
     inventory: WorkspaceInventorySchema.optional(),
+    fileOwnerProtocolVersion: FileOwnerContext.shape.fileOwnerProtocolVersion.optional(),
+    project: FileOwnerContext.shape.project,
+    fileOwnerCapabilities: FileOwnerContext.shape.fileOwnerCapabilities.optional(),
   })
   .superRefine((value, ctx) => {
     if (
@@ -262,8 +287,39 @@ export interface StreamToolReplay {
   workspaceId?: string | undefined;
 }
 
+/**
+ * How long the worker waits for one handed tool call's result, measured from the hand-off.
+ * Sim converts it to an absolute deadline on receipt, persists it with the call (a takeover
+ * re-run inherits what remains) and settles the call, cancellation included, by
+ * `deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS`: approval wait, pickup, execution and lease
+ * extensions all fit inside it. Sim policy may only end a call sooner. Absent = the
+ * receiver's own bounds.
+ */
+export interface StreamToolDeadline {
+  deadlineMs?: number | undefined;
+}
+
+/**
+ * Room between Sim settling a call and the worker's own bound for it: Sim's resume-gate
+ * grace plus the time its result takes to reach the worker.
+ */
+export const TOOL_DEADLINE_SETTLE_MARGIN_MS = 90_000;
+
+/** The `clientCapabilities` token a Sim sends when it honors `StreamToolDeadline`. */
+export const TOOL_DEADLINE_CAPABILITY = "tool-deadline";
+
+/**
+ * The `clientCapabilities` token a Sim sends when this turn may copy files within or between
+ * workspaces it can reach (`files copy`) without negotiated file owners, so also where Projects
+ * are off.
+ */
+export const WORKSPACE_FILE_COPY_CAPABILITY = "workspace-file-copy";
+
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
+  fileOwnerProtocolVersion?: 1 | undefined;
+  project?: FileOwnerContext["project"] | undefined;
+  fileOwnerCapabilities?: FileOwnerContext["fileOwnerCapabilities"] | undefined;
   desktop?: DesktopContext | undefined;
   effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max" | undefined;
   modelSelection?: ModelSelection | undefined;
@@ -288,6 +344,8 @@ export interface ChatRequest extends StreamResponseReceipt {
   workflowId?: string | undefined;
   /** Authorized discovery selectors; schemas stay in Sim's catalog. */
   integrationCatalog?: IntegrationCatalogContext | undefined;
+  /** Capabilities Sim computed for this turn's owner; see {@link ENTITLEMENTS}. */
+  entitlements?: string[] | undefined;
   /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
    * credential crosses the wire); accepted so current senders keep validating. */
   delegationToken?: string | undefined;
@@ -301,14 +359,17 @@ export interface ChatRequest extends StreamResponseReceipt {
    * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
    * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
-   * this field still gets waited on). Known capability: "workflow-tool-pickup".
+   * this field still gets waited on). Known capability: "workflow-tool-pickup". Sim also
+   * declares its own {@link TOOL_DEADLINE_CAPABILITY} and {@link WORKSPACE_FILE_COPY_CAPABILITY}
+   * here.
    */
   clientCapabilities?: string[] | undefined;
   /**
    * What exists in the workspace, by name and id, so the agent orients without a round
    * of listings per world (an orientation turn on dev spent nine tool rounds and ~20K
-   * tokens learning this). Names and ids only — never a tree, never contents — and each
-   * world capped; a capped world is named in `truncated` so the agent lists it itself.
+   * tokens learning this). Names, ids and skill descriptions — never a tree, never
+   * contents — and each world capped; a capped world is named in `truncated` so the agent
+   * lists it itself.
    * Rendered as a request-local trailing message, never into the transcript.
    */
   inventory?: WorkspaceInventory | undefined;
@@ -321,7 +382,11 @@ export interface WorkspaceInventory {
   knowledgeBases: { id: string; name: string }[];
   /** `files/...` paths as the CLI prints them. */
   files: { path: string; size?: number | undefined }[];
-  skills: { name: string }[];
+  /**
+   * The skill catalog: the agent loads a matching skill with `skills get <id>`. `id` and
+   * `description` are optional so either side can ship first.
+   */
+  skills: { id?: string | undefined; name: string; description?: string | undefined }[];
   customTools: { id: string; title: string }[];
   mcpServers: { id: string; name: string }[];
   credentials: { id: string; name: string; provider?: string | undefined; type?: string | undefined }[];
@@ -336,6 +401,8 @@ export interface ChatContextItem {
   content: string;
   tag?: string | undefined;
   path?: string | undefined;
+  /** Requested resource identity; Sim authorizes access independently on every read. */
+  resource?: ResourceAddress | undefined;
 }
 
 /** POST /api/tools/resume — deferred tool results. */
@@ -361,6 +428,39 @@ export interface ResumeResult {
 /** POST /api/streams/explicit-abort */
 export const AbortRequest = z.strictObject({ messageId: z.uuid() });
 export type AbortRequest = z.infer<typeof AbortRequest>;
+
+/**
+ * POST /api/streams/replay (sim's inbound key only): the run's response rebuilt from the
+ * durable log for a reader whose cursor fell off sim's replay ring. Read-only: the owner,
+ * its emitter, its lease and its parked calls are untouched. The SSE leg restores what
+ * the receipt lacks, follows the log, and ends with `complete` at a terminal or with one
+ * `run` frame of kind `replay_end` otherwise.
+ */
+export const StreamReplayRequest = z.strictObject({
+  streamId: z.uuid(),
+  chatId: z.uuid(),
+  /** The chat's user; a mismatch answers 404 like an unknown run. */
+  userId: z.string().min(1),
+  ...ResponseReceiptSchema.shape,
+});
+export type StreamReplayRequest = z.infer<typeof StreamReplayRequest>;
+
+/**
+ * A replay leg that ended before the run's terminal. `parked`: the run waits on tool
+ * results the owner's leg handed sim. `cap`: the connection reached its length cap;
+ * replay again. `stalled`: no instance drives the run (stale heartbeat, not parked);
+ * replay again later, once a takeover can have resumed it.
+ * `textLength` is the main text this leg's log reached — diagnostic only. A later
+ * replay sends sim's OWN received length as `receivedTextChars`, never this value: the
+ * log trails live text, and resending from the durable end is what exposes divergence.
+ * Replayed tool activity is presentation only (`replay: true`) and never authorizes
+ * execution.
+ */
+export interface StreamReplayEnd extends StreamTextCompletion {
+  kind: "replay_end";
+  reason: "parked" | "cap" | "stalled";
+  textLength: number;
+}
 
 /** Accepted Stop intent is distinct from an observed terminal worker run. */
 export interface AbortResponse {
@@ -415,13 +515,6 @@ export const TitleRequest = z.strictObject({
   userId: z.string().optional(),
 });
 export type TitleRequest = z.infer<typeof TitleRequest>;
-
-/** The 409 body for a duplicate send while a sibling instance streams (S32). */
-export interface ActiveStreamConflict {
-  error: "active_stream";
-  streamId: string;
-  status: string;
-}
 
 /** The 426 body for protocol version skew (S43). */
 export interface ProtocolMismatch {

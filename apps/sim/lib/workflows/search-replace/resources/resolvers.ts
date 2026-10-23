@@ -1,3 +1,4 @@
+import { sortObjectKeysDeep } from '@sim/utils/object'
 import { foldSearchWhitespace } from '@sim/utils/string'
 import type {
   WorkflowSearchMatch,
@@ -27,18 +28,6 @@ export const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, nu
   'selector-resource': 3,
 }
 
-export function stableStringifyWorkflowSearchValue(value: unknown): string {
-  if (!value || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringifyWorkflowSearchValue(item)).join(',')}]`
-  }
-
-  return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, item]) => `${JSON.stringify(key)}:${stableStringifyWorkflowSearchValue(item)}`)
-    .join(',')}}`
-}
-
 export function buildWorkflowSearchResourceGroupKey(
   resource: Pick<
     WorkflowSearchResourceMeta,
@@ -48,7 +37,7 @@ export function buildWorkflowSearchResourceGroupKey(
   const provider = resource.providerId ?? resource.serviceId ?? ''
   const selectorKey = resource.selectorKey ?? ''
   const selectorContext = resource.selectorContext
-    ? stableStringifyWorkflowSearchValue(resource.selectorContext)
+    ? JSON.stringify(sortObjectKeysDeep(resource.selectorContext))
     : ''
 
   return [resource.kind, provider, selectorKey, selectorContext].join(':')
@@ -147,44 +136,18 @@ function widenScopeBucket(bucket: RangeMatchScopeBucket, end: number): void {
 }
 
 /**
- * Overlap resolution is scoped to one value inside one subblock, so candidates
- * are bucketed by that scope rather than rescanned. The previous `findIndex`
- * over the whole accumulated list recomputed every candidate's scope key on
- * every iteration - O(n^2) string builds, which cost ~1.4s on a workflow
- * producing ~500 matches and froze the search field while typing.
+ * Collapses overlapping range matches, keeping the preferred one per overlap.
  *
- * A bucket only ever holds entries that have both a scope key and a range, and
- * those are exactly the entries the old predicate could match. Buckets keep
- * insertion order and the scan stops at the first overlap, so this picks the
- * same candidate the linear scan did.
+ * Overlap is only possible within one value of one subblock, so kept entries
+ * are bucketed by that scope key, in insertion order; the first overlapping
+ * entry in the bucket is the one compared against.
  *
- * `maxEnd` is a monotonic high-water mark, not the exact current maximum: a
- * replacement can swap in a range that ends earlier without lowering it. Only
- * the upper bound is load-bearing. A match starting at or after it cannot
- * overlap anything in the bucket, so the scan is skipped; a bound left too high
- * only costs a scan that would have been skipped, never a wrong answer.
- *
- * Recomputing the exact maximum on every shrinking replacement is a net loss -
- * it walks the bucket, which is the cost this is here to avoid, and staleness
- * is capped at one token length because every range spans a matched token
- * (`query.length`, or a reference's `rawValue.length`) rather than the field.
- * Measured on the realistic overlap shape at 10k matches: 23ms as written,
- * 45ms with the recompute, against 1010ms for the scan this replaced.
- *
- * The bound keeps a field full of disjoint hits linear instead of quadratic
- * within its own bucket, to the extent its matches arrive in ascending offset
- * order; out-of-order producers just fall back to scanning.
- *
- * It must be refreshed on the replacement path too, not only on append:
- * `shouldPreferOverlappingMatch` prefers the SHORTER range, and a shorter range
- * can still end further right than the one it evicts. Leaving `maxEnd` stale
- * there let the short-circuit skip genuine overlaps and leak duplicates.
- *
- * Only `NaN` ends are ignored. `Math.max` with `NaN` would pin `maxEnd` at
- * `NaN`, and since every comparison against `NaN` is false that would silently
- * switch dedupe off for the rest of the scope. A `NaN`-ended range cannot
- * overlap anything anyway, while positive infinity is an unbounded end that
- * can overlap later ranges and therefore must widen the high-water mark.
+ * Each bucket's `maxEnd` is an upper bound on its entries' `range.end`, not the
+ * exact maximum: a match starting at or after it cannot overlap anything in the
+ * bucket, so the scan is skipped. It must be widened on replacement as well as
+ * on append, because a shorter preferred range can still end further right.
+ * `NaN` ends are ignored (they overlap nothing and would poison `Math.max`);
+ * `+Infinity` widens it.
  */
 export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchMatch>(
   matches: T[]

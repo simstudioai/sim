@@ -33,7 +33,7 @@ export const kalshiGetExchangeScheduleTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_schedule')
+      handleKalshiError(data, 'get_exchange_schedule')
     }
 
     return {
@@ -74,8 +74,7 @@ export const kalshiGetExchangeScheduleV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_exchange_schedule_v2',
   name: 'Get Exchange Schedule from Kalshi V2',
-  description:
-    'Retrieve the Kalshi exchange trading schedule and maintenance windows (V2 - exact API response)',
+  description: 'Retrieve the Kalshi exchange trading schedule and maintenance windows',
   version: '2.0.0',
 
   params: {},
@@ -92,7 +91,7 @@ export const kalshiGetExchangeScheduleV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_schedule_v2')
+      handleKalshiError(data, 'get_exchange_schedule_v2')
     }
 
     const schedule = data.schedule || {}

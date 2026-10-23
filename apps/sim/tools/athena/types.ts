@@ -142,7 +142,7 @@ export interface AthenaBatchGetQueryExecutionParams extends AthenaConnectionConf
   queryExecutionIds: string
 }
 
-export interface AthenaQueryExecutionSummary {
+interface AthenaQueryExecutionSummary {
   queryExecutionId: string
   query: string | null
   state: string | null
@@ -161,7 +161,7 @@ export interface AthenaQueryExecutionSummary {
   outputLocation: string | null
 }
 
-export interface AthenaUnprocessedQueryExecutionId {
+interface AthenaUnprocessedQueryExecutionId {
   queryExecutionId: string | null
   errorCode: string | null
   errorMessage: string | null
@@ -181,7 +181,7 @@ export interface AthenaListDatabasesParams extends AthenaConnectionConfig {
   nextToken?: string
 }
 
-export interface AthenaDatabase {
+interface AthenaDatabase {
   name: string
   description: string | null
   parameters: Record<string, string>
@@ -203,13 +203,13 @@ export interface AthenaListTableMetadataParams extends AthenaConnectionConfig {
   nextToken?: string
 }
 
-export interface AthenaColumn {
+interface AthenaColumn {
   name: string
   type: string | null
   comment: string | null
 }
 
-export interface AthenaTableMetadata {
+interface AthenaTableMetadata {
   name: string
   tableType: string | null
   createTime: number | null
@@ -226,7 +226,7 @@ export interface AthenaListTableMetadataResponse extends ToolResponse {
   }
 }
 
-export interface AthenaNamedQuery {
+interface AthenaNamedQuery {
   namedQueryId: string
   name: string
   description: string | null
@@ -235,7 +235,7 @@ export interface AthenaNamedQuery {
   workGroup: string | null
 }
 
-export interface AthenaPreparedStatement {
+interface AthenaPreparedStatement {
   statementName: string
   queryStatement: string
   workGroupName: string | null
@@ -243,7 +243,7 @@ export interface AthenaPreparedStatement {
   lastModifiedTime: number | null
 }
 
-export interface AthenaEngineVersion {
+interface AthenaEngineVersion {
   selectedEngineVersion: string | null
   effectiveEngineVersion: string | null
 }

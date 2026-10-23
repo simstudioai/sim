@@ -49,7 +49,7 @@ Animate contextual icons with opacity, scale, and blur instead of toggling visib
 
 ### 8. Font Smoothing
 
-Apply `-webkit-font-smoothing: antialiased` to the root layout on macOS for crisper text.
+Apply `-webkit-font-smoothing: antialiased` to the root layout on macOS for crisper text. In this repo, do not add root-level smoothing or other global styles (CLAUDE.md "Styling and EMCN"); raise it as a design-system proposal instead.
 
 ### 9. Tabular Numbers
 
@@ -61,7 +61,7 @@ Use `text-wrap: balance` on headings. Use `text-wrap: pretty` for body text to a
 
 ### 11. Image Outlines
 
-Add a subtle 1px low-opacity outline to images (`outline-black/10` light, `outline-white/10` dark); see surfaces.md.
+Add a subtle 1px low-opacity outline to images; see surfaces.md. In this repo, use the `--border` token (`outline-[var(--border)]`), not raw black/white alphas.
 
 ### 12. Scale on Press
 
@@ -119,7 +119,7 @@ Present changes as markdown tables with **Before** and **After** columns, one ta
 #### Scale on press
 | Before | After |
 | --- | --- |
-| `<button className="...">` | Added `active:scale-[0.96] transition-transform` |
+| `Chip` has no press affordance | Proposed in `packages/emcn/src/components/chip/chip.tsx` (`chipVariants`): `active:scale-[0.96] transition-transform` |
 | `scale(0.9)` on press | Raised to `scale(0.96)` — anything below `0.95` feels exaggerated |
 
 Rows should cite the specific file and the specific property that changed when it isn't obvious from the snippet. If a principle was reviewed but nothing needed to change, omit that table entirely — empty tables add noise.

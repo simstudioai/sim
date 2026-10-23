@@ -66,7 +66,7 @@ export const discordRemoveReactionTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

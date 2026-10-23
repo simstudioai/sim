@@ -1,38 +1,45 @@
 import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import { renderToReadableStream } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBrandingProvider,
+  mockIsDesktopPresenceAvailable,
+  mockHasSignedInDesktopExecutor,
+  mockWorkspaceChrome,
   mockGetOrgWhitelabelSettings,
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
   mockPrefetchWorkspaceAccess,
+  mockPrefetchWorkspaceForkAvailability,
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
+  mockIsDesktopPresenceAvailable: vi.fn(() => false),
+  mockHasSignedInDesktopExecutor: vi.fn(async () => false),
+  mockWorkspaceChrome: vi.fn(
+    ({ children }: { children: ReactNode; sidebar: ReactNode }) => children
+  ),
   mockGetOrgWhitelabelSettings: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
   mockPrefetchWorkspaceAccess: vi.fn(),
+  mockPrefetchWorkspaceForkAvailability: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
-  ToastProvider: ({ children }: { children: ReactNode }) => children,
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
-vi.mock('@tanstack/react-query', () => ({
-  dehydrate: vi.fn(() => ({})),
-  HydrationBoundary: ({ children }: { children: ReactNode }) => children,
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: vi.fn(),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: () => ({ setQueryData: vi.fn() }),
@@ -41,6 +48,7 @@ vi.mock('@/app/_shell/providers/get-query-client', () => ({
 vi.mock('@/app/workspace/[workspaceId]/prefetch', () => ({
   prefetchWorkspaceHostContext: mockPrefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar: mockPrefetchWorkspaceSidebar,
+  prefetchWorkspaceForkAvailability: mockPrefetchWorkspaceForkAvailability,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/prefetch-access', () => ({
@@ -64,7 +72,16 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
-  WorkspaceChrome: ({ children }: { children: ReactNode }) => children,
+  WorkspaceChrome: mockWorkspaceChrome,
+  WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock('@/lib/desktop/executor/presence', () => ({
+  isDesktopPresenceAvailable: mockIsDesktopPresenceAvailable,
+}))
+
+vi.mock('@/lib/desktop/executor/repository', () => ({
+  hasSignedInDesktopExecutor: mockHasSignedInDesktopExecutor,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
@@ -152,6 +169,7 @@ describe('WorkspaceLayout host context', () => {
     mockPrefetchWorkspaceHostContext.mockResolvedValue(HOST_CONTEXT)
     mockPrefetchWorkspaceSidebar.mockResolvedValue(undefined)
     mockPrefetchWorkspaceAccess.mockResolvedValue(undefined)
+    mockPrefetchWorkspaceForkAvailability.mockResolvedValue(undefined)
     mockGetOrgWhitelabelSettings.mockResolvedValue({ brandName: 'Host B' })
   })
 
@@ -160,7 +178,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-b' }),
     })
-    renderToStaticMarkup(element)
+    await new Response(await renderToReadableStream(element)).text()
 
     expect(mockGetOrgWhitelabelSettings).toHaveBeenCalledWith('org-b')
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalledWith('org-a')
@@ -171,11 +189,11 @@ describe('WorkspaceLayout host context', () => {
       HOST_CONTEXT,
       'org-a'
     )
-    expect(mockPrefetchWorkspaceAccess).toHaveBeenCalledWith(expect.anything(), 'workspace-b', {
-      kind: 'session',
-      userId: 'viewer-1',
-      sessionId: 'session-1',
-    })
+    expect(mockPrefetchWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      'workspace-b',
+      createSessionPrincipal({ userId: 'viewer-1' })
+    )
     expect(mockBrandingProvider).toHaveBeenCalledWith(
       expect.objectContaining({
         hostOrganizationId: 'org-b',
@@ -193,7 +211,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Secret workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-denied' }),
     })
-    const html = renderToStaticMarkup(element)
+    const html = await new Response(await renderToReadableStream(element)).text()
 
     expect(html).toContain('Workspace access denied')
     expect(html).not.toContain('Secret workspace child')
@@ -201,4 +219,36 @@ describe('WorkspaceLayout host context', () => {
     expect(mockPrefetchWorkspaceAccess).not.toHaveBeenCalled()
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalled()
   })
+
+  async function sidebarProps() {
+    mockWorkspaceChrome.mockClear()
+    const element = await WorkspaceLayout({
+      children: <div>Workspace child</div>,
+      params: Promise.resolve({ workspaceId: 'workspace-b' }),
+    })
+    await new Response(await renderToReadableStream(element)).text()
+    return mockWorkspaceChrome.mock.calls[0][0].sidebar
+  }
+
+  it('tells the sidebar the desktop executor runs only where presence is tracked', async () => {
+    mockIsDesktopPresenceAvailable.mockReturnValue(false)
+    mockHasSignedInDesktopExecutor.mockResolvedValue(true)
+
+    expect(await sidebarProps()).toMatchObject({
+      props: { desktopExecutor: { available: false, registered: false } },
+    })
+    mockHasSignedInDesktopExecutor.mockResolvedValue(false)
+  })
+
+  it.each([true, false])(
+    'tells the sidebar whether the viewer has a desktop that runs their turns (%s)',
+    async (registered) => {
+      mockIsDesktopPresenceAvailable.mockReturnValue(true)
+      mockHasSignedInDesktopExecutor.mockResolvedValueOnce(registered)
+
+      expect(await sidebarProps()).toMatchObject({
+        props: { desktopExecutor: { available: true, registered } },
+      })
+    }
+  )
 })

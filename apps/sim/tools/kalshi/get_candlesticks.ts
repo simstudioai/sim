@@ -82,7 +82,7 @@ export const kalshiGetCandlesticksTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_candlesticks')
+      handleKalshiError(data, 'get_candlesticks')
     }
 
     const candlesticks = data.candlesticks || []
@@ -165,7 +165,7 @@ export const kalshiGetCandlesticksV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_candlesticks_v2',
   name: 'Get Market Candlesticks from Kalshi V2',
-  description: 'Retrieve OHLC candlestick data for a specific market (V2 - full API response)',
+  description: 'Retrieve OHLC candlestick data for a specific market',
   version: '2.0.0',
 
   params: {
@@ -224,7 +224,7 @@ export const kalshiGetCandlesticksV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_candlesticks_v2')
+      handleKalshiError(data, 'get_candlesticks_v2')
     }
 
     const mapBidAsk = (obj: Record<string, unknown> | null): BidAskDistribution => ({

@@ -1,8 +1,7 @@
 import { BrainIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { ThinkingToolResponse } from '@/tools/thinking/types'
 
-export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
+export const ThinkingBlock: BlockConfig = {
   type: 'thinking',
   name: 'Thinking',
   description: 'Forces model to outline its thought process.',

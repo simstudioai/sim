@@ -1,18 +1,15 @@
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import {
   resolveTriggerRegion,
   TRIGGER_REGION_EU_CENTRAL,
   TRIGGER_REGION_US_EAST,
 } from '@/lib/core/async-jobs/region'
+
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
 
 describe('resolveTriggerRegion', () => {
   it('returns eu-central-1 when the flag is enabled', async () => {

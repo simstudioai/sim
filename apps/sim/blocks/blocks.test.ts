@@ -464,10 +464,10 @@ describe.concurrent('Blocks Module', () => {
 
           if (hasRequired && hasOptional) {
             const requiredSubBlocks = subBlocks
-              .filter((sb, i) => requiredStatuses[i] === 'required')
+              .filter((_sb, i) => requiredStatuses[i] === 'required')
               .map((sb) => `${sb.id} (${sb.mode || 'both'})`)
             const optionalSubBlocks = subBlocks
-              .filter((sb, i) => requiredStatuses[i] === 'optional')
+              .filter((_sb, i) => requiredStatuses[i] === 'optional')
               .map((sb) => `${sb.id} (${sb.mode || 'both'})`)
 
             errors.push(

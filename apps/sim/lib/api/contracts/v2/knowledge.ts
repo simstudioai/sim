@@ -44,6 +44,7 @@ import {
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
+  v2OptionalUploadTokenHeadersSchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
   v2UploadStatusSchema,
@@ -63,7 +64,10 @@ import {
   KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES,
   knowledgeDocumentUploadMetadataSchema,
 } from '@/lib/knowledge/upload-metadata'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+  MAX_WORKSPACE_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 
 /**
  * v2 knowledge contracts.
@@ -97,7 +101,7 @@ const v2KnowledgeChunkingConfigSchema = knowledgeBaseDataSchema.shape.chunkingCo
       .describe('Minimum chunk size in characters.')
       .meta({ examples: [100] }),
     overlap: knowledgeBaseDataSchema.shape.chunkingConfig.shape.overlap
-      .describe('Number of overlapping characters between adjacent chunks.')
+      .describe('Requested overlap in tokens between adjacent chunks.')
       .meta({ examples: [200] }),
     strategy: knowledgeBaseDataSchema.shape.chunkingConfig.shape.strategy.describe(
       'Chunking strategy applied during document processing.'
@@ -139,6 +143,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Knowledge base description, or null when none is set.')
       .meta({ examples: ['All product documentation and guides'] }),
     tokenCount: knowledgeBaseDataSchema.shape.tokenCount
+      .unwrap()
       .describe('Total tokens across indexed documents.')
       .meta({ examples: [48213] }),
     embeddingModel: knowledgeBaseDataSchema.shape.embeddingModel
@@ -173,7 +178,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     deletedAt: v2TimestampSchema
       .nullable()
       .describe(
-        'ISO 8601 archive timestamp, or null while active. Use List Knowledge Bases with `scope=archived` to find archived knowledge bases.'
+        'ISO 8601 archive timestamp, or null while active. Use List knowledge bases with `scope=archived` to find archived knowledge bases.'
       )
       .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
@@ -281,7 +286,7 @@ export const v2KnowledgeDocumentTagsSchema = z
       .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
   )
   .describe(
-    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.'
+    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List tags to map names to slots.'
   )
   .meta({ examples: [{ category: 'billing', priority: 2 }] })
 
@@ -439,16 +444,10 @@ export const v2KnowledgeSearchDataSchema = z
       .nonnegative()
       .describe('Number of results returned.')
       .meta({ examples: [4] }),
-    /**
-     * Required, not optional. Reranking degrades to vector ordering on a provider
-     * failure or an unconfigured credential, and that fallback was previously
-     * indistinguishable from a reranker that ran — same 200, same order, no
-     * `rerankerScore` on any result. A field a caller has to remember to look for
-     * would reproduce the same gap for anyone who does not.
-     */
+    /** Required so callers can distinguish a successful rerank from fallback retrieval ordering after provider or credential failures. */
     rerankerStatus: rerankerStatusSchema
       .describe(
-        'What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'
+        'Reranking outcome. `applied` means results carry `rerankerScore` and follow that score. `unavailable` means reranking could not produce a usable order; the search succeeded in retrieval order without `rerankerScore`. Retry if reranking is needed. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'
       )
       .meta({ examples: ['applied'] }),
   })
@@ -563,7 +562,7 @@ export const v2UploadKnowledgeDocumentFormSchema = z
     file: z
       .file()
       .max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE)
-      .describe('Document file to upload; the maximum size is 100 MB.'),
+      .describe('Document file to upload; the maximum size is 100 MiB.'),
   })
   .catchall(z.unknown().describe('Additional multipart form fields are ignored.'))
 export type V2UploadKnowledgeDocumentForm = z.input<typeof v2UploadKnowledgeDocumentFormSchema>
@@ -641,7 +640,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
     scope: v2KnowledgeBaseScopeSchema
       .default('active')
       .describe(
-        'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
+        'Lifecycle scope: active or archived knowledge bases. Use Restore knowledge base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -667,7 +666,7 @@ const v2KnowledgeChunkingConfigInputSchema = withChunkingConfigRules(
         .meta({ examples: [100] }),
       overlap: chunkingConfigFieldsSchema.shape.overlap
         .default(DEFAULT_CHUNKING_CONFIG.overlap)
-        .describe('Number of overlapping characters between adjacent chunks.')
+        .describe('Requested overlap in tokens between adjacent chunks.')
         .meta({ examples: [200] }),
       strategy: chunkingConfigFieldsSchema.shape.strategy.describe(
         'Chunking strategy applied during document processing. `regex` additionally requires `strategyOptions.pattern`.'
@@ -806,6 +805,206 @@ export const v2ExportKnowledgeBaseContract = defineRouteContract({
   params: v2KnowledgeBaseParamsSchema,
   query: v2ExportKnowledgeBaseQuerySchema,
   response: { mode: 'binary' },
+})
+
+const v2KnowledgeImportParamsSchema = z.object({
+  importId: z.string().min(1).describe('Unique knowledge-base import identifier.'),
+})
+
+const v2KnowledgeImportWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the import.'),
+  })
+  .strict()
+
+const v2KnowledgeImportOptionalUploadTokenHeadersSchema = v2OptionalUploadTokenHeadersSchema.extend(
+  {
+    'upload-token': v2OptionalUploadTokenHeadersSchema.shape['upload-token'].describe(
+      'Signed upload control token returned when the import was created; required to read or cancel the import before its upload completes.'
+    ),
+  }
+)
+
+const v2KnowledgeImportSourceSchema = z
+  .object({
+    type: z.literal('upload').describe('Upload-backed import discriminator.'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name is required')
+      .max(255)
+      .describe('Bundle filename, as produced by a knowledge base export.'),
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'contentType is required')
+      .max(255)
+      .describe('Bundle MIME type, normally application/zip.'),
+    size: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_WORKSPACE_FILE_SIZE)
+      .describe('Exact bundle size in bytes; the maximum is 5 GiB.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeImportSource',
+    title: 'Knowledge base import source',
+    description: 'Bundle archive uploaded through signed transfer instructions.',
+  })
+
+const v2CreateKnowledgeImportBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the knowledge base.'),
+    name: v1CreateKnowledgeBaseBodySchema.shape.name
+      .optional()
+      .describe("Name for the new knowledge base; defaults to the bundle's own name.")
+      .meta({ examples: ['Product Documentation'] }),
+    source: v2KnowledgeImportSourceSchema,
+  })
+  .strict()
+export type V2CreateKnowledgeImportBody = z.input<typeof v2CreateKnowledgeImportBodySchema>
+
+/**
+ * `uploading` until the archive's upload completes, then `processing` while the
+ * base and its documents are created. There is no `queued`: the durable record
+ * is written as the runner is dispatched.
+ */
+const v2KnowledgeImportStatusSchema = z.enum([
+  'uploading',
+  'processing',
+  'completed',
+  'failed',
+  'canceled',
+  'expired',
+])
+export type V2KnowledgeImportStatus = z.output<typeof v2KnowledgeImportStatusSchema>
+
+const v2KnowledgeImportFailureSchema = z
+  .object({
+    filename: z.string().describe('Filename of the document that was not imported.'),
+    message: z.string().describe('Why the document was not imported.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeImportFailure',
+    title: 'Knowledge import failure',
+    description: 'One bundle document the import could not bring over.',
+  })
+
+const v2KnowledgeImportSchema = z
+  .object({
+    id: z.string().describe('Unique knowledge-base import identifier.'),
+    workspaceId: z.string().describe('Workspace that owns the import.'),
+    status: v2KnowledgeImportStatusSchema.describe('Current import lifecycle state.'),
+    knowledgeBaseId: z
+      .string()
+      .nullable()
+      .describe('Knowledge base the import created, or null until it exists.'),
+    documentsTotal: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Documents the bundle carries; zero until its manifest has been read.'),
+    documentsImported: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Documents created so far. A document whose vectors could not be reused is indexed afterwards, as an upload is, so it may still be processing in the knowledge base.'
+      ),
+    documentsFailed: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Documents that could not be imported. Non-zero still allows `completed`.'),
+    vectorsReused: z
+      .boolean()
+      .describe(
+        "Whether the bundle's vectors matched this deployment's embedding model and were stored without re-embedding."
+      ),
+    failures: z
+      .array(v2KnowledgeImportFailureSchema)
+      .describe('Bounded sample of the documents that could not be imported.'),
+    error: z.string().nullable().describe('Terminal failure reason, or null.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 creation timestamp.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 last-update timestamp.'),
+    completedAt: v2TimestampSchema.nullable().describe('ISO 8601 completion timestamp, or null.'),
+  })
+  .meta({
+    id: 'V2KnowledgeImport',
+    title: 'Knowledge base import',
+    description: 'Durable lifecycle resource for importing a knowledge base bundle.',
+  })
+export type V2KnowledgeImport = z.output<typeof v2KnowledgeImportSchema>
+
+const v2CreateKnowledgeImportDataSchema = z
+  .object({
+    session: v2KnowledgeImportSchema.describe('Created import, waiting for its upload.'),
+    uploadToken: z.string().min(1).describe('Signed token for upload control requests.'),
+    transfer: v2UploadTransferSchema.describe('Signed bundle upload instructions.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2CreateKnowledgeImportData',
+    title: 'Create knowledge base import data',
+    description: 'Created import and the instructions for uploading its bundle.',
+  })
+export type V2CreateKnowledgeImportData = z.output<typeof v2CreateKnowledgeImportDataSchema>
+
+export const v2CreateKnowledgeImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/imports',
+  query: noInputSchema,
+  body: v2CreateKnowledgeImportBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CreateKnowledgeImportDataSchema),
+    status: 201,
+  },
+})
+
+/**
+ * Reads an import in any of its states. The optional upload token makes the
+ * upload phase readable: the durable record is written only once the upload
+ * completes, so without it the id the 201 returned would 404 until then.
+ */
+export const v2GetKnowledgeImportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/imports/[importId]',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2KnowledgeImportOptionalUploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeImportSchema) },
+})
+
+export const v2CancelKnowledgeImportContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/knowledge/imports/[importId]',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2KnowledgeImportOptionalUploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeImportSchema) },
+})
+
+export const v2CreateKnowledgeImportPartUrlsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/imports/[importId]/parts',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  body: v2PartUrlsBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
+})
+
+export const v2CompleteKnowledgeImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/imports/[importId]/complete',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeImportSchema) },
 })
 
 /**
@@ -953,7 +1152,9 @@ export const v2KnowledgeSearchBodySchema = z
       'Workspace that owns the knowledge bases.'
     ),
     knowledgeBaseIds: v1KnowledgeSearchBodySchema.shape.knowledgeBaseIds
-      .describe('One knowledge base identifier or an array of up to 20 identifiers.')
+      .describe(
+        'One knowledge base ID or an array of up to 20 IDs. Query searches require the same embedding model and dimensions across all selected bases; search incompatible bases separately. Tag-only searches do not require this.'
+      )
       .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
     query: z
       .string()
@@ -985,13 +1186,13 @@ export const v2KnowledgeSearchBodySchema = z
         `Up to ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
-      'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
+      'Retrieval strategy: `vector` uses semantic search; `hybrid` also runs full-text search. Omit to use the workspace policy.'
     ),
     rerankerEnabled: z
       .boolean()
       .optional()
       .describe(
-        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.'
+        'Reorder retrieved chunks with a reranking model before truncating to `topK`. Ignored for tag-only searches. A completed reranking call adds a search unit. If reranking is unavailable, results keep their retrieval order; check `rerankerStatus`.'
       ),
     /**
      * Defaulted, matching the internal search contract this one otherwise
@@ -1224,7 +1425,7 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
  */
 export const v2KnowledgeTagSchema = z
   .object({
-    id: z.string().describe('Tag definition ID used by Update Tag and Delete Tag.'),
+    id: z.string().describe('Tag definition ID used by Update tag and Delete tag.'),
     displayName: z
       .string()
       .describe('Display name used by tag filters and by tag values on document reads.')
@@ -1232,7 +1433,7 @@ export const v2KnowledgeTagSchema = z
     tagSlot: z
       .string()
       .describe(
-        'Storage slot the tag occupies. Document writes set tag values by slot (`tag1`..`tag7`).'
+        'Slot used by document updates: `tag1`–`tag7`, `number1`–`number5`, `date1`–`date2`, or `boolean1`–`boolean3`. Upload creation accepts text slots; use Update document for other types.'
       )
       .meta({ examples: ['tag1'] }),
     fieldType: z
@@ -2004,7 +2205,7 @@ export const v2AddWorkspaceFilesToKnowledgeBaseBodySchema = z
         `fileReferences cannot contain more than ${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} files`
       )
       .describe(
-        'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.'
+        'Workspace file IDs or paths to index. Prefer IDs or canonical `files/<folder>/<name>` paths. Duplicates resolving to the same file are indexed once.'
       ),
   })
   .strict()

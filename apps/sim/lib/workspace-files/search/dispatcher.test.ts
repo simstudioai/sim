@@ -1,42 +1,24 @@
 import {
+  fileSearchDispatchQueue,
   workspaceFileSearchBackfill,
-  workspaceFileSearchDispatchQueue,
   workspaceFileSearchRevision,
 } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  batchTrigger: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-}))
-
-vi.mock('@sim/db/schema', async () => ({
-  ...(await import('@sim/testing/mocks/schema.mock')).schemaMock,
-  workspaceFileSearchBackfill: { id: 'backfill.id' },
-  workspaceFileSearchDispatchQueue: {
-    workspaceId: 'queue.workspaceId',
-    lastDispatchedAt: 'queue.lastDispatchedAt',
-    enqueuedAt: 'queue.enqueuedAt',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mocks.info, warn: mocks.warn, error: mocks.error }),
-}))
 vi.mock('@/lib/workspace-files/search/index-state', () => ({
   cleanupFileSearchBuilds: vi.fn().mockResolvedValue(0),
 }))
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger } }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 vi.mock('@/lib/workspace-files/search/indexing', () => ({
   indexWorkspaceFileForSearch: vi.fn(),
   markWorkspaceFileSearchIndexFailed: vi.fn(),
 }))
 
+import { tasks } from '@trigger.dev/sdk'
 import { FILE_SEARCH_DISPATCH_HANDOFF_MS } from '@/lib/workspace-files/search/constants'
 import {
   buildWorkspaceFileSearchTriggerItems,
@@ -44,6 +26,18 @@ import {
   prepareWorkspaceFileSearchDispatch,
   shouldUseWorkspaceFileSearchTrigger,
 } from '@/lib/workspace-files/search/dispatcher'
+
+const logger = getMockLogger('WorkspaceFileSearchDispatcher')
+const mocks = {
+  batchTrigger: vi.mocked(tasks.batchTrigger),
+  info: logger.info,
+  warn: logger.warn,
+  error: logger.error,
+}
+mocks.batchTrigger.mockReset()
+
+setEnvFlags({ isTriggerDevEnabled: true })
+afterAll(resetEnvFlagsMock)
 
 describe('workspace file search dispatch policy', () => {
   it('uses Trigger.dev from inside a task even when the deployment flag is absent', () => {
@@ -65,7 +59,7 @@ describe('workspace file search dispatch policy', () => {
         options: {
           idempotencyKey: 'workspace-file-search-v2:file-1:2026-08-29T12:00:00.000Z:initial',
           idempotencyKeyTTL: '1h',
-          tags: ['workspaceId:workspace-1', 'fileId:file-1'],
+          tags: ['fileOwner:workspace:workspace-1', 'fileId:file-1'],
           region: 'us-east-1',
         },
       },
@@ -147,14 +141,17 @@ describe('workspace file search dispatch deadlines', () => {
     async (releaseFails) => {
       queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
       queueTableRows(workspaceFileSearchRevision, [])
-      queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+      queueTableRows(fileSearchDispatchQueue, [
+        { entityType: 'workspace', entityId: 'workspace-1' },
+      ])
       dbChainMockFns.execute
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ acquired: true }])
         .mockResolvedValueOnce([{ active: 0 }])
         .mockResolvedValueOnce([
           {
-            workspaceId: 'workspace-1',
+            entityType: 'workspace',
+            entityId: 'workspace-1',
             fileId: 'file-1',
             sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
           },
@@ -200,14 +197,16 @@ describe('workspace file search dispatch deadlines', () => {
     queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
     queueTableRows(workspaceFileSearchRevision, [
       {
-        workspaceId: 'workspace-1',
+        entityType: 'workspace',
+        entityId: 'workspace-1',
         fileId: 'file-1',
         sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
         currentFileId: 'file-1',
         handoffExpired: true,
       },
       {
-        workspaceId: 'workspace-1',
+        entityType: 'workspace',
+        entityId: 'workspace-1',
         fileId: 'file-2',
         sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
         currentFileId: 'file-2',
@@ -239,14 +238,17 @@ describe('workspace file search dispatch deadlines', () => {
     async (handoffFails) => {
       queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
       queueTableRows(workspaceFileSearchRevision, [])
-      queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+      queueTableRows(fileSearchDispatchQueue, [
+        { entityType: 'workspace', entityId: 'workspace-1' },
+      ])
       dbChainMockFns.execute
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ acquired: true }])
         .mockResolvedValueOnce([{ active: 0 }])
         .mockResolvedValueOnce([
           {
-            workspaceId: 'workspace-1',
+            entityType: 'workspace',
+            entityId: 'workspace-1',
             fileId: 'file-1',
             sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
           },

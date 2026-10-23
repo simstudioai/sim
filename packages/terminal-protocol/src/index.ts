@@ -25,25 +25,6 @@ import { truncate } from '@sim/utils/string'
 export const TERMINAL_TOOL_NAME = 'terminal'
 
 /**
- * Names this surface used to expose, one tool per operation. Kept so rows in
- * conversations recorded before the consolidation still render with a real
- * title instead of a humanized tool name.
- */
-export const LEGACY_TERMINAL_TOOL_NAMES = [
-  'terminal_run',
-  'terminal_input',
-  'terminal_read',
-  'terminal_kill',
-  'terminal_cwd',
-  'terminal_list',
-  'terminal_new',
-  'terminal_switch',
-  'terminal_close',
-] as const
-
-export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
-
-/**
  * What one `terminal` call does.
  *
  * The first group acts on a shell — or, when that shell has tmux attached, on
@@ -52,7 +33,7 @@ export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
  * inspects them rather than Sim mirroring them into the tab strip. `handoff`
  * gives the terminal to the user and waits.
  */
-export const TERMINAL_OPERATIONS = [
+const TERMINAL_OPERATIONS = [
   'run',
   'read',
   'input',
@@ -105,9 +86,17 @@ export const MAX_CAPTURE_CHARS = 512_000
  * `terminal_read`. Successive reads are also how it tells progress from a
  * stall — output that stops changing is a command waiting on input or wedged.
  */
-export const DEFAULT_RUN_WAIT_MS = 30_000
+const DEFAULT_RUN_WAIT_MS = 30_000
 
-export const MAX_RUN_WAIT_MS = 120_000
+const MAX_RUN_WAIT_MS = 120_000
+
+/** How long one `terminal_run` holds the turn, from the `waitSeconds` the model asked for. */
+export function resolveRunWaitMs(waitSeconds: unknown): number {
+  const requested = Number(waitSeconds)
+  return Number.isFinite(requested) && requested > 0
+    ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
+    : DEFAULT_RUN_WAIT_MS
+}
 
 /**
  * How long output must be silent, with the cursor left mid-line, before the
@@ -128,7 +117,7 @@ export const PROMPT_IDLE_MS = 2_500
 export const MAX_INPUT_KEYS = 20
 
 /** Control keys the agent may send to a running foreground process. */
-export const TERMINAL_CONTROL_KEYS = [
+const TERMINAL_CONTROL_KEYS = [
   'ctrl-c',
   'ctrl-d',
   'ctrl-z',
@@ -149,7 +138,7 @@ export function isTerminalControlKey(value: unknown): value is TerminalControlKe
   return typeof value === 'string' && TERMINAL_CONTROL_KEY_SET.has(value)
 }
 
-export type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
+type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
 
 /**
  * Arguments for every operation, flattened into one object.
@@ -188,8 +177,8 @@ export interface TerminalToolArgs {
    */
   terminalId?: string
   /**
-   * Which tmux pane to act on, as a tmux target (`session:window.pane`), for
-   * a terminal that has tmux attached. Omitting it uses that session's active
+   * Which tmux pane to act on, as a tmux target (`session:window.pane`, or a
+   * run's pane id `%N`), for a terminal that has tmux attached. Omitting it uses that session's active
    * pane. Ignored when the terminal is a plain shell.
    */
   pane?: string
@@ -197,17 +186,12 @@ export interface TerminalToolArgs {
   reason?: string
 }
 
-export interface TerminalToolCall {
-  operation: TerminalOperation
-  args?: TerminalToolArgs
-}
-
 /**
  * How a `terminal_run` ended. Only `completed` means the command is finished
  * and the terminal is free; in every other case it is still running and still
  * holds the foreground.
  */
-export type TerminalRunStatus =
+type TerminalRunStatus =
   /** Exited on its own. `exitCode` is set. */
   | 'completed'
   /**
@@ -230,7 +214,10 @@ export interface TerminalRunResult {
   durationMs: number
   cwd: string | null
   terminalId: string
-  /** Set when the command ran in tmux: the target it ran under. */
+  /**
+   * Set when the command ran in tmux: its own pane's id (`%N`), a tmux target that `read`,
+   * `input`, `kill` and `close` accept as `pane`.
+   */
   pane?: string
   /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
   truncated: boolean
@@ -470,16 +457,12 @@ export type TerminalErrorCode =
   /** No pane with that target — the targets come from the `panes` operation. */
   | 'NO_SUCH_PANE'
   | 'INVALID_REQUEST'
+  /** The call was stopped before its command started; nothing ran. */
+  | 'CANCELLED'
 
 export interface TerminalStartOptions {
   cols: number
   rows: number
-}
-
-/** One batch of PTY bytes, tagged with the terminal that produced it. */
-export interface TerminalOutputEvent {
-  terminalId: string
-  data: string
 }
 
 /**

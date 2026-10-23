@@ -2,7 +2,6 @@ import {
   authOAuthUtilsMock,
   authOAuthUtilsMockFns,
   dbChainMockFns,
-  drizzleOrmMock,
   flattenMockConditions,
   hasMockCondition,
   type MockCondition,
@@ -10,12 +9,28 @@ import {
   resetDbChainMock as resetDatabaseMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { triggerAvailabilityMock } from '@sim/testing/mocks/trigger-availability.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
+import {
+  routeWindowScans,
+  windowScan,
+  windowScans,
+} from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import {
   buildSyncDatabaseRetryUpdate,
   buildSyncFailureUpdate,
@@ -37,49 +52,43 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalDocument } from '@/connectors/types'
 
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
+
 beforeEach(resetEnvFlagsMock)
 
 function resetDbChainMock() {
   resetDatabaseMock()
-  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  routeWindowScans()
 }
 
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
-  mockProcessDocumentsWithQueue: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentAsync: vi.fn(),
-  processDocumentsWithQueue: mockProcessDocumentsWithQueue,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: vi.fn() }))
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
-const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+const { mockEnqueueStorageCleanup } = vi.hoisted(() => ({
   mockEnqueueStorageCleanup: vi.fn(async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: mockEnqueueStorageCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
@@ -94,16 +103,7 @@ const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
   mockListDocuments: vi.fn(),
 }))
 
-const { mockLogError } = vi.hoisted(() => ({ mockLogError: vi.fn() }))
-vi.mock('@sim/logger', async () => {
-  const { createMockLogger } = await import('@sim/testing/mocks/logger.mock')
-  return { createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
-})
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionOwner: vi.fn(),
-  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-}))
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
@@ -248,7 +248,6 @@ describe('connector content replacement processing state', () => {
   })
 
   it('refuses a queued live Search source before locking or indexing content', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
     queueTableRows(schemaMock.knowledgeBase, [{ isSearchIndex: true }])
     const result = await executeSync('connector-1', {
@@ -1592,6 +1591,61 @@ describe('completeSuccessfulSync', () => {
     expect(successWrite).toMatchObject({ consecutiveFailures: 0 })
   })
 
+  it.each([
+    {
+      scenario: 'after a finished pass',
+      lastSyncAt: new Date(),
+      lastSyncDocCount: 7,
+      written: undefined,
+    },
+    { scenario: 'with no count yet', lastSyncAt: null, lastSyncDocCount: null, written: 4 },
+    {
+      scenario: 'on a later slice of the first pass',
+      lastSyncAt: null,
+      lastSyncDocCount: 3,
+      written: 4,
+    },
+  ])(
+    'counts an unfinished slice only until a pass has finished: $scenario',
+    async ({ lastSyncAt, lastSyncDocCount, written }) => {
+      const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1', lastSyncDocCount: 7 }])
+      queueTableRows(schemaMock.document, [{ count: 4 }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ id: 'log-1' }])
+        .mockResolvedValueOnce([{ id: 'c-1' }])
+
+      await expect(
+        completeSuccessfulSync(
+          'c-1',
+          'kb-1',
+          'log-1',
+          60,
+          { ...RESULT, docsFailed: 0 },
+          null,
+          {
+            complete: false,
+            checkpoint: {
+              unsafe: false,
+              startedAt: '2026-09-04T00:00:00Z',
+              listedCount: 25,
+              resumeAt: null,
+            },
+          },
+          null,
+          false,
+          { lastSyncAt, lastSyncDocCount }
+        )
+      ).resolves.toBe(true)
+
+      const successWrite = dbChainMockFns.set.mock.calls
+        .map(([value]) => value as Record<string, unknown>)
+        .find((value) => value.status === 'active')
+      expect(successWrite?.lastSyncDocCount).toBe(written)
+    }
+  )
+
   it('publishes neither terminal state when lock ownership is gone', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -2197,15 +2251,8 @@ describe('executeSync hard-delete reconciliation', () => {
     queueTableRows(schemaMock.document, [
       { ownedCount: OWNED_DOC_COUNT, listedCount: LISTED_DOC_COUNT, softCount: 40, hardCount: 40 },
     ])
-    queueTableRows(
-      schemaMock.document,
-      missingIds.slice(0, 25).map((id) => ({ id }))
-    )
-    queueTableRows(
-      schemaMock.document,
-      missingIds.slice(25).map((id) => ({ id }))
-    )
-    queueTableRows(schemaMock.document, [])
+    /** Less than a window remains, so the hard walk scans it once, then pages its matches. */
+    windowScans.push(windowScan(missingIds.map((id) => ({ id, tombstoned: false }))))
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [{ count: LISTED_DOC_COUNT }])
     dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])

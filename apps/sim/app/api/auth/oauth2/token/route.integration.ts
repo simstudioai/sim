@@ -1,14 +1,32 @@
 import { randomBytes } from 'node:crypto'
+import { db } from '@sim/db'
+import * as schema from '@sim/db/schema'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
 import { generateId } from '@sim/utils/id'
+import { makeSignature } from 'better-auth/crypto'
+import { eq, inArray, like, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
+import { auth } from '@/lib/auth'
+import * as tokenStore from '@/lib/auth/oauth-access-token'
+import * as provider from '@/lib/auth/oauth-provider'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
+import { POST as revokeRoute } from '@/app/api/auth/oauth2/revoke/route'
+import { POST as tokenRoute } from '@/app/api/auth/oauth2/token/route'
 
-/** Every request below targets this origin, so Better Auth must issue its cookies for it. */
-vi.hoisted(() => {
+/**
+ * Every request below targets this origin, so Better Auth must issue its cookies for it, and
+ * signs them with this secret. Both are set before the imports above evaluate: the auth graph is
+ * imported statically so its cold load runs at collection, not against the first test's timeout.
+ */
+const authSecret = vi.hoisted(() => {
+  const secret = 'test-secret-that-is-at-least-32-chars-long'
   process.env.NEXT_PUBLIC_APP_URL = 'https://test.sim.ai'
+  process.env.BETTER_AUTH_SECRET = secret
+  return secret
 })
-/** Resolves every request to one loopback client so the per-IP token bucket applies. */
+/** Each case resolves its requests to its own client IP so the per-IP token bucket applies. */
 vi.mock('@/lib/core/utils/request', async () => (await import('@sim/testing')).requestUtilsMock)
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
@@ -16,39 +34,20 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
 }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-
 interface TokenResponseBody {
   access_token: string
   refresh_token: string
   scope: string
 }
 
-describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
+describe('OAuth token route in PostgreSQL', () => {
   it.each(['http://127.0.0.1:48881/callback', 'cursor://anysphere.cursor-mcp/oauth/callback'])(
     'persists Search audiences through native PKCE issuance and refresh with %s',
     async (redirectUri) => {
-      process.env.DATABASE_URL = databaseUrl
-      const authSecret = 'test-secret-that-is-at-least-32-chars-long'
-      process.env.BETTER_AUTH_SECRET = authSecret
-      const [
-        { db },
-        schema,
-        { eq, like, sql },
-        { makeSignature },
-        { auth },
-        { POST: tokenRoute },
-        tokenStore,
-      ] = await Promise.all([
-        import('@sim/db'),
-        import('@sim/db/schema'),
-        import('drizzle-orm'),
-        import('better-auth/crypto'),
-        import('@/lib/auth'),
-        import('@/app/api/auth/oauth2/token/route'),
-        import('@/lib/auth/oauth-access-token'),
-      ])
       const POST = (request: NextRequest) => tokenRoute(request, {})
+      /** A fresh TEST-NET-2 address per case, so reruns never draw on an earlier run's bucket. */
+      const clientIp = `198.51.100.${(randomBytes(1)[0] % 254) + 1}`
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
       const userId = generateId()
       const clientId = generateId()
       const sessionId = generateId()
@@ -252,42 +251,17 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
         await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
         await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))
         await db.delete(schema.user).where(eq(schema.user.id, userId))
+        await db
+          .delete(schema.rateLimitBucket)
+          .where(eq(schema.rateLimitBucket.key, `route:oauth-provider-token:ip:${clientIp}`))
+        requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
       }
     },
     30_000
   )
 
   it('issues, rotates, contains replay, and revokes a real Better Auth PKCE grant', async () => {
-    process.env.DATABASE_URL = databaseUrl
-    const authSecret = 'test-secret-that-is-at-least-32-chars-long'
-    process.env.BETTER_AUTH_SECRET = authSecret
-
-    const [
-      { db },
-      schema,
-      { eq, inArray, like },
-      { makeSignature },
-      { auth },
-      { POST: exchangeRoute },
-      { POST: revokeRoute },
-      tokenStore,
-      provider,
-      { requestUtilsMockFns },
-      { isCapabilityWithheldForUser },
-    ] = await Promise.all([
-      import('@sim/db'),
-      import('@sim/db/schema'),
-      import('drizzle-orm'),
-      import('better-auth/crypto'),
-      import('@/lib/auth'),
-      import('@/app/api/auth/oauth2/token/route'),
-      import('@/app/api/auth/oauth2/revoke/route'),
-      import('@/lib/auth/oauth-access-token'),
-      import('@/lib/auth/oauth-provider'),
-      import('@sim/testing/mocks/request.mock'),
-      import('@/lib/permission-groups/user-scope.server'),
-    ])
-    const exchangeToken = (request: NextRequest) => exchangeRoute(request, {})
+    const exchangeToken = (request: NextRequest) => tokenRoute(request, {})
     const revokeToken = (request: NextRequest) => revokeRoute(request, {})
 
     const testId = randomBytes(8).toString('hex')

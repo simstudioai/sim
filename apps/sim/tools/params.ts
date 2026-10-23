@@ -35,7 +35,8 @@ type ToolParamDefinition = ToolConfig['params'][string]
 type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
 interface SchemaProperty {
-  type: string
+  /** Absent for a `json` or `any` param, which accepts any JSON value. */
+  type?: string
   description?: string
   items?: ToolParameterItemSchema
   properties?: Record<string, SchemaProperty>
@@ -89,11 +90,6 @@ export class ToolSchemaEnrichmentError extends Error {
     super(`Failed to enrich schema for tool "${toolId}"`, { cause })
     this.name = 'ToolSchemaEnrichmentError'
   }
-}
-
-export interface ValidationResult {
-  valid: boolean
-  missingParams: string[]
 }
 
 let blockConfigCache: Record<string, ToolInputBlockConfig> | null = null
@@ -167,13 +163,13 @@ function buildParameterSchema(
       : buildFileReferenceParameterSchema(param)
   }
 
-  let schemaType = param.type
-  if (schemaType === 'json' || schemaType === 'any') {
-    schemaType = 'object'
-  }
+  // `json` and `any` params take arrays as often as objects, so they carry no
+  // `type`: an `object` claim would contradict their descriptions and make a
+  // validating runtime reject a correct array argument.
+  const isUntyped = param.type === 'json' || param.type === 'any'
 
   const propertySchema: SchemaProperty = {
-    type: schemaType,
+    ...(isUntyped ? {} : { type: param.type }),
     description: param.description || '',
     ...(param.minItems !== undefined ? { minItems: param.minItems } : {}),
     ...(param.maxItems !== undefined ? { maxItems: param.maxItems } : {}),
@@ -521,30 +517,6 @@ export function filterSchemaForLLM<T extends FilterableToolSchema>(
     properties: filteredProperties,
     required: filteredRequired,
   })
-}
-
-/**
- * Validates that all required parameters are provided
- */
-export function validateToolParameters(
-  toolConfig: ExecutableToolConfig,
-  finalParams: Record<string, unknown>
-): ValidationResult {
-  const requiredParams = Object.entries(toolConfig.params)
-    .filter(([_, param]) => param.required)
-    .map(([paramId]) => paramId)
-
-  const missingParams = requiredParams.filter(
-    (paramId) =>
-      finalParams[paramId] === undefined ||
-      finalParams[paramId] === null ||
-      finalParams[paramId] === ''
-  )
-
-  return {
-    valid: missingParams.length === 0,
-    missingParams,
-  }
 }
 
 /**
@@ -929,7 +901,11 @@ export function getSubBlocksForToolInput(
 
     return {
       toolConfig,
-      subBlocks: filtered,
+      subBlocks: filtered.map((subBlock) =>
+        typeof subBlock.options === 'function'
+          ? { ...subBlock, options: subBlock.options({ values: valuesWithOperation }) }
+          : subBlock
+      ),
       oauthConfig: toolConfig.oauth,
     }
   } catch (error) {

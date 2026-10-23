@@ -1,28 +1,28 @@
-import { createLogger } from '@sim/logger'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   begin: vi.fn(),
   append: vi.fn(),
   publish: vi.fn(),
   fail: vi.fn(),
-  file: vi.fn(),
   load: vi.fn(),
   extract: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/search/index-state', () => ({
-  beginFileSearchBuild: mocks.begin,
-  appendFileSearchChunks: mocks.append,
-  publishFileSearchBuild: mocks.publish,
-  failFileSearchRevision: mocks.fail,
+  beginFileSearchBuild: hoisted.begin,
+  appendFileSearchChunks: hoisted.append,
+  publishFileSearchBuild: hoisted.publish,
+  failFileSearchRevision: hoisted.fail,
 }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ getWorkspaceFile: mocks.file }))
+vi.mock('@/lib/workspace-files/search/source', () => ({
+  loadFileSearchSource: hoisted.load,
+}))
 vi.mock('@/lib/workspace-files/search/extract', () => ({
-  loadIndexableBytes: mocks.load,
-  extractIndexText: mocks.extract,
+  extractIndexText: hoisted.extract,
 }))
 
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import {
   FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS,
   FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
@@ -37,9 +37,7 @@ import {
   indexWorkspaceFileForSearch,
 } from '@/lib/workspace-files/search/indexing'
 
-const logger = vi.mocked(createLogger).mock.results[
-  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkspaceFileSearchIndexer')
-].value as { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> }
+const mocks = hoisted
 
 const FILE_TEXT = 'confidential customer text'
 
@@ -68,12 +66,11 @@ describe('complete-file indexing worker', () => {
     mocks.begin.mockResolvedValue({ id: 'build', ...payload })
     mocks.append.mockResolvedValue(true)
     mocks.publish.mockResolvedValue(true)
-    mocks.file.mockResolvedValue({
-      name: 'sample.txt',
-      size: 6,
-      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    mocks.load.mockResolvedValue({
+      file: { originalName: 'sample.txt' },
+      bytes: { buffer: Buffer.from('needle'), kind: 'stored' },
+      dependencies: [],
     })
-    mocks.load.mockResolvedValue({ buffer: Buffer.from('needle') })
     mocks.extract.mockResolvedValue({ text: 'needle', partial: false })
   })
   it('does no storage work for an obsolete dispatch', async () => {
@@ -81,18 +78,17 @@ describe('complete-file indexing worker', () => {
     await indexWorkspaceFileForSearch(payload, signal)
     expect(mocks.load).not.toHaveBeenCalled()
     expect(mocks.publish).not.toHaveBeenCalled()
-    expect(logger.info).toHaveBeenCalledWith(
-      'Workspace file search run no longer owns its revision',
-      payload
-    )
   })
-  it('rejects an oversized source before downloading', async () => {
-    mocks.file.mockResolvedValue({
-      size: FILE_SEARCH_MAX_SOURCE_BYTES + 1,
-      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+  it('excludes a source size-limit breach without writing chunks', async () => {
+    mocks.load.mockImplementationOnce(() => {
+      assertKnownSizeWithinLimit(
+        FILE_SEARCH_MAX_SOURCE_BYTES + 1,
+        FILE_SEARCH_MAX_SOURCE_BYTES,
+        'search source'
+      )
     })
     await indexWorkspaceFileForSearch(payload, signal)
-    expect(mocks.load).not.toHaveBeenCalled()
+    expect(mocks.append).not.toHaveBeenCalled()
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.anything(),
       { status: 'skipped', failureReason: 'source_too_large' },
@@ -124,7 +120,13 @@ describe('complete-file indexing worker', () => {
     expect(rows).toBeLessThan(300)
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.anything(),
-      { status: 'ready', chunkCount: rows, lineCount: 600000, indexedBytes: 2400000 },
+      {
+        status: 'ready',
+        chunkCount: rows,
+        lineCount: 600000,
+        indexedBytes: 2400000,
+        dependencies: [],
+      },
       signal
     )
     expect(mocks.append.mock.invocationCallOrder.at(-1)).toBeLessThan(
@@ -165,12 +167,11 @@ describe('indexing retry policy', () => {
   async function thrownBy(error: unknown): Promise<unknown> {
     vi.clearAllMocks()
     mocks.begin.mockResolvedValue({ id: 'build', ...payload })
-    mocks.file.mockResolvedValue({
-      name: 'notes.txt',
-      size: 100,
-      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    mocks.load.mockResolvedValue({
+      file: { originalName: 'notes.txt' },
+      bytes: { buffer: Buffer.from('a\n'), kind: 'stored' },
+      dependencies: [],
     })
-    mocks.load.mockResolvedValue({ buffer: Buffer.from('a\n') })
     mocks.extract.mockResolvedValue({ text: 'a\n', lineCount: 1 })
     mocks.append.mockRejectedValue(error)
     return indexWorkspaceFileForSearch(payload, signal).catch((thrown) => thrown)
@@ -217,11 +218,6 @@ describe('indexing retry policy', () => {
   it('treats a reset outside the database as an ordinary failure', async () => {
     vi.clearAllMocks()
     mocks.begin.mockResolvedValue({ id: 'build', ...payload })
-    mocks.file.mockResolvedValue({
-      name: 'notes.txt',
-      size: 100,
-      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
-    })
     mocks.load.mockRejectedValue(
       Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
     )

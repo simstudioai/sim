@@ -1,5 +1,11 @@
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import type { CredentialAccessResult } from '@/lib/auth/credential-access'
+import {
+  bindCopilotWorkspaceOperation,
+  type NestedResourceScope,
+} from '@/lib/core/application/copilot-workspace-invocation'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
+import { SELECTOR_DELEGATION_AUDIENCE } from '@/lib/selectors/application/operations'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { SelectorKey, ServerSelectorKey } from '@/lib/selectors/manifest'
 import type {
@@ -13,6 +19,28 @@ import type {
 export type SelectorPrincipal =
   | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
   | (Extract<Principal, { kind: 'delegated' }> & { serviceId: 'copilot' })
+
+/**
+ * The principal a selector hands to another domain's use case. A Copilot
+ * invocation is admitted under the selector audience, which no other domain
+ * accepts, so it is re-bound to the nested use case's own audience for the same
+ * workspace, naming the one resource it reaches when that domain scopes its
+ * delegations. Every other principal passes through unchanged.
+ */
+export function nestedSelectorPrincipal<P extends SelectorPrincipal>(
+  principal: P,
+  workspaceId: string,
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'delegationAudience'>,
+  resourceScope?: NestedResourceScope
+): P {
+  return bindCopilotWorkspaceOperation(
+    principal,
+    workspaceId,
+    [SELECTOR_DELEGATION_AUDIENCE],
+    useCase,
+    resourceScope
+  )
+}
 
 export type SelectorDestinationPolicy = 'fixed' | 'credential-bound' | 'user-controlled'
 
@@ -50,11 +78,6 @@ export type SelectorCredentialPolicy =
 export interface AuthorizedSelectorCredential {
   suppliedId: string
   organization?: { principal: SessionPrincipal; organizationId: string }
-  personalSearchSetup?: {
-    principal: SessionPrincipal
-    organizationId: string
-    connectorType: 'jira' | 'confluence'
-  }
   access?: CredentialAccessResult
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */
@@ -204,16 +227,6 @@ export function requireListRequest(
 ): Extract<SelectorRequest, { kind: 'list' }> {
   if (request.kind !== 'list') {
     throw new Error(`Selector ${selectorKey} received an unsupported detail request`)
-  }
-  return request
-}
-
-export function requireDetailRequest(
-  selectorKey: SelectorKey,
-  request: SelectorRequest
-): Extract<SelectorRequest, { kind: 'detail' }> {
-  if (request.kind !== 'detail') {
-    throw new Error(`Selector ${selectorKey} received an unsupported list request`)
   }
   return request
 }

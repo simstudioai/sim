@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createResolvedSecretMatcher,
+  MAX_CONTENT_NODES,
+  MAX_MODEL_CONTENT_BYTES,
+  measureModelContent,
   projectResolvedSecretContent,
   projectResolvedSecretDiagnosticError,
   projectResolvedSecretModelContent,
@@ -305,5 +308,50 @@ describe('literals too small to identify anything', () => {
       safe: true,
       value: { token: '{{SLACK_TOKEN}}', flag: false },
     })
+  })
+})
+
+/**
+ * The measure feeds budgets and log lines for payloads that may be far over the caps, so it must
+ * report "over" without materializing them, and must agree with the projection on what is over.
+ */
+describe('measureModelContent', () => {
+  it('reports a string past the byte cap as over it', () => {
+    const measure = measureModelContent({ text: 'x'.repeat(MAX_MODEL_CONTENT_BYTES + 1) })
+    expect(measure).toMatchObject({ exceeded: true })
+  })
+
+  it('reports content past the value cap as over it', () => {
+    const measure = measureModelContent(Array.from({ length: MAX_CONTENT_NODES + 10 }, () => 1))
+    expect(measure).toMatchObject({ exceeded: true })
+  })
+
+  it('reports content nested past the projection depth limit as over it', () => {
+    let deep: Record<string, unknown> = { leaf: 1 }
+    for (let level = 0; level < 150; level += 1) deep = { next: deep }
+    expect(measureModelContent(deep)).toMatchObject({ exceeded: true })
+  })
+
+  it('measures ordinary content exactly, as JSON encodes it', () => {
+    const value = { a: 'é', list: [1, null, true], at: new Date(0) }
+    expect(measureModelContent(value)).toEqual({
+      exceeded: false,
+      values: 7,
+      bytes: Buffer.byteLength(JSON.stringify(value), 'utf8'),
+    })
+  })
+
+  it.each([
+    ['a BigInt', { n: BigInt(1) }],
+    [
+      'a cycle',
+      (() => {
+        const cyclic: Record<string, unknown> = {}
+        cyclic.self = cyclic
+        return cyclic
+      })(),
+    ],
+  ])('returns nothing for %s, which JSON cannot encode', (_label, value) => {
+    expect(measureModelContent(value)).toBeUndefined()
   })
 })

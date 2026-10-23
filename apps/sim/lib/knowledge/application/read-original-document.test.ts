@@ -1,20 +1,18 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  download: vi.fn(),
   provenance: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveCanonicalActiveKnowledgeDocumentContext: mocks.context,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mocks.download }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/knowledge/secret-provenance', () => ({
   createKnowledgeDocumentSourceValue: (doc: { filename: string; fileUrl: string }) => ({
     filename: doc.filename,
@@ -23,10 +21,21 @@ vi.mock('@/lib/knowledge/secret-provenance', () => ({
   loadKnowledgeDocumentDurableSecretProvenance: mocks.provenance,
 }))
 
+import {
+  type ContentDeliveryGate,
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 const document = {
   id: 'doc',
   filename: 'policy.md',
@@ -52,18 +61,42 @@ const input = {
 }
 const run = () => readOriginalKnowledgeDocument.execute({ principal, input })
 
+/** A gate with no registry: it admits only items with no recorded secret. */
+const secretFreeGate: ContentDeliveryGate = {
+  async admit(sources) {
+    return sources.map(
+      ({ provenance }) =>
+        provenance.status === 'unrecorded' ||
+        (provenance.status === 'exact' && provenance.entries.length === 0)
+    )
+  },
+}
+const runAsChat = () =>
+  observeContentDelivery(secretFreeGate, () =>
+    readOriginalKnowledgeDocument.execute({
+      principal: createCopilotChatPrincipal(
+        { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' },
+        KNOWLEDGE_DELEGATION_AUDIENCE
+      ),
+      input,
+    })
+  )
+
 describe('original knowledge document read', () => {
   beforeEach(() => {
-    mocks.context.mockResolvedValue(context)
-    mocks.permission.mockResolvedValue('read')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue(
+      context
+    )
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: document.filename, fileUrl: document.fileUrl },
       provenance: { status: 'exact', entries: [] },
     })
-    mocks.download.mockResolvedValue(Buffer.from('# Policy'))
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('# Policy'))
   })
   it('reports no stored source without fetching an external URL', async () => {
-    mocks.context.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
       ...context,
       document: {
         ...document,
@@ -72,6 +105,7 @@ describe('original knowledge document read', () => {
       },
     })
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: document.filename, fileUrl: 'https://example.test/private' },
       provenance: { status: 'exact', entries: [] },
     })
@@ -80,45 +114,64 @@ describe('original knowledge document read', () => {
       sourceAvailable: false,
       buffer: undefined,
     })
-    expect(mocks.download).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     expect(mocks.provenance).toHaveBeenCalledWith('doc')
   })
   it('rechecks permission before reading source or provenance', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(run()).rejects.toThrow('Insufficient workspace')
-    expect(mocks.download).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     expect(mocks.provenance).not.toHaveBeenCalled()
   })
   it('conceals a document outside the canonical scope', async () => {
-    mocks.context.mockRejectedValue(new OrchestrationError('not_found', 'Document not found'))
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockRejectedValue(
+      new OrchestrationError('not_found', 'Document not found')
+    )
     await expect(run()).rejects.toThrow('Document not found')
-    expect(mocks.download).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
   })
   it('bounds actual inline bytes even when stored metadata understates them', async () => {
     await expect(
       readOriginalKnowledgeDocument.execute({ principal, input: { ...input, maxBytes: 1 } })
     ).rejects.toThrow('byte limit')
-    mocks.context.mockResolvedValue({ ...context, document: { ...document, fileSize: 1 } })
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
+      ...context,
+      document: { ...document, fileSize: 1 },
+    })
     await expect(
       readOriginalKnowledgeDocument.execute({ principal, input: { ...input, maxBytes: 1 } })
     ).rejects.toThrow(/limit/)
   })
   it.each([{ status: 'unknown' }, { status: 'exact', entries: [{ secret: 'private' }] }])(
-    'refuses originals without secret-free provenance',
+    'refuses Chat an original its gate refuses, before reading it: %j',
     async (provenance) => {
       mocks.provenance.mockResolvedValue({
+        storageKey: document.storageKey,
         source: { filename: document.filename, fileUrl: document.fileUrl },
         provenance,
       })
-      await expect(run()).rejects.toThrow('secret-free')
-      expect(mocks.download).not.toHaveBeenCalled()
+      await expect(runAsChat()).rejects.toBeInstanceOf(ContentRefusedError)
+      expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     }
   )
-  it('refuses a concurrent source replacement before reading', async () => {
+  it('serves Chat a secret-free original under its gate', async () => {
+    expect(await runAsChat()).toMatchObject({ sourceAvailable: true, hasRecordedSecrets: false })
+  })
+  it('classifies a concurrent source replacement as unknown, refusing it before reading', async () => {
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: 'changed', fileUrl: document.fileUrl },
       provenance: { status: 'exact', entries: [] },
     })
-    await expect(run()).rejects.toThrow('secret-free')
+    await expect(runAsChat()).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+  it('reads for a caller outside Chat without classifying, flagging recorded secrets', async () => {
+    mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
+      source: { filename: document.filename, fileUrl: document.fileUrl },
+      provenance: { status: 'exact', entries: [{ secret: 'private' }] },
+    })
+    expect(await run()).toMatchObject({ sourceAvailable: true, hasRecordedSecrets: true })
   })
 })

@@ -1,17 +1,33 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
+import { Suspense } from 'react'
+import { dehydrate, HydrationBoundary, type QueryClient } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
+import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
+import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import {
+  hasDesktopBackgroundExecutor,
+  isDesktopBackgroundExecutorAvailable,
+} from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+import { isProjectsEnabled } from '@/lib/projects/rollout.server'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  prefetchWorkspaceForkAvailability,
   prefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar,
 } from '@/app/workspace/[workspaceId]/prefetch'
@@ -27,16 +43,33 @@ import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/w
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import {
+  getBrandConfig,
+  mergeOrgBrandConfig,
+  type OrganizationWhitelabelSettings,
+} from '@/ee/whitelabeling'
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
-export default async function WorkspaceLayout({
-  children,
-  params,
-}: {
+interface WorkspaceLayoutProps {
   children: React.ReactNode
   params: Promise<{ workspaceId: string }>
-}) {
+}
+
+interface WorkspaceContentProps {
+  children: React.ReactNode
+  workspaceId: string
+  session: NonNullable<Awaited<ReturnType<typeof getSession>>>
+  queryClient: QueryClient
+  hostContext: WorkspaceHostContext
+  orgSettings: Promise<OrganizationWhitelabelSettings | null>
+}
+
+interface WorkspaceLoadingProps {
+  orgSettings: Promise<OrganizationWhitelabelSettings | null>
+}
+
+export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
   const session = await getSession()
   if (!session?.user) {
     redirect('/login')
@@ -49,20 +82,60 @@ export default async function WorkspaceLayout({
     return <WorkspaceAccessDenied />
   }
 
+  const orgSettings = hostContext.hostOrganizationId
+    ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
+    : Promise.resolve(null)
+
+  return (
+    <Suspense fallback={<WorkspaceLoading orgSettings={orgSettings} />}>
+      <WorkspaceContent
+        workspaceId={workspaceId}
+        session={session}
+        queryClient={queryClient}
+        hostContext={hostContext}
+        orgSettings={orgSettings}
+      >
+        {children}
+      </WorkspaceContent>
+    </Suspense>
+  )
+}
+
+async function WorkspaceLoading({ orgSettings }: WorkspaceLoadingProps) {
+  const brand = mergeOrgBrandConfig(await orgSettings, getBrandConfig())
+  return <ApplicationLoading brand={brand} />
+}
+
+async function WorkspaceContent({
+  children,
+  workspaceId,
+  session,
+  queryClient,
+  hostContext,
+  orgSettings,
+}: WorkspaceContentProps) {
   const activeOrganizationId = getActiveOrganizationId(session)
+  const principal = {
+    kind: 'session',
+    userId: session.user.id,
+    sessionId: session.session.id,
+  } as const
   const [
     cookieStore,
     initialOrgSettings,
     ,
-    tableRowTtlEnabled,
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
+    dashboardsEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
+    desktopExecutorRegistered,
+    computerUseEnabled,
+    projectsEnabled,
   ] = await Promise.all([
     cookies(),
-    hostContext.hostOrganizationId
-      ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
-      : Promise.resolve(null),
+    orgSettings,
     prefetchWorkspaceSidebar(
       queryClient,
       workspaceId,
@@ -70,15 +143,17 @@ export default async function WorkspaceLayout({
       hostContext,
       activeOrganizationId
     ),
-    isTableRowTtlEnabled(),
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
+    isPlanModeEnabled(session.user.id).catch(() => false),
     resolveOrganizationEntryPath(session),
-    prefetchWorkspaceAccess(queryClient, workspaceId, {
-      kind: 'session',
-      userId: session.user.id,
-      sessionId: session.session.id,
-    }),
+    isDashboardsEnabled(hostContext.hostOrganizationId),
+    isWorkflowTestsEnabled(hostContext.hostOrganizationId),
+    isChangelogEnabled(hostContext.hostOrganizationId),
+    hasDesktopBackgroundExecutor(session.user.id),
+    isComputerUseAvailable(hostContext.hostOrganizationId),
+    isProjectsEnabled(),
+    prefetchWorkspaceAccess(queryClient, workspaceId, principal),
+    prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -86,9 +161,13 @@ export default async function WorkspaceLayout({
     <HydrationBoundary state={dehydrate(queryClient)}>
       <FeatureFlagsProvider
         flags={{
-          'table-row-ttl': tableRowTtlEnabled,
+          dashboards: dashboardsEnabled,
+          'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
+          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
+          projects: projectsEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
@@ -103,19 +182,29 @@ export default async function WorkspaceLayout({
             <CustomBlocksLoader />
             <BlockVisibilityLoader />
             <GlobalCommandsProvider>
-              <div className='flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+              <WorkspaceViewport>
                 <ImpersonationBanner />
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
-                  <WorkspaceChrome
-                    sidebar={<Sidebar organizationHref={organizationHref} />}
-                    initialSidebarCollapsed={initialSidebarCollapsed}
-                  >
-                    {children}
-                  </WorkspaceChrome>
+                  <SettingsNavigationProvider>
+                    <WorkspaceChrome
+                      sidebar={
+                        <Sidebar
+                          organizationHref={organizationHref}
+                          desktopExecutor={{
+                            available: isDesktopBackgroundExecutorAvailable(),
+                            registered: desktopExecutorRegistered,
+                          }}
+                        />
+                      }
+                      initialSidebarCollapsed={initialSidebarCollapsed}
+                    >
+                      {children}
+                    </WorkspaceChrome>
+                  </SettingsNavigationProvider>
                 </WorkspacePermissionsProvider>
-              </div>
+              </WorkspaceViewport>
             </GlobalCommandsProvider>
           </BrandingProvider>
         </WorkspaceHostProvider>

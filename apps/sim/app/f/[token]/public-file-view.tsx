@@ -4,7 +4,9 @@ import { useMemo } from 'react'
 import { Chip, OverflowText, SimWordmark } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import Link from 'next/link'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -13,6 +15,7 @@ import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
 
 interface PublicFileViewProps {
   token: string
+  owner: EditableFileOwner
   name: string
   type: string
   size: number
@@ -24,6 +27,7 @@ interface PublicFileViewProps {
 
 export function PublicFileView({
   token,
+  owner,
   name,
   type,
   size,
@@ -42,10 +46,10 @@ export function PublicFileView({
   // storage key + `updatedAt`) refetch when the shared file changes — even when its
   // size is unchanged.
   // Embedded images route through the token-scoped cascade endpoint, which serves them only when the
-  // shared document actually references them and they live in its workspace.
+  // shared document actually references them and they have the same canonical owner.
   const source = useMemo(
-    () => createPublicFileContentSource(token, contentUrl),
-    [token, contentUrl]
+    () => createPublicFileContentSource(token, contentUrl, owner),
+    [token, contentUrl, owner]
   )
   const file = useMemo<WorkspaceFileRecord>(
     () => ({
@@ -72,7 +76,7 @@ export function PublicFileView({
           {!brand.logoUrl && (
             <>
               <Link
-                href='https://sim.ai'
+                href={SITE_URL}
                 target='_blank'
                 rel='noopener noreferrer'
                 aria-label='Sim home'

@@ -3,10 +3,10 @@ title: Redis
 description: When Redis is optional, when it is required, and how to configure it
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Sim uses Redis as a message bus and shared cache. Both deployments ship it by default — Docker Compose as a `redis` service, Helm as a `redis` Deployment — so this page is mostly about when to replace the bundled instance with a managed one, and what breaks if Redis is absent entirely.
+Configure Redis for shared coordination and live events. Compose and Helm bundle it by default; use this page to replace that instance or understand the fallback behavior.
 
 ## What it backs
 
@@ -21,7 +21,7 @@ Sim uses Redis as a message bus and shared cache. Both deployments ship it by de
 | Collaborative document store (realtime) | Falls back to in-process state |
 
 <Callout type="error">
-  With more than one app or realtime replica and no `REDIS_URL`, users on different pods stop seeing each other's edits and live status updates. Beyond one startup log line noting single-pod mode, nothing is logged — the app looks healthy and quietly loses events. Treat Redis as mandatory the moment `replicaCount` exceeds 1.
+  Configure Redis before running more than one app or realtime replica. Without it, process-local fallbacks cannot deliver edits and status across pods. A healthy HTTP response does not prove cross-pod collaboration works.
 </Callout>
 
 Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though: cancellation markers and the cross-pod half of execution streaming live here, so active runs stop streaming and a cancellation issued across the gap may not land. Completed work is unaffected.
@@ -36,17 +36,17 @@ REDIS_URL=rediss://:password@redis-host:6380
 
 Both the app and the realtime service need it — they use it for different things.
 
-<Tabs items={['Docker Compose', 'Kubernetes (Helm)', 'Managed Redis']}>
+<Tabs items={['Docker Compose', 'Kubernetes (Helm)']}>
   <Tab value="Docker Compose">
 
-`docker-compose.prod.yml` already includes a `redis:7-alpine` service and wires `REDIS_URL=redis://redis:6379` into both the app and realtime containers. Nothing to configure.
+`docker-compose.prod.yml` already includes a `redis:7-alpine` service and wires `REDIS_URL=redis://redis:6379` into both the app and realtime containers. No additional Redis URL is needed for that bundled instance.
 
 The port is deliberately not published to the host, so a Redis already running locally will not collide. Override `REDIS_URL` in `.env` to point at an external instance instead.
 
   </Tab>
   <Tab value="Kubernetes (Helm)">
 
-The chart deploys Redis by default, matching the Compose stack. Nothing to configure.
+The chart deploys Redis by default, matching the Compose stack. No additional Redis URL is needed for that bundled instance.
 
 For production, prefer a managed instance — disable the bundled one and supply a URL:
 
@@ -59,51 +59,58 @@ app:
     REDIS_URL: "rediss://:<password>@my-cache.internal:6380"
 ```
 
-`app.env.REDIS_URL` takes over whenever it is set, and the chart skips the bundled Deployment so you do not get a stray pod.
+`app.env.REDIS_URL` takes over whenever it is set, and the chart skips the bundled Deployment instead of deploying an unused instance.
 
 If the URL lives in a secret store instead — a pre-created Secret or one synced by External Secrets — it also wins, and there is nothing extra to configure. The bundled URL is delivered as a ConfigMap listed before the app Secret in `envFrom`, and Kubernetes lets the last source win for duplicate keys, so your value overrides it without the chart ever reading it.
 
-The bundled Redis is deliberately non-persistent (`--save ""`, `--appendonly no`) with a 512 MB cap: Sim stores coordination state and short-lived keys in it, so a restart costs in-flight live updates rather than committed data.
+The bundled Redis is deliberately non-persistent (`--save ""`, `--appendonly no`) with a 512 MiB cap: Sim stores coordination state and short-lived keys in it, so a restart costs in-flight live updates rather than committed data.
 
 If `networkPolicy.enabled=true`, egress to the bundled Redis is allowed automatically. An **external** Redis needs its own rule under `networkPolicy.egress` — the chart cannot know your host and port at render time.
 
   </Tab>
-  <Tab value="Managed Redis">
+</Tabs>
 
-Managed services work and are the recommended production choice:
+### Managed Redis
+
+A compatible managed service can provide availability and operational support. Options include:
 
 - **AWS** — ElastiCache for Redis or MemoryDB
 - **GCP** — Memorystore for Redis
-- **Azure** — Azure Cache for Redis
+- **Azure** — Azure Managed Redis. Azure Cache for Redis is retiring; use the [migration guidance](https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/retirement-faq) for an existing Cache deployment. New Azure public-cloud customers cannot create the legacy service.
 
 Place the instance in the same VPC/VNet as the cluster and use its private endpoint. Enable TLS (`rediss://`) and auth.
 
-Sizing is modest: Sim uses Redis for coordination, not bulk storage. A 1–2 GB instance covers most deployments. Prefer a replicated/HA tier so a failover does not interrupt live collaboration.
+Sim uses single-endpoint Redis clients rather than OSS Cluster routing. Choose a compatible nonclustered or proxy-based service configuration and verify the required commands and pub/sub behavior. A managed service's default clustering policy is not automatically compatible.
 
-  </Tab>
-</Tabs>
+A 1–2 GiB instance is a starting estimate, not a capacity guarantee. Measure key memory, evictions, and client count for your workload. An HA tier reduces outage duration, but failover can still interrupt live events.
 
 ## TLS to an IP address
 
-If `REDIS_URL` uses `rediss://` and the host is a **bare IP** — common with AWS PrivateLink endpoints — TLS hostname verification cannot match an IP against the certificate. Sim throws rather than connecting insecurely, the first time it opens a Redis connection. Set the SNI override to the DNS name the certificate was issued for:
+Prefer a DNS hostname that matches the Redis certificate for both app and realtime. Certificates can contain IP addresses, but the app's IPv4-literal path requires an explicit TLS server-name override:
 
 ```bash
 REDIS_URL=rediss://:password@10.0.12.34:6379
 REDIS_TLS_SERVERNAME=my-cluster.abc123.ng.0001.use1.cache.amazonaws.com
 ```
 
-With a DNS hostname in `REDIS_URL`, default verification works and no override is needed.
+This override is read by the app's Redis client. It is not read by realtime, and the app's resolver applies it only to IPv4 literals. Setting it does not fix a shared IP-based URL for every service. Use a certificate-matching DNS URL for the deployment, especially for IPv6, or supply a separately valid realtime URL. The app checks this when it opens a Redis connection.
 
-## Verifying
+## Verify Redis
 
 ```bash
 # Kubernetes
-kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
+kubectl exec -n simstudio deploy/sim-app -- sh -c 'test -n "$REDIS_URL" && echo "REDIS_URL is set"'
+kubectl exec -n simstudio deploy/sim-realtime -- sh -c 'test -n "$REDIS_URL" && echo "REDIS_URL is set"'
 
 # Docker Compose
 docker compose -f docker-compose.prod.yml exec redis redis-cli ping   # PONG
 ```
 
-The functional test: open the same workflow in two browser windows served by different replicas and confirm edits appear in both. With a single replica this always passes, so scale to two before testing.
+The bundled `redis-cli ping` checks only that bundled instance; it does not test an external URL or the app's credentials. Review both service logs for connection errors. Then open the same workflow in browser sessions served by different replicas and confirm edits appear in both. A single-replica check does not verify cross-pod delivery.
 
 Watch the app logs at startup for `Redis` connection errors — a wrong password or unreachable host is logged there.
+
+## Related docs
+
+- [Scaling and high availability](/platform/self-hosting/scaling)
+- [Security and hardening](/platform/self-hosting/security)

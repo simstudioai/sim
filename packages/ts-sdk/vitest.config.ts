@@ -1,12 +1,14 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, mergeConfig } from 'vitest/config'
+import sharedConfig from '../../vitest.shared'
 
-export default defineConfig({
-  test: {
-    globals: true,
-    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
-  },
-  resolve: {
-    conditions: ['node', 'default'],
-  },
-})
+export default mergeConfig(
+  sharedConfig,
+  defineConfig({
+    test: {
+      include: ['src/**/*.test.{ts,tsx}'],
+    },
+    resolve: {
+      conditions: ['node', 'default'],
+    },
+  })
+)

@@ -6,39 +6,34 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockExpireStaleInvitations,
-  mockGetOrgPermissionConfig,
-  mockGetUserPermissionConfig,
-  mockResolveVerifiedContext,
-} = vi.hoisted(() => ({
-  mockExpireStaleInvitations: vi.fn(),
-  mockGetOrgPermissionConfig: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-  mockResolveVerifiedContext: vi.fn(),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
-  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string | null | undefined) => role === 'owner' || role === 'admin',
-}))
-
-vi.mock('@/lib/invitations/core', () => ({
-  expireStalePendingInvitationsForOrganization: mockExpireStaleInvitations,
-}))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
 import { readOrganizationRoster } from '@/lib/organizations/application/member-roster'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/roster/route'
 
+const { mockExpireStalePendingInvitationsForOrganization: mockExpireStaleInvitations } =
+  invitationsCoreMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
 
 const MEMBER_ROWS = [
   {
@@ -82,7 +77,7 @@ describe('GET /api/organizations/[id]/roster', () => {
 
     const response = await GET(
       createMockRequest('GET', undefined, {}, 'http://localhost/api/organizations/org-1/roster'),
-      { params: Promise.resolve({ id: 'org-1' }) }
+      createRouteContext({ id: 'org-1' })
     )
 
     expect(response.status).toBe(403)
@@ -101,7 +96,7 @@ describe('GET /api/organizations/[id]/roster', () => {
 
     const response = await GET(
       createMockRequest('GET', undefined, {}, 'http://localhost/api/organizations/org-1/roster'),
-      { params: Promise.resolve({ id: 'org-1' }) }
+      createRouteContext({ id: 'org-1' })
     )
 
     expect(response.status).toBe(200)
@@ -147,7 +142,7 @@ describe('GET /api/organizations/[id]/roster', () => {
 
     const response = await GET(
       createMockRequest('GET', undefined, {}, 'http://localhost/api/organizations/org-1/roster'),
-      { params: Promise.resolve({ id: 'org-1' }) }
+      createRouteContext({ id: 'org-1' })
     )
 
     expect(response.status).toBe(403)

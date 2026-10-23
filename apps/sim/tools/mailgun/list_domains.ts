@@ -1,4 +1,5 @@
 import type { ListDomainsParams, ListDomainsResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsResult> = {
@@ -14,17 +15,23 @@ export const mailgunListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRe
       visibility: 'user-only',
       description: 'Mailgun API key',
     },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
+    },
   },
 
   request: {
-    url: () => 'https://api.mailgun.net/v3/domains',
+    url: (params) => `${getMailgunApiBaseUrl(params.region)}/domains`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
     }),
   },
 
-  transformResponse: async (response, params): Promise<ListDomainsResult> => {
+  transformResponse: async (response): Promise<ListDomainsResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to list domains')

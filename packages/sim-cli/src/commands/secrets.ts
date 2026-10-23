@@ -2,11 +2,11 @@ import { type Command, Option } from 'commander'
 import { exitCli } from '#sim-cli/embed-context'
 import { printError } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import { type SetSecretResponse, V2_OPERATIONS } from '../generated/v2-api'
-import { resolvePath, SimApiError } from '../http/client'
+import { SimApiError } from '../http/client'
 import { describeOperation } from '../runtime/build'
+import { apiCommand, type Connection } from '../runtime/called-operations'
 import { readArgumentSource } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 import { promptSecret, SecretInputCancelledError } from '../terminal/secret-input'
@@ -118,7 +118,7 @@ async function readSecretValue(options: SetSecretOptions): Promise<string | unde
 async function setSecret(
   name: string,
   options: SetSecretOptions,
-  command: Command,
+  connectSet: () => Connection<'setSecret'>,
   redactionSpellings: ReadonlySet<string>
 ): Promise<void> {
   if (redactionSpellings.size > 1) {
@@ -130,10 +130,9 @@ async function setSecret(
   const description = validateWorkspaceOnlyFlag('description', options.description, options.scope)
   const unredacted = validateWorkspaceOnlyFlag('unredacted', options.unredacted, options.scope)
   const value = await readSecretValue(options)
-  const { client, profile } = clientFrom(command)
-  const operation = V2_OPERATIONS.setSecret
-  const response = await client.request<SetSecretResponse>(resolvePath(operation.path, { name }), {
-    method: operation.method,
+  const { client, profile } = connectSet()
+  const response = await client.request<SetSecretResponse>('setSecret', {
+    params: { name },
     body: {
       workspaceId: client.requireWorkspace(),
       scope: options.scope,
@@ -161,10 +160,15 @@ export function attachSecretCommands(program: Command): void {
    */
   const redactionSpellings = new Set<string>()
 
-  secrets
-    .command('set')
+  const [set, connectSet] = apiCommand(secrets, 'set', ['setSecret'])
+  set
     .argument('<name>', 'Secret name, as referenced in workflows')
-    .description(describeOperation(V2_OPERATIONS.setSecret, 'Create or replace a named secret'))
+    .description(
+      describeOperation(
+        V2_OPERATIONS.setSecret,
+        'Create or replace a named secret, such as an API key or environment variable'
+      )
+    )
     .addOption(
       new Option('--scope <scope>', 'Secret ownership scope (required)')
         .choices([...SECRET_SCOPES])
@@ -183,9 +187,13 @@ export function attachSecretCommands(program: Command): void {
       `${V2_OPERATIONS.setSecret.body.unredacted.describe} Pass --no-unredacted to restore redaction`
     )
     .option('--no-unredacted', 'Send --unredacted as false')
+    .addHelpText(
+      'after',
+      'Omit --value to enter it privately in a terminal. For an existing workspace secret, passing only --description or a redaction flag keeps the stored value and does not prompt. Personal secrets always require a value; they accept no writable metadata. In scripts, pass --value @path or --value @-.'
+    )
     .on('option:unredacted', () => redactionSpellings.add('--unredacted'))
     .on('option:no-unredacted', () => redactionSpellings.add('--no-unredacted'))
-    .action((name: string, options: SetSecretOptions, command: Command) =>
-      setSecret(name, options, command, redactionSpellings)
+    .action((name: string, options: SetSecretOptions) =>
+      setSecret(name, options, connectSet, redactionSpellings)
     )
 }

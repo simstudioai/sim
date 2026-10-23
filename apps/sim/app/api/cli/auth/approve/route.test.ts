@@ -1,55 +1,43 @@
 import { createHash } from 'node:crypto'
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockCreateApproval,
-  mockEnforceUserRateLimit,
-  mockGetPermissions,
-  mockGetUserPermissionConfig,
-  mockGetOrgPermissionConfig,
-  mockResolveVerifiedContext,
-  mockGetUserOrganization,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockCreateApproval } = vi.hoisted(() => ({
   mockCreateApproval: vi.fn(),
-  mockEnforceUserRateLimit: vi.fn(),
-  mockGetPermissions: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-  mockGetOrgPermissionConfig: vi.fn(),
-  mockResolveVerifiedContext: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
-  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  getUserOrganization: mockGetUserOrganization,
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/cli-auth/approval-store', () => ({
   createApproval: mockCreateApproval,
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserRateLimit: mockEnforceUserRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { POST } from '@/app/api/cli/auth/approve/route'
+
+const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+const mockGetPermissions = permissionsMockFns.mockGetUserEntityPermissions
+const mockGetUserOrganization = organizationMembershipMockFns.mockGetUserOrganization
+const mockGetSession = authMockFns.mockGetSession
 
 const REQUEST = 'a'.repeat(43)
 const CHALLENGE = createHash('sha256').update('b'.repeat(43)).digest('base64url')

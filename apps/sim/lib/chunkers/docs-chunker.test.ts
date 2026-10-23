@@ -1,14 +1,20 @@
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: vi.fn(async () => ({ embeddings: [] })),
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
-import { mkdtemp, writeFile } from 'fs/promises'
+import { mkdtemp, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import { DocsChunker, resolveDocumentTitle } from '@/lib/chunkers/docs-chunker'
+
+knowledgeEmbeddingsMockFns.mockGenerateEmbeddings.mockImplementation(async () => ({
+  embeddings: [],
+}))
 
 function cleanContent(content: string): string {
   const chunker = new DocsChunker()
@@ -123,28 +129,6 @@ describe('DocsChunker output budget', () => {
  */
 describe('DocsChunker page title', () => {
   const NAV_LINK = '[Next](/docs/tables/workflow-columns)'
-  const PARAGRAPH =
-    'Tables store rows your workflows read and write. Columns are typed, and every write is validated against the schema before it lands, so a bad row never reaches a downstream block. '
-  const _BODY = `# Tables
-
-${PARAGRAPH.repeat(3)}
-
-## Querying rows
-
-Use the Table block to query, insert, or update rows from a workflow. ${PARAGRAPH.repeat(3)}
-
-## ${NAV_LINK}
-
-${NAV_LINK}
-`
-
-  async function _chunkPage(content: string) {
-    const dir = await mkdtemp(join(tmpdir(), 'docs-chunker-'))
-    const file = join(dir, 'tables.mdx')
-    await writeFile(file, content)
-    return new DocsChunker({ chunkSize: 100, chunkOverlap: 0 }).chunkMdxFile(file, dir)
-  }
-
   it('never resolves a link-only heading as the title', () => {
     expect(
       resolveDocumentTitle({}, [{ level: 2, text: NAV_LINK, anchor: 'next', position: 0 }])
@@ -155,5 +139,29 @@ ${NAV_LINK}
         { level: 1, text: 'Tables', anchor: 'tables', position: 10 },
       ])
     ).toBe('Tables')
+  })
+})
+
+describe('DocsChunker section links', () => {
+  it.each([
+    ['Use the block [#usage-instructions]', 'Use the block', 'usage-instructions'],
+    ['Renamed section [#Stable.ID-v2]', 'Renamed section', 'Stable.ID-v2'],
+    ['Ordinary heading', 'Ordinary heading', 'ordinary-heading'],
+  ])('links %s to its rendered section', async (heading, label, anchor) => {
+    const dir = await mkdtemp(join(tmpdir(), 'docs-section-links-'))
+    try {
+      const file = join(dir, 'guide.mdx')
+      await writeFile(
+        file,
+        `## ${heading}\n\nSearch results should take readers to the matching section of a page. Stable section identifiers preserve those links when headings change, and the result title should contain only the visible heading.`
+      )
+      const chunks = await new DocsChunker({ chunkOverlap: 0 }).chunkMdxFile(file, dir)
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.headerLink).toBe(`https://docs.sim.ai/guide#${anchor}`)
+      expect(chunks[0]?.headerText).toBe(label)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

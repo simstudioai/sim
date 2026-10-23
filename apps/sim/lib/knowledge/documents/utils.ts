@@ -120,13 +120,6 @@ export async function readBoundedHttpErrorPayload(response: {
   }
 }
 
-interface RetryResult<T> {
-  success: boolean
-  data?: T
-  error?: Error
-  attemptCount: number
-}
-
 function hasStatus(
   error: RetryableError
 ): error is HTTPError | { status?: number; message?: string } {

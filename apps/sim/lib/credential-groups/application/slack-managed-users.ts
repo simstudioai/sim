@@ -24,7 +24,7 @@ import {
   exchangeAndConfigureSlackManagedUsers,
   loadSlackManagedUsersAttempt,
 } from '@/lib/credential-groups/slack-managed-users'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 async function authorizeSlackConfiguration(
   principal: Principal,
@@ -169,6 +169,9 @@ export const completeSlackCredentialGroupConfiguration: OperationUseCase<
       attempt.expectedAppId !== pending.expectedAppId ||
       attempt.expectedTeamId !== pending.expectedTeamId ||
       attempt.appRevision !== pending.appRevision ||
+      attempt.searchApproval?.approved !== pending.searchApproval?.approved ||
+      attempt.searchApproval?.updatedAt !== pending.searchApproval?.updatedAt ||
+      attempt.installationsRevision !== pending.installationsRevision ||
       attempt.clientId !== pending.clientId ||
       attempt.redirectUri !== pending.redirectUri ||
       credentialGroupScopePolicyVersion(attempt.requiredScopes) !==

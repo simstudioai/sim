@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { TinyFishBlock } from '@/blocks/blocks/tinyfish'
 import { cancelRunTool } from '@/tools/tinyfish/cancel_run'
@@ -13,14 +14,6 @@ import { searchTool } from '@/tools/tinyfish/search'
 import { buildAutomationBody, parseJsonSchema, parseList } from '@/tools/tinyfish/utils'
 
 const API_KEY = 'test-key'
-
-function jsonResponse(body: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-}
 
 describe('buildAutomationBody', () => {
   it('sends only the required fields plus the integration tag by default', () => {

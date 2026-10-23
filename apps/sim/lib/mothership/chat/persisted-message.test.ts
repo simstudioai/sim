@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
+import type { PersistedToolState } from '@/lib/api/contracts/copilot-messages'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  compactToolCallParams,
   normalizeMessage,
   type PersistedMessage,
   stripToolResultOutput,
@@ -96,6 +101,38 @@ describe('persisted-message', () => {
       })
     }
   )
+
+  it.each([
+    ['with its arguments', { category_id: null }],
+    ['without arguments', undefined],
+    ['with its own activity argument', { title: 'Ship it', activity: 'Development' }],
+  ])("keeps a resolved operation's inherited grouping beside its arguments %s", (_case, params) => {
+    const grouping = { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' }
+    const persisted = buildPersistedAssistantMessage({
+      success: true,
+      content: '',
+      toolCalls: [],
+      contentBlocks: [
+        {
+          type: 'tool_call',
+          timestamp: 1,
+          toolCall: {
+            id: 'gateway-call',
+            name: 'mcp-server-get_overview',
+            status: 'success',
+            params,
+            activity: grouping,
+          },
+        },
+      ],
+    })
+    // utils-lint-allow: exercises the JSON persistence boundary a stored row crosses
+    const stored = JSON.parse(JSON.stringify(persisted)) as Record<string, unknown>
+    const reloaded = toDisplayMessage(normalizeMessage(stored)).contentBlocks?.[0].toolCall
+
+    expect(reloaded?.params).toEqual(params)
+    expect(readCallActivity(reloaded)).toEqual(grouping)
+  })
 
   it('preserves activity metadata on legacy tool blocks without inferring it from old titles', () => {
     const message = normalizeMessage({
@@ -556,6 +593,108 @@ describe('persisted-message', () => {
   })
 })
 
+describe('compactToolCallParams', () => {
+  const sandboxCall = (state: PersistedToolState): PersistedMessage => ({
+    id: 'msg-sandbox',
+    role: 'assistant',
+    content: '',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    contentBlocks: [
+      {
+        type: 'tool',
+        phase: 'call',
+        toolCall: {
+          id: 'call-read',
+          name: 'cli_files_read',
+          state,
+          params: {
+            activity: { title: 'Reading notes' },
+            request: {
+              invocation: {
+                kind: 'cli',
+                argv: ['files', 'read', 'workspace/notes.md', '--lines', '40'],
+                stdout: 'x'.repeat(200_000),
+              },
+              timeoutMs: 30_000,
+              approved: true,
+            },
+            steps: [{ code: 'y'.repeat(5_000), label: 'step one' }],
+          },
+          result: { success: state === 'success' },
+        },
+      },
+    ],
+  })
+
+  it('keeps a params key named __proto__ as its own field', () => {
+    const message = sandboxCall('success')
+    const toolCall = message.contentBlocks?.[0].toolCall
+    if (!toolCall) throw new Error('fixture has a tool call')
+    toolCall.params = JSON.parse(`{"__proto__":{"note":"kept"},"output":"${'z'.repeat(5_000)}"}`)
+
+    const params = compactToolCallParams(message).contentBlocks?.[0].toolCall?.params
+
+    expect(Object.hasOwn(params ?? {}, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(params)).toBe(Object.prototype)
+  })
+
+  it('bounds every bulk string of a settled call without changing what renders', () => {
+    const original = sandboxCall('success')
+    const before = original.contentBlocks?.[0].toolCall?.params
+    const after = compactToolCallParams(original).contentBlocks?.[0].toolCall?.params
+    const strings = (value: unknown): string[] =>
+      typeof value === 'string'
+        ? [value]
+        : Array.isArray(value)
+          ? value.flatMap(strings)
+          : value && typeof value === 'object'
+            ? Object.values(value).flatMap(strings)
+            : []
+
+    expect(getToolDisplayTitle('cli_files_read', after)).toBe('Reading notes.md')
+    expect(getToolDisplayTitle('cli_files_read', after)).toBe(
+      getToolDisplayTitle('cli_files_read', before)
+    )
+    expect(Math.max(...strings(after).map((value) => value.length))).toBeLessThanOrEqual(1024)
+    expect(JSON.stringify(after).length).toBeLessThan(JSON.stringify(before).length / 50)
+    expect(after).toMatchObject({
+      activity: { title: 'Reading notes' },
+      request: {
+        invocation: { kind: 'cli', argv: ['files', 'read', 'workspace/notes.md', '--lines', '40'] },
+        timeoutMs: 30_000,
+        approved: true,
+      },
+      steps: [{ label: 'step one' }],
+    })
+  })
+
+  it.each(['pending', 'executing', 'awaiting_approval'] as const)(
+    'keeps a live %s call whole: it can still run or await approval from these params',
+    (state) => {
+      const message = { ...sandboxCall(state), id: getLiveAssistantMessageId('stream-1') }
+      expect(compactToolCallParams(message)).toBe(message)
+    }
+  )
+
+  it.each(['pending', 'executing', 'awaiting_approval', 'interrupted'] as const)(
+    'bounds a stored %s call, which renders as interrupted and never re-runs or asks to approve',
+    (state) => {
+      const compacted = compactToolCallParams(sandboxCall(state))
+      const stdout = (
+        compacted.contentBlocks?.[0].toolCall?.params?.request as {
+          invocation: { stdout: string }
+        }
+      ).invocation.stdout
+      expect(stdout.length).toBeLessThanOrEqual(1024)
+    }
+  )
+
+  it('is idempotent and keeps the reference once compacted', () => {
+    const compacted = compactToolCallParams(sandboxCall('error'))
+    expect(compactToolCallParams(compacted)).toBe(compacted)
+  })
+})
+
 describe('stripToolResultOutput', () => {
   it('keeps the partial-coverage marker of an empty search through save and reload', () => {
     const message: PersistedMessage = {
@@ -760,4 +899,67 @@ describe('stripToolResultOutput', () => {
     expect(blocks[3].toolCall?.result).toEqual({ success: true })
     expect(JSON.stringify(blocks)).not.toContain('file contents')
   })
+})
+
+describe('buildPersistedAssistantMessage on an errored turn', () => {
+  it.each(['pending', 'executing'] as const)(
+    'settles a %s tool row as errored so it does not reload as a spinner',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        error: 'The agent service is temporarily unavailable. Please try again.',
+        content: '',
+        toolCalls: [],
+        contentBlocks: [
+          {
+            type: 'tool_call',
+            timestamp: 1,
+            toolCall: { id: 'call-1', name: 'gmail_read_v2', status },
+          },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall?.state).toBe('error')
+    }
+  )
+})
+
+describe('buildPersistedAssistantMessage on a completed turn', () => {
+  it.each(['pending', 'executing'] as const)(
+    'settles a %s tool row the way the live view settled it',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: true,
+        content: 'Done.',
+        toolCalls: [],
+        contentBlocks: [
+          { type: 'tool_call', timestamp: 1, toolCall: { id: 'call-1', name: 'read', status } },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall?.state).toBe('success')
+    }
+  )
+})
+
+describe('buildPersistedAssistantMessage on a cancelled turn', () => {
+  it.each(['pending', 'executing', 'awaiting_approval'] as const)(
+    'settles a %s tool row as stopped for a caller that persists the result directly',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        cancelled: true,
+        content: 'Partial answer',
+        toolCalls: [],
+        contentBlocks: [
+          { type: 'tool_call', timestamp: 1, toolCall: { id: 'call-1', name: 'read', status } },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall).toMatchObject({
+        state: 'cancelled',
+        display: { title: 'Stopped by user' },
+      })
+    }
+  )
 })

@@ -31,6 +31,7 @@ import {
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
@@ -53,12 +54,12 @@ import {
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import { currentRowCountSql } from '@/lib/table/row-changes'
 import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
-import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -122,9 +123,8 @@ function readLocks(row: {
  * validates and computes against the prior writer's committed columns.
  *
  * Uses an advisory lock (not `SELECT ... FOR UPDATE` on the definition row) so
- * it adds no edges to the row-lock graph — the row-count trigger (migration
- * 0198) locks the definition row from `insertRow`/`deleteRow`, and a FOR UPDATE
- * here would invert that order. Mirrors `acquireRowOrderLock`. The lock and
+ * it adds no edges to the row-lock graph — a FOR UPDATE here would also block the
+ * foreign-key check (KEY SHARE) of every row write to the table. The lock and
  * the read both release at COMMIT/ROLLBACK; the wait is bounded by the
  * `statement_timeout` set in `setTableTxTimeouts`.
  */
@@ -135,9 +135,7 @@ export async function withLockedTable<T>(
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    await trx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
       throw new OrchestrationError('not_found', 'Table not found')
@@ -209,7 +207,7 @@ export async function getTableById(
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
-      rowCount: userTableDefinitions.rowCount,
+      rowCount: currentRowCountSql,
       latestJob: latestNonExportJobJson(userTableDefinitions.id),
       ...LOCK_SELECT,
     })
@@ -296,7 +294,7 @@ const TABLE_ROW_SELECT = {
   archivedAt: userTableDefinitions.archivedAt,
   createdAt: userTableDefinitions.createdAt,
   updatedAt: userTableDefinitions.updatedAt,
-  rowCount: userTableDefinitions.rowCount,
+  rowCount: currentRowCountSql,
   ...LOCK_SELECT,
 } as const
 
@@ -560,10 +558,6 @@ export async function createTable(
       'validation',
       `Invalid schema: ${schemaValidation.errors.join(', ')}`
     )
-  }
-
-  if (data.schema.columns.some((column) => column.type === 'ttl')) {
-    await assertTableRowTtlEnabled()
   }
 
   const tableId = generateTableId()

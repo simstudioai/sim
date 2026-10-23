@@ -13,8 +13,9 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import { isProjectRoom, ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
+import { fetchProjectRoomAccess } from '@/handlers/file-list-app'
 
 const logger = createLogger('SocketPermissions')
 
@@ -219,8 +220,14 @@ function commitRoleDecision(key: string, role: string | null, readSeq: number): 
  */
 async function readAuthoritativeRoomPermission(
   userId: string,
-  room: RoomRef
+  room: RoomRef,
+  connectionId?: string
 ): Promise<PermissionType | null> {
+  if (isProjectRoom(room)) {
+    if (!connectionId) throw new Error('Project room requires a socket identity')
+    const authorization = await fetchProjectRoomAccess(room, { userId, connectionId })
+    return authorization.allowed ? authorization.workspacePermission : null
+  }
   if (room.type === ROOM_TYPES.WORKFLOW) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: room.id,
@@ -241,25 +248,27 @@ async function resolveRoleUncached(
   key: string,
   userId: string,
   room: RoomRef,
-  fallbackRole: string
+  fallbackRole: string,
+  connectionId?: string
 ): Promise<string | null> {
   const readSeq = beginRoomPermissionRead()
   try {
-    const role = await readAuthoritativeRoomPermission(userId, room)
+    const role = await readAuthoritativeRoomPermission(userId, room, connectionId)
     // Yields only to a decision from a later-STARTED read (see commitRoleDecision).
     // Comparing write order instead would let a join whose authorize began before
     // this one — but returned after it — bury this result.
     return commitRoleDecision(key, role, readSeq)
   } catch (error) {
-    logger.warn(
-      `Failed to re-validate role for user ${userId} on ${roomName(room)}; using last known role`,
-      error
-    )
+    logger.warn(`Failed to re-validate role for user ${userId} on ${roomName(room)}`, error)
     // Prefer the last recorded decision — even if expired, and even if it is `null` for an
     // already-revoked user — so a recorded revocation survives a transient DB failure
     // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
     // nothing has been recorded for this (user, workflow) yet.
     const lastKnown = roleCache.get(key)
+    if (isProjectRoom(room) || room.type === ROOM_TYPES.WORKSPACE_FILE_DOC) {
+      if (lastKnown?.role === null) return null
+      throw error
+    }
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
 }
@@ -271,7 +280,8 @@ async function resolveRoleUncached(
  * (single-flight), so out-of-order cache writes cannot resurrect revoked access.
  *
  * Returns `null` when the user genuinely has no access (removed/revoked, or the room's
- * resource is gone). On a transient DB failure it reuses the last recorded decision for
+ * resource is gone). Document authorization failures throw so callers retry without granting writes or recording a revocation.
+ * On a transient DB failure for other room types, it reuses the last recorded decision for
  * this (user, room) — including a previously recorded revocation (`null`) — and only
  * falls back to `fallbackRole` when no decision has been recorded yet, so a blip neither
  * blocks legitimate editors nor resurrects already-revoked access.
@@ -279,7 +289,8 @@ async function resolveRoleUncached(
 export async function resolveCurrentRoomPermission(
   userId: string,
   room: RoomRef,
-  fallbackRole: string
+  fallbackRole: string,
+  connectionId?: string
 ): Promise<string | null> {
   const key = roleCacheKey(userId, room)
   const cached = roleCache.get(key)
@@ -292,9 +303,11 @@ export async function resolveCurrentRoomPermission(
     return inFlight
   }
 
-  const resolution = resolveRoleUncached(key, userId, room, fallbackRole).finally(() => {
-    inFlightRoleResolutions.delete(key)
-  })
+  const resolution = resolveRoleUncached(key, userId, room, fallbackRole, connectionId).finally(
+    () => {
+      inFlightRoleResolutions.delete(key)
+    }
+  )
   inFlightRoleResolutions.set(key, resolution)
   return resolution
 }

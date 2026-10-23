@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import {
   type BenchmarkArtifacts,
@@ -11,7 +12,7 @@ export function redactBenchmarkSpec(
   referenceSpec: string,
   blanks: BenchmarkArtifacts['blanks']
 ): string {
-  if (!blanks.length || blanks.some((blank) => !blank.answer)) {
+  if (!blanks.length || blanks.some((blank) => !blank.answer.trim())) {
     throw new OrchestrationError('validation', 'Select at least one nonempty passage to redact')
   }
   const ids = new Map(blanks.map((blank) => [blank.answer, blank.id]))
@@ -28,6 +29,11 @@ export function redactBenchmarkSpec(
 export function validateBenchmarkRedaction(
   artifacts: Pick<BenchmarkArtifacts, 'referenceSpec' | 'redactedSpec' | 'blanks'>
 ): void {
+  if (/\[\[BLANK:[^\]]+\]\]/.test(artifacts.referenceSpec))
+    throw new OrchestrationError(
+      'validation',
+      'The [[BLANK:id]] syntax is reserved for redaction markers; remove literal markers from the reference before saving it'
+    )
   if (!artifacts.redactedSpec && artifacts.blanks.length === 0) return
   const answers = new Map(artifacts.blanks.map((blank) => [blank.id, blank.answer]))
   if (answers.size !== artifacts.blanks.length || answers.size === 0) {
@@ -39,7 +45,7 @@ export function validateBenchmarkRedaction(
   const seen = new Set<string>()
   const restored = artifacts.redactedSpec.replace(
     /\[\[BLANK:([A-Za-z0-9_-]+)\]\]/g,
-    (marker, id: string) => {
+    (_marker, id: string) => {
       const answer = answers.get(id)
       if (answer === undefined)
         throw new OrchestrationError('validation', `Unknown blank marker: ${id}`)
@@ -53,6 +59,15 @@ export function validateBenchmarkRedaction(
       'Every blank must appear as [[BLANK:id]], and replacing the masks with their answers must restore the reference exactly'
     )
   }
+  const visiblePassages = artifacts.redactedSpec.split(/\[\[BLANK:[A-Za-z0-9_-]+\]\]/)
+  if (
+    [...answers.values()].some((answer) => visiblePassages.some((text) => text.includes(answer)))
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      'Every occurrence of a selected answer must be masked'
+    )
+  }
 }
 
 /** Editing an upstream artifact atomically discards results derived from its previous value. */
@@ -62,12 +77,14 @@ export function applyBenchmarkPatch(
 ): BenchmarkArtifacts {
   const next = { ...current }
   if (patch.taskBrief !== undefined && patch.taskBrief !== current.taskBrief) {
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['distill'])
     next.taskBrief = patch.taskBrief
     next.generatedSpec = null
     next.reconstruction = null
     next.grade = null
   }
   if (patch.referenceSpec !== undefined && patch.referenceSpec !== current.referenceSpec) {
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['distill', 'redact'])
     next.referenceSpec = patch.referenceSpec
     next.redactedSpec = ''
     next.blanks = []
@@ -84,12 +101,27 @@ export function applyBenchmarkPatch(
             blank.id !== current.blanks[index]?.id || blank.answer !== current.blanks[index]?.answer
         )))
   if (redactionChanged) {
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['redact'])
     next.redactedSpec = patch.redactedSpec ?? next.redactedSpec
     next.blanks = patch.blanks ?? next.blanks
     next.reconstruction = null
     next.grade = null
   }
+  if (next.modelRuns) next.modelRuns = retainBenchmarkModelRuns(next)
   const parsed = benchmarkArtifactsSchema.parse(next)
   validateBenchmarkRedaction(parsed)
   return parsed
+}
+
+/** Discard model provenance together with the output it describes. */
+export function retainBenchmarkModelRuns(
+  artifacts: BenchmarkArtifacts
+): NonNullable<BenchmarkArtifacts['modelRuns']> {
+  const { plan, reconstruct, grade, ...reference } = artifacts.modelRuns ?? {}
+  return {
+    ...reference,
+    ...(artifacts.generatedSpec && plan ? { plan } : {}),
+    ...(artifacts.reconstruction && reconstruct ? { reconstruct } : {}),
+    ...(artifacts.grade && grade ? { grade } : {}),
+  }
 }

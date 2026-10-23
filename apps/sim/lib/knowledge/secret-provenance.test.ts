@@ -1,26 +1,28 @@
 import { document, embedding } from '@sim/db/schema'
 import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbTransaction } from '@/lib/db/types'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
+  classifyKnowledgeDocumentMetadata,
   createKnowledgeDocumentSourceValue,
   importKnowledgePersistedResponseSecretProvenance,
   importKnowledgeSearchResultSecretProvenance,
+  knowledgeDocumentSnapshot,
   loadKnowledgeDocumentSecretRegistry,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockDecryptSecret, mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+
+const { mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
   mockReportWrite: vi.fn(),
   mockReportRefusal: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceWrite: mockReportWrite,
@@ -165,5 +167,52 @@ describe('knowledge durable provenance enforcement', () => {
 
     expect(snapshot.imported).toBe(false)
     expect(registry.isPermanentlyIncomplete()).toBe(true)
+  })
+})
+
+describe('document metadata classification bound to the shown snapshot', () => {
+  const NUMBERED_ROW = { ...DOCUMENT_ROW, tag1: 'emea', number1: 42 }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('keeps the stored classification while the shown metadata is what is stored', async () => {
+    queueTableRows(document, [NUMBERED_ROW])
+    const result = await classifyKnowledgeDocumentMetadata(
+      [NUMBERED_ROW.id],
+      new Map([[NUMBERED_ROW.id, [{ filename: 'source.pdf', tag1: 'emea', number1: '42' }]]])
+    )
+    expect(result.get(NUMBERED_ROW.id)?.status).toBe('exact')
+  })
+
+  it.each([
+    ['a renamed document', { filename: 'previous-name.pdf' }],
+    ['an edited tag', { tag1: 'previous value' }],
+    ['a tag cleared since', { tag2: 'previous value' }],
+    ['an edited number', { number1: '7' }],
+  ])(
+    'reads %s as unknown, so stale values are not paired with new provenance',
+    async (_, shown) => {
+      queueTableRows(document, [NUMBERED_ROW])
+      const result = await classifyKnowledgeDocumentMetadata(
+        [NUMBERED_ROW.id],
+        new Map([[NUMBERED_ROW.id, [shown]]])
+      )
+      expect(result.get(NUMBERED_ROW.id)).toEqual({ status: 'unknown' })
+    }
+  )
+
+  it('picks only the editable metadata a returned value shows', () => {
+    expect(
+      knowledgeDocumentSnapshot({
+        id: 'd',
+        filename: 'f.pdf',
+        tag3: 'x',
+        fileUrl: '/u',
+        date1: 'd',
+      })
+    ).toEqual({ filename: 'f.pdf', tag3: 'x' })
+    expect(knowledgeDocumentSnapshot({ id: 'd', fileUrl: '/u' })).toBeUndefined()
   })
 })

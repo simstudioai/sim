@@ -1,5 +1,8 @@
 /** @vitest-environment jsdom */
+import { Blob as NodeBlob } from 'node:buffer'
 import { ComputerUseError } from '@sim/desktop-bridge'
+import { flushMicrotasks } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,7 +27,6 @@ const nextId = () => `computer-test-${++sequence}`
 const now = () => new Date().toISOString()
 describe('computer action delivery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.execute.mockResolvedValue({ kind: 'apps', apps: [] })
     mocks.cancel.mockResolvedValue(undefined)
     mocks.complete.mockResolvedValue(undefined)
@@ -32,6 +34,123 @@ describe('computer action delivery', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it.each(['accepted', 'rejected', 'throws'] as const)(
+    'flushes a completed action during pending delivery when beacon is %s',
+    async (beaconResult) => {
+      vi.stubGlobal('Blob', NodeBlob)
+      const beacon = vi.fn((_url: string, _blob: NodeBlob) => {
+        if (beaconResult === 'throws') throw new Error('Unavailable')
+        return beaconResult === 'accepted'
+      })
+      vi.stubGlobal('navigator', { sendBeacon: beacon })
+      const report = createDeferred<void>()
+      mocks.complete.mockReturnValueOnce(report.promise)
+      mocks.execute.mockResolvedValueOnce({
+        kind: 'state',
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        windowId: 'w1',
+        windows: [{ windowId: 'w1', title: 'Fixture', x: 0, y: 0, width: 400, height: 300 }],
+        nodes: [],
+        truncated: false,
+        screenshot: { base64: 'a'.repeat(80_000), mimeType: 'image/png', width: 1, height: 1 },
+      })
+      const id = nextId()
+      const execution = executeComputerToolOnClient(
+        id,
+        { action: 'get_app_state', bundleId: 'com.example.Fixture' },
+        now()
+      )
+      await flushMicrotasks()
+      try {
+        window.dispatchEvent(new Event('pagehide'))
+        expect(beacon).toHaveBeenCalledOnce()
+        const blob: NodeBlob = beacon.mock.calls[0][1]
+        expect(blob.size).toBeLessThanOrEqual(48 * 1024)
+        const completion = JSON.parse(await blob.text())
+        expect(completion).toMatchObject({
+          toolCallId: id,
+          status: 'success',
+          data: { resultOmittedDuringPageExit: true },
+        })
+        expect(mocks.cancel).not.toHaveBeenCalled()
+        if (beaconResult === 'accepted') expect(mocks.pageExit).not.toHaveBeenCalled()
+        else
+          expect(mocks.pageExit).toHaveBeenCalledWith(
+            id,
+            completion.status,
+            completion.message,
+            completion.data,
+            expect.objectContaining({ aborted: false })
+          )
+      } finally {
+        report.resolve()
+        await execution
+      }
+      beacon.mockClear()
+      window.dispatchEvent(new Event('pagehide'))
+      expect(beacon).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([true, false])(
+    'releases page-exit listeners and delivery capacity only after acknowledgment: %s',
+    async (acknowledged) => {
+      const beacon = vi.fn(() => false)
+      vi.stubGlobal('navigator', { sendBeacon: beacon })
+      const ids = Array.from({ length: 8 }, nextId)
+      mocks.complete.mockRejectedValue(new Error('offline'))
+      if (!acknowledged) mocks.pageExit.mockRejectedValue(new Error('offline'))
+      try {
+        for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+        expect(mocks.execute).toHaveBeenCalledTimes(8)
+        window.dispatchEvent(new Event('pagehide'))
+        expect(beacon).toHaveBeenCalledTimes(8)
+        expect(mocks.cancel).not.toHaveBeenCalled()
+        await flushMicrotasks()
+        beacon.mockClear()
+        window.dispatchEvent(new Event('pagehide'))
+        expect(beacon).toHaveBeenCalledTimes(acknowledged ? 0 : 8)
+        await flushMicrotasks()
+        mocks.complete.mockResolvedValue(undefined)
+        await executeComputerToolOnClient(nextId(), { action: 'list_apps' }, now())
+        expect(mocks.execute).toHaveBeenCalledTimes(acknowledged ? 9 : 8)
+      } finally {
+        mocks.complete.mockResolvedValue(undefined)
+        for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+      }
+      expect(mocks.execute).toHaveBeenCalledTimes(acknowledged ? 9 : 8)
+    }
+  )
+
+  it('keeps a newer retained result when an earlier delivery is acknowledged late', async () => {
+    vi.stubGlobal('navigator', { sendBeacon: vi.fn(() => false) })
+    const report = createDeferred<void>()
+    mocks.complete.mockReturnValueOnce(report.promise)
+    const id = nextId()
+    const original = executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    await flushMicrotasks()
+    try {
+      window.dispatchEvent(new Event('pagehide'))
+      await flushMicrotasks()
+      mocks.complete.mockRejectedValueOnce(new Error('offline'))
+      await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    } finally {
+      report.resolve()
+      await original
+    }
+    await executeComputerToolOnClient(id, { action: 'list_apps' })
+    expect(mocks.execute).toHaveBeenCalledOnce()
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      id,
+      'error',
+      expect.stringContaining('may already have run'),
+      expect.objectContaining({ doNotRetry: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
+    )
   })
 
   it('allows the full action budget, then cancels and reports an uncertain result', async () => {
@@ -51,7 +170,9 @@ describe('computer action delivery', () => {
       id,
       'cancelled',
       expect.stringContaining('timed out'),
-      { doNotRetry: true, outcomeUnknown: true }
+      { doNotRetry: true, outcomeUnknown: true },
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -77,7 +198,9 @@ describe('computer action delivery', () => {
         dispatchState: 'not_started',
         doNotRetry: false,
         outcomeUnknown: false,
-      }
+      },
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
     await executeComputerToolOnClient(nextId(), { action: 'list_apps' }, now())
     expect(mocks.execute).toHaveBeenCalledTimes(2)
@@ -97,7 +220,9 @@ describe('computer action delivery', () => {
       id,
       'error',
       expect.any(String),
-      expect.objectContaining({ doNotRetry: true, outcomeUnknown: true })
+      expect.objectContaining({ doNotRetry: true, outcomeUnknown: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -118,7 +243,9 @@ describe('computer action delivery', () => {
       id,
       'error',
       expect.stringContaining('may already have run'),
-      expect.objectContaining({ doNotRetry: true })
+      expect.objectContaining({ doNotRetry: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
   it.each([undefined, 'invalid', new Date(Date.now() - 121000).toISOString()])(
@@ -194,7 +321,9 @@ describe('computer action delivery', () => {
       expect.objectContaining({
         sequence: { completedSteps: 1, totalSteps: 2, error: 'Editor focus changed.' },
         observation: expect.objectContaining({ snapshotId: 'after' }),
-      })
+      }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -222,7 +351,9 @@ describe('computer action delivery', () => {
       id,
       'cancelled',
       expect.any(String),
-      expect.objectContaining({ doNotRetry: true })
+      expect.objectContaining({ doNotRetry: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
   it('does not dispatch a tool when Stop already won', async () => {
@@ -253,5 +384,42 @@ describe('computer action delivery', () => {
       { name: 'Computer screenshot', mediaType: 'image/png', data: 'YWJj' },
     ])
     expect(output.content).toContain('x = imageX * 400 / 800')
+  })
+
+  it('redelivers the original preflight rejection after delivery recovers', async () => {
+    const id = nextId()
+    const timestamp = now()
+    mocks.complete.mockRejectedValueOnce(new Error('offline'))
+    await executeComputerToolOnClient(id, { action: 'invalid' }, timestamp)
+    const rejection = mocks.complete.mock.calls[0]
+    expect(rejection[2]).toContain('arguments are invalid')
+    mocks.complete.mockResolvedValue(undefined)
+    await executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(mocks.complete).toHaveBeenLastCalledWith(...rejection)
+  })
+
+  it('never executes an action rejected during a delivery backlog when the stream replays it', async () => {
+    const ids = Array.from({ length: 8 }, nextId)
+    const rejectedId = nextId()
+    const timestamp = now()
+    mocks.execute.mockResolvedValue({ kind: 'apps', apps: [] })
+    mocks.complete.mockRejectedValue(new Error('offline'))
+    for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).toHaveBeenCalledTimes(8)
+    await executeComputerToolOnClient(rejectedId, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).toHaveBeenCalledTimes(8)
+    mocks.complete.mockResolvedValue(undefined)
+    for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+    await executeComputerToolOnClient(rejectedId, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).toHaveBeenCalledTimes(8)
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      rejectedId,
+      'error',
+      expect.any(String),
+      expect.anything(),
+      undefined,
+      expect.objectContaining({ aborted: false })
+    )
   })
 })

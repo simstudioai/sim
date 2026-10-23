@@ -33,6 +33,8 @@ export type DesktopEventName =
   | 'update_check'
   | 'update_feed'
   | 'update_downloaded'
+  | 'update_install'
+  | 'update_install_result'
   | 'update_error'
   | 'update_blocked_version'
   | 'update_manual_mode'

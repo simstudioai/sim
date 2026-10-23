@@ -20,7 +20,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, WebContentsView } from 'electron'
 import { zoomPercentOf } from '@/main/browser-agent/context-menu'
 import type { AgentTab } from '@/main/browser-agent/session'
-import { reassertTabThrottling } from '@/main/browser-agent/session'
 
 const logger = createLogger('BrowserAgentPanel')
 
@@ -47,6 +46,10 @@ export interface PanelHost {
   onViewDetached: (view: WebContentsView | null) => void
   /** Invalidates field-anchored UI when the page moves, hides, or detaches. */
   onGeometryChanged?: () => void
+  /** Runs after each layout that leaves the active view attached and visible. */
+  onViewShown?: (view: WebContentsView) => void
+  /** Restores a revealed view's own chat policy after its initial paint. */
+  restoreTabThrottling?: (view: WebContentsView) => void
 }
 
 let host: PanelHost = {
@@ -545,10 +548,11 @@ export function layout(): void {
       contents.setBackgroundThrottling(false)
       contents.invalidate()
       setTimeout(() => {
-        if (!contents.isDestroyed()) reassertTabThrottling()
+        if (!contents.isDestroyed()) host.restoreTabThrottling?.(active.view)
       }, 1_000)
     }
   }
+  if (visible) host.onViewShown?.(active.view)
 }
 
 /** Converts the applied native DIP rectangle back into Sim viewport CSS pixels. */
@@ -649,12 +653,7 @@ export async function capturePanelSnapshot(
   ownerWindow?: BrowserWindow,
   scopeId = activePanelScopeId
 ): Promise<BrowserPanelSnapshot | null> {
-  if (
-    !scopeId ||
-    !panelUpdateAllowed(ownerWindow, scopeId) ||
-    panelBounds === null ||
-    panelOccluded
-  ) {
+  if (!scopeId || !panelUpdateAllowed(ownerWindow, scopeId) || panelBounds === null) {
     return null
   }
   const active = host.activeTab()
@@ -725,7 +724,8 @@ export async function capturePanelSnapshot(
   const generation = ++panelCaptureGeneration
   let capture: ReturnType<typeof contents.capturePage>
   try {
-    capture = contents.capturePage(undefined, { stayHidden: false })
+    /** Refresh an occluded frame without exposing the native view above renderer overlays. */
+    capture = contents.capturePage(undefined, { stayHidden: panelOccluded })
   } catch (error) {
     logger.warn('Could not capture browser panel for a toolbar menu', {
       error: getErrorMessage(error, 'unknown'),

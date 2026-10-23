@@ -83,7 +83,7 @@ export const kalshiGetMarketsTool: ToolConfig<KalshiGetMarketsParams, KalshiGetM
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_markets')
+      handleKalshiError(data, 'get_markets')
     }
 
     const markets = data.markets || []
@@ -200,8 +200,7 @@ export const kalshiGetMarketsV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_markets_v2',
   name: 'Get Markets from Kalshi V2',
-  description:
-    'Retrieve a list of prediction markets from Kalshi with all filtering options (V2 - full API response)',
+  description: 'Retrieve a list of prediction markets from Kalshi with all filtering options',
   version: '2.0.0',
 
   params: {
@@ -323,7 +322,7 @@ export const kalshiGetMarketsV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_markets_v2')
+      handleKalshiError(data, 'get_markets_v2')
     }
 
     const markets = (data.markets || []).map((m: Record<string, unknown>) => ({

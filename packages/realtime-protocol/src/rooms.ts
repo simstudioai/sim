@@ -22,6 +22,7 @@ export const ROOM_TYPES = {
   WORKFLOW: 'workflow',
   /** The workspace file browser (one room per workspace). */
   WORKSPACE_FILES: 'workspace-files',
+  PROJECT_FILES: 'project-files',
   /**
    * A single collaborative file document — the rich-text editor for one file
    * (one room per file). Carries Yjs document sync + awareness (live carets and
@@ -29,6 +30,7 @@ export const ROOM_TYPES = {
    * workspace-scoped {@link ROOM_TYPES.WORKSPACE_FILES} browser room.
    */
   WORKSPACE_FILE_DOC: 'workspace-file-doc',
+  PROJECT_FILE_DOC: 'project-file-doc',
   /**
    * A single table's grid (one room per table). Carries live cell-selection
    * presence — which cells each viewer has selected — so its id space is the
@@ -58,19 +60,29 @@ export const ROOM_TYPES = {
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]
 
 /** Every known room type, for exhaustive iteration/validation. */
-export const ALL_ROOM_TYPES = Object.values(ROOM_TYPES) as readonly RoomType[]
+const ALL_ROOM_TYPES = Object.values(ROOM_TYPES) as readonly RoomType[]
 
-/**
- * The presence-free, workspace-scoped live-list rooms. They share one contract derived entirely
- * from the room-type token: clients join via `join-${type}`, the app server fans a mutation out via
- * `POST /api/${type}-changed`, and members receive a lossy `${type}-changed` invalidation signal.
- * Adding a room type here wires it into the shared socket handler and HTTP relay branch.
- */
-export const WORKSPACE_LIST_ROOM_TYPES = [
-  ROOM_TYPES.WORKSPACE_FILES,
-  ROOM_TYPES.WORKSPACE_TABLES,
-  ROOM_TYPES.WORKSPACE_WORKFLOWS,
-] as const
+/** Owner-specific wire addresses share the same presence-free invalidation lifecycle. */
+const INVALIDATION_ROOM_ID_KEYS = {
+  [ROOM_TYPES.WORKSPACE_FILES]: 'workspaceId',
+  [ROOM_TYPES.WORKSPACE_TABLES]: 'workspaceId',
+  [ROOM_TYPES.WORKSPACE_WORKFLOWS]: 'workspaceId',
+  [ROOM_TYPES.PROJECT_FILES]: 'projectId',
+} as const
+
+export type InvalidationRoomType = keyof typeof INVALIDATION_ROOM_ID_KEYS
+
+export const INVALIDATION_ROOM_TYPES = Object.keys(
+  INVALIDATION_ROOM_ID_KEYS
+) as InvalidationRoomType[]
+
+/** Legacy workspace callers keep their payload key; unsupported rooms never inherit it. */
+export function invalidationRoomIdKey(type: RoomType): 'workspaceId' | 'projectId' {
+  if (!Object.hasOwn(INVALIDATION_ROOM_ID_KEYS, type)) {
+    throw new Error('Room does not support list invalidation')
+  }
+  return INVALIDATION_ROOM_ID_KEYS[type as InvalidationRoomType]
+}
 
 /** Universal address of a realtime room. */
 export interface RoomRef {
@@ -78,8 +90,28 @@ export interface RoomRef {
   id: string
 }
 
+const ROOM_AUTHORIZATION_OWNERS = {
+  [ROOM_TYPES.WORKFLOW]: 'workspace',
+  [ROOM_TYPES.WORKSPACE_FILES]: 'workspace',
+  [ROOM_TYPES.WORKSPACE_TABLES]: 'workspace',
+  [ROOM_TYPES.WORKSPACE_WORKFLOWS]: 'workspace',
+  [ROOM_TYPES.WORKSPACE_FILE_DOC]: 'workspace',
+  [ROOM_TYPES.TABLE]: 'workspace',
+  [ROOM_TYPES.PROJECT_FILE_DOC]: 'project',
+  [ROOM_TYPES.PROJECT_FILES]: 'project',
+} as const satisfies Record<RoomType, 'workspace' | 'project'>
+
+export type ProjectRoomRef = RoomRef & {
+  type: typeof ROOM_TYPES.PROJECT_FILE_DOC | typeof ROOM_TYPES.PROJECT_FILES
+}
+
+/** Every room declares the authority that both admission and revalidation must consult. */
+export function isProjectRoom(room: RoomRef): room is ProjectRoomRef {
+  return ROOM_AUTHORIZATION_OWNERS[room.type] === 'project'
+}
+
 /** Type guard: whether an arbitrary string is a known {@link RoomType}. */
-export function isRoomType(value: string): value is RoomType {
+function isRoomType(value: string): value is RoomType {
   return (ALL_ROOM_TYPES as readonly string[]).includes(value)
 }
 
@@ -134,4 +166,20 @@ export function parseRoomName(name: string): RoomRef | null {
  */
 export function presenceEventName(type: RoomType): string {
   return type === ROOM_TYPES.WORKFLOW ? 'presence-update' : `${type}:presence-update`
+}
+
+/** Owner-qualified identity for shared Project document rooms. */
+export function projectFileDocRoom(projectId: string, fileId: string): RoomRef {
+  if (![projectId, fileId].every((id) => id.length > 0 && !/[/:]/.test(id))) {
+    throw new Error('Invalid Project document identity')
+  }
+  return { type: ROOM_TYPES.PROJECT_FILE_DOC, id: `${projectId}/${fileId}` }
+}
+
+/** Resolve the exact owner and file encoded in a Project room address. */
+export function projectFileDocTarget(room: RoomRef): { projectId: string; fileId: string } | null {
+  if (room.type !== ROOM_TYPES.PROJECT_FILE_DOC) return null
+  const parts = room.id.split('/')
+  if (parts.length !== 2 || parts.some((id) => !id || id.includes(':'))) return null
+  return { projectId: parts[0], fileId: parts[1] }
 }

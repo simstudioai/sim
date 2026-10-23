@@ -85,12 +85,3 @@ export interface MicrosoftWordExportPdfResponse extends ToolResponse {
     }
   }
 }
-
-export type MicrosoftWordResponse =
-  | MicrosoftWordCreateResponse
-  | MicrosoftWordReadResponse
-  | MicrosoftWordUpdateResponse
-  | MicrosoftWordListResponse
-  | MicrosoftWordCreateFromTemplateResponse
-  | MicrosoftWordReplaceTextResponse
-  | MicrosoftWordExportPdfResponse

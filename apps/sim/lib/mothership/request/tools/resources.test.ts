@@ -1,9 +1,9 @@
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractResourcesFromToolResult: vi.fn(),
   persistChatResources: vi.fn(() => Promise.resolve()),
-  setAttributes: vi.fn(),
   changeStoredChatResources: vi.fn().mockResolvedValue([]),
 }))
 
@@ -11,13 +11,7 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: mocks.changeStoredChatResources,
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (
-    _name: string,
-    _attributes: Record<string, unknown>,
-    run: (span: { setAttributes: typeof mocks.setAttributes }) => Promise<void>
-  ) => run({ setAttributes: mocks.setAttributes }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 vi.mock('@/lib/mothership/resources/persistence', () => ({
   extractDeletedResourcesFromToolResult: vi.fn(() => []),
@@ -30,6 +24,7 @@ vi.mock('@/lib/mothership/resources/persistence', () => ({
 
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import type { StreamEvent } from '@/lib/mothership/request/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 describe('handleResourceSideEffects', () => {
@@ -103,31 +98,43 @@ describe('handleResourceSideEffects', () => {
       })
     }
   )
-  it.each(['workspace-a'])('addresses extracted exports to admitted %s', async (workspaceId) => {
-    const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
-    mocks.extractResourcesFromToolResult.mockReturnValue([resource])
-    const onEvent = vi.fn()
-    await handleResourceSideEffects(
-      'run_function',
-      undefined,
-      { success: true, output: {} },
-      { success: true, output: {} },
-      'org-chat',
-      onEvent,
-      () => false,
-      workspaceId
-    )
-    expect(mocks.persistChatResources).toHaveBeenCalledWith('org-chat', [
-      { ...resource, workspaceId },
-    ])
-    expect(onEvent).toHaveBeenCalledWith({
-      type: 'resource',
-      payload: {
-        op: 'upsert',
-        resource: { ...resource, workspaceId },
+  it.each([
+    {
+      chat: 'organization',
+      organizationId: 'org',
+      /** The address stays beside the owner: browsers open and close the tab by `workspaceId`. */
+      expected: {
+        workspaceId: 'workspace-a',
+        owner: { entityType: 'workspace', entityId: 'workspace-a' },
       },
-    })
-  })
+    },
+    { chat: 'workspace', organizationId: undefined, expected: {} },
+  ])(
+    'addresses extracted exports in a $chat chat like its open tabs',
+    async ({ organizationId, expected }) => {
+      const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
+      mocks.extractResourcesFromToolResult.mockReturnValue([resource])
+      const events: StreamEvent[] = []
+      await handleResourceSideEffects(
+        'run_function',
+        undefined,
+        { success: true, output: {} },
+        { success: true, output: {} },
+        'chat',
+        (event) => {
+          events.push(event)
+        },
+        () => false,
+        { organizationId, workspaceId: 'workspace-a' }
+      )
+      expect(events).toEqual([
+        {
+          type: 'resource',
+          payload: { op: 'upsert', resource: { ...resource, ...expected } },
+        },
+      ])
+    }
+  )
 })
 
 it('emits authorized Search results beside the persisted address, never inside it', async () => {

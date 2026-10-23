@@ -1,31 +1,48 @@
 ---
 title: SharePoint
 description: Work with pages and lists
+integration:
+  type: "sharepoint_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sharepoint_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration) in Sim to list sites, manage pages and lists, update list items, and upload or download files. Connect a Microsoft account through OAuth, then choose the target site or resource for each operation.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a SharePoint account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/sharepoint` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Sites.Read.All` | Read documents and list items in all SharePoint sites |
+| `Sites.ReadWrite.All` | Create, edit, and delete documents and list items in all SharePoint sites |
+| `Sites.Manage.All` | Create and delete lists and document libraries in all SharePoint sites |
+| `offline_access` | Access account when not using the application |
 
+## Use the block [#usage-instructions]
+
+Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
 
 ## Actions
 
 ### Create SharePoint Page
 
 Create a new page in a SharePoint site
+
+<ReferenceDetails>
 
 #### Input
 
@@ -50,9 +67,13 @@ Create a new page in a SharePoint site
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 
+</ReferenceDetails>
+
 ### Read SharePoint Page
 
 Read a specific page from a SharePoint site
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,7 +100,7 @@ Read a specific page from a SharePoint site
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 | `pages` | array | List of SharePoint pages |
-|   ↳ `page` | object | page output from the tool |
+|   ↳ `page` | object |  |
 |     ↳ `id` | string | The unique ID of the page |
 |     ↳ `name` | string | The name of the page |
 |     ↳ `title` | string | The title of the page |
@@ -88,7 +109,7 @@ Read a specific page from a SharePoint site
 |     ↳ `description` | string | The description of the page |
 |     ↳ `createdDateTime` | string | When the page was created |
 |     ↳ `lastModifiedDateTime` | string | When the page was last modified |
-|   ↳ `content` | object | content output from the tool |
+|   ↳ `content` | object |  |
 |     ↳ `content` | string | Extracted text content from the page |
 |     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
 | `content` | object | Content of the SharePoint page |
@@ -97,9 +118,13 @@ Read a specific page from a SharePoint site
 | `totalPages` | number | Total number of pages found |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
+</ReferenceDetails>
+
 ### Update SharePoint Page
 
 Update the title and/or content of a SharePoint page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -124,9 +149,13 @@ Update the title and/or content of a SharePoint page
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 
+</ReferenceDetails>
+
 ### Publish SharePoint Page
 
 Publish the latest version of a SharePoint page, making it available to all users
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +172,13 @@ Publish the latest version of a SharePoint page, making it available to all user
 | `published` | boolean | Whether the page was published |
 | `pageId` | string | The ID of the published page |
 
+</ReferenceDetails>
+
 ### Delete SharePoint Page
 
 Delete a page from a SharePoint site
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +195,13 @@ Delete a page from a SharePoint site
 | `deleted` | boolean | Whether the page was deleted |
 | `pageId` | string | The ID of the deleted page |
 
+</ReferenceDetails>
+
 ### List SharePoint Sites
 
 List details of all SharePoint sites
+
+<ReferenceDetails>
 
 #### Input
 
@@ -189,7 +226,7 @@ List details of all SharePoint sites
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 |   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
 |   ↳ `root` | object | Present \(as an empty object\) only when this site is the root of its site collection |
-|   ↳ `siteCollection` | object | siteCollection output from the tool |
+|   ↳ `siteCollection` | object |  |
 |     ↳ `hostname` | string | Site collection hostname |
 | `sites` | array | List of all accessible SharePoint sites |
 |   ↳ `id` | string | The unique ID of the site |
@@ -201,9 +238,13 @@ List details of all SharePoint sites
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
+</ReferenceDetails>
+
 ### Create SharePoint List
 
 Create a new list in a SharePoint site
+
+<ReferenceDetails>
 
 #### Input
 
@@ -229,9 +270,13 @@ Create a new list in a SharePoint site
 |   ↳ `lastModifiedDateTime` | string | When the list was last modified |
 |   ↳ `list` | object | List properties \(e.g., template\) |
 
+</ReferenceDetails>
+
 ### Get SharePoint List
 
 Get metadata (and optionally columns/items) for a SharePoint list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +311,13 @@ Get metadata (and optionally columns/items) for a SharePoint list
 |   ↳ `fields` | object | Field values for the item |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
+</ReferenceDetails>
+
 ### Update SharePoint List Item
 
 Update the properties (fields) on a SharePoint list item
+
+<ReferenceDetails>
 
 #### Input
 
@@ -288,9 +337,13 @@ Update the properties (fields) on a SharePoint list item
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Updated field values |
 
+</ReferenceDetails>
+
 ### Add SharePoint List Item
 
 Add a new item to a SharePoint list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -309,9 +362,13 @@ Add a new item to a SharePoint list
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Field values for the new item |
 
+</ReferenceDetails>
+
 ### Get SharePoint List Item
 
 Get a single item (with field values) from a SharePoint list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -330,9 +387,13 @@ Get a single item (with field values) from a SharePoint list
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Field values for the item |
 
+</ReferenceDetails>
+
 ### Delete SharePoint List Item
 
 Delete an item from a SharePoint list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -350,9 +411,13 @@ Delete an item from a SharePoint list
 | `deleted` | boolean | Whether the list item was deleted |
 | `itemId` | string | The ID of the deleted list item |
 
+</ReferenceDetails>
+
 ### Upload File to SharePoint
 
 Upload files to a SharePoint document library
+
+<ReferenceDetails>
 
 #### Input
 
@@ -387,9 +452,13 @@ Upload files to a SharePoint document library
 |   ↳ `error` | string | Error message |
 |   ↳ `status` | number | HTTP status from Microsoft Graph |
 
+</ReferenceDetails>
+
 ### Download File from SharePoint
 
 Download a file from a SharePoint document library
+
+<ReferenceDetails>
 
 #### Input
 
@@ -405,9 +474,13 @@ Download a file from a SharePoint document library
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
+</ReferenceDetails>
+
 ### Get SharePoint Drive Item
 
 Get metadata for a file or folder in a SharePoint document library
+
+<ReferenceDetails>
 
 #### Input
 
@@ -431,9 +504,13 @@ Get metadata for a file or folder in a SharePoint document library
 |   ↳ `folder` | object | Present if the item is a folder \(contains childCount\) |
 |   ↳ `parentReference` | object | Reference to the parent folder/drive |
 
+</ReferenceDetails>
+
 ### Delete SharePoint File
 
 Delete a file (or folder) from a SharePoint document library
+
+<ReferenceDetails>
 
 #### Input
 
@@ -448,5 +525,7 @@ Delete a file (or folder) from a SharePoint document library
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the file was deleted |
 | `itemId` | string | The ID of the deleted file |
+
+</ReferenceDetails>
 
 

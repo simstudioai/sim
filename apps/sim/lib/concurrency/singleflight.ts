@@ -13,6 +13,8 @@ const DEFAULT_SETTLE_TIMEOUT_MS = 30_000
  * fresh producer instead of joining the wedged one.
  */
 export class CoalesceSettleTimeoutError extends Error {
+  readonly code = 'COALESCE_SETTLE_TIMEOUT' as const
+
   constructor(key: string, timeoutMs: number) {
     super(`Coalesced producer for "${key}" did not settle within ${timeoutMs}ms`)
     this.name = 'CoalesceSettleTimeoutError'

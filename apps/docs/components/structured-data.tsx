@@ -1,5 +1,5 @@
 import { serializeJsonLd } from '@/lib/json-ld'
-import { DOCS_BASE_URL } from '@/lib/urls'
+import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 
 interface StructuredDataProps {
   title: string
@@ -25,17 +25,18 @@ export function StructuredData({
     headline: title,
     description: description,
     url: url,
-    ...(dateModified && { datePublished: dateModified }),
     ...(dateModified && { dateModified }),
     author: {
       '@type': 'Organization',
-      name: 'Sim Team',
-      url: baseUrl,
+      '@id': `${SIM_SITE_URL}#organization`,
+      name: 'Sim',
+      url: SIM_SITE_URL,
     },
     publisher: {
       '@type': 'Organization',
+      '@id': `${SIM_SITE_URL}#organization`,
       name: 'Sim',
-      url: baseUrl,
+      url: SIM_SITE_URL,
       logo: {
         '@type': 'ImageObject',
         url: `${baseUrl}/static/logo.png`,
@@ -68,36 +69,6 @@ export function StructuredData({
     })),
   }
 
-  const softwareStructuredData = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'Sim',
-    applicationCategory: 'BusinessApplication',
-    applicationSubCategory: 'AI Workspace',
-    operatingSystem: 'Any',
-    description:
-      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
-    url: baseUrl,
-    author: {
-      '@type': 'Organization',
-      name: 'Sim Team',
-    },
-    offers: {
-      '@type': 'Offer',
-      category: 'Developer Tools',
-    },
-    featureList: [
-      'AI workspace for teams',
-      'Chat — natural language agent creation',
-      'Visual workflow builder',
-      '1,000+ integrations',
-      'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
-      'Knowledge base creation',
-      'Table creation',
-      'Document creation',
-    ],
-  }
-
   return (
     <>
       <script
@@ -113,15 +84,6 @@ export function StructuredData({
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: serializeJsonLd(breadcrumbStructuredData),
-          }}
-        />
-      )}
-      {(url === baseUrl || url === `${baseUrl}/`) && (
-        <script
-          id={`software-json-ld-${structuredDataId}`}
-          type='application/ld+json'
-          dangerouslySetInnerHTML={{
-            __html: serializeJsonLd(softwareStructuredData),
           }}
         />
       )}

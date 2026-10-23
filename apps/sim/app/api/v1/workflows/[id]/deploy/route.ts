@@ -55,7 +55,6 @@ export const POST = withRouteHandler(
 
       const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id, 'deploy.api')
       if (!target.ok) return target.response
-      const { workflow, workspaceId } = target
 
       await assertWorkflowMutable(id)
 

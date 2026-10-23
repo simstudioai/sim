@@ -1,5 +1,5 @@
 import type { WorkspaceDelegationPolicy } from '@/lib/core/application'
-import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const MEMORY_DELEGATION_AUDIENCE = 'sim:memory'
 

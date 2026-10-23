@@ -44,10 +44,10 @@ import {
 } from '@/lib/billing/core/reporting-period'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   enterpriseMetadataSyncPayloadSchema,
   resolveEnterpriseMetadataIntent,
 } from '@/lib/billing/enterprise-outbox'
+import { ENTERPRISE_METADATA_SYNC_EVENT_TYPE } from '@/lib/billing/enterprise-outbox-events'
 import {
   type EnterpriseProvisioningView,
   getLatestEnterpriseProvisionings,
@@ -56,7 +56,7 @@ import {
   parseWorkflowExecutionTimeoutSeconds,
   resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
 } from '@/lib/billing/execution-timeout-defaults'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   acquireOrganizationMutationLock,
@@ -77,6 +77,8 @@ import { env } from '@/lib/core/config/env'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { userHasDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
@@ -1496,6 +1498,14 @@ export async function grantDashboardUserBalance(
   actor: AdminMutationActor
 ) {
   const normalizedReason = reason?.trim() || null
+  /**
+   * Decides the eligibility of a stats row this grant may have to create, with
+   * the same email check as every other row creation. Looked up before the
+   * transaction so it never holds a second pooled connection inside it.
+   */
+  const freeTierEligibleIfCreated = !(await userHasDeletedAccountIdentity(userId, {
+    includeSignIns: false,
+  }))
   const outcome = await db.transaction(async (tx) => {
     await acquireUserBillingIdentityLock(tx, userId)
     const [account] = await tx
@@ -1517,13 +1527,14 @@ export async function grantDashboardUserBalance(
     const initialUsageLimit =
       initialMembership || isOrgScopedSubscription(initialSubscription, userId)
         ? null
-        : getPerUserMinimumLimit(initialSubscription).toString()
+        : getPerUserMinimumLimit(initialSubscription, freeTierEligibleIfCreated).toString()
     await tx
       .insert(userStats)
       .values({
         id: generateId(),
         userId,
         currentUsageLimit: initialUsageLimit,
+        freeTierEligible: freeTierEligibleIfCreated,
         usageLimitUpdatedAt: new Date(),
       })
       .onConflictDoNothing({ target: userStats.userId })
@@ -1532,6 +1543,7 @@ export async function grantDashboardUserBalance(
       .select({
         creditBalance: userStats.creditBalance,
         currentUsageLimit: userStats.currentUsageLimit,
+        freeTierEligible: userStats.freeTierEligible,
       })
       .from(userStats)
       .where(eq(userStats.userId, userId))
@@ -1565,7 +1577,9 @@ export async function grantDashboardUserBalance(
         }
 
         const grantDollarDelta = toDecimal(amountDollars).toString()
-        const usageLimitFallback = toDecimal(getPerUserMinimumLimit(billingSubscription))
+        const usageLimitFallback = toDecimal(
+          getPerUserMinimumLimit(billingSubscription, stats.freeTierEligible)
+        )
           .plus(toDecimal(stats.creditBalance))
           .toString()
         const nextUsageLimit =
@@ -1781,6 +1795,7 @@ export async function removeDashboardOrganizationMember(
     organizationId,
     memberId,
   })
+  deliverRunStops(result.stoppedRuns)
   if (!result.success) throw new Error(result.error ?? 'Failed to remove member')
   try {
     await reconcileOrganizationSeats({

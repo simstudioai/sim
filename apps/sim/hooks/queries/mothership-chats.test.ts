@@ -1,32 +1,20 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import type { MutationObserverOptions } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { queryClient, suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
+const { suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
   clearChat: vi.fn(),
-  queryClient: {
-    cancelQueries: vi.fn().mockResolvedValue(undefined),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-    getQueryData: vi.fn(),
-    removeQueries: vi.fn(),
-    setQueryData: vi.fn(),
-  },
   suspendBrowserScope: vi.fn(async () => true),
   suspendTerminalScope: vi.fn(async () => true),
 }))
 
 vi.mock('@/stores/mothership-queue/store', () => ({
-  useMothershipQueueStore: { getState: () => ({ clearChat }) },
+  useMothershipQueueStore: { getState: () => ({ clearChat, cleared: {} }) },
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: {},
-  queryOptions: (options: unknown) => options,
-  skipToken: Symbol('skipToken'),
-  useQuery: vi.fn(),
-  useQueryClient: vi.fn(() => queryClient),
-  useMutation: vi.fn((options) => options),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   suspendBrowserScope,
@@ -36,25 +24,19 @@ vi.mock('@/lib/terminal/transport', () => ({
   suspendTerminalScope,
 }))
 
-import { useDeleteMothershipChats, useRemoveChatResource } from '@/hooks/queries/mothership-chats'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
+import {
+  fetchMothershipChatHistory,
+  useDeleteMothershipChats,
+  useSetMothershipChatEffort,
+} from '@/hooks/queries/mothership-chats'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
-function jsonResponse(body: unknown, init?: ResponseInit): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    ...init,
-  })
-}
+const queryClient = reactQueryMockFns.mockQueryClient
 
 describe('tasks query boundary parsing', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('waits for slower successful deletions before reconciling a failed batch', async () => {
@@ -118,53 +100,60 @@ describe('tasks query boundary parsing', () => {
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
   })
-})
 
-it('removes only the requested workspace alias and forwards its owner', async () => {
-  const first: MothershipResource = {
-    type: 'file',
-    id: 'files/report.csv',
-    title: 'A',
-    workspaceId: 'ws-a',
-  }
-  const second: MothershipResource = { ...first, title: 'B', workspaceId: 'ws-b' }
-  let cached = {
-    id: 'chat-1',
-    title: null,
-    messages: [],
-    activeStreamId: null,
-    resources: [first, second],
-  }
-  queryClient.setQueryData.mockImplementation((_key, update) => {
-    cached = update(cached)
+  it('loads a chat from a server that predates the effort field', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        chat: {
+          id: 'chat-1',
+          title: null,
+          mode: 'agent',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        },
+      })
+    )
+
+    const history = await fetchMothershipChatHistory('chat-1')
+
+    expect(history.effort).toBeNull()
   })
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(jsonResponse({ success: true, resources: [first] }))
-  )
-  const mutation = useRemoveChatResource('chat-1') as unknown as {
-    onMutate: (input: {
-      chatId: string
-      resourceType: 'file'
-      resourceId: string
-      workspaceId: string
-    }) => Promise<unknown>
-    mutationFn: (input: {
-      chatId: string
-      resourceType: 'file'
-      resourceId: string
-      workspaceId: string
-    }) => Promise<unknown>
-  }
-  const input = {
-    chatId: 'chat-1',
-    resourceType: 'file' as const,
-    resourceId: 'files/report.csv',
-    workspaceId: 'ws-b',
-  }
-  await mutation.onMutate(input)
-  expect(cached.resources).toEqual([first])
-  await mutation.mutationFn(input)
-  expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(input)
-  vi.unstubAllGlobals()
+
+  it('keeps the latest effort pick when an earlier queued save of the same value fails', async () => {
+    const tanstack =
+      await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+    const client = new tanstack.QueryClient()
+    const observer = new tanstack.MutationObserver(
+      client,
+      useSetMothershipChatEffort('chat-1') as unknown as MutationObserverOptions<
+        void,
+        Error,
+        MothershipEffort,
+        { pick: number }
+      >
+    )
+    const saves = [
+      Promise.withResolvers<Response>(),
+      Promise.withResolvers<Response>(),
+      Promise.withResolvers<Response>(),
+    ]
+    for (const save of saves) vi.mocked(fetch).mockReturnValueOnce(save.promise)
+    useMothershipEffortStore.getState().reset()
+    const outcomes = (['low', 'high', 'low'] as const).map((effort) =>
+      observer.mutate(effort).catch(() => undefined)
+    )
+    await sleep(1)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    saves[0].resolve(new Response('save failed', { status: 500 }))
+    await outcomes[0]
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('low')
+
+    saves[1].resolve(jsonResponse({ success: true }))
+    saves[2].resolve(jsonResponse({ success: true }))
+    await Promise.all(outcomes)
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('low')
+  })
 })

@@ -15,6 +15,26 @@ export const langflowProfile: CompetitorProfile = {
   },
   oneLiner:
     'Langflow is an open-source, Python-based visual builder for creating and deploying AI agents and RAG (retrieval-augmented generation) applications, owned by DataStax (an IBM company).',
+  leadAnswer: [
+    "Langflow is an open-source, MIT-licensed, Python-based visual builder for AI agents and RAG applications, backed by IBM; since DataStax removed its hosted Langflow from Astra in April 2026, it runs on infrastructure you operate (Desktop, Docker, or Kubernetes). Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, offered as a managed cloud or self-hosted with Docker Compose or Kubernetes. Choose Langflow when you want to edit every component's Python source and work directly in the LangChain ecosystem. Choose Sim when you need documented production controls (failure alerts, error-handling branches, human approval steps, published execution limits) or a managed hosted plan.",
+  ],
+  faqs: [
+    {
+      question: 'Which is more production-ready for agent workflows, Sim or Langflow?',
+      answer:
+        "Sim documents more production controls out of the box: alerts on failures and cost or latency spikes to Slack, email, or a webhook; error branches so one failing block does not halt a run; tool-call retries with exponential backoff; and published timeouts (50-minute sync runs on paid plans, 90-minute async by default). Langflow's public documentation does not describe failure alerting, per-step error routing, retries or replay, or execution limits for flows, though it captures per-step traces and can forward them to LangSmith, Langfuse, or LangWatch. In a self-hosted Langflow deployment, limits are whatever your own infrastructure and worker configuration allow.",
+    },
+    {
+      question: 'How do Sim and Langflow compare for building agent workflows?',
+      answer:
+        "Both are visual canvas builders with a natural-language assistant, but Langflow leans developer-first: every component's Python source is editable, and its docs assume familiarity with LangChain concepts such as embeddings and vector stores. Sim offers a visual canvas, a Chat and Copilot surface that builds and edits workflows from plain-language requests, and code via API and SDK. Sim also has live multiplayer editing and a dedicated approval block that pauses a run for human sign-off, neither of which Langflow documents.",
+    },
+    {
+      question: 'Is there still a hosted version of Langflow?',
+      answer:
+        'DataStax removed its hosted Langflow from Astra on April 9, 2026, and pointed users to Langflow OSS, so the documented ways to run Langflow today are Langflow Desktop or your own Python, Docker, or Kubernetes deployment. IBM sells Elite Support for Langflow OSS and a watsonx Orchestrate integration, with no published pricing. Sim offers both a managed cloud with a Free plan and self-hosting with Docker Compose or Kubernetes.',
+    },
+  ],
   standoutFeatures: [
     {
       title: 'Deep LangChain/Python component ecosystem',
@@ -114,26 +134,31 @@ export const langflowProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Yes: Langflow is fully open source (MIT licensed) and can be self-hosted via pip/uv local install, Docker, or Kubernetes, in addition to a desktop app and Langflow Cloud.',
+          'Yes: Langflow is open source (MIT) and self-hosted via a Python package (uv/pip), Docker, source, or Kubernetes Helm charts, or run locally as Langflow Desktop. The DataStax-hosted offering was removed from Astra on April 9, 2026',
         shortValue: 'Yes, self-hostable (pip, Docker, K8s)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/get-started-installation',
             label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.langflow.org/deployment-kubernetes-dev',
+            label: 'Langflow Docs: Kubernetes deployment',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://github.com/langflow-ai/langflow',
             label: 'GitHub: langflow-ai/langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
       deploymentOptions: {
         value:
-          'Langflow can run as a desktop app on Windows/macOS, a local pip/uv install, a Docker container, or a Kubernetes deployment, plus a hosted Langflow Cloud option with a free account tier. Multi-worker setups are documented for scaling self-hosted instances.',
-        shortValue: 'Desktop, local, Docker/K8s, cloud, self-hosted',
+          'Langflow can run as a desktop app on Windows/macOS, a local pip/uv install, a Docker container, or a Kubernetes deployment. Multi-worker setups are documented for scaling self-hosted instances. DataStax removed its hosted Langflow from Astra on April 9, 2026.',
+        shortValue: 'Desktop, local, Docker/K8s, self-hosted',
         confidence: 'verified',
         sources: [
           {
@@ -180,7 +205,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow',
             label: 'GitHub: langflow-ai/langflow (License: MIT)',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -634,43 +659,55 @@ export const langflowProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          "Langflow's core software is free and open source, with no license fee for self-hosting. Third-party sources describe Langflow Cloud as offering a free account tier plus a paid tier around $25 per month for higher usage limits, and separate enterprise pricing; Langflow's official pricing page does not confirm these figures directly.",
-        detail:
-          "Based on third-party summaries; the official pricing page doesn't confirm these figures.",
-        shortValue: 'Free open-source core; cloud free tier plus paid/enterprise tiers',
+          "Free, open-source (MIT) software with no license fee and no published paid plan. DataStax's hosted Langflow was removed from Astra on April 9, 2026, and IBM's listed commercial options (IBM Elite Support for Langflow OSS and a watsonx Orchestrate integration) carry no public price",
+        shortValue: 'Free MIT software; no published paid plan',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/langflow-pricing',
-            label: 'Lindy: Langflow Pricing',
-            asOf: '2026-07-02',
+            url: 'https://github.com/langflow-ai/langflow',
+            label: 'GitHub: langflow-ai/langflow (License: MIT)',
+            asOf: '2026-10-15',
           },
           {
-            url: 'https://automationatlas.io/tools/langflow/',
-            label: 'Automation Atlas: Langflow pricing summary',
-            asOf: '2026-07-02',
+            url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html#datastax-langflow-removal',
+            label: 'Astra release notes: DataStax Langflow removal (April 9, 2026)',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM Langflow (Editions)',
+            asOf: '2026-10-15',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          "Unknown: the exact entry paid-plan price and inclusions aren't confirmed on Langflow's own official pricing page. Third-party summaries cite a cloud paid tier starting around $25 per month.",
-        detail: 'Not confirmed against an official Langflow source.',
-        shortValue: 'Unverified; third parties cite roughly $25/month',
-        confidence: 'unknown',
-        sources: [],
-      },
-      freeTier: {
-        value:
-          'Yes: the open-source core is free to self-host, with no usage caps beyond your own infrastructure. Langflow Cloud reportedly offers a free account tier before infrastructure and API costs apply.',
-        detail: 'Exact cloud free-tier limits not officially confirmed.',
-        shortValue: 'Yes, free self-hosted core plus a free cloud tier',
+          'None published: there is no Langflow-branded paid plan. The paid path IBM lists is IBM Elite Support for Langflow, aimed at enterprises needing SLAs and support for Langflow OSS, with no public price',
+        shortValue: 'No published paid plan',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/langflow-pricing',
-            label: 'Lindy: Langflow Pricing',
-            asOf: '2026-07-02',
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM Langflow (Editions)',
+            asOf: '2026-10-15',
+          },
+        ],
+      },
+      freeTier: {
+        value:
+          'Yes: the MIT-licensed software is free to self-host or to run as Langflow Desktop. A hosted free tier can no longer be confirmed, since DataStax removed its hosted Langflow from Astra on April 9, 2026',
+        shortValue: 'Free self-hosted and Desktop; no confirmed hosted tier',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.langflow.org',
+            label: 'Langflow homepage',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html#datastax-langflow-removal',
+            label: 'Astra release notes: DataStax Langflow removal',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -683,7 +720,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/agents',
             label: 'Langflow Docs: Use Langflow agents',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -948,9 +985,9 @@ export const langflowProfile: CompetitorProfile = {
       },
       unattendedExecution: {
         value:
-          'Partial: when Langflow is deployed as a server, self-hosted via Docker/Kubernetes or on Langflow Cloud, triggered runs (webhook, API call, or external cron/Airflow calling the API) execute on that server with no dependency on any particular client device staying open. But Langflow can also be run as a desktop app, and a flow triggered through that installation depends on the desktop app process itself staying running on that machine, since there is no separate always-on server component in that deployment mode.',
+          'Partial: when Langflow is deployed as a server, self-hosted via Docker/Kubernetes, triggered runs (webhook, API call, or external cron/Airflow calling the API) execute on that server with no dependency on any particular client device staying open. But Langflow can also be run as a desktop app, and a flow triggered through that installation depends on the desktop app process itself staying running on that machine, since there is no separate always-on server component in that deployment mode.',
         detail:
-          'The dependency is on the chosen deployment mode: a Docker/Kubernetes/Cloud deployment behaves like Sim (server-side, client-independent), while the desktop app is a local process that must stay running to serve triggers.',
+          'The dependency is on the chosen deployment mode: a Docker/Kubernetes deployment behaves like Sim (server-side, client-independent), while the desktop app is a local process that must stay running to serve triggers.',
         shortValue: 'Yes if server-deployed; desktop app requires that app to stay running',
         confidence: 'estimated',
         sources: [

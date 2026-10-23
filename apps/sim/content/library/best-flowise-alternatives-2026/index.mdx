@@ -1,0 +1,131 @@
+---
+slug: best-flowise-alternatives-2026
+title: 'Best Flowise Alternatives in 2026 for Production AI Agents'
+seoTitle: 'Best Flowise Alternatives for Production AI Agents'
+description: 'Flowise reached end of life on August 31, 2026. Compare Sim, Langflow, Dify, n8n, and LangGraph by license, hosting, deployment, and pricing.'
+date: 2026-10-19
+updated: 2026-10-19
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, Open Source, Agent Platforms, Sim]
+ogImage: /library/best-flowise-alternatives-2026/cover.jpg
+draft: false
+faq:
+  - q: "What does Flowise's sunset mean for existing deployments?"
+    a: "Your existing deployment can keep running, and the code remains available under Apache 2.0 for you to fork. Flowise reached end of life on August 31, 2026, when official core-team presence on GitHub and Discord ended, so you must maintain a fork or move to another platform if you need future updates."
+  - q: "Is Flowise safe to keep running after end of life?"
+    a: "The core team has stopped development and no longer reviews pull requests, so no fixes will come from it. If you keep Flowise in production, you take responsibility for reviewing vulnerabilities, applying fixes, and controlling access to the deployment."
+  - q: "Should I self-host or use a managed option?"
+    a: "Self-hosting gives you control over the infrastructure but makes you responsible for operations and updates. A managed option removes that hosting work. Sim offers both: anyone can self-host its Apache 2.0 core for free with Docker Compose or Kubernetes, and Sim Cloud is the managed option. Enterprise features such as SSO (single sign-on), access control, and audit logs are covered by the separate Sim Enterprise License and require an Enterprise subscription for production use."
+  - q: "Which alternative is easiest for migrating existing flows?"
+    a: "Langflow offers a visual-builder approach, but a similar visual builder does not mean Flowise flows will import directly. Compare your live flows' components and integrations against the replacement before estimating migration work."
+  - q: "What do the license differences mean for commercial use?"
+    a: "Sim's Apache 2.0 core and Langflow's MIT license permit broad commercial use. Sim's enterprise features are covered by the separate Sim Enterprise License, which requires an Enterprise subscription for production use. Dify's license requires a commercial license to operate a multi-tenant service, and n8n's Sustainable Use License limits use to your own internal business purposes or non-commercial or personal use. LangGraph's library is MIT licensed, while running its standalone Agent Server requires a LangSmith license key, so check the terms for the part you plan to deploy."
+---
+
+## TL;DR
+
+- [Flowise reached end of life on August 31, 2026](https://flowiseai.com/sunset). Its team froze the code on July 29 and stopped reviewing or accepting pull requests, so production users must maintain a fork or migrate.
+- **Sim**, an open-source AI workspace for teams, fits teams that want to build agents visually, deploy them several ways, and self-host an Apache 2.0 core. Its enterprise features use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+- **Langflow** fits teams that want a visual builder under an MIT license.
+- **Dify** fits teams building knowledge-base-backed AI apps that they want to deploy as a web app, an API, or an MCP server. MCP (Model Context Protocol) is an open protocol that lets AI apps call tools, so other AI apps can call a Dify app as a tool.
+- **n8n** fits teams adding AI agents to existing business automations.
+- **LangGraph** fits engineers who prefer code-based control over agent behavior and persistent state.
+
+## Why Flowise teams are migrating now
+
+Flowise's [July 29, 2026 sunset announcement](https://flowiseai.com/sunset) stopped active feature development and ended review of new pull requests. If your production deployment needs a fix, you can no longer submit a change and expect the maintainers to merge it.
+
+In August 2026, Flowise [archived its GitHub repository](https://github.com/FlowiseAI/Flowise/discussions/6727). The code stays visible, but the repository is read-only, issues and pull requests are locked, and npm packages and Docker images are marked deprecated. On August 31, official core-team presence on GitHub and Discord ended.
+
+Your existing deployment can continue to run, and the Apache 2.0 code remains available to fork. With development stopped, any patch you need, including a security fix, has to come from your own fork or a community fork. You now need to maintain that fork, including its dependencies, or migrate to a platform with active development.
+
+## How we evaluated these alternatives
+
+We evaluated these alternatives for production use, not for the number of features in their visual builders. With [Flowise's core-team presence ended](https://flowiseai.com/sunset), you need to know who maintains the software and what you must operate yourself. As of October 2026, our criteria are license clarity, self-hosting path, deployment surfaces, observability and governance depth, integration breadth, and pricing transparency.
+
+Those criteria map to the work you take on when you replace a production deployment: keeping state durable across restarts, diagnosing failed runs, controlling who can reach and change agents, and adding capacity. The comparison looks at what each alternative documents for each of those jobs. For a broader view, compare the options in our guides to [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms), [AI agent platforms for 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026), and [Apache 2.0 versus fair-code licenses](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+
+## Comparison table
+
+| Rank and tool | License | Self-hosting | Deployment surfaces | Observability | Integrations | Pricing |
+|---|---|---|---|---|---|---|
+| Sunset reference: [Flowise](https://flowiseai.com/sunset) | [Apache 2.0 existing code](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) | [Fork and maintain](https://flowiseai.com/sunset) | Existing deployments | [No further core-team development](https://flowiseai.com/sunset) | Existing nodes | [Code free to fork](https://flowiseai.com/sunset) |
+| 1. [Sim](https://www.sim.ai) | [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE); [Enterprise features separately licensed](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) | [Docker Compose or Kubernetes with Helm](https://docs.sim.ai/platform/self-hosting) | [API, chat interface, MCP server, webhooks, and schedules](https://docs.sim.ai/workflows/deployment) | [Block-level trace logs](https://docs.sim.ai/logs-debugging), [run-failure alerts](https://docs.sim.ai/workflows/triggers/sim), and [Enterprise audit logs](https://docs.sim.ai/platform/enterprise/audit-logs) | [270+](https://www.sim.ai/pricing) | [Free $0, Pro $25/user/month, Max $100/user/month, Enterprise custom](https://www.sim.ai/pricing) |
+| 2. [Langflow](https://docs.langflow.org/) | [MIT](https://github.com/langflow-ai/langflow/blob/main/LICENSE) | [Desktop app, Python package, or Docker](https://docs.langflow.org/get-started-installation) | API and [MCP server](https://docs.langflow.org/mcp-server) | [Per-component traces](https://docs.langflow.org/traces) | [Components usable as agent tools](https://docs.langflow.org/) | [Free to self-host under MIT](https://github.com/langflow-ai/langflow/blob/main/LICENSE) |
+| 3. [Dify](https://dify.ai) | [Modified Apache 2.0](https://github.com/langgenius/dify/blob/main/LICENSE) | [Docker Compose](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose) | [Web app, API, and MCP server](https://docs.dify.ai/en/learn/key-concepts) | [Production run logs](https://docs.dify.ai/en/self-host/use-dify/monitor/logs) | [Agent tools](https://docs.dify.ai/en/cloud/use-dify/nodes/agent) | [Sandbox free; Professional $59/month and Team $159/month per workspace, or $590 and $1,590 per year; Enterprise custom](https://dify.ai/pricing) |
+| 4. [n8n](https://n8n.io) | [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) | [Self-hosted](https://docs.n8n.io/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode) or [n8n Cloud](https://n8n.io/pricing/) | Workflows with triggers and webhooks | Execution history | [500+ integrations](https://n8n.io/) | [Cloud Starter €20/month and Pro €50/month; self-hosted Business €667/month, billed annually](https://n8n.io/pricing/) |
+| 5. [LangGraph](https://github.com/langchain-ai/langgraph) | [MIT library](https://github.com/langchain-ai/langgraph) | Library, or [Agent Server](https://docs.langchain.com/langsmith/deploy-standalone-server) | Your own API, or Agent Server | [Checkpointed graph state](https://docs.langchain.com/oss/python/langgraph/persistence) | Code libraries | Library free; [LangSmith Developer $0 for one seat and Plus $39/seat/month](https://www.langchain.com/pricing) |
+
+### Sim
+
+**Best for:** Teams that want to build and deploy agents in one workspace while keeping run logs, access controls, and a self-hosting option.
+
+**What it is:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. It combines Chat, a visual workflow builder, Tables, Files, and a Knowledge Base. The workflow builder includes Agent, Condition, Router, and Human blocks; the Human block pauses a run until a person responds. Anyone can [self-host the Apache 2.0 core for free with Docker Compose or Kubernetes](https://docs.sim.ai/platform/self-hosting), Sim Cloud is the managed option, and enterprise modules are covered by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). A deployed workflow is available through an API, a hosted chat interface, or an MCP server, and workflows can also start from webhooks and schedules, as described in the [deployment documentation](https://docs.sim.ai/workflows/deployment). Sim can call tools from external MCP servers and [deploy workflows as tools on an MCP server](https://docs.sim.ai/workflows/deployment/mcp).
+
+**Pros:** [Run logs](https://docs.sim.ai/logs-debugging) record each run's status, duration, and cost, and the trace shows timed spans for blocks, model requests, and tool calls with each step's resolved inputs, outputs, and errors, so you can inspect where a run failed. A [Sim Workspace Events trigger](https://docs.sim.ai/workflows/triggers/sim) can start an alert workflow when a run fails. Enterprise adds [audit logs](https://docs.sim.ai/platform/enterprise/audit-logs) that record who changed what, [data drains](https://docs.sim.ai/platform/enterprise/data-drains) that export logs to destinations such as Amazon S3 and Datadog, [permission groups](https://docs.sim.ai/platform/enterprise/access-control) that restrict models, blocks, and tools, and [configurable data-retention policies](https://docs.sim.ai/platform/enterprise/data-retention). Sim's pricing page documents more than 270 integrations. Its [Flowise comparison](https://www.sim.ai/comparisons/flowise) details the production features side by side. For deeper evaluation criteria, see our guide to [AI observability tools for production agents](https://www.sim.ai/library/6-best-ai-observability-tools-for-production-agents-in-2026).
+
+**Cons:** Self-hosting Sim's Apache 2.0 core does not include the modules under the Sim Enterprise License, such as SSO (single sign-on), access control, and audit logs. Production use of those enterprise capabilities requires an active Sim Enterprise subscription, and Sim's pricing table lists supported Self Hosting as an Enterprise feature alongside SSO. Teams should compare those boundaries with their governance and support requirements.
+
+**Pricing:** As of October 2026, [Sim Cloud has four tiers](https://www.sim.ai/pricing). Free costs $0 and includes 1,000 one-time credits (worth $5), with no weekly refresh. Pro costs $25 per user per month and includes 6,000 credits plus 2,000 refreshed weekly. Max costs $100 per user per month and includes 25,000 credits plus 4,000 refreshed weekly. Enterprise has custom pricing and limits. Logs are retained for 30 days on Free, while Pro and Max have no default age expiry.
+
+### Langflow
+
+**Best for:** You want a visual builder and an MIT license that gives you broad freedom to modify and self-host the software.
+
+**What it is:** [Langflow](https://docs.langflow.org/) is an open-source, Python-based framework for building AI applications, with a visual flow editor. You can trigger flows through its API or [expose a project's flows as MCP tools](https://docs.langflow.org/mcp-server). [Install options](https://docs.langflow.org/get-started-installation) include Langflow Desktop, the Python package, and a Docker image.
+
+**Pros:** The [Human Input component](https://docs.langflow.org/human-in-the-loop) pauses a flow at a checkpoint, then resumes along the branch for the chosen action without re-running completed steps. [Traces](https://docs.langflow.org/traces) record a span for each component, including inputs, outputs, latency, and errors. The project's [MIT license](https://github.com/langflow-ai/langflow/blob/main/LICENSE) places no commercial-use restrictions on the code.
+
+**Cons:** You remain responsible for securing and maintaining a self-hosted builder. Pin the version you deploy, plan updates, and keep the builder off the public internet.
+
+**Pricing:** The MIT-licensed software has no license fee for self-hosting.
+
+### Dify
+
+**Best for:** Choose Dify when you need to build and deploy an AI app that draws on your own documents through a knowledge base.
+
+**What it is:** [Dify centers on Workflow and Chatflow apps](https://docs.dify.ai/en/learn/key-concepts) built in a drag-and-drop studio. Its [Agent node](https://docs.dify.ai/en/cloud/use-dify/nodes/agent) supports Function Calling and ReAct strategies, and you can [deploy a finished app as a web app, API, or MCP server](https://docs.dify.ai/en/cloud/use-dify/publish/README).
+
+**Pros:** Dify gives you several ways to ship an LLM app without building its web interface or API yourself. A [Human Input node](https://docs.dify.ai/en/api-reference/guides/human-input-flow) pauses a workflow for a person's decision, and [run logs](https://docs.dify.ai/en/self-host/use-dify/monitor/logs) record production conversations and workflow runs.
+
+**Cons:** Dify's [license](https://github.com/langgenius/dify/blob/main/LICENSE) is a modified Apache 2.0. Operating a multi-tenant service requires a commercial license, and you may not remove or modify the logo or copyright information in Dify's frontend. Its [Docker Compose installation](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose) runs multiple application and data services, so self-hosting requires more operational work than a single container.
+
+**Pricing:** As of October 2026, [Dify's hosted plans](https://dify.ai/pricing) start with a free Sandbox plan. Professional costs $59 per workspace per month or $590 per year, and Team costs $159 per workspace per month or $1,590 per year. Enterprise pricing is custom. Confirm licensing terms before offering a multi-tenant service.
+
+### n8n
+
+**Best for:** You already use n8n for business automation and want to add AI agents to those workflows.
+
+**What it is:** [n8n connects applications through visual workflows](https://n8n.io/). Its AI Agent node lets an agent call tools within a broader automation, rather than making agent development the platform's sole focus.
+
+**Pros:** [n8n says it offers over 500 integrations](https://n8n.io/), so you can connect agents to tools your workflows already use. For higher execution volumes, [queue mode](https://docs.n8n.io/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode) uses Redis as a message broker to distribute runs across worker instances. You can also [require a person to approve specific AI Agent tool calls](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools) before they run.
+
+**Cons:** n8n's [license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) is the Sustainable Use License, with `.ee` files covered by a separate n8n Enterprise License. The Sustainable Use License limits use and modification to your own internal business purposes or non-commercial or personal use. Its general automation focus may be a poor fit if you want a dedicated agent-building product.
+
+**Pricing:** As of October 2026, [n8n Cloud](https://n8n.io/pricing/) Starter costs €20 per month and Pro costs €50 per month, both billed annually. Self-hosted Business costs €667 per month billed annually, and the self-hosted Community edition is free. Enterprise pricing is custom.
+
+### LangGraph
+
+**Best for:** Engineering teams that want to define durable agent behavior in code rather than in a visual builder.
+
+**What it is:** LangGraph lets you build agents as graphs of steps and decisions. Its [MIT-licensed library](https://github.com/langchain-ai/langgraph) includes [checkpointers](https://docs.langchain.com/oss/python/langgraph/persistence) that persist a thread's graph state, so a paused thread can resume.
+
+**Pros:** You can [call `interrupt()` inside a graph node](https://docs.langchain.com/oss/python/langgraph/interrupts) to pause execution for human input. Re-invoking the graph with a `Command` resumes the thread from its saved state.
+
+**Cons:** The library gives you the graph runtime, not a managed deployment service, so serving it means building your own API or running Agent Server. A [standalone Agent Server](https://docs.langchain.com/langsmith/deploy-standalone-server) requires a LangSmith license key, and self-hosted LangSmith is an Enterprise option.
+
+**Pricing:** The MIT library has no license fee. As of October 2026, [LangSmith](https://www.langchain.com/pricing) Developer costs $0 for one seat, and Plus costs $39 per seat per month. Enterprise pricing is custom.
+
+## Migrating off Flowise without losing production state
+
+Audit production use before moving any flows. Check request logs, webhook calls, and scheduled runs to identify which workflows receive traffic. Record their owners, external connections, and expected outputs so you can test the workflows that matter before cutover.
+
+Back up Flowise's database and any stored chat or execution history you need to retain. Inventory credentials separately, then confirm you can re-enter or transfer each secret securely. In the replacement deployment, verify that workflows and state survive a restart, that the database points to durable storage, and that authentication blocks unauthorized access. Rotate any credentials that may have been exposed.
+
+Run representative production requests against the replacement before switching traffic, including requests that call external tools. Compare outputs and check that logs capture failures. Keep the Flowise backup and a rollback plan until those checks pass. [Flowise's core-team presence ended on August 31, 2026](https://flowiseai.com/sunset), so you should not depend on a core-team fix if the old deployment fails during migration.
+
+## The production-ready path forward
+
+Flowise's end of life means you need a plan to maintain or replace production flows. A familiar visual builder may make migration easier, but your choice should also account for who can change an agent, how you investigate failed runs, and where you can host the software. Sim ranks first in this comparison because it combines a visual builder, multiple deployment surfaces, detailed traces, an Apache 2.0 core, and separately licensed governance options in one workspace. Compare those production requirements in the [Sim and Flowise head-to-head](https://www.sim.ai/comparisons/flowise) before choosing a replacement.

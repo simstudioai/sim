@@ -1,7 +1,18 @@
 import { db } from '@sim/db'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   consume: vi.fn(),
   store: vi.fn(),
   exchange: vi.fn(),
@@ -10,59 +21,40 @@ const m = vi.hoisted(() => ({
   rows: vi.fn(),
   values: vi.fn(),
   set: vi.fn(),
-  audit: vi.fn(),
-  baseUrl: vi.fn(),
   shared: vi.fn(),
   revoke: vi.fn(),
   validateGrant: vi.fn(),
-  ensureGroup: vi.fn(),
-  memberApps: vi.fn(),
+  memberApp: vi.fn(),
   adoptMemberApp: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
 }))
-vi.mock('@/lib/slack-search/shared-app', () => ({ readSharedSlackSearchApp: m.shared }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAudit: m.audit,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: m.baseUrl,
-  SITE_URL: 'https://sim.test',
-}))
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: async (value: string) => ({ encrypted: `encrypted:${value}` }),
-  decryptSecret: async () => ({ decrypted: 'client-secret' }),
-}))
+vi.mock('@/lib/slack-search/shared-app', () => ({ readSharedSlackSearchApp: hoisted.shared }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/slack-search/oauth-state', () => ({
-  consumeSlackSearchOAuthAttempt: m.consume,
-  storeSlackSearchOAuthAttempt: m.store,
+  consumeSlackSearchOAuthAttempt: hoisted.consume,
+  storeSlackSearchOAuthAttempt: hoisted.store,
 }))
 vi.mock('@/lib/internal/slack/oauth', () => ({
-  exchangeSlackBotAuthorization: m.exchange,
-  revokeSlackBotAuthorization: m.revoke,
-  validateSlackBotAuthorization: m.validateGrant,
+  exchangeSlackBotAuthorization: hoisted.exchange,
+  revokeSlackBotAuthorization: hoisted.revoke,
+  validateSlackBotAuthorization: hoisted.validateGrant,
 }))
-vi.mock('@/lib/credential-groups/service', () => ({ ensureWorkspaceAccountsGroup: m.ensureGroup }))
-vi.mock('@/lib/credential-groups/organization-slack-app', () => ({
-  loadOrganizationSlackMemberApps: m.memberApps,
-  adoptOrganizationSlackMemberApp: m.adoptMemberApp,
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/credential-groups/organization-slack-app', async (importOriginal) => ({
+  requireSearchBotMatchesMemberApp: (
+    await importOriginal<typeof import('@/lib/credential-groups/organization-slack-app')>()
+  ).requireSearchBotMatchesMemberApp,
+  resolveOrganizationSlackMemberApp: hoisted.memberApp,
+  adoptOrganizationSlackMemberApp: hoisted.adoptMemberApp,
+  lockOrganizationSlackApp: vi.fn(),
 }))
 vi.mock('@/lib/internal/slack/search-client', () => ({
-  verifySlackSearchBot: m.verify,
+  verifySlackSearchBot: hoisted.verify,
   SlackSearchConfigurationError: class extends Error {},
   SlackSearchProviderError: class extends Error {},
 }))
@@ -74,7 +66,17 @@ import {
   startSlackSearchSetup,
 } from '@/lib/knowledge/application/slack-search/setup'
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as const
+const m = {
+  ...hoisted,
+  ensureGroup: credentialGroupsServiceMockFns.mockEnsureWorkspaceAccountsGroup,
+}
+
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${value}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async () => ({ decrypted: 'client-secret' }))
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const attempt = {
   userId: 'admin',
   sessionId: 'session',
@@ -101,8 +103,8 @@ beforeEach(() => {
   m.revoke.mockResolvedValue(undefined)
   m.validateGrant.mockReset()
   m.ensureGroup.mockResolvedValue({ id: 'accounts' })
-  m.memberApps.mockReset().mockResolvedValue([])
-  m.baseUrl.mockReturnValue('https://sim.test')
+  m.memberApp.mockReset().mockResolvedValue({ app: null, scopes: [] })
+  urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
   m.membership.mockResolvedValue([{ role: 'admin' }])
   m.rows.mockReset().mockResolvedValue([])
   m.consume.mockResolvedValue(attempt)
@@ -175,7 +177,7 @@ describe('Search OAuth installation', () => {
       appId: 'A1',
       teamId: 'T1',
     })
-    expect(m.audit).toHaveBeenCalledOnce()
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledOnce()
   })
   it('rechecks admin access after the provider exchange', async () => {
     m.verify.mockImplementationOnce(async () => {
@@ -312,9 +314,7 @@ describe('shared app completion', () => {
     }
 
     beforeEach(() => {
-      m.memberApps.mockResolvedValue([
-        { configuration: { slack: { ...memberApp, scopes: ['im:history'] } } },
-      ])
+      m.memberApp.mockResolvedValue({ app: memberApp, scopes: ['im:history'] })
       m.consume.mockResolvedValue({
         ...attempt,
         sharedApp: { id: sharedApp.id, revision: sharedApp.revision },
@@ -349,7 +349,7 @@ describe('shared app completion', () => {
       await expect(vi.mocked(db.transaction).mock.results[0].value).rejects.toThrow(
         'installation write failed'
       )
-      expect(m.audit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
       expect(m.revoke).toHaveBeenCalledWith('bot-token')
     })
 
@@ -373,7 +373,7 @@ describe('shared app completion', () => {
     })
     await expect(complete()).rejects.toThrow('write failed')
     expect(m.revoke).toHaveBeenCalledWith('bot-token')
-    expect(m.audit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('never revokes a bot with an existing installation when the initiating admin loses access', async () => {
@@ -429,17 +429,7 @@ describe('connect an app already installed through a Slack manifest', () => {
   })
 
   it('rejects a token from a different app than member indexing', async () => {
-    m.memberApps.mockResolvedValue([
-      {
-        configuration: {
-          slack: {
-            appId: 'AOTHER',
-            teamId: 'T1',
-            scopes: [],
-          },
-        },
-      },
-    ])
+    m.memberApp.mockResolvedValue({ app: { appId: 'AOTHER', teamId: 'T1' }, scopes: [] })
     await expect(connect()).rejects.toThrow('same Slack app and workspace')
     expect(db.transaction).not.toHaveBeenCalled()
   })

@@ -16,15 +16,18 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { isTerminalStreamStatus } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { readFrameActivity } from '@/lib/mothership/tools/activity'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   getToolDisplayTitle,
   normalizeToolActivityDescription,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]
@@ -151,6 +154,8 @@ export function buildLiveAssistantMessage(params: {
   // subagent (observed: Sim's reads rendered under Superagent) with no later
   // event able to correct it.
   const toolOwnershipSettled = new Set<string>()
+  // Gateway calls rebound to their resolved operation, whose arguments are the operation's own.
+  const resolvedOperations = new Set<string>()
 
   const ensureToolBlock = (input: {
     toolCallId: string
@@ -161,6 +166,7 @@ export function buildLiveAssistantMessage(params: {
     parentSpanId?: string
     displayTitle?: string
     activityDescription?: string
+    activity?: ToolActivity
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     state?: string
@@ -186,6 +192,7 @@ export function buildLiveAssistantMessage(params: {
           (typeof existingToolCall?.state === 'string' ? existingToolCall.state : 'executing'),
         ...(ownershipWritable && input.calledBy ? { calledBy: input.calledBy } : {}),
         ...(input.params ? { params: input.params } : {}),
+        ...(input.activity ? { activity: input.activity } : {}),
         ...(input.result ? { result: input.result } : {}),
         ...(activityDescription ? { activityDescription } : {}),
         ...(displayTitle
@@ -225,6 +232,7 @@ export function buildLiveAssistantMessage(params: {
         state: input.state ?? 'executing',
         ...(input.calledBy ? { calledBy: input.calledBy } : {}),
         ...(input.params ? { params: input.params } : {}),
+        ...(input.activity ? { activity: input.activity } : {}),
         ...(input.result ? { result: input.result } : {}),
         ...(input.activityDescription ? { activityDescription: input.activityDescription } : {}),
         ...(input.displayTitle
@@ -347,20 +355,30 @@ export function buildLiveAssistantMessage(params: {
         }
 
         const activityDescription = normalizeToolActivityDescription(payload.activityDescription)
+        const args = isRecordLike(payload.arguments) ? payload.arguments : undefined
+        const existingIndex = toolIndexById.get(toolCallId)
+        const existingName =
+          existingIndex === undefined
+            ? undefined
+            : asPayloadRecord(blocks[existingIndex].toolCall)?.name
+        const call = {
+          name: typeof existingName === 'string' ? existingName : undefined,
+          resolvedOperation: resolvedOperations.has(toolCallId),
+        }
+        const activity = readFrameActivity({ toolName: payload.toolName, args }, call)
+        if (call.name === CallIntegrationTool.id && payload.toolName !== call.name) {
+          resolvedOperations.add(toolCallId)
+        }
         ensureToolBlock({
           toolCallId,
           toolName: payload.toolName,
           activityDescription,
+          activity,
           calledBy: scopedSubagent,
           ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
           ...spanIdentity,
-          displayTitle:
-            activityDescription ??
-            getToolDisplayTitle(
-              payload.toolName,
-              isRecordLike(payload.arguments) ? payload.arguments : undefined
-            ),
-          params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
+          displayTitle: activityDescription ?? getToolDisplayTitle(payload.toolName, args),
+          params: args,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
           isCallFrame: payload.phase === MothershipStreamV1ToolPhase.call,
         })

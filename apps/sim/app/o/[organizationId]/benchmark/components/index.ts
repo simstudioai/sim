@@ -1,6 +1,2 @@
 export { BenchmarkDetail } from '@/app/o/[organizationId]/benchmark/components/benchmark-detail'
-export { BenchmarkJson } from '@/app/o/[organizationId]/benchmark/components/benchmark-json'
-export { BenchmarkReference } from '@/app/o/[organizationId]/benchmark/components/benchmark-reference'
-export { BenchmarkResults } from '@/app/o/[organizationId]/benchmark/components/benchmark-results'
-export { BenchmarkStep } from '@/app/o/[organizationId]/benchmark/components/benchmark-step'
 export { CreateBenchmark } from '@/app/o/[organizationId]/benchmark/components/create-benchmark'

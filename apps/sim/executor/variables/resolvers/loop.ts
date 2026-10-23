@@ -3,15 +3,14 @@ import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import { isSubflowNestedInside, subflowContainsBlock } from '@/executor/utils/subflow'
 import {
   extractInnermostOuterBranchIndex,
   extractOuterBranchIndex,
   findEffectiveContainerId,
-  isSubflowNestedInside,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
-  subflowContainsBlock,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import {
   type AsyncPathNavigator,
   navigatePath,

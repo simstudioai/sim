@@ -60,7 +60,6 @@ describe('GitHub sync progress with shared low-quota pacing', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   const sync = async () => {

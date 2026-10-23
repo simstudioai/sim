@@ -219,7 +219,7 @@ export function renderSlide(
     options?.onNodeError?.('__background__', e)
   }
 
-  // --- Render master template shapes (behind layout and slide) ---
+  // Render master template shapes (behind layout and slide)
   // Respect showMasterSp flags:
   //  - layout.showMasterSp === false  → skip master shapes
   //  - slide.showMasterSp === false   → skip both master AND layout shapes
@@ -239,7 +239,7 @@ export function renderSlide(
     }
   }
 
-  // --- Render layout template shapes ---
+  // Render layout template shapes
   if (slide.showMasterSp) {
     const layoutCtx: RenderContext = {
       ...ctx,
@@ -256,7 +256,7 @@ export function renderSlide(
     }
   }
 
-  // --- Render slide shapes (on top) ---
+  // Render slide shapes (on top)
   for (const node of slide.nodes) {
     try {
       const el = renderNode(node, ctx)

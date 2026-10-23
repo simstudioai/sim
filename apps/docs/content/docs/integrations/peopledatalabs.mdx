@@ -1,14 +1,13 @@
 ---
 title: People Data Labs
 description: Enrich and search people and companies
+integration:
+  type: "peopledatalabs"
+  color: "#4831C3"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="peopledatalabs"
-  color="#4831C3"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [People Data Labs](https://www.peopledatalabs.com/) provides person and company data. The Sim block exposes the core REST endpoints so agents can enrich a single contact, look up a company, or run dataset-wide search queries.
@@ -23,18 +22,17 @@ Use this block to:
 Authentication uses an API key passed as the `X-Api-Key` header. Get a key from the [PDL dashboard](https://dashboard.peopledatalabs.com/).
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Enrich a single person or company with People Data Labs, or search the global person and company datasets with SQL or Elasticsearch DSL. Useful for sales enrichment, contact lookup, and CRM hygiene.
-
-
 
 ## Actions
 
 ### PDL Person Enrich
 
 Enrich a single person profile using People Data Labs. Match by email, phone, LinkedIn URL, or name + company/location. Returns work history, contact details, location, and skills.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +97,13 @@ Enrich a single person profile using People Data Labs. Match by email, phone, Li
 |   ↳ `experience` | array | Work history entries |
 |   ↳ `education` | array | Education history |
 
+</ReferenceDetails>
+
 ### PDL Person Identify
 
 Return up to 20 candidate person matches with confidence scores. Useful when you want to see all plausible matches rather than the single best one. Reference: https://docs.peopledatalabs.com/docs/identify-api-quickstart
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +138,13 @@ Return up to 20 candidate person matches with confidence scores. Useful when you
 | --------- | ---- | ----------- |
 | `matches` | array | Up to 20 candidate matches, ordered by score |
 
+</ReferenceDetails>
+
 ### PDL Person Search
 
 Search the People Data Labs person dataset using SQL or Elasticsearch DSL. Returns up to 100 matching records per call.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +202,13 @@ Search the People Data Labs person dataset using SQL or Elasticsearch DSL. Retur
 |   ↳ `experience` | array | Work history entries |
 |   ↳ `education` | array | Education history |
 
+</ReferenceDetails>
+
 ### PDL Bulk Person Enrich
 
 Enrich up to 100 person records in a single call. Provide a JSON array of request objects, each with a `params` object (and optional `metadata` echoed back). Reference: https://docs.peopledatalabs.com/docs/bulk-person-enrichment-api
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,9 +224,13 @@ Enrich up to 100 person records in a single call. Provide a JSON array of reques
 | --------- | ---- | ----------- |
 | `results` | array | Per-record results in the same order as the input requests |
 
+</ReferenceDetails>
+
 ### PDL Company Enrich
 
 Enrich a single company using People Data Labs. Match by name, website, LinkedIn URL, ticker, or PDL ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +280,13 @@ Enrich a single company using People Data Labs. Match by name, website, LinkedIn
 |   ↳ `tags` | array | Company tags |
 |   ↳ `tickers` | array | All stock tickers |
 
+</ReferenceDetails>
+
 ### PDL Company Search
 
 Search the People Data Labs company dataset using SQL or Elasticsearch DSL. Returns up to 100 matching companies per call.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,9 +329,13 @@ Search the People Data Labs company dataset using SQL or Elasticsearch DSL. Retu
 |   ↳ `tags` | array | Company tags |
 |   ↳ `tickers` | array | All stock tickers |
 
+</ReferenceDetails>
+
 ### PDL Bulk Company Enrich
 
 Enrich up to 100 companies in a single call. Provide a JSON array of request objects, each with a `params` object. Reference: https://docs.peopledatalabs.com/docs/bulk-company-enrichment-api
+
+<ReferenceDetails>
 
 #### Input
 
@@ -329,9 +351,13 @@ Enrich up to 100 companies in a single call. Provide a JSON array of request obj
 | --------- | ---- | ----------- |
 | `results` | array | Per-record results in the same order as the input requests |
 
+</ReferenceDetails>
+
 ### PDL Company Cleaner
 
 Normalize a company string into a canonical company record. Provide at least one of name, website, or profile (LinkedIn URL).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -371,9 +397,13 @@ Normalize a company string into a canonical company record. Provide at least one
 |   ↳ `tags` | array | Company tags |
 |   ↳ `tickers` | array | All stock tickers |
 
+</ReferenceDetails>
+
 ### PDL Location Cleaner
 
 Normalize a freeform location string into a structured locality/region/country record with coordinates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -397,9 +427,13 @@ Normalize a freeform location string into a structured locality/region/country r
 |   ↳ `type` | string | Location type |
 |   ↳ `geo` | string | Latitude,longitude string |
 
+</ReferenceDetails>
+
 ### PDL School Cleaner
 
 Normalize a school string into a canonical school record. Provide at least one of name, website, or profile (LinkedIn URL).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -431,9 +465,13 @@ Normalize a school string into a canonical school record. Provide at least one o
 |   ↳ `location_country` | string | Country |
 |   ↳ `location_continent` | string | Continent |
 
+</ReferenceDetails>
+
 ### PDL Autocomplete
 
 Get autocomplete suggestions for a PDL field (title, skill, company, industry, location, school, major, role, sub_role).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -450,5 +488,7 @@ Get autocomplete suggestions for a PDL field (title, skill, company, industry, l
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `suggestions` | array | Autocomplete suggestions ordered by frequency |
+
+</ReferenceDetails>
 
 

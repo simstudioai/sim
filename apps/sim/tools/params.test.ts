@@ -1,4 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import Ajv from 'ajv'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import * as toolMetadata from '@/tools/metadata'
@@ -10,7 +11,6 @@ import {
   isPasswordParameter,
   type ToolSchema,
   ToolSchemaEnrichmentError,
-  validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
 
@@ -59,55 +59,56 @@ const mockToolConfig = {
  * module, so patching the shared namespace is the only wiring that always
  * applies.
  */
-const getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((
-  toolId: string
-) => {
-  if (toolId === 'test_tool') {
-    return mockToolConfig
-  }
-  if (toolId === 'workflow_executor') {
-    return {
-      id: 'workflow_executor',
-      name: 'Workflow Executor',
-      description: '',
-      version: '1.0.0',
-      params: {},
+let getToolSpy: MockInstance<typeof toolMetadata.getToolMetadata>
+beforeEach(() => {
+  getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((toolId: string) => {
+    if (toolId === 'test_tool') {
+      return mockToolConfig
     }
-  }
-  if (toolId === 'bool_tool') {
-    return {
-      ...mockToolConfig,
-      id: 'bool_tool',
-      params: {
-        includeAttachments: {
-          type: 'boolean',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
-          description: 'Download attachment file contents',
-        },
-        payload: {
-          type: 'json',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
-        },
-      },
+    if (toolId === 'workflow_executor') {
+      return {
+        id: 'workflow_executor',
+        name: 'Workflow Executor',
+        description: '',
+        version: '1.0.0',
+        params: {},
+      }
     }
-  }
-  if (toolId === 'checkbox_tool') {
-    return {
-      ...mockToolConfig,
-      id: 'checkbox_tool',
-      params: {
-        completed: {
-          type: 'boolean',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
+    if (toolId === 'bool_tool') {
+      return {
+        ...mockToolConfig,
+        id: 'bool_tool',
+        params: {
+          includeAttachments: {
+            type: 'boolean',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Download attachment file contents',
+          },
+          payload: {
+            type: 'json',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
         },
-      },
+      }
     }
-  }
-  return null
-}) as unknown as typeof toolMetadata.getToolMetadata)
+    if (toolId === 'checkbox_tool') {
+      return {
+        ...mockToolConfig,
+        id: 'checkbox_tool',
+        params: {
+          completed: {
+            type: 'boolean',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
+        },
+      }
+    }
+    return null
+  }) as unknown as typeof toolMetadata.getToolMetadata)
+})
 
 afterAll(() => {
   getToolSpy.mockRestore()
@@ -186,9 +187,40 @@ describe('Tool Parameters Utils', () => {
       const { schema } = await createLLMToolSchema(legacyJsonTool, {})
 
       expect(schema.properties.payload).toEqual({
-        type: 'object',
         description: 'Legacy JSON array payload',
       })
+    })
+
+    it('lets a json or any param take an array as well as an object', async () => {
+      const untypedTool = {
+        ...mockToolConfig,
+        id: 'untyped_tool',
+        params: {
+          orgIds: {
+            type: 'json',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Organization IDs, e.g. [129410, 1034157]',
+          },
+          value: {
+            type: 'any',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
+        },
+      }
+
+      const { schema: llmSchema } = await createLLMToolSchema(untypedTool, {})
+      const userSchema = createUserToolSchema(untypedTool, { surface: 'copilot' })
+
+      for (const schema of [llmSchema, userSchema]) {
+        const validate = new Ajv({ strict: false }).compile(schema)
+        expect(validate({ orgIds: [129410, 1034157], value: ['a'] })).toBe(true)
+        expect(validate({ orgIds: { id: 129410 }, value: { a: 1 } })).toBe(true)
+        expect(schema.properties.orgIds.description).toBe(
+          'Organization IDs, e.g. [129410, 1034157]'
+        )
+      }
     })
 
     it.concurrent('should create schema excluding user-provided parameters', async () => {
@@ -558,33 +590,6 @@ describe('Tool Parameters Utils', () => {
       expect(merged.apiKey).toBe('user-key')
       expect(merged.channel).toBe('#random') // LLM value used
       expect(merged.message).toBe('Hello world') // LLM value used
-    })
-  })
-
-  describe('validateToolParameters', () => {
-    it.concurrent('should validate successfully with all required parameters', () => {
-      const finalParams = {
-        apiKey: 'test-key',
-        message: 'Hello world',
-        channel: '#general',
-      }
-
-      const result = validateToolParameters(mockToolConfig, finalParams)
-
-      expect(result.valid).toBe(true)
-      expect(result.missingParams).toHaveLength(0)
-    })
-
-    it.concurrent('should fail validation with missing required parameters', () => {
-      const finalParams = {
-        channel: '#general',
-      }
-
-      const result = validateToolParameters(mockToolConfig, finalParams)
-
-      expect(result.valid).toBe(false)
-      expect(result.missingParams).toContain('apiKey')
-      expect(result.missingParams).toContain('message')
     })
   })
 

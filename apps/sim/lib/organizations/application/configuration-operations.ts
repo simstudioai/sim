@@ -11,6 +11,7 @@ export const organizationConfigurationOperations = {
   readWhitelabel: defineOrganizationOperation({
     ...configurationPolicy,
     id: 'organizations.whitelabel.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'none',
   }),
@@ -18,6 +19,7 @@ export const organizationConfigurationOperations = {
   updateWhitelabel: defineOrganizationOperation({
     ...configurationPolicy,
     id: 'organizations.whitelabel.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
   }),
@@ -25,6 +27,7 @@ export const organizationConfigurationOperations = {
   readSessionPolicy: defineOrganizationOperation({
     ...configurationPolicy,
     id: 'organizations.session_policy.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'none',
   }),
@@ -32,6 +35,7 @@ export const organizationConfigurationOperations = {
   updateSessionPolicy: defineOrganizationOperation({
     ...configurationPolicy,
     id: 'organizations.session_policy.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
   }),
@@ -39,6 +43,7 @@ export const organizationConfigurationOperations = {
   readDataRetention: defineOrganizationOperation({
     ...configurationPolicy,
     id: 'organizations.data_retention.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'none',
   }),
@@ -46,6 +51,7 @@ export const organizationConfigurationOperations = {
   updateDataRetention: defineOrganizationOperation({
     ...configurationPolicy,
     id: 'organizations.data_retention.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
   }),

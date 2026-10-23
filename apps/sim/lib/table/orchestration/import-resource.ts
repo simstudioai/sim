@@ -4,6 +4,7 @@ import { tableJobs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import {
   type V2CreateTableImportBody,
@@ -16,9 +17,8 @@ import {
   v2TableImportSourceSchema,
   v2TableImportTargetSchema,
 } from '@/lib/api/contracts/v2/tables'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
@@ -42,9 +42,11 @@ import {
   type CreatedUploadSession,
   createUploadSession,
   getOwnedUploadSession,
+  importStatusForUploadSession,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { getUserSettings } from '@/lib/users/queries'
+import type { tableImportTask } from '@/background/table-import'
 
 const logger = createLogger('TableImportResource')
 
@@ -410,19 +412,10 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
       timezone: params.options.timezone ?? (await getUserSettings(params.userId)).timezone ?? 'UTC',
     }
 
-    if (isTriggerDevEnabled) {
-      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/table-import'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof tableImportTask>('table-import', payload, {
-        tags: [`tableId:${tableId}`, `jobId:${params.id}`],
-        region: await resolveTriggerRegion(),
-      })
-    } else {
-      runDetached('table-import', () => runTableImport(payload))
-    }
+    await dispatchBackgroundTask<typeof tableImportTask>('table-import', payload, {
+      runInProcess: runTableImport,
+      trigger: { tags: [`tableId:${tableId}`, `jobId:${params.id}`] },
+    })
     return getTableImportResource({
       importId: params.id,
       assertedWorkspaceId: params.workspaceId,
@@ -476,7 +469,7 @@ function resourceFromUpload(
     target: body.target,
     options: importOptions(body),
     tableId: body.target.type === 'existing' ? body.target.tableId : null,
-    status: uploadStatus(upload),
+    status: importStatusForUploadSession(upload.status),
     rowsProcessed: 0,
     rowsRejected: 0,
     cellsRejected: 0,
@@ -527,7 +520,7 @@ function parseRejectionSummary(payload: unknown): TableImportRejectionSummary {
     cellsRejected: 0,
     rejectedSamples: [],
   }
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return empty
+  if (!isRecordLike(payload)) return empty
   const candidate = payload as Partial<TableImportRejectionSummary>
   const samples = Array.isArray(candidate.rejectedSamples) ? candidate.rejectedSamples : []
   return {
@@ -548,7 +541,7 @@ function parseRejectionSummary(payload: unknown): TableImportRejectionSummary {
  * handed unchanged to a `.strict()` schema and turn a read of the import into a 500.
  */
 function parseRejectedSample(value: unknown): CsvSkippedRecord | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  if (!isRecordLike(value)) return null
   const candidate = value as Partial<CsvSkippedRecord>
   if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') return null
   const line =
@@ -570,7 +563,7 @@ function parseRejectionCount(value: unknown): number {
  * an ordinary "not this resource" answer rather than an error condition.
  */
 function parseImportJobPayload(payload: unknown): ParsedTableImportPayload | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  if (!isRecordLike(payload)) return null
   const candidate = payload as Partial<TableImportJobPayload>
   if (
     candidate.kind !== 'table_import' ||
@@ -647,23 +640,6 @@ async function requireWorkspaceSource(
     throw new OrchestrationError('validation', CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
   }
   return resolved
-}
-
-function uploadStatus(upload: UploadSessionRecord): TableImportStatus {
-  switch (upload.status) {
-    case 'uploading':
-    case 'completing':
-    case 'finalizing':
-    case 'completed':
-      return 'uploading'
-    case 'aborting':
-    case 'aborted':
-      return 'canceled'
-    case 'failed':
-      return 'failed'
-    case 'expired':
-      return 'expired'
-  }
 }
 
 async function markImportFailed(params: {

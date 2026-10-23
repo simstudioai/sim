@@ -53,7 +53,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
   rmSync(dir, { recursive: true, force: true })
   process.env.SIM_CONFIG_DIR = undefined
   process.env.SIM_PROFILE = ''

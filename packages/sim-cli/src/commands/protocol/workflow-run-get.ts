@@ -1,8 +1,13 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
-import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { V2_OPERATIONS } from '../../generated/v2-api'
-import { resolvePath, SimApiError, type SimClient } from '../../http/client'
+import { SimApiError } from '../../http/client'
+import {
+  type Connection,
+  callsOperations,
+  type OperationClient,
+} from '../../runtime/called-operations'
 import { retypeApiError } from '../../runtime/naming'
 import { buildRequest, readListValues } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
@@ -38,10 +43,6 @@ interface WorkflowBlock {
   name: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /**
  * The workflow's blocks, read from its draft graph.
  *
@@ -50,16 +51,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * since the run still resolves — to its id, which is what the recording keyed
  * on — and a block deleted since does not, which the refusal lists.
  */
-async function loadWorkflowBlocks(client: SimClient, workflowId: string): Promise<WorkflowBlock[]> {
-  const operation = V2_OPERATIONS.getWorkflowState
-  const raw = await client.request<unknown>(resolvePath(operation.path, { workflowId }), {
-    method: operation.method,
-  })
-  const state = isRecord(raw) && isRecord(raw.data) ? raw.data : raw
-  const blocks = isRecord(state) && isRecord(state.blocks) ? Object.entries(state.blocks) : []
+async function loadWorkflowBlocks(
+  client: OperationClient<'getWorkflowState'>,
+  workflowId: string
+): Promise<WorkflowBlock[]> {
+  const raw = await client.request<unknown>('getWorkflowState', { params: { workflowId } })
+  const state = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
+  const blocks =
+    isRecordLike(state) && isRecordLike(state.blocks) ? Object.entries(state.blocks) : []
   return blocks.map(([key, block]) => ({
-    id: isRecord(block) && typeof block.id === 'string' ? block.id : key,
-    name: isRecord(block) && typeof block.name === 'string' ? block.name : '',
+    id: isRecordLike(block) && typeof block.id === 'string' ? block.id : key,
+    name: isRecordLike(block) && typeof block.name === 'string' ? block.name : '',
   }))
 }
 
@@ -147,7 +149,7 @@ function resolveSelection(
  * matches it.
  */
 function keyByTyped(payload: unknown, typedBy: ReadonlyMap<string, string>): unknown {
-  if (!isRecord(payload) || !isRecord(payload.blockOutputs)) return payload
+  if (!isRecordLike(payload) || !isRecordLike(payload.blockOutputs)) return payload
   const blockOutputs: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(payload.blockOutputs)) {
     blockOutputs[typedBy.get(key) ?? key] = value
@@ -164,9 +166,13 @@ function keyByTyped(payload: unknown, typedBy: ReadonlyMap<string, string>): unk
  * builder, the same result renderer, and the same field-spelling retype on a
  * server refusal.
  */
-async function readRunByName(runId: string, typed: string[], command: Command): Promise<void> {
+async function readRunByName(
+  runId: string,
+  typed: string[],
+  command: Command,
+  { client, profile }: Connection<'getWorkflowRun' | 'getWorkflowState'>
+): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
-  const { client, profile } = clientFrom(command)
   const operation = V2_OPERATIONS.getWorkflowRun as OperationSpec
   const spec = CLI_CONTRACT.getWorkflowRun ?? {}
 
@@ -189,8 +195,8 @@ async function readRunByName(runId: string, typed: string[], command: Command): 
 
   let result: { data?: unknown } | undefined
   try {
-    result = await client.request<{ data?: unknown }>(request.path, {
-      method: operation.method,
+    result = await client.request<{ data?: unknown }>('getWorkflowRun', {
+      params: request.params,
       headers: request.headers,
       query: request.query,
       body: request.body,
@@ -230,6 +236,7 @@ export function attachWorkflowRunGet(runs: Command): void {
     )
   }
   const previous = held as (args: unknown[]) => unknown
+  const connectGet = callsOperations(get, ['getWorkflowRun', 'getWorkflowState'])
 
   get.action(async (runId: string, _options: unknown, command: Command): Promise<void> => {
     const raw: unknown = (command.optsWithGlobals() as Record<string, unknown>).selectOutput
@@ -245,6 +252,6 @@ export function attachWorkflowRunGet(runs: Command): void {
       await previous(command.processedArgs)
       return
     }
-    await readRunByName(runId, typed, command)
+    await readRunByName(runId, typed, command, connectGet())
   })
 }

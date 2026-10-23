@@ -5,23 +5,26 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
+import { presentWorkspace } from '@/lib/workspaces/response'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
 import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   getEffectiveWorkspacePermission,
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params
     const session = await getSession()
 
@@ -50,7 +53,7 @@ export const GET = withRouteHandler(
 
     return NextResponse.json({
       workspace: {
-        ...workspaceDetails,
+        ...presentWorkspace(workspaceDetails),
         permissions: userPermission,
       },
     })
@@ -215,7 +218,7 @@ export const PATCH = withRouteHandler(
 
       return NextResponse.json({
         workspace: {
-          ...updatedWorkspace,
+          ...(updatedWorkspace ? presentWorkspace(updatedWorkspace) : {}),
           permissions: userPermission,
         },
       })
@@ -282,7 +285,24 @@ export const DELETE = withRouteHandler(
 
       const archiveResult = await archiveWorkspace(workspaceId, {
         requestId: `workspace-${workspaceId}`,
+        deliverStops: deliverRunStops,
       })
+
+      /** Recorded first: a retry that finishes an earlier partial deletion still archives it. */
+      if (archiveResult.archivedProject) {
+        recordAudit({
+          workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.PROJECT_ARCHIVED,
+          resourceType: AuditResourceType.PROJECT,
+          resourceId: archiveResult.archivedProject.id,
+          resourceName: archiveResult.archivedProject.name,
+          description: `Archived Project "${archiveResult.archivedProject.name}" with its last active environment`,
+          request,
+        })
+      }
 
       if (!archiveResult.archived && !workspaceRecord) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -316,6 +336,8 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      const failure = orchestrationFailureResponse(error, 'Failed to delete workspace')
+      if (failure) return failure
       logger.error(`Error deleting workspace ${workspaceId}:`, error)
       return NextResponse.json({ error: 'Failed to delete workspace' }, { status: 500 })
     }

@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
+import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
@@ -7,7 +8,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,

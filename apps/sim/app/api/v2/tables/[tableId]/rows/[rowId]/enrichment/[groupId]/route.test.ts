@@ -5,34 +5,27 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {}
-  return {
-    mocks: {
-      startRun: vi.fn(),
-      readEnrichment: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  startRun: vi.fn(),
+}))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  readTableRowEnrichmentDetail: {
-    operation: { id: 'tables.rows.read' },
-    execute: mocks.readEnrichment,
-  },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 vi.mock('@/lib/table/application/runs', () => ({
   startTableRun: { operation: { id: 'tables.runs.start' }, execute: mocks.startRun },
 }))
 
 import { GET } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]/route'
+
+const { mockReadTableRowEnrichmentDetail } = tableApplicationRowsMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -118,7 +111,7 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.readEnrichment.mockResolvedValue({
+    mockReadTableRowEnrichmentDetail.mockResolvedValue({
       table: TABLE,
       row: ROW,
       group: GROUP,
@@ -149,7 +142,7 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
         cascade: DETAIL,
       },
     })
-    expect(mocks.readEnrichment).toHaveBeenCalledWith({
+    expect(mockReadTableRowEnrichmentDetail).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -163,7 +156,7 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
 
   /** A row that exists always answers; a group that never ran is `runState: null`, not a bare null. */
   it('answers the row with a null run state when the group has never run for it', async () => {
-    mocks.readEnrichment.mockResolvedValue({
+    mockReadTableRowEnrichmentDetail.mockResolvedValue({
       table: TABLE,
       row: ROW,
       group: GROUP,
@@ -185,7 +178,7 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
   })
 
   it('publishes a failed run with its error and the canceled spelling', async () => {
-    mocks.readEnrichment.mockResolvedValue({
+    mockReadTableRowEnrichmentDetail.mockResolvedValue({
       table: TABLE,
       row: ROW,
       group: GROUP,

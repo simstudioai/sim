@@ -1,3 +1,17 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { tokenizationAccurateMock } from '@sim/testing/mocks/tokenization-accurate.mock'
 import { isRecordLike } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
@@ -17,27 +31,25 @@ import type { ProviderRequest } from '@/providers/types'
 
 const state = vi.hoisted(() => ({ enabled: true, historyTokens: 0 }))
 
-vi.mock('@/providers/conversation-history', () => ({
-  bindConversationRequestContext: vi.fn(),
-  getConversationRequestContext: () =>
-    state.enabled
-      ? { agentConversation: {}, agentMemoryContext: { historyTokens: state.historyTokens } }
-      : undefined,
-}))
-vi.mock('@/providers/models', () => ({
-  PROVIDER_DEFINITIONS: {
-    test: {
-      models: [
-        { id: 'large', contextWindow: 4000 },
-        { id: 'small', contextWindow: 1000 },
-      ],
-    },
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+
+providersModelsMockFns.mockGetMaxOutputTokensForModel.mockReturnValue(100)
+Object.assign(providersModelsMock.PROVIDER_DEFINITIONS, {
+  test: {
+    models: [
+      { id: 'large', contextWindow: 4000 },
+      { id: 'small', contextWindow: 1000 },
+    ],
   },
-  getMaxOutputTokensForModel: () => 100,
-}))
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (text: string) => text.length,
-}))
+})
+providersConversationHistoryMockFns.mockGetConversationRequestContext.mockImplementation(() =>
+  state.enabled
+    ? { agentConversation: {}, agentMemoryContext: { historyTokens: state.historyTokens } }
+    : undefined
+)
 
 interface Fixture {
   protocol: ConversationProtocol
@@ -603,5 +615,55 @@ describe('provider generation context boundary', () => {
       payload
     )
     expect(payload.messages).toHaveLength(1)
+  })
+})
+
+describe('usage limit across compaction', () => {
+  it('stops the generation when its compaction spends the run past the usage limit', async () => {
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 3, limit: 5 },
+    })
+    const unrecordedModelCost = { total: 1 }
+    providersConversationHistoryMockFns.mockGetConversationRequestContext.mockReturnValueOnce({
+      agentConversation: {},
+      agentMemoryContext: { historyTokens: 200 },
+      executionContext: {
+        metadata: {
+          duration: 0,
+          billingAttribution: {
+            actorUserId: 'actor',
+            workspaceId: 'workspace',
+            organizationId: null,
+            billedAccountUserId: 'actor',
+            billingEntity: { type: 'user', id: 'actor' },
+            billingPeriod: { start: '2026-10-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
+            payerSubscription: null,
+          },
+        },
+        unrecordedModelCost,
+      },
+    })
+    const fixture = fixtures[0]
+    const input = request()
+    bindConversationGenerationCompactor(input, async () => {
+      unrecordedModelCost.total += 1.5
+      return { role: 'user' as const, content: 'Derived prior context' }
+    })
+    const messages = [
+      fixture.prompt,
+      ...fixture.batch,
+      nativeText(fixture, 'old'.repeat(250)),
+      nativeText(fixture, 'latest receipt'),
+    ]
+
+    try {
+      await expect(
+        prepareConversationGeneration(input, fixture.protocol, { [fixture.key]: messages })
+      ).rejects.toThrow('usage limit')
+    } finally {
+      resetEnvFlagsMock()
+    }
   })
 })

@@ -4,6 +4,7 @@ import {
   redactBenchmarkSpec,
   validateBenchmarkRedaction,
 } from '@/lib/benchmarks/artifacts'
+import { DEFAULT_BENCHMARK_EVALUATOR } from '@/lib/benchmarks/models'
 import type { BenchmarkArtifacts } from '@/lib/benchmarks/types'
 
 const artifacts: BenchmarkArtifacts = {
@@ -31,6 +32,7 @@ describe('benchmark reference integrity', () => {
   it('rejects missing, duplicate, or overlapping passages that cannot produce every blank', () => {
     for (const blanks of [
       [{ id: 'missing', answer: 'Elsewhere' }],
+      [{ id: 'whitespace', answer: ' ' }],
       [
         { id: 'first', answer: 'Support' },
         { id: 'second', answer: 'Support' },
@@ -48,6 +50,26 @@ describe('benchmark reference integrity', () => {
     expect(() => validateBenchmarkRedaction(artifacts)).not.toThrow()
   })
 
+  it('rejects a repeated gold answer that survives outside the masks', () => {
+    expect(() =>
+      validateBenchmarkRedaction({
+        ...artifacts,
+        redactedSpec:
+          '[[BLANK:owner]] owns follow-up until Engineering accepts. Support monitors it.',
+      })
+    ).toThrow()
+  })
+
+  it('does not mistake a blank identifier for a surviving gold answer', () => {
+    expect(() =>
+      validateBenchmarkRedaction({
+        referenceSpec: 'owner approves the request.',
+        redactedSpec: '[[BLANK:owner]] approves the request.',
+        blanks: [{ id: 'owner', answer: 'owner' }],
+      })
+    ).not.toThrow()
+  })
+
   it('rejects a redaction that quietly changes an unmasked requirement', () => {
     expect(() =>
       validateBenchmarkRedaction({ ...artifacts, redactedSpec: '[[BLANK:owner]] owns everything.' })
@@ -55,15 +77,28 @@ describe('benchmark reference integrity', () => {
   })
 
   it('rejects unscored masks and duplicate answer identifiers', () => {
+    const firstBlank = artifacts.blanks[0]
+    if (!firstBlank) throw new Error('Missing blank fixture')
     expect(() =>
       validateBenchmarkRedaction({ ...artifacts, redactedSpec: '[[BLANK:unknown]]' })
     ).toThrow()
     expect(() =>
       validateBenchmarkRedaction({
         ...artifacts,
-        blanks: [...artifacts.blanks, artifacts.blanks[0]!],
+        blanks: [...artifacts.blanks, firstBlank],
       })
     ).toThrow()
+  })
+
+  it('retains redaction provenance when only the brief changes', () => {
+    const recorded = { config: DEFAULT_BENCHMARK_EVALUATOR, durationMs: 200 }
+    const result = applyBenchmarkPatch(
+      { ...artifacts, modelRuns: { distill: recorded, redact: recorded, plan: recorded } },
+      { taskBrief: 'Explain the escalation handoff.' }
+    )
+    expect(result.modelRuns).toEqual({ redact: recorded })
+    expect(result.redactedSpec).toBe(artifacts.redactedSpec)
+    expect(result.generatedSpec).toBeNull()
   })
 
   it('invalidates the target-dependent artifacts when the reference changes', () => {
@@ -90,4 +125,10 @@ describe('benchmark reference integrity', () => {
     expect(result.reconstruction).toBeNull()
     expect(result.grade).toBeNull()
   })
+})
+
+it('rejects reserved blank syntax when importing an unredacted reference', () => {
+  expect(() =>
+    applyBenchmarkPatch(artifacts, { referenceSpec: 'Keep [[BLANK:example]] literally.' })
+  ).toThrow('reserved')
 })

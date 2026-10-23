@@ -1,40 +1,36 @@
-import {
-  document,
-  embeddingKeywordTin,
-  embeddingSearch,
-  knowledgeBase,
-  knowledgeConnector,
-} from '@sim/db/schema'
+import { document, embeddingSearch, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import { knowledgeTagsServiceMock } from '@sim/testing/mocks/knowledge-tags-service.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
-const mocks = vi.hoisted(() => ({
-  resolveStorage: vi.fn(),
-  incrementStorage: vi.fn(),
-  decrementStorage: vi.fn(),
-  notifyStorage: vi.fn(),
-  revoke: vi.fn(),
-}))
-vi.mock('@/lib/billing/storage', () => ({
-  resolveStorageBillingContext: mocks.resolveStorage,
-  incrementAdmittedStorageUsageForBillingContextInTx: mocks.incrementStorage,
-  decrementStorageUsageForBillingContextInTx: mocks.decrementStorage,
-  maybeNotifyStorageLimitForBillingContext: mocks.notifyStorage,
-}))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  revokeKnowledgeConnectorCredentialAccess: mocks.revoke,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   enqueueKnowledgeStorageCleanup: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/tags/service', () => ({ cleanupUnusedTagDefinitions: vi.fn() }))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 import {
   detachKnowledgeConnector,
-  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
   settleDetachedConnectorReservations,
 } from '@/lib/knowledge/connectors/detachment'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/outbox-events'
+
+const mocks = {
+  resolveStorage: billingStorageMockFns.mockResolveStorageBillingContext,
+  incrementStorage: billingStorageMockFns.mockIncrementAdmittedStorageUsageForBillingContextInTx,
+  decrementStorage: billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx,
+  notifyStorage: billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext,
+}
+
+const mockRevokeKnowledgeConnectorCredentialAccess =
+  knowledgeMemberAccessMockFns.mockRevokeKnowledgeConnectorCredentialAccess
 
 const payload = {
   version: 1 as const,
@@ -66,12 +62,10 @@ function queueBatch(documentIds: string[], reservedBytes = 0) {
 }
 
 /** Row ids the projection release returns, in the order the handler updates the tables. */
-function releaseProjectionRows(searchRows: number, keywordRows: number) {
+function releaseProjectionRows(searchRows: number) {
   const rows = (count: number) =>
     Array.from({ length: count }, (_, index) => ({ id: `c-${index}` }))
-  dbChainMockFns.returning
-    .mockResolvedValueOnce(rows(searchRows))
-    .mockResolvedValueOnce(rows(keywordRows))
+  dbChainMockFns.returning.mockResolvedValueOnce(rows(searchRows))
 }
 
 function updatedTables() {
@@ -83,14 +77,14 @@ describe('connector detachment', () => {
     resetDbChainMock()
     mocks.resolveStorage.mockResolvedValue(STORAGE_CONTEXT)
     mocks.incrementStorage.mockResolvedValue(1_000)
-    mocks.revoke.mockResolvedValue(undefined)
+    mockRevokeKnowledgeConnectorCredentialAccess.mockResolvedValue(undefined)
     queueTableRows(knowledgeBase, [owner])
   })
   afterEach(resetDbChainMock)
 
   it('releases documents against the reservation, then settles what remains with the connector', async () => {
     queueBatch(['doc-1', 'doc-2'], 25)
-    releaseProjectionRows(3, 3)
+    releaseProjectionRows(3)
     dbChainMockFns.returning.mockResolvedValueOnce([
       { fileSize: 10, deletedAt: null },
       { fileSize: 5, deletedAt: new Date('2026-09-01T00:00:00.000Z') },
@@ -106,12 +100,7 @@ describe('connector detachment', () => {
       context()
     )
 
-    expect(updatedTables()).toEqual([
-      embeddingSearch,
-      embeddingKeywordTin,
-      document,
-      knowledgeConnector,
-    ])
+    expect(updatedTables()).toEqual([embeddingSearch, document, knowledgeConnector])
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ connectorId: null })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ connectorId: null, deletedAt: expect.anything() })
@@ -120,7 +109,7 @@ describe('connector detachment', () => {
     expect(mocks.incrementStorage).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete.mock.calls.map(([table]) => table)).toEqual([knowledgeConnector])
     expect(mocks.decrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 15)
-    expect(mocks.revoke).toHaveBeenCalledWith(
+    expect(mockRevokeKnowledgeConnectorCredentialAccess).toHaveBeenCalledWith(
       { workspaceId: 'ws-1', credentialGroupId: 'g-1', connectorId: 'connector-1' },
       'u-1'
     )
@@ -129,7 +118,7 @@ describe('connector detachment', () => {
   it('keeps documents attached until their search rows fit one page, without spending retries', async () => {
     for (let batch = 0; batch < 4; batch++) {
       queueBatch(['doc-1'])
-      releaseProjectionRows(250, 0)
+      releaseProjectionRows(250)
     }
 
     expect(await detachKnowledgeConnector(payload, context())).toMatchObject({
@@ -150,7 +139,7 @@ describe('connector detachment', () => {
       await detachKnowledgeConnector(payload, context())
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
       expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-      expect(mocks.revoke).not.toHaveBeenCalled()
+      expect(mockRevokeKnowledgeConnectorCredentialAccess).not.toHaveBeenCalled()
     }
   )
 
@@ -171,7 +160,7 @@ describe('connector detachment', () => {
     await expect(detachKnowledgeConnector(payload, context())).rejects.toThrow(
       'Storage payer changed'
     )
-    expect(mocks.revoke).not.toHaveBeenCalled()
+    expect(mockRevokeKnowledgeConnectorCredentialAccess).not.toHaveBeenCalled()
   })
 
   it('releases nothing and spends no attempt while the knowledge base is deleted', async () => {
@@ -182,7 +171,7 @@ describe('connector detachment', () => {
     expect(result).toMatchObject({ outcome: 'deferred', consumeAttempt: false })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.decrementStorage).not.toHaveBeenCalled()
-    expect(mocks.revoke).not.toHaveBeenCalled()
+    expect(mockRevokeKnowledgeConnectorCredentialAccess).not.toHaveBeenCalled()
   })
 })
 

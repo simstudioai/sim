@@ -30,16 +30,16 @@ interface MailgunPaging {
   last?: string
 }
 
-interface MailgunMailingListMember {
-  address: string
-  name?: string
-  subscribed: boolean
-  vars?: Record<string, string | number | boolean | null>
+/** Region that hosts the Mailgun account; omitted means US. */
+export type MailgunRegion = 'us' | 'eu'
+
+interface MailgunBaseParams {
+  apiKey: string
+  region?: MailgunRegion
 }
 
 // Send Message
-export interface SendMessageParams {
-  apiKey: string
+export interface SendMessageParams extends MailgunBaseParams {
   domain: string
   from: string
   to: string
@@ -60,8 +60,7 @@ export interface SendMessageResult extends ToolResponse {
 }
 
 // Get Message
-export interface GetMessageParams {
-  apiKey: string
+export interface GetMessageParams extends MailgunBaseParams {
   domain: string
   messageKey: string
 }
@@ -85,8 +84,7 @@ export interface GetMessageResult extends ToolResponse {
 }
 
 // List Messages (Events)
-export interface ListMessagesParams {
-  apiKey: string
+export interface ListMessagesParams extends MailgunBaseParams {
   domain: string
   event?: string
   limit?: number
@@ -101,8 +99,7 @@ export interface ListMessagesResult extends ToolResponse {
 }
 
 // Create Mailing List
-export interface CreateMailingListParams {
-  apiKey: string
+export interface CreateMailingListParams extends MailgunBaseParams {
   address: string
   name?: string
   description?: string
@@ -124,8 +121,7 @@ export interface CreateMailingListResult extends ToolResponse {
 }
 
 // Get Mailing List
-export interface GetMailingListParams {
-  apiKey: string
+export interface GetMailingListParams extends MailgunBaseParams {
   address: string
 }
 
@@ -144,8 +140,7 @@ export interface GetMailingListResult extends ToolResponse {
 }
 
 // Add List Member
-export interface AddListMemberParams {
-  apiKey: string
+export interface AddListMemberParams extends MailgunBaseParams {
   listAddress: string
   address: string
   name?: string
@@ -167,9 +162,7 @@ export interface AddListMemberResult extends ToolResponse {
 }
 
 // List Domains
-export interface ListDomainsParams {
-  apiKey: string
-}
+export type ListDomainsParams = MailgunBaseParams
 
 export interface ListDomainsResult extends ToolResponse {
   output: {
@@ -180,8 +173,7 @@ export interface ListDomainsResult extends ToolResponse {
 }
 
 // Get Domain
-export interface GetDomainParams {
-  apiKey: string
+export interface GetDomainParams extends MailgunBaseParams {
   domain: string
 }
 

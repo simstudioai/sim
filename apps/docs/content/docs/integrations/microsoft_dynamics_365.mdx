@@ -1,14 +1,13 @@
 ---
 title: Microsoft Dynamics 365 CRM
 description: Manage customers, sales pipelines, and support cases in Dynamics 365 CRM
+integration:
+  type: "microsoft_dynamics_365"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_dynamics_365"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Microsoft Dynamics 365 CRM](https://www.microsoft.com/en-us/dynamics-365) stores its sales and customer-service data in Microsoft Dataverse. This integration presents the standard CRM tables and lifecycle actions while keeping the generic Microsoft Dataverse integration available for custom tables and advanced operations.
@@ -21,18 +20,36 @@ Two block operations intentionally reuse the new CRM tools under a simpler CRM l
 Connect one credential per Dynamics environment. The credential is bound to that environment during Microsoft OAuth, and CRM requests refuse a different environment. This release supports public-cloud Dataverse hosts only.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Dataverse account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-dataverse` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `<environment-url>/.default` | Access your Dataverse environment through the permissions granted to the app registration |
+| `offline_access` | Access account when not using the application |
+
+Each connection is bound to one environment. `<environment-url>` is that environment's Web API origin, so the scope looks like `https://yourorg.api.crm.dynamics.com/.default`. In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.
+
+## Use the block [#usage-instructions]
 
 Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API. List, search, create, retrieve, and update accounts, contacts, leads, opportunities, and cases; assign records to users or teams; qualify leads; close opportunities; and resolve cases. Connect a separate Microsoft credential for each environment from this Dynamics integration page or from its workflow block; existing generic Dataverse credentials remain unchanged and are not automatically rebound. This version supports public-cloud Dynamics environments; national clouds require separate OAuth authorities. Dataverse Search must be enabled for search, and lifecycle actions require the corresponding Dynamics 365 app, security role, and record privileges.
-
-
 
 ## Actions
 
 ### List Microsoft Dynamics 365 CRM Records
 
 Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +78,13 @@ Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filt
 | `nextPageSize` | number | Page size that must accompany nextLink on the continuation request |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Microsoft Dynamics 365 CRM Record
 
 Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +104,13 @@ Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Sup
 | `recordId` | string | The requested record ID |
 | `success` | boolean | Whether the record was retrieved successfully |
 
+</ReferenceDetails>
+
 ### Create Microsoft Dynamics 365 CRM Record
 
 Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +128,13 @@ Create a new supported standard Microsoft Dynamics 365 CRM record using Datavers
 | `recordId` | string | The ID of the created record |
 | `success` | boolean | Whether the record was created successfully |
 
+</ReferenceDetails>
+
 ### Update Microsoft Dynamics 365 CRM Record
 
 Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -123,9 +152,13 @@ Update an existing supported standard Microsoft Dynamics 365 CRM record. Only se
 | `recordId` | string | The ID of the updated record |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Search Microsoft Dynamics 365 CRM Records
 
 Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -158,9 +191,13 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 | `facets` | object | Facet results when facets were requested. Keys are facet names, values are arrays of facet value objects with count and value properties. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Qualify Microsoft Dynamics 365 Lead
 
 Qualify a Dynamics 365 Sales lead and optionally create linked account, contact, and opportunity records.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +223,13 @@ Qualify a Dynamics 365 Sales lead and optionally create linked account, contact,
 | `createdEntities` | array | Entity references returned by Dataverse for records created while qualifying the lead |
 | `success` | boolean | Whether the lead was qualified successfully |
 
+</ReferenceDetails>
+
 ### Close Microsoft Dynamics 365 Opportunity
 
 Close a Dynamics 365 Sales opportunity as won or lost.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +250,13 @@ Close a Dynamics 365 Sales opportunity as won or lost.
 | `outcome` | string | The applied opportunity outcome: won or lost |
 | `success` | boolean | Whether the opportunity was closed successfully |
 
+</ReferenceDetails>
+
 ### Close Microsoft Dynamics 365 Case
 
 Resolve and close a Dynamics 365 Customer Service case.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,5 +275,7 @@ Resolve and close a Dynamics 365 Customer Service case.
 | --------- | ---- | ----------- |
 | `caseId` | string | GUID of the closed case |
 | `success` | boolean | Whether the case was closed successfully |
+
+</ReferenceDetails>
 
 

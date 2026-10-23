@@ -15,13 +15,8 @@ export interface AuditLogOperation<Id extends string = string> extends Applicati
   readonly authority: 'organization_admin'
   readonly organizationRoles: readonly ['admin', 'owner']
   readonly workspaceApiKey: 'deny'
-  readonly oauthScope: 'api:read'
-  readonly principalKinds: readonly [
-    'session',
-    'personal_api_key',
-    'oauth_access_token',
-    'delegated',
-  ]
+  readonly oauthScope?: 'api:read'
+  readonly principalKinds: readonly AuditLogPrincipal['kind'][]
 }
 
 function defineAuditLogOperation<const Id extends string>(
@@ -38,9 +33,19 @@ function defineAuditLogOperation<const Id extends string>(
 }
 
 export const auditLogOperations = {
+  // permission-group-exempt: exporting the organization audit trail requires organization administrator authority
+  export: defineAuditLogOperation({
+    id: 'audit_logs.export',
+    capability: 'none',
+    authority: 'organization_admin',
+    organizationRoles: ['admin', 'owner'],
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
   // permission-group-exempt: the organization audit trail is authorized by organization admin or owner role, a scope no workspace-shaped permission group can name
   list: defineAuditLogOperation({
     id: 'audit_logs.list',
+    contentDelivery: 'none',
     oauthScope: 'api:read',
     capability: 'none',
     authority: 'organization_admin',
@@ -51,6 +56,7 @@ export const auditLogOperations = {
   // permission-group-exempt: same organization-admin authority as the list it expands; no group key names the audit trail
   readDetail: defineAuditLogOperation({
     id: 'audit_logs.read_detail',
+    contentDelivery: 'none',
     oauthScope: 'api:read',
     capability: 'none',
     authority: 'organization_admin',
@@ -67,6 +73,7 @@ export const copilotAuditLogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -75,6 +82,7 @@ export const copilotAuditLogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),

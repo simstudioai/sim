@@ -5,6 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const makeProfile: CompetitorProfile = {
   id: 'make',
   name: 'Make',
+  mentions: ['Make.com', 'Integromat'],
   website: 'https://www.make.com',
   brand: {
     icon: MakeIcon,

@@ -29,7 +29,7 @@ export const pitchbookLookupTableStructureTool: ToolConfig<PitchbookBaseParams, 
     },
 
     request: {
-      url: (params) => `${PITCHBOOK_API_BASE}/lookup-tables/structure`,
+      url: () => `${PITCHBOOK_API_BASE}/lookup-tables/structure`,
       method: 'GET',
       headers: (params) => pitchbookAuthHeaders(params.apiKey, params.currency),
     },

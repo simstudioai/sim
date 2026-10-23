@@ -1,9 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const mocks = vi.hoisted(() => ({
   generateContent: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
 }))
 
 vi.mock('@google/genai', () => ({
@@ -11,21 +14,16 @@ vi.mock('@google/genai', () => ({
     models = { generateContent: mocks.generateContent }
   },
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { analyzeVision } from '@/lib/internal/vision/client'
 
-describe('Vision client', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-  })
+const { mockSecureFetchWithPinnedIP } = inputValidationMockFns
 
+describe('Vision client', () => {
   it('pins and bounds Gemini remote image downloads and forwards cancellation', async () => {
     const controller = new AbortController()
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
         headers: { 'content-type': 'image/png' },
@@ -49,7 +47,7 @@ describe('Vision client', () => {
       )
     ).resolves.toEqual({ content: 'A lighthouse', model: 'gemini-2.5-pro', tokens: 9 })
 
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://images.example.com/a.png',
       '203.0.113.10',
       {
@@ -77,7 +75,7 @@ describe('Vision client', () => {
   })
 
   it('rejects oversized Gemini images before buffering', async () => {
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response(new Uint8Array([1]), {
         status: 200,
         headers: { 'content-length': String(MAX_BUFFERED_TRANSFER_BYTES + 1) },

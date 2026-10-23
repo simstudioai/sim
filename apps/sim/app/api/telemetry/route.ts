@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateRandomHex } from '@sim/utils/random'
 import { type NextRequest, NextResponse } from 'next/server'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { parseRequest } from '@/lib/api/server'
-import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isTelemetryDisabled, normalizeOtlpTracesUrl } from '@/lib/monitoring/otlp'
+import telemetryConfig from '@/telemetry.config'
 
 const logger = createLogger('TelemetryAPI')
 
@@ -51,15 +54,20 @@ function createSafeAttributes(
 }
 
 /**
- * Forwards telemetry data to OpenTelemetry collector
+ * Forwards a browser telemetry event as one span, and not at all when the operator turned telemetry
+ * off. Browser events are unauthenticated input, so they never travel with the operator's
+ * collector credentials: they go to `TELEMETRY_ENDPOINT` or the configured anonymous collector.
  */
 async function forwardToCollector(data: Record<string, unknown>): Promise<boolean> {
   if (!data || typeof data !== 'object') {
     logger.error('Invalid telemetry data format')
     return false
   }
+  if (isTelemetryDisabled()) return false
 
-  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  // TELEMETRY_ENDPOINT has always been the relay's full destination URL, so it is posted to as-is.
+  const endpoint =
+    process.env.TELEMETRY_ENDPOINT || normalizeOtlpTracesUrl(telemetryConfig.endpoint)
   const timeout = DEFAULT_TIMEOUT
 
   try {
@@ -88,10 +96,12 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
           resource: {
             attributes: serviceAttrs,
           },
-          instrumentationLibrarySpans: [
+          scopeSpans: [
             {
               spans: [
                 {
+                  traceId: generateRandomHex(32),
+                  spanId: generateRandomHex(16),
                   name: spanName,
                   kind: 1,
                   startTimeUnixNano: timestamp,
@@ -122,7 +132,7 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        logger.error('Telemetry collector returned error', {
+        logger.warn('Telemetry collector returned error', {
           status: response.status,
           statusText: response.statusText,
         })
@@ -133,9 +143,11 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
     } catch (fetchError) {
       clearTimeout(timeoutId)
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        logger.error('Telemetry request timed out', { endpoint })
+        logger.warn('Telemetry request timed out', { endpoint })
       } else {
-        logger.error('Failed to send telemetry to collector', fetchError)
+        logger.warn('Failed to send telemetry to collector', {
+          error: getErrorMessage(fetchError),
+        })
       }
       return false
     }

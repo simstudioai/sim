@@ -156,6 +156,26 @@ export async function loadOauthRow(params: { mcpServerId: string }): Promise<Mcp
   return mapOauthRow(row)
 }
 
+/**
+ * Whether the server's OAuth row holds tokens that decrypt, read without writing: unlike
+ * {@link loadOauthRow}, an undecryptable column is reported, never cleared, so a caller that
+ * only asks whether to try a connection cannot erase the grant every member shares.
+ */
+export async function hasDecryptableOauthTokens(mcpServerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ tokens: mcpServerOauth.tokens })
+    .from(mcpServerOauth)
+    .where(eq(mcpServerOauth.mcpServerId, mcpServerId))
+    .limit(1)
+  if (!row?.tokens) return false
+  try {
+    await decryptSecret(row.tokens)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function setOauthRowUser(rowId: string, userId: string): Promise<void> {
   await db
     .update(mcpServerOauth)

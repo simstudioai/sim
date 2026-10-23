@@ -1,14 +1,12 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { downloadCursorArtifact } from '@/lib/internal/cursor/operations'
 
@@ -25,9 +23,8 @@ const storedFile = {
 
 describe('downloadCursorArtifact', () => {
   beforeEach(() => {
-    vi.unstubAllGlobals()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response('artifact', { headers: { 'content-type': 'text/plain' } })
     )
   })
@@ -50,7 +47,7 @@ describe('downloadCursorArtifact', () => {
       expect.stringContaining('/agents/agent-1/artifacts/download'),
       expect.objectContaining({ signal: controller.signal })
     )
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://download.example/artifact',
       '203.0.113.1',
       { profile: 'contentFetch', signal: controller.signal }

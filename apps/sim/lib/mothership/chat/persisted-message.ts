@@ -1,17 +1,20 @@
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import type {
   PersistedContentBlock,
   PersistedToolCall,
   PersistedToolState,
 } from '@/lib/api/contracts/copilot-messages'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
+import { isStoredAssistantMessage } from '@/lib/mothership/chat/live-message-id'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
   mergeAndRedactPersistedBlocks,
   redactSensitiveContent,
   redactToolCallResult,
 } from '@/lib/mothership/chat/sim-key-redaction'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -21,9 +24,14 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { ContentBlock, OrchestratorResult } from '@/lib/mothership/request/types'
+import { ToolActivity, TurnOrigin } from '@/lib/mothership/generated/protocol'
+import type {
+  ContentBlock,
+  LocalToolCallStatus,
+  OrchestratorResult,
+} from '@/lib/mothership/request/types'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export interface PersistedFileAttachment {
@@ -34,14 +42,23 @@ export interface PersistedFileAttachment {
   size: number
 }
 
-interface PersistedMessageContext {
+export interface PersistedMessageContext {
+  owner?: FileOperationOwner
   kind: string
   label: string
+  workspaceId?: string
+  projectId?: string
+  executionId?: string
+  fileFolderId?: string
+  command?: string
+  blockId?: string
+  blockIds?: string[]
   workflowId?: string
   knowledgeId?: string
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string
@@ -82,14 +99,46 @@ function copyTextSelection(
   }
 }
 
+/** The one field-wise copy of a message context, shared by every write, read and display path. */
+export function copyPersistedMessageContext(c: PersistedMessageContext): PersistedMessageContext {
+  return {
+    kind: c.kind,
+    label: c.label,
+    ...(c.owner ? { owner: { ...c.owner } } : {}),
+    ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
+    ...(c.projectId ? { projectId: c.projectId } : {}),
+    ...(c.executionId ? { executionId: c.executionId } : {}),
+    ...(c.fileFolderId ? { fileFolderId: c.fileFolderId } : {}),
+    ...(c.command ? { command: c.command } : {}),
+    ...(c.blockId ? { blockId: c.blockId } : {}),
+    ...(Array.isArray(c.blockIds) ? { blockIds: [...c.blockIds] } : {}),
+    ...(c.workflowId ? { workflowId: c.workflowId } : {}),
+    ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
+    ...(c.tableId ? { tableId: c.tableId } : {}),
+    ...(c.viewId ? { viewId: c.viewId } : {}),
+    ...(c.fileId ? { fileId: c.fileId } : {}),
+    ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
+    ...(c.folderId ? { folderId: c.folderId } : {}),
+    ...(c.chatId ? { chatId: c.chatId } : {}),
+    ...(c.blockType ? { blockType: c.blockType } : {}),
+    ...(c.skillId ? { skillId: c.skillId } : {}),
+    ...(c.serverId ? { serverId: c.serverId } : {}),
+    ...(c.fileName ? { fileName: c.fileName } : {}),
+    ...(c.tableName ? { tableName: c.tableName } : {}),
+    ...(c.tabId ? { tabId: c.tabId } : {}),
+    ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+    ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
+  }
+}
+
 export interface PersistedMessage {
   id: string
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
   timestamp: string
-  /** "task": a background-task notification opened this turn, not the user (rendered as a system chip). */
-  origin?: 'task'
+  /** Automation opened this turn, not the user (rendered as a system chip). */
+  origin?: TurnOrigin
   requestId?: string
   contentBlocks?: PersistedContentBlock[]
   fileAttachments?: PersistedFileAttachment[]
@@ -110,7 +159,9 @@ export interface PersistedMessage {
  * reference when there is nothing to strip, preserving memoized identity for
  * read-side consumers.
  */
-export function stripToolResultOutput(message: PersistedMessage): PersistedMessage {
+export function stripToolResultOutput<T extends Pick<PersistedMessage, 'contentBlocks'>>(
+  message: T
+): T {
   if (!message.contentBlocks?.length) return message
   let changed = false
   const contentBlocks = message.contentBlocks.map((block) => {
@@ -152,6 +203,87 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     return { ...block, toolCall: { ...toolCall, result: strippedResult } }
   })
   return changed ? { ...message, contentBlocks } : message
+}
+
+/**
+ * Longest tool-call param string the chat UI receives verbatim. Every reader of
+ * a settled call's params derives a one-line title or a short id from them
+ * (path, toolId, operation, reason, url, argv, …), so 1024 code units keeps
+ * every value a renderer shows while dropping the bulk payloads the model
+ * wrote: sandbox stdout, `run_code` source, subagent task briefs.
+ */
+const MAX_DISPLAYED_PARAM_STRING_LENGTH = 1024
+const PARAM_TRUNCATION_SUFFIX = '…'
+
+/** Returns `value` itself when nothing in it exceeds the limit. */
+function compactParamValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.length > MAX_DISPLAYED_PARAM_STRING_LENGTH
+      ? truncateAtCodePoint(
+          value,
+          MAX_DISPLAYED_PARAM_STRING_LENGTH - PARAM_TRUNCATION_SUFFIX.length,
+          PARAM_TRUNCATION_SUFFIX
+        )
+      : value
+  }
+  if (Array.isArray(value)) {
+    let changed = false
+    const entries = value.map((entry) => {
+      const compacted = compactParamValue(entry)
+      if (compacted !== entry) changed = true
+      return compacted
+    })
+    return changed ? entries : value
+  }
+  return isPlainRecord(value) ? compactParamRecord(value) : value
+}
+
+function compactParamRecord(record: Record<string, unknown>): Record<string, unknown> {
+  let changed = false
+  const entries = Object.entries(record).map(([key, entry]) => {
+    const compacted = compactParamValue(entry)
+    if (compacted !== entry) changed = true
+    return [key, compacted] as const
+  })
+  return changed ? Object.fromEntries(entries) : record
+}
+
+/**
+ * Truncate long strings inside tool calls' params, keeping every key, array
+ * entry and short scalar. On the live assistant message a pending, executing or
+ * awaiting-approval call keeps its params whole: a reloaded executing workflow
+ * tool re-runs from them and the permission card previews them. A stored turn
+ * has ended, so its unfinished calls render as interrupted and are compacted
+ * like settled ones.
+ *
+ * A projection for the transcript served to the chat UI only. Stored rows keep
+ * full params: data drains export them verbatim, and fork and import copy
+ * them. Idempotent — a truncated value fits the limit — so it returns the
+ * original reference when there is nothing to compact.
+ */
+export function compactToolCallParams(message: PersistedMessage): PersistedMessage {
+  if (!message.contentBlocks?.length) return message
+  const stored = isStoredAssistantMessage(message)
+  let changed = false
+  const contentBlocks = message.contentBlocks.map((block) => {
+    const toolCall = block.toolCall
+    if (!toolCall?.params || (!stored && isUnsettledToolState(toolCall.state))) return block
+    const params = compactParamRecord(toolCall.params)
+    if (params === toolCall.params) return block
+    changed = true
+    return { ...block, toolCall: { ...toolCall, params } }
+  })
+  return changed ? { ...message, contentBlocks } : message
+}
+
+/**
+ * What `copilot_messages.display_content` holds for a stored message: the chat UI's
+ * projection of its content, or null when that equals the content and the column stays empty.
+ * `content` is the stored form, already passed through {@link stripToolResultOutput}.
+ */
+export function displayContentOf(content: PersistedMessage): PersistedMessage | null {
+  const display = compactToolCallParams(content)
+  return display === content ? null : display
 }
 
 // Write: OrchestratorResult → PersistedMessage
@@ -273,9 +405,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         ...(isSubagentTool && isNonTerminal ? {} : { result: redactedResult }),
         ...(isSubagentTool && isNonTerminal
           ? {}
-          : block.toolCall.params
-            ? { params: block.toolCall.params }
-            : {}),
+          : filterUndefined({ params: block.toolCall.params, activity: block.toolCall.activity })),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
         ...(block.toolCall.displayTitle
           ? {
@@ -336,8 +466,9 @@ export function buildPersistedAssistantMessage(
         'An unexpected error occurred while processing the response.'
     )
     normalized.contentBlocks = [
-      ...(normalized.contentBlocks ??
-        (message.content
+      ...(normalized.contentBlocks
+        ? settleUnfinishedToolCalls(normalized.contentBlocks, 'error')
+        : message.content
           ? [
               {
                 type: MothershipStreamV1EventType.text,
@@ -345,7 +476,7 @@ export function buildPersistedAssistantMessage(
                 content: message.content,
               },
             ]
-          : [])),
+          : []),
       {
         type: MothershipStreamV1EventType.error,
         content: buildMothershipErrorTag({ message: error }),
@@ -354,25 +485,48 @@ export function buildPersistedAssistantMessage(
     return normalized
   }
 
+  // A finished turn settles its stragglers as the live view did at its terminal;
+  // background and API callers persist a stopped turn without withStoppedContentBlock.
+  if (message.contentBlocks) {
+    message.contentBlocks = result.success
+      ? settleUnfinishedToolCalls(message.contentBlocks, 'success')
+      : settleUnfinishedToolCalls(message.contentBlocks, 'cancelled', STOPPED_TOOL_DISPLAY)
+  }
   return message
 }
 
+const STOPPED_TOOL_DISPLAY = { title: 'Stopped by user' } as const
+
+const UNSETTLED_TOOL_STATES: ReadonlySet<LocalToolCallStatus> = new Set<LocalToolCallStatus>([
+  'pending',
+  'executing',
+  'awaiting_approval',
+])
+
+/** A tool row that has not finished: waiting to run, running, or awaiting a decision. */
+export function isUnsettledToolState(state: string | undefined): boolean {
+  const unsettled: ReadonlySet<string | undefined> = UNSETTLED_TOOL_STATES
+  return unsettled.has(state)
+}
+
+/** Settles every unfinished tool row at a turn terminal so none reloads as a spinner. */
+function settleUnfinishedToolCalls(
+  blocks: PersistedContentBlock[],
+  state: 'success' | 'cancelled' | 'error',
+  display?: { title: string }
+): PersistedContentBlock[] {
+  return blocks.map((block) =>
+    block.toolCall && isUnsettledToolState(block.toolCall.state)
+      ? { ...block, toolCall: { ...block.toolCall, state, ...(display ? { display } : {}) } }
+      : block
+  )
+}
+
 export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
-  const contentBlocks = (message.contentBlocks ?? []).map(
-    (block): PersistedContentBlock =>
-      block.toolCall &&
-      (block.toolCall.state === 'executing' ||
-        block.toolCall.state === 'pending' ||
-        block.toolCall.state === 'awaiting_approval')
-        ? {
-            ...block,
-            toolCall: {
-              ...block.toolCall,
-              state: 'cancelled',
-              display: { title: 'Stopped by user' },
-            },
-          }
-        : block
+  const contentBlocks = settleUnfinishedToolCalls(
+    message.contentBlocks ?? [],
+    'cancelled',
+    STOPPED_TOOL_DISPLAY
   )
   const hasAssistantText = contentBlocks.some(
     (block) =>
@@ -417,7 +571,7 @@ export interface UserMessageParams {
   content: string
   fileAttachments?: PersistedFileAttachment[]
   contexts?: PersistedMessageContext[]
-  origin?: 'task'
+  origin?: TurnOrigin
 }
 
 export function buildPersistedUserMessage(params: UserMessageParams): PersistedMessage {
@@ -435,25 +589,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
   }
 
   if (params.contexts && params.contexts.length > 0) {
-    message.contexts = params.contexts.map((c) => ({
-      kind: c.kind,
-      label: c.label,
-      ...(c.workflowId ? { workflowId: c.workflowId } : {}),
-      ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-      ...(c.tableId ? { tableId: c.tableId } : {}),
-      ...(c.viewId ? { viewId: c.viewId } : {}),
-      ...(c.fileId ? { fileId: c.fileId } : {}),
-      ...(c.folderId ? { folderId: c.folderId } : {}),
-      ...(c.chatId ? { chatId: c.chatId } : {}),
-      ...(c.blockType ? { blockType: c.blockType } : {}),
-      ...(c.skillId ? { skillId: c.skillId } : {}),
-      ...(c.serverId ? { serverId: c.serverId } : {}),
-      ...(c.fileName ? { fileName: c.fileName } : {}),
-      ...(c.tableName ? { tableName: c.tableName } : {}),
-      ...(c.tabId ? { tabId: c.tabId } : {}),
-      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
-      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
-    }))
+    message.contexts = params.contexts.map(copyPersistedMessageContext)
   }
 
   return message
@@ -496,6 +632,7 @@ interface RawBlock {
     result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string; title?: string; phaseLabel?: string }
     activityDescription?: string
+    activity?: unknown
     calledBy?: string
     durationMs?: number
     error?: string
@@ -555,11 +692,15 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.parentToolCallId) result.parentToolCallId = block.parentToolCallId
   if (block.toolCall) {
     const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
+    const activity = isRecordLike(block.toolCall.activity)
+      ? ToolActivity.safeParse(block.toolCall.activity)
+      : undefined
     result.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? '',
       state: normalizeToolState(block.toolCall.state),
       ...(activityDescription ? { activityDescription } : {}),
+      ...(activity?.success ? { activity: activity.data } : {}),
       ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
       ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
       ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -755,7 +896,8 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
   if (raw.requestId && typeof raw.requestId === 'string') {
     msg.requestId = raw.requestId
   }
-  if (raw.origin === 'task') msg.origin = 'task'
+  const origin = TurnOrigin.safeParse(raw.origin)
+  if (origin.success) msg.origin = origin.data
 
   const rawBlocks = raw.contentBlocks as RawBlock[] | undefined
   const rawToolCalls = raw.toolCalls as LegacyToolCall[] | undefined
@@ -786,25 +928,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
 
   const rawContexts = raw.contexts as PersistedMessageContext[] | undefined
   if (Array.isArray(rawContexts) && rawContexts.length > 0) {
-    msg.contexts = rawContexts.map((c) => ({
-      kind: c.kind,
-      label: c.label,
-      ...(c.workflowId ? { workflowId: c.workflowId } : {}),
-      ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-      ...(c.tableId ? { tableId: c.tableId } : {}),
-      ...(c.viewId ? { viewId: c.viewId } : {}),
-      ...(c.fileId ? { fileId: c.fileId } : {}),
-      ...(c.folderId ? { folderId: c.folderId } : {}),
-      ...(c.chatId ? { chatId: c.chatId } : {}),
-      ...(c.blockType ? { blockType: c.blockType } : {}),
-      ...(c.skillId ? { skillId: c.skillId } : {}),
-      ...(c.serverId ? { serverId: c.serverId } : {}),
-      ...(c.fileName ? { fileName: c.fileName } : {}),
-      ...(c.tableName ? { tableName: c.tableName } : {}),
-      ...(c.tabId ? { tabId: c.tabId } : {}),
-      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
-      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
-    }))
+    msg.contexts = rawContexts.map(copyPersistedMessageContext)
   }
 
   return msg

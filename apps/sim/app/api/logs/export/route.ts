@@ -6,13 +6,14 @@ import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
+import { formatCsvValue, toCsvLinePieces, toCsvRow } from '@/lib/core/utils/csv'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
-import { logQuerySelectsCost } from '@/lib/logs/log-projection'
+import { logQuerySelectsCost } from '@/lib/logs/projection'
 import {
   capabilityDeniedBy,
   capabilityRefusal,
@@ -223,7 +224,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 error: getErrorMessage(rowError),
               })
             }
-            const line = toCsvRow([
+            const pieces = toCsvLinePieces([
               formatCsvValue(row.startedAt),
               formatCsvValue(row.level),
               formatCsvValue(row.workflowName),
@@ -235,7 +236,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               formatCsvValue(message),
               formatCsvValue(tracesJson),
             ])
-            yield encoder.encode(`${line}\n`)
+            /**
+             * One trace can serialize to tens of megabytes, and escaping it in one run would hold
+             * the event loop for every other request on this server; small rows share a slice.
+             */
+            for (const piece of pieces) {
+              yield encoder.encode(piece)
+              await yieldWhenSliceExpires()
+            }
           }
         }
 

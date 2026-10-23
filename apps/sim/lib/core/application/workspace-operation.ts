@@ -1,11 +1,13 @@
 import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
+import type { ContentDeliveryDeclaration } from '@/lib/core/application/content-delivery'
 import type {
   ApplicationOperation,
   OAuthOperationPolicy,
   PrincipalKind,
 } from '@/lib/core/application/operation'
 import {
+  assertContentDeliveryDeclaration,
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
@@ -69,6 +71,19 @@ type DelegatedPrincipalConsistency<
     }
   : { readonly delegatedServices?: never }
 
+/**
+ * Chat delivers whatever a Copilot-admitted operation returns to its model, so each one says
+ * whether that can be stored content; no other operation may claim to.
+ */
+type ContentDeliveryConsistency<
+  PrincipalKinds extends readonly PrincipalKind[],
+  DelegatedServices extends readonly DelegatedServiceId[],
+> = 'delegated' extends PrincipalKinds[number]
+  ? 'copilot' extends DelegatedServices[number]
+    ? { readonly contentDelivery: ContentDeliveryDeclaration }
+    : { readonly contentDelivery?: never }
+  : { readonly contentDelivery?: never }
+
 type ResourcePolicyOperationConsistency<Binding extends ResourcePolicyBinding | undefined> =
   Binding extends ResourcePolicyBinding
     ? { readonly resourcePolicy: Binding }
@@ -85,6 +100,7 @@ export function defineWorkspaceOperation<
     OAuthOperationPolicy<PrincipalKinds> &
     WorkspaceApiKeyPrincipalConsistency<Role, PrincipalKinds> &
     DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
+    ContentDeliveryConsistency<PrincipalKinds, DelegatedServices> &
     ResourcePolicyOperationConsistency<ResourcePolicy>
 ): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
   OAuthOperationPolicy<PrincipalKinds> &
@@ -99,6 +115,9 @@ export function defineWorkspaceOperation<
 
   if (operation.principalKinds.includes('organization_delegated')) {
     throw new Error(`Workspace operation ${operation.id} cannot accept organization delegation`)
+  }
+  if (operation.principalKinds.includes('resource_delegated')) {
+    throw new Error(`Workspace operation ${operation.id} cannot accept resource delegation`)
   }
 
   const allowsWorkspaceApiKey = operation.principalKinds.includes('workspace_api_key')
@@ -119,6 +138,8 @@ export function defineWorkspaceOperation<
   }
 
   if (operation.resourcePolicy) requireResourcePolicyBinding(operation.resourcePolicy)
+
+  assertContentDeliveryDeclaration(operation, delegatedServices)
 
   /**
    * `capability` is required, so refusing an absent one reads as unreachable.

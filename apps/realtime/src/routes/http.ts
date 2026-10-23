@@ -1,13 +1,23 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { FILE_DOC_EVENTS, type FileDocInvalidated } from '@sim/realtime-protocol/file-doc'
-import { ROOM_TYPES, roomName, WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import {
+  fileDocAdmissionRoom,
+  fileDocRoom,
+  parseFileDocTarget,
+} from '@sim/realtime-protocol/file-doc-target'
+import {
+  INVALIDATION_ROOM_TYPES,
+  invalidationRoomIdKey,
+  roomName,
+} from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
 import {
   applyMarkdownToLiveFileDoc,
-  fileDocAdmissionRoom,
   invalidateLiveFileDocument,
+  retireLiveFileDocument,
 } from '@/handlers/file-doc'
+import { fileDocOwnerAdapter } from '@/handlers/file-doc-owner'
 import { type IRoomManager, WorkflowRoomService } from '@/rooms'
 
 interface Logger {
@@ -174,16 +184,19 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
     // HTTP API (not the socket); this is the lossy liveness signal — a missed one only means
     // stale-until-refetch. Endpoint and event names derive from the room type, mirroring the socket
     // handler and the client hook.
-    const listRoomType = WORKSPACE_LIST_ROOM_TYPES.find(
-      (type) => req.url === `/api/${type}-changed`
-    )
+    const listRoomType = INVALIDATION_ROOM_TYPES.find((type) => req.url === `/api/${type}-changed`)
     if (req.method === 'POST' && listRoomType) {
       try {
         const body = await readRequestBody(req)
-        const { workspaceId } = JSON.parse(body)
-        if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
-        roomManager.emitToRoom({ type: listRoomType, id: workspaceId }, `${listRoomType}-changed`, {
-          workspaceId,
+        const idKey = invalidationRoomIdKey(listRoomType)
+        const ownerId = JSON.parse(body)?.[idKey]
+        if (
+          !isNonEmptyString(ownerId) ||
+          (idKey === 'projectId' && (ownerId.length > 200 || /[/:\s]/.test(ownerId)))
+        )
+          return sendError(res, 'Invalid collection owner', 400)
+        roomManager.emitToRoom({ type: listRoomType, id: ownerId }, `${listRoomType}-changed`, {
+          [idKey]: ownerId,
           timestamp: Date.now(),
         })
         sendSuccess(res)
@@ -202,13 +215,15 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
     if (req.method === 'POST' && req.url === '/api/file-doc/apply-edit') {
       try {
         const body = await readRequestBody(req)
-        const { fileId, markdown, version } = JSON.parse(body)
-        if (!isNonEmptyString(fileId) || typeof markdown !== 'string') {
+        const input = JSON.parse(body)
+        const { markdown, version } = input
+        const target = parseFileDocTarget(input)
+        if (!target || typeof markdown !== 'string') {
           return sendError(res, 'Invalid fileId or markdown', 400)
         }
         // `version` (the durable updatedAt this markdown was written with) records that the live doc now
         // incorporates that durable version, so the persist If-Match guard won't flag it as a conflict.
-        const result = await applyMarkdownToLiveFileDoc(fileId, markdown, {
+        const result = await applyMarkdownToLiveFileDoc(fileDocRoom(target), markdown, {
           version: typeof version === 'number' ? version : undefined,
         })
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -220,16 +235,47 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    if (req.method === 'POST' && req.url === '/api/file-doc/retire') {
+      try {
+        const input = JSON.parse(await readRequestBody(req))
+        const { retiredDocId, replacementDocId } = input
+        const target = parseFileDocTarget(input)
+        if (
+          !target?.owner ||
+          !fileDocOwnerAdapter(target.owner).tracksLifecycle ||
+          !isNonEmptyString(retiredDocId) ||
+          retiredDocId.length > 128 ||
+          !isNonEmptyString(replacementDocId) ||
+          replacementDocId.length > 128 ||
+          retiredDocId === replacementDocId
+        )
+          return sendError(res, 'Invalid file document retirement', 400)
+        const result = await retireLiveFileDocument(
+          { fileId: target.fileId, owner: target.owner, retiredDocId, replacementDocId },
+          roomManager.io
+        )
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: result.status }))
+      } catch (error) {
+        logger.error('Error retiring file document:', error)
+        sendError(res, 'Failed to retire file document')
+      }
+      return
+    }
+
     if (req.method === 'POST' && req.url === '/api/file-doc/invalidate') {
       try {
         const body = await readRequestBody(req)
-        const { fileId, version } = JSON.parse(body)
-        if (!isNonEmptyString(fileId)) return sendError(res, 'Invalid fileId', 400)
+        const input = JSON.parse(body)
+        const { version } = input
+        const target = parseFileDocTarget(input)
+        if (!target) return sendError(res, 'Invalid file target', 400)
+        const { fileId } = target
         if (!Number.isSafeInteger(version) || version <= 0) {
           return sendError(res, 'Invalid version', 400)
         }
-        const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: fileId } as const
-        const result = await invalidateLiveFileDocument(fileId, version)
+        const room = fileDocRoom(target)
+        const result = await invalidateLiveFileDocument(room, version)
         const payload: FileDocInvalidated = {
           fileId,
           version,
@@ -238,7 +284,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
         }
         if (result.status === 'applied')
           roomManager.io
-            .to([roomName(room), fileDocAdmissionRoom(fileId)])
+            .to([roomName(room), fileDocAdmissionRoom(target)])
             .emit(FILE_DOC_EVENTS.INVALIDATED, payload)
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: result.status }))

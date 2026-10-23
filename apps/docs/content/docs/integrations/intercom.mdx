@@ -1,31 +1,29 @@
 ---
 title: Intercom
 description: Manage contacts, companies, conversations, tickets, and messages in Intercom
+integration:
+  type: "intercom_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="intercom_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Intercom](https://www.intercom.com/) in Sim to manage contacts and companies, read and reply to conversations, create and retrieve tickets, and send messages. Connect these operations to support triage, follow-up, and CRM synchronization workflows.
+Use [Intercom](https://www.intercom.com/) in Sim to manage contacts and companies, read and reply to conversations, create, retrieve, and update tickets, and send messages. Connect these operations to support triage, follow-up, and CRM synchronization workflows.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.
-
-
+Create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create, get, and update tickets; and create messages.
 
 ## Actions
 
 ### Create Contact in Intercom
 
 Create a new contact in Intercom with email, external_id, or role. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +93,13 @@ Create a new contact in Intercom with email, external_id, or role. Returns API-a
 |   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
 | `contactId` | string | ID of the created contact |
 
+</ReferenceDetails>
+
 ### Get Single Contact from Intercom
 
 Get a single contact by ID from Intercom. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,15 +166,21 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 |     ↳ `country_code` | string | ISO country code |
 |     ↳ `continent_code` | string | Continent code |
 |   ↳ `social_profiles` | object | Social profiles of the contact |
-|     ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
-|     ↳ `name` | string | Social network name |
-|     ↳ `url` | string | Profile URL |
-|     ↳ `username` | string | Username on the social network |
-|     ↳ `id` | string | User ID on the social network |
+|     ↳ `type` | string | Object type \(social_profile.list\) |
+|     ↳ `data` | array | Array of social profile objects |
+|       ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
+|       ↳ `name` | string | Social network name |
+|       ↳ `url` | string | Profile URL |
+|       ↳ `username` | string | Username on the social network |
+|       ↳ `id` | string | User ID on the social network |
+
+</ReferenceDetails>
 
 ### Update Contact in Intercom
 
 Update an existing contact in Intercom. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -218,9 +226,13 @@ Update an existing contact in Intercom. Returns API-aligned fields only.
 |   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
 | `contactId` | string | ID of the updated contact |
 
+</ReferenceDetails>
+
 ### List Contacts from Intercom
 
 List all contacts from Intercom with pagination support
+
+<ReferenceDetails>
 
 #### Input
 
@@ -254,9 +266,13 @@ List all contacts from Intercom with pagination support
 |   ↳ `total_pages` | number | Total number of pages |
 | `total_count` | number | Total number of contacts |
 
+</ReferenceDetails>
+
 ### Search Contacts in Intercom
 
 Search for contacts in Intercom using a query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -301,9 +317,13 @@ Search for contacts in Intercom using a query
 |   ↳ `total_pages` | number | Total number of pages |
 | `total_count` | number | Total number of matching contacts |
 
+</ReferenceDetails>
+
 ### Delete Contact from Intercom
 
 Delete a contact from Intercom by ID. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +338,13 @@ Delete a contact from Intercom by ID. Returns API-aligned fields only.
 | `id` | string | ID of deleted contact |
 | `deleted` | boolean | Whether the contact was deleted |
 
+</ReferenceDetails>
+
 ### Create Company in Intercom
 
 Create or update a company in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,9 +389,13 @@ Create or update a company in Intercom
 |     ↳ `segments` | array | Array of segment objects |
 | `companyId` | string | ID of the created/updated company |
 
+</ReferenceDetails>
+
 ### Get Company from Intercom
 
 Retrieve a single company by ID from Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -398,9 +426,13 @@ Retrieve a single company by ID from Intercom
 |   ↳ `tags` | object | Tags associated with the company |
 |   ↳ `segments` | object | Segments the company belongs to |
 
+</ReferenceDetails>
+
 ### List Companies from Intercom
 
 List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -438,9 +470,13 @@ List all companies from Intercom with pagination support. Note: This endpoint ha
 | `total_count` | number | Total number of companies |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Conversation from Intercom
 
 Retrieve a single conversation by ID from Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -476,9 +512,13 @@ Retrieve a single conversation by ID from Intercom
 |   ↳ `statistics` | object | Conversation statistics |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Conversations from Intercom
 
 List all conversations from Intercom with pagination support
+
+<ReferenceDetails>
 
 #### Input
 
@@ -517,9 +557,13 @@ List all conversations from Intercom with pagination support
 | `total_count` | number | Total number of conversations |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Reply to Conversation in Intercom
 
 Reply to a conversation as an admin in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,9 +600,13 @@ Reply to a conversation as an admin in Intercom
 | `conversationId` | string | ID of the conversation |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Search Conversations in Intercom
 
 Search for conversations in Intercom using a query. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -598,9 +646,13 @@ Search for conversations in Intercom using a query. Returns API-aligned fields o
 | `total_count` | number | Total number of matching conversations |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Ticket in Intercom
 
 Create a new ticket in Intercom. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -637,9 +689,13 @@ Create a new ticket in Intercom. Returns API-aligned fields only.
 | `ticketId` | string | ID of the created ticket |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Ticket from Intercom
 
 Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -670,9 +726,13 @@ Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
 | `ticketId` | string | ID of the retrieved ticket |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Ticket in Intercom
 
 Update a ticket in Intercom (change state, assignment, attributes)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -706,9 +766,13 @@ Update a ticket in Intercom (change state, assignment, attributes)
 | `ticketId` | string | ID of the updated ticket |
 | `ticket_state` | string | Current state of the ticket |
 
+</ReferenceDetails>
+
 ### Create Message in Intercom
 
 Create and send a new admin-initiated message in Intercom. Returns API-aligned fields only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -739,9 +803,13 @@ Create and send a new admin-initiated message in Intercom. Returns API-aligned f
 | `messageId` | string | ID of the created message |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Admins from Intercom
 
 Fetch a list of all admins for the workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -766,9 +834,13 @@ Fetch a list of all admins for the workspace
 |   ↳ `email_verified` | boolean | Whether email is verified |
 | `type` | string | Object type \(admin.list\) |
 
+</ReferenceDetails>
+
 ### Close Conversation in Intercom
 
 Close a conversation in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -793,9 +865,13 @@ Close a conversation in Intercom
 | `conversationId` | string | ID of the closed conversation |
 | `state` | string | State of the conversation \(closed\) |
 
+</ReferenceDetails>
+
 ### Open Conversation in Intercom
 
 Open a closed or snoozed conversation in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -819,9 +895,13 @@ Open a closed or snoozed conversation in Intercom
 | `conversationId` | string | ID of the opened conversation |
 | `state` | string | State of the conversation \(open\) |
 
+</ReferenceDetails>
+
 ### Snooze Conversation in Intercom
 
 Snooze a conversation to reopen at a future time
+
+<ReferenceDetails>
 
 #### Input
 
@@ -847,9 +927,13 @@ Snooze a conversation to reopen at a future time
 | `state` | string | State of the conversation \(snoozed\) |
 | `snoozed_until` | number | Unix timestamp when conversation will reopen |
 
+</ReferenceDetails>
+
 ### Assign Conversation in Intercom
 
 Assign a conversation to an admin or team in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -877,9 +961,13 @@ Assign a conversation to an admin or team in Intercom
 | `admin_assignee_id` | number | ID of the assigned admin |
 | `team_assignee_id` | string | ID of the assigned team |
 
+</ReferenceDetails>
+
 ### List Tags from Intercom
 
 Fetch a list of all tags in the workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -896,9 +984,13 @@ Fetch a list of all tags in the workspace
 |   ↳ `name` | string | Name of the tag |
 | `type` | string | Object type \(list\) |
 
+</ReferenceDetails>
+
 ### Create Tag in Intercom
 
 Create a new tag or update an existing tag name
+
+<ReferenceDetails>
 
 #### Input
 
@@ -915,9 +1007,13 @@ Create a new tag or update an existing tag name
 | `name` | string | Name of the tag |
 | `type` | string | Object type \(tag\) |
 
+</ReferenceDetails>
+
 ### Tag Contact in Intercom
 
 Add a tag to a specific contact
+
+<ReferenceDetails>
 
 #### Input
 
@@ -934,9 +1030,13 @@ Add a tag to a specific contact
 | `name` | string | Name of the tag |
 | `type` | string | Object type \(tag\) |
 
+</ReferenceDetails>
+
 ### Untag Contact in Intercom
 
 Remove a tag from a specific contact
+
+<ReferenceDetails>
 
 #### Input
 
@@ -953,9 +1053,13 @@ Remove a tag from a specific contact
 | `name` | string | Name of the tag that was removed |
 | `type` | string | Object type \(tag\) |
 
+</ReferenceDetails>
+
 ### Tag Conversation in Intercom
 
 Add a tag to a specific conversation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -973,9 +1077,13 @@ Add a tag to a specific conversation
 | `name` | string | Name of the tag |
 | `type` | string | Object type \(tag\) |
 
+</ReferenceDetails>
+
 ### Create Note in Intercom
 
 Add a note to a specific contact
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1002,9 +1110,13 @@ Add a note to a specific contact
 |   ↳ `type` | string | Contact type |
 |   ↳ `id` | string | Contact ID |
 
+</ReferenceDetails>
+
 ### Create Event in Intercom
 
 Track a custom event for a contact in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1023,9 +1135,13 @@ Track a custom event for a contact in Intercom
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Whether the event was accepted \(202 Accepted\) |
 
+</ReferenceDetails>
+
 ### Attach Contact to Company in Intercom
 
 Attach a contact to a company in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1052,9 +1168,13 @@ Attach a contact to a company in Intercom
 | `companyId` | string | ID of the company |
 | `name` | string | Name of the company |
 
+</ReferenceDetails>
+
 ### Detach Contact from Company in Intercom
 
 Remove a contact from a company in Intercom
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1075,11 +1195,13 @@ Remove a contact from a company in Intercom
 | `companyId` | string | ID of the company |
 | `name` | string | Name of the company |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Intercom Contact Created
 

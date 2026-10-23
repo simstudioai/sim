@@ -1,3 +1,4 @@
+import { getGooglePageLocation, updateGooglePageContext } from '@/lib/consent/google-context'
 import { GOOGLE_ADS_ID, GOOGLE_ANALYTICS_ID } from '@/lib/consent/scripts'
 
 /** Conversion labels registered in Google Ads, keyed by the action they measure. */
@@ -21,24 +22,34 @@ export function trackGoogleEvent<E extends keyof GoogleAnalyticsEventMap>(
   name: E,
   parameters: GoogleAnalyticsEventMap[E]
 ): void {
-  window.gtag?.('event', name, parameters)
+  if (!getGooglePageLocation(window.location.href)) return
+  updateGooglePageContext(window.location.href)
+  window.gtag?.('event', name, { ...parameters, send_to: GOOGLE_ANALYTICS_ID })
 }
 
 /**
  * Records a Google Ads conversion, addressed as `<tag id>/<conversion label>`.
- * Call only after the caller has verified marketing consent: without it Consent
- * Mode keeps `ad_storage` denied and the hit could not be attributed to a click.
+ * Call only after the caller has verified marketing consent, matching the
+ * application's policy for explicitly sending conversion events.
  */
 export function trackGoogleAdsConversion(conversion: GoogleAdsConversion): void {
+  if (!getGooglePageLocation(window.location.href)) return
+  updateGooglePageContext(window.location.href)
   window.gtag?.('event', 'conversion', {
     send_to: `${GOOGLE_ADS_ID}/${GOOGLE_ADS_CONVERSION_LABELS[conversion]}`,
   })
 }
 
 export function trackGooglePageView(path: string): void {
+  const url = new URL(window.location.href)
+  url.pathname = path
+  const pageLocation = getGooglePageLocation(url.href)
+  if (!pageLocation) return
+
+  updateGooglePageContext(pageLocation)
   window.gtag?.('event', 'page_view', {
-    page_path: path,
-    page_location: `${window.location.origin}${path}`,
+    page_path: new URL(pageLocation).pathname,
+    page_location: pageLocation,
     send_to: GOOGLE_ANALYTICS_ID,
   })
 }

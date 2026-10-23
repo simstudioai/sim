@@ -12,7 +12,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import { deriveFilePreviewSession } from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
+import {
+  deriveFilePreviewSession,
+  previewHoldsFinalContent,
+} from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
 import {
   buildCompletedPreviewSessions,
   type FilePreviewSessionsState,
@@ -56,17 +59,21 @@ export function useFilePreviewController({
 }: FilePreviewControllerDeps) {
   const queryClient = useQueryClient()
 
-  const previewActivationOwnerRef = useRef<Map<string, string | null>>(new Map())
-  const completedPreviewResourceHandoffRef = useRef<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >(new Map())
+  const previewActivationOwnerRef = useRef<Map<string, string | null> | null>(null)
+  const previewActivationOwners = (previewActivationOwnerRef.current ??= new Map())
+  const completedPreviewResourceHandoffRef = useRef<Map<
+    string,
+    { sessionId: string; suppressActivation: boolean }
+  > | null>(null)
+  const completedPreviewResourceHandoffs = (completedPreviewResourceHandoffRef.current ??=
+    new Map())
 
   const rememberPreviewActivationOwner = useCallback(
     (session: FilePreviewSession) => {
-      if (!session.fileId || previewActivationOwnerRef.current.has(session.id)) {
+      if (!session.fileId || previewActivationOwners.has(session.id)) {
         return
       }
-      previewActivationOwnerRef.current.set(session.id, activeResourceIdRef.current)
+      previewActivationOwners.set(session.id, activeResourceIdRef.current)
     },
     [activeResourceIdRef]
   )
@@ -78,7 +85,7 @@ export function useFilePreviewController({
       }
       if (onResourceEventRef.current) return true
       const currentActiveResourceId = activeResourceIdRef.current
-      const activationOwnerId = previewActivationOwnerRef.current.get(session.id)
+      const activationOwnerId = previewActivationOwners.get(session.id)
       return (
         currentActiveResourceId === null ||
         currentActiveResourceId ===
@@ -216,8 +223,8 @@ export function useFilePreviewController({
 
   const resetEphemeralPreviewState = useCallback(
     (options?: { removeStreamingResource?: boolean }) => {
-      previewActivationOwnerRef.current.clear()
-      completedPreviewResourceHandoffRef.current.clear()
+      previewActivationOwners.clear()
+      completedPreviewResourceHandoffs.clear()
       latestPreviewTargetToolCallIdRef.current = null
       syncPreviewSessionRefs(INITIAL_FILE_PREVIEW_SESSIONS_STATE)
       resetPreviewSessions()
@@ -251,13 +258,13 @@ export function useFilePreviewController({
           if (existing) {
             return current.map((resource) =>
               resource.id === 'streaming-file'
-                ? { ...resource, title: session.fileName || 'Writing file...' }
+                ? { ...resource, title: session.fileName || 'Writing file' }
                 : resource
             )
           }
           return [
             ...current,
-            { type: 'file', id: 'streaming-file', title: session.fileName || 'Writing file...' },
+            { type: 'file', id: 'streaming-file', title: session.fileName || 'Writing file' },
           ]
         })
         requestResourceAttention('streaming-file')
@@ -377,11 +384,11 @@ export function useFilePreviewController({
         if (shouldActivateOnComplete) {
           requestResourceAttention(fileId)
         }
-        completedPreviewResourceHandoffRef.current.set(fileId, {
+        completedPreviewResourceHandoffs.set(fileId, {
           sessionId: nextSession.id,
           suppressActivation: !shouldActivateOnComplete,
         })
-        if (hasRenderableFilePreviewContent(nextSession)) {
+        if (previewHoldsFinalContent(prevSession, payload)) {
           seedCompletedPreviewContentCache(fileId, nextSession.previewText)
         }
         if (workspaceId) invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)

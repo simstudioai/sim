@@ -28,10 +28,6 @@ const ORIGINAL_ENV = {
   SIM_ENV_SECRET_ID: process.env.SIM_ENV_SECRET_ID,
 }
 
-interface MockSqlQuery {
-  toSQL(): { sql: string }
-}
-
 function restoreEnvironmentVariable(key: keyof typeof ORIGINAL_ENV): void {
   const value = ORIGINAL_ENV[key]
   if (value === undefined) {

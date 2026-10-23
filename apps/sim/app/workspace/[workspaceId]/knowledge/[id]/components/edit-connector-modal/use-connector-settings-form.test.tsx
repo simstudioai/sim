@@ -2,33 +2,25 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   update: vi.fn(),
   applyAccess: vi.fn(),
   settingsPending: false,
   accessPending: false,
 }))
 
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  isConnectorSyncingOrPending: (row: {
-    status: string
-    accessMode?: string
-    memberSyncStatus?: string
-  }) =>
-    ['pending', 'syncing'].includes(row.status) ||
-    ['pending', 'running'].includes(row.memberSyncStatus ?? ''),
-  useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.settingsPending }),
-  useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
-}))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope', () => ({
   useConnectorScope: () => ({
     scope: { kind: 'organization', organizationId: 'org-1' },
@@ -56,6 +48,15 @@ vi.mock('@/hooks/use-permission-config', () => ({
 }))
 
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
+
+kbConnectorsQueriesMockFns.mockUseUpdateConnector.mockImplementation(() => ({
+  mutate: mocks.update,
+  isPending: mocks.settingsPending,
+}))
+kbConnectorsQueriesMockFns.mockUseUpdateConnectorAccess.mockImplementation(() => ({
+  mutate: mocks.applyAccess,
+  isPending: mocks.accessPending,
+}))
 
 function connector(overrides: Partial<ConnectorData> = {}): ConnectorData {
   return {
@@ -111,7 +112,6 @@ describe('shared connector settings form', () => {
   }
 
   beforeEach(() => {
-    mocks.live = false
     mocks.settingsPending = false
     mocks.accessPending = false
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -200,7 +200,7 @@ describe('shared connector settings form', () => {
   })
 
   it('preserves the GitHub repository and pending connection after an incompatible replacement is refused', () => {
-    const sourceConfig = { repository: 'acme/platform', branch: 'main' }
+    const sourceConfig = { repository: 'acme/platform' }
     render(
       connector({
         connectorType: 'github',

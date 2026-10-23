@@ -22,7 +22,7 @@ import {
 } from '@/lib/workflows/application/deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeploymentVersionAPI')
 
@@ -45,10 +45,12 @@ export const GET = defineInternalJsonRoute({
    * draft graph. Redacting here would blank OAuth accounts and resource selectors in that viewer
    * without closing any disclosure boundary, so this surface opts into the raw graph.
    */
-  mapInput: ({ params }) => ({
+  mapInput: ({ params, query }) => ({
     workflowId: params.id,
     version: params.version,
+    expectedDeploymentVersionId: query.expectedDeploymentVersionId,
     includeCredentialValues: true,
+    representation: 'comparison' as const,
   }),
   present: ({ version }) => ({ deployedState: version.state }),
 })
@@ -61,7 +63,7 @@ export const PATCH = withRouteHandler(
       const principal = await internalSessionAuth.authenticate()
       const parsed = await parseRequest(updateDeploymentVersionMetadataContract, request, context, {
         validationErrorResponse: (error) =>
-          createErrorResponse(getValidationErrorMessage(error, 'Invalid request body'), 400),
+          createCodedErrorResponse(getValidationErrorMessage(error, 'Invalid request body'), 400),
       })
       if (!parsed.success) return parsed.response
 
@@ -117,19 +119,19 @@ export const PATCH = withRouteHandler(
       return createSuccessResponse({ name: updated.name, description: updated.description })
     } catch (error: unknown) {
       if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
+        return createCodedErrorResponse(error.message, 401)
       }
       const orchestrationError = asOrchestrationError(
         concealCrossTenantResourceError(error, WORKFLOW_NOT_FOUND_MESSAGE)
       )
       if (orchestrationError) {
-        return createErrorResponse(
+        return createCodedErrorResponse(
           orchestrationError.message,
           statusForOrchestrationError(orchestrationError.code)
         )
       }
       logger.error(`[${requestId}] Error updating deployment version`, { error })
-      return createErrorResponse('Failed to update deployment version', 500)
+      return createCodedErrorResponse('Failed to update deployment version', 500)
     }
   }
 )

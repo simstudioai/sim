@@ -1,20 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
-
-const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-  getBlockByToolName: vi.fn(() => undefined),
-  getBlocksByCategory: vi.fn(() => []),
-}))
-
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
+import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
+import { getBlock } from '@/blocks/registry'
 import { extractBlockParams } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const mockGetBlock = vi.mocked(getBlock)
 
 /**
  * Block state exactly as the canvas persists it: one entry per sub-block id,
@@ -71,7 +62,7 @@ function modernBlockState(overrides: Record<string, unknown>, advancedMode = fal
 
 /**
  * Mirror the executor merge — `finalInputs = { ...inputs, ...transformedParams }`
- * in `executor/handlers/generic/generic-handler.ts` — so a key the mapper omits
+ * in `executor/handlers/generic/handler.ts` — so a key the mapper omits
  * keeps its raw block value and only an explicit `undefined` erases it.
  */
 function mapParams(params: Record<string, unknown>): Record<string, unknown> {

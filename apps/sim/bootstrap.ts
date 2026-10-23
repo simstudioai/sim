@@ -3,14 +3,18 @@
  * loading the Next.js standalone server, so application modules that read env at
  * import time see the full configuration. See `@sim/runtime-secrets`.
  */
+import { createLogger } from '@sim/logger'
 import { loadRuntimeSecrets } from '@sim/runtime-secrets'
+import { distrustCompromisedRoots } from '@sim/security/tls-trust'
 
+const tlsTrust = distrustCompromisedRoots()
 await loadRuntimeSecrets()
-// Explicit runtime configuration wins over deployment defaults.
-process.env.MSHIP_PLAN_MODE ??=
-  process.env.MSHIP_PLAN_MODE_DEFAULT ?? (process.env.NODE_ENV === 'development' ? 'true' : 'false')
-process.env.SIM_SEARCH_LIVE ??= process.env.SIM_SEARCH_LIVE_DEFAULT ?? 'true'
-process.env.NEXT_PUBLIC_SIM_SEARCH_LIVE = process.env.SIM_SEARCH_LIVE
+const logger = createLogger('Bootstrap')
+if (tlsTrust.unsupported || tlsTrust.error) {
+  logger.error('Could not distrust compromised CA roots', tlsTrust)
+} else if (tlsTrust.removed.length > 0) {
+  logger.info('Distrusted compromised CA roots', { removed: tlsTrust.removed })
+}
 // `server.js` is the Next standalone build artifact, a sibling of this file in
 // the image; it does not exist at type-check time, so the specifier is held in a
 // variable to keep it out of static module resolution.

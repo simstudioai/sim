@@ -67,15 +67,12 @@ case with trusted execution context; use the `migrate-application-operation` ski
 Use this structure only for an absolute external provider API:
 
 ```typescript
-import type { {ServiceName}{Action}Params } from '@/tools/{service}/types'
+import type {
+  {ServiceName}{Action}Params,
+  {ServiceName}{Action}Response,
+} from '@/tools/{service}/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface {ServiceName}{Action}Response {
-  success: boolean
-  output: {
-    // Define output structure here
-  }
-}
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const {serviceName}{Action}Tool: ToolConfig<
   {ServiceName}{Action}Params,
@@ -86,10 +83,11 @@ export const {serviceName}{Action}Tool: ToolConfig<
   description: 'Brief description',   // One sentence
   version: '1.0.0',
 
-  // OAuth config (if service uses OAuth)
+  // Required whenever the tool takes a saved credential — browser OAuth or service account
   oauth: {
     required: true,
-    provider: '{service}',            // Must match OAuth provider ID
+    provider: '{service}',            // Must match the service id in OAUTH_PROVIDERS
+    // credentialKind: 'service-account', // service-account-only integrations
   },
 
   params: {
@@ -117,7 +115,8 @@ export const {serviceName}{Action}Tool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.service.com/v1/resource/${params.id}`,
+    url: (params) =>
+      `https://api.service.com/v1/resource/${safeUrlPathSegment(params.someId, 'someId')}`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -186,6 +185,13 @@ fallback, or caller-controlled `_context` authority.
 - `'hidden'` - System-injected (OAuth tokens, internal params). User never sees.
 - `'user-only'` - User must provide (credentials, api keys, account-specific IDs)
 - `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters, most fall into this category)
+- `'llm-only'` - Computed by the LLM only; never shown as a user field
+
+A tool with a `credential` or `oauthCredential` param must declare `oauth: { required: true, provider }`, service-account-only integrations included: without it, token resolution rejects every credential at run time, and `bun run check:tool-param-reachability` fails.
+
+A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
+
+A declared `timeout` param is an ordinary tool input — put it in the request body or URL yourself if the provider expects it; it becomes Sim's millisecond request deadline only when the tool sets `timeoutParamIsDeadline: true` (e.g. `http_request`). A `method` param on a tool with a fixed `request.method` would be sent as the HTTP verb, so the same audit rejects it.
 
 ### Parameter Types
 - `'string'` - Text values
@@ -256,7 +262,7 @@ Hard rules:
   provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
   secret into them.
 
-Add focused tests covering named projection, ordinary identical text without provenance, nested and
+Run the `test-audit` authoring gate, then cover these risks at the boundary that owns them: named projection, ordinary identical text without provenance, nested and
 serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
 failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
 For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
@@ -287,8 +293,9 @@ downloads. Prefer raw provider endpoints over base64 metadata. Return the same f
 declared `file` / `file[]` output and nested message associations; `FileToolProcessor` stores it once
 and replaces every alias with the same `UserFile` in both workflow and Copilot execution.
 
-Preserve stored `UserFile` fields (`id`, `key`, `url`, `context`, `type`, `name`, `size`) in transforms;
-rebuilding the old `{ name, mimeType, data, size }` shape discards the reference. File outputs do not
+When a transform receives an already-stored `UserFile`, return it unchanged (keep `id`, `key`, `url`,
+`context`, `type`, `name`, `size`). Building a new `{ name, mimeType, data, size }` object from it
+discards the stored reference; that shape is only for fresh raw-binary responses. File outputs do not
 need duplicate inline text/base64 aliases; the file system handles content materialization. When
 an existing tool explicitly exposes content aliases in its contract, preserve its legacy version and
 use the existing block/tool version pattern for a file-only output. Test a file over 10 MiB through
@@ -301,6 +308,7 @@ tool result; keep additional provider fields only when they convey distinct info
 - `'json'` - Complex objects (use this, NOT 'object')
 - `'array'` - Arrays with `items` property
 - `'object'` - Objects with `properties` property
+- `'file'` / `'file[]'` - Stored files; the executor persists them (see File Downloads above)
 
 ### Optional Outputs
 Add `optional: true` for fields that may not exist in the response:
@@ -355,7 +363,7 @@ Only use bare `type: 'json'` without `properties` when the shape is truly dynami
 ## Critical Rules for transformResponse
 
 ### Handle Nullable Fields
-ALWAYS use `?? null` for fields that may be undefined:
+Use `?? null` for fields that may be undefined:
 ```typescript
 transformResponse: async (response: Response) => {
   const data = await response.json()
@@ -418,6 +426,8 @@ export interface {Service}{Action}Response extends ToolResponse {
 }
 ```
 
+Each response interface is imported by its tool's config: `ToolConfig<Params, Response>` for an external API, `InternalToolConfig<Params, Response>` for in-process work. Never add an umbrella `{Service}Response` union of them: nothing imports it.
+
 ## Index.ts Barrel Export Pattern
 
 ```typescript
@@ -446,7 +456,7 @@ export const tools = {
 3. Regenerate the tool metadata artifacts:
 
 ```bash
-bun run tool-metadata:generate
+bun run generate:tool-metadata
 ```
 
 Client code reads a tool's `params`/`outputs` from generated metadata rather than
@@ -456,7 +466,7 @@ these are regenerated — and CI fails on stale artifacts. Commit the result. Se
 
 ## Wiring Tools into the Block (Required)
 
-After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
+After registering in `tools/registry.ts`, also update the block definition at `apps/sim/blocks/blocks/{service}.ts`: a tool is usable from the UI only once the block wires it.
 
 ### 1. Add to `tools.access`
 
@@ -538,10 +548,13 @@ Add any type coercions needed for new params (runs at execution time, after vari
 params: (params) => {
   const result: Record<string, unknown> = {}
   if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
-  if (params.newParamName) result.toolParamName = params.newParamName  // rename if IDs differ
   return result
 },
 ```
+
+Name each subBlock (or its `canonicalParamId`) exactly after the tool param it fills. A required
+`user-only` param that is only renamed in `tools.config.params` fails
+`bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params.
 
 ### 6. Add new outputs
 
@@ -602,10 +615,10 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
-- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
+- [ ] `bun run generate:tool-metadata` run and the regenerated artifacts committed
 - [ ] `bun run scripts/generate-docs.ts` run and the refreshed docs committed — the integration's
       docs page is rendered from each tool's description, params, and outputs, and CI's
-      `bun run docs:check` fails on stale pages
+      `bun run check:docs` fails on stale pages
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
 - [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
       only where a concrete Sim `{{...}}` resolution path requires them
