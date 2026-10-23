@@ -286,6 +286,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'contexts',
     'excludedDates',
     'endsAt',
+    'runBudgetUsd',
     'archivedAt',
     'createdAt',
     'updatedAt',
@@ -303,6 +304,10 @@ export const GENERATED_SCHEMA_TABLES = {
     'totalDurationMs',
     'executionData',
     'cost',
+    'occurrenceAt',
+    'outcome',
+    'summary',
+    'billingRequestId',
     'createdAt',
   ],
   webhook: [

@@ -64,9 +64,10 @@ export const BillingCallbackHeaders = z
       context.addIssue({ code: "custom", message: "Incomplete or conflicting billing protocol headers" });
   });
 
-/** Sim's plan-aware usage card: the JSON body of the `<usage_upgrade>` tag its chat renders. */
+/** Sim's plan-aware usage card: the JSON body of the `<usage_upgrade>` tag its chat renders.
+ * `job_run_budget`: a scheduled job's run reached its own spend cap, not the payer's plan (D94). */
 export const UsageUpgrade = z.object({
-  reason: z.literal("usage_limit"),
+  reason: z.enum(["usage_limit", "job_run_budget"]),
   action: z.enum(["upgrade_plan", "increase_limit"]),
   message: z.string().min(1).max(1_000),
 });

@@ -3443,6 +3443,43 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
+  return data.reason === 'job_run_budget' ? (
+    <JobRunBudgetDisplay message={data.message} />
+  ) : (
+    <PlanUsageLimitDisplay data={data} />
+  )
+}
+
+/**
+ * A scheduled job's run reached its own spend cap. The cap belongs to the job, not to the
+ * account, so the card offers no billing action: the next run starts with a fresh cap.
+ */
+interface JobRunBudgetDisplayProps {
+  message: string
+}
+
+function JobRunBudgetDisplay({ message }: JobRunBudgetDisplayProps) {
+  return (
+    <InteractionCard
+      title={
+        <span className='inline-flex items-center gap-2'>
+          <TriangleAlert
+            aria-hidden
+            className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
+          />
+          Run Spend Limit Reached
+        </span>
+      }
+    >
+      <div className='px-2 pb-2'>
+        <p className='text-[var(--text-body)] text-small leading-5'>{message}</p>
+      </div>
+    </InteractionCard>
+  )
+}
+
+/** The payer's plan limit: the card links to where the plan or the limit can change. */
+function PlanUsageLimitDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()

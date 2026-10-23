@@ -2,7 +2,7 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/searc
 import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import type { ToolActivity, TurnOrigin } from '@/lib/mothership/generated/protocol'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
@@ -197,8 +197,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
-  /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
-  origin?: 'task'
+  /** Automation opened this turn, not the user: a system chip, not a bubble. */
+  origin?: TurnOrigin
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   fileAttachments?: FileAttachmentForApi[]
