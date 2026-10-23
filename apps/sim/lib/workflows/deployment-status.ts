@@ -19,9 +19,15 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  * caller is what let this surface compare a raw jsonb blob against a normalized
  * draft, so that the server and the client answered the same question
  * differently for the same workflow.
+ *
+ * Every read — the active version row, the normalized draft, its variables and
+ * the credential rows the block migrations consult — runs in one REPEATABLE READ
+ * transaction so both operands come from the same snapshot. The diff does not:
+ * it is pure CPU over values already read, and running it after commit returns
+ * the pooled connection instead of holding it idle in transaction.
  */
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
-  return db.transaction(async (tx) => {
+  const snapshot = await db.transaction(async (tx) => {
     await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
     /*
      * `workspaceId` is selected here, in this transaction, rather than left for
@@ -53,10 +59,10 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
       .limit(1)
 
     /* The inner join guarantees a workspace row; a null id means unusable data. */
-    if (!active?.state || !active.workspaceId) return false
+    if (!active?.state || !active.workspaceId) return null
 
     const currentState = await loadWorkflowDeploymentSnapshot(workflowId, tx)
-    if (!currentState) return false
+    if (!currentState) return null
 
     const deployedState = await materializeDeploymentState(
       workflowId,
@@ -65,6 +71,9 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
       tx
     )
 
-    return hasWorkflowChanged(currentState, deployedState as WorkflowState)
+    return { currentState, deployedState }
   })
+
+  if (!snapshot) return false
+  return hasWorkflowChanged(snapshot.currentState, snapshot.deployedState as WorkflowState)
 }
