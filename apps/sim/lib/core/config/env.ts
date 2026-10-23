@@ -456,6 +456,8 @@ export const env = createEnv({
     IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
     IVM_MAX_BROKER_RESULT_JSON_CHARS:      z.string().optional().default('16777216'),// Max JSON payload size for sandbox task broker results (host→isolate)
     IVM_MAX_BROKERS_PER_EXECUTION:         z.string().optional().default('1000'),    // Max broker calls per sandbox task execution
+    IVM_REMOTE_WORKER_URL:                 z.string().optional(),                    // ws(s)://<host>/v1/worker of a dedicated worker host; workers run there unless the isolated-vm-local-workers kill switch is on
+    IVM_REMOTE_WORKER_TOKEN:               z.string().optional(),                    // Token the worker host expects (its IVM_HOST_TOKEN, >= 32 chars); required with IVM_REMOTE_WORKER_URL
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)

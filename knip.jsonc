@@ -30,6 +30,8 @@
         "vitest.integration.setup.ts",
         // Spawned worker and assets bundled/loaded by filename.
         "lib/execution/isolated-vm-worker.cjs",
+        // The worker host runs as its own process (`node isolated-vm-host.cjs`).
+        "lib/execution/isolated-vm-host.cjs",
         // Oracle's client spawns this standalone Node worker by filename.
         "lib/internal/oracledb/oracle-worker.cjs",
         "lib/execution/sandbox/bundles/*.{ts,cjs}",
