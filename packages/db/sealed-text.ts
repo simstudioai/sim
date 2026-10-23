@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isSealed, seal, sealingKeyId, unseal } from '@sim/security/encryption'
-import { getTableName, type SQL, sql } from 'drizzle-orm'
+import { toRecord } from '@sim/utils/object'
+import { type SQL, sql } from 'drizzle-orm'
 import { type AnyPgColumn, customType } from 'drizzle-orm/pg-core'
 
 const logger = createLogger('SealedText')
@@ -56,9 +57,17 @@ export function reportAccountTokenSealing(): void {
   })
 }
 
-/** The context a sealed-text column authenticates its values with, e.g. `account.access_token`. */
+/**
+ * The context a sealed-text column authenticates its values with (`account.access_token`), read
+ * from the column's own definition rather than rebuilt from its table, so an `alias()` of the
+ * table or a later rename never changes it. Drizzle keeps the field config on the column's
+ * `config`, which aliased columns share.
+ */
 export function sealedTextContext(column: AnyPgColumn): string {
-  return `${getTableName(column.table)}.${column.name}`
+  const context = toRecord(toRecord(Reflect.get(column, 'config')).fieldConfig).context
+  if (typeof context !== 'string')
+    throw new Error(`Column ${column.name} is not a sealed-text column`)
+  return context
 }
 
 /** Seals `plaintext` for `context` with `ENCRYPTION_KEY`; an already sealed value is returned as is. */
@@ -80,7 +89,7 @@ export function openText(stored: string, context: string): string {
  */
 export function sealedText(table: string, column: string) {
   const context = `${table}.${column}`
-  return customType<{ data: string; driverData: string }>({
+  return customType<{ data: string; driverData: string; config: { context: string } }>({
     dataType() {
       return 'text'
     },
@@ -91,7 +100,7 @@ export function sealedText(table: string, column: string) {
     fromDriver(value) {
       return openText(value, context)
     },
-  })(column)
+  })(column, { context })
 }
 
 /**
