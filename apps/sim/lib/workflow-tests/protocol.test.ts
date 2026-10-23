@@ -25,4 +25,9 @@ describe('testReplyArgsSchema', () => {
       output: null,
     })
   })
+
+  it('never reads an error past the cap as an empty output', () => {
+    const reply = { runId: 'r', callId: 'c', error: 'x'.repeat(10_001) }
+    expect(testReplyArgsSchema.safeParse(reply).success).toBe(false)
+  })
 })

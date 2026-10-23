@@ -47,7 +47,10 @@ export const testStartArgsSchema = z.object({
  */
 export const testReplyArgsSchema = z.union([
   z.object({ runId: z.string().min(1), callId: z.string().min(1), error: z.string().max(10_000) }),
-  z.object({ runId: z.string().min(1), callId: z.string().min(1), output: z.unknown() }),
+  // Strict, so a reply carrying an `error` (one past the cap included) is never read as an output.
+  z
+    .object({ runId: z.string().min(1), callId: z.string().min(1), output: z.unknown() })
+    .strict(),
 ])
 
 export const testNextArgsSchema = z.object({ runId: z.string().min(1) })
