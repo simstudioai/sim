@@ -105,9 +105,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Only push/1 runs the PostgreSQL 16 step below; an empty image skips the service elsewhere.
+      # Only push/6 runs the PostgreSQL 16 step below; an empty image skips the service elsewhere.
       postgres-legacy:
-        image: ${{ matrix.provision == 'push' && matrix.shard == 1 && 'postgres:16-alpine' || '' }}
+        image: ${{ matrix.provision == 'push' && matrix.shard == 6 && 'postgres:16-alpine' || '' }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -143,13 +143,16 @@ jobs:
           bun run db:${{ matrix.provision }}
 
       - name: Verify migration replay is a no-op
-        if: matrix.provision == 'migrate' && matrix.shard == 1
+        if: matrix.provision == 'migrate' && matrix.shard == 6
         working-directory: packages/db
         run: bun run db:migrate
 
       - name: Run packages/db integration tests
         working-directory: packages/db
-        run: bun run test --mode integration --shard=${{ matrix.shard }}/8
+        # Oppose the longest database shard and the longest application shard.
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: bun run test --mode integration --shard=$((9 - SHARD))/8
 
       - name: Run apps/sim integration tests
         working-directory: apps/sim
@@ -159,12 +162,12 @@ jobs:
         run: bun run test --mode integration --shard=${{ matrix.shard }}/8
 
       - name: Run apps/realtime integration tests
-        if: matrix.shard == 1
+        if: matrix.shard == 6
         working-directory: apps/realtime
         run: bun run test --mode integration
 
       - name: Verify cumulative billing timeout recovery on PostgreSQL 16
-        if: matrix.provision == 'push' && matrix.shard == 1
+        if: matrix.provision == 'push' && matrix.shard == 6
         working-directory: apps/sim
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
