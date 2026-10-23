@@ -1,5 +1,5 @@
 {
-  "id": "a7a19a4e-8207-4fbf-918c-f5ae171bd9cc",
+  "id": "0ac8e6c1-9440-4310-9af4-7ab28dc2de42",
   "prevId": "2a4095de-e341-4264-becd-1714d26404f5",
   "version": "7",
   "dialect": "postgresql",
@@ -10219,15 +10219,6 @@
           "tableFrom": "knowledge_base_import",
           "tableTo": "workspace",
           "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "knowledge_base_import_user_id_user_id_fk": {
-          "name": "knowledge_base_import_user_id_user_id_fk",
-          "tableFrom": "knowledge_base_import",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

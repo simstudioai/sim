@@ -277,6 +277,8 @@ async function redispatchUnclaimedImport(
   record: KnowledgeImportRecord
 ): Promise<void> {
   if (record.status !== 'running' || record.startedAt) return
+  // A group that withdrew uploads since the record was written stops it here too.
+  await assertImportedDocumentsAllowed(principal, context.workspaceId)
   try {
     await startKnowledgeImport(await importPayload(principal, context))
   } catch (error) {

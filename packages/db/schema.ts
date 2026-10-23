@@ -3865,9 +3865,11 @@ export const knowledgeBaseImport = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * Attribution only, with no foreign key: the row is the janitor's handle on
+     * the bundle and the base, so it must outlive its importer's account.
+     */
+    userId: text('user_id').notNull(),
     /** The uploaded archive, deleted once the import settles. */
     sourceKey: text('source_key').notNull(),
     knowledgeBaseId: text('knowledge_base_id').references(() => knowledgeBase.id, {
