@@ -1,12 +1,20 @@
-import { openText, sealText } from '@sim/db/sealed-text'
+import { account } from '@sim/db/schema'
+import { openText, readEncryptionKey, sealedTextContext, sealText } from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
+import { sealedKeyId, sealingKeyId } from '@sim/security/encryption'
 import { sleep } from '@sim/utils/helpers'
 import type { Sql } from 'postgres'
 
-const logger = createLogger('AccountTokenSealing')
+const logger = createLogger('AccountTokenSealing', { enabled: true, logLevel: 'INFO' })
 
 interface AccountTokenSealingOptions {
   mode: 'seal' | 'unseal'
+  /**
+   * The id the fleet logs at startup (`Account token sealing`). A pass refuses to start under any
+   * other `ENCRYPTION_KEY`, so it can never seal rows with a key the fleet cannot open. Optional
+   * only for a dry run.
+   */
+  expectedKeyId?: string
   /** Counts the rows that would change without writing any. */
   dryRun?: boolean
   batchSize?: number
@@ -15,9 +23,12 @@ interface AccountTokenSealingOptions {
 }
 
 interface AccountTokenSealingResult {
+  keyId: string
   scanned: number
   pending: number
   updated: number
+  /** Rows left untouched because a token is sealed under another key. */
+  foreignKey: number
 }
 
 interface StoredTokens {
@@ -26,20 +37,46 @@ interface StoredTokens {
   refresh_token: string | null
 }
 
+const ACCESS_TOKEN_CONTEXT = sealedTextContext(account.accessToken)
+const REFRESH_TOKEN_CONTEXT = sealedTextContext(account.refreshToken)
+
 /**
  * Rewrites `account.access_token` and `account.refresh_token` into the sealed form (`seal`) or back
  * to plaintext (`unseal`, the rollback). Idempotent and resumable: a value already in the target
  * form is skipped, so a rerun only finishes what an interrupted run left. Each row is rewritten only
  * while it still holds the value this pass read, so a refresh that rotates the chain concurrently
- * wins, and `updated_at` is left alone because the refresh path reads it as the chain version.
+ * wins, and `updated_at` is left alone because the refresh path reads it as the chain version. Rows
+ * sealed under another key are skipped and counted rather than failing the pass.
  */
 export async function sealAccountTokens(
   sql: Sql,
-  { mode, dryRun = false, batchSize = 200, pauseMs = 100 }: AccountTokenSealingOptions
+  {
+    mode,
+    expectedKeyId,
+    dryRun = false,
+    batchSize = 200,
+    pauseMs = 100,
+  }: AccountTokenSealingOptions
 ): Promise<AccountTokenSealingResult> {
-  const convert = (value: string | null) =>
-    value === null ? null : mode === 'seal' ? sealText(value) : openText(value)
-  const result: AccountTokenSealingResult = { scanned: 0, pending: 0, updated: 0 }
+  const keyId = sealingKeyId(readEncryptionKey())
+  if ((!dryRun || expectedKeyId !== undefined) && expectedKeyId !== keyId) {
+    throw new Error(
+      `ENCRYPTION_KEY has key id ${keyId}, not the expected ${expectedKeyId ?? '(none)'}`
+    )
+  }
+  const isForeign = (value: string | null) => {
+    const sealedUnder = value === null ? null : sealedKeyId(value)
+    return sealedUnder !== null && sealedUnder !== keyId
+  }
+  const convert = (value: string | null, context: string) =>
+    value === null ? null : mode === 'seal' ? sealText(value, context) : openText(value, context)
+  const result: AccountTokenSealingResult = {
+    keyId,
+    scanned: 0,
+    pending: 0,
+    updated: 0,
+    foreignKey: 0,
+  }
   let afterId = ''
 
   for (;;) {
@@ -52,11 +89,15 @@ export async function sealAccountTokens(
     afterId = rows[rows.length - 1].id
     result.scanned += rows.length
 
-    const changes = rows
+    const ownRows = rows.filter(
+      (row) => !isForeign(row.access_token) && !isForeign(row.refresh_token)
+    )
+    result.foreignKey += rows.length - ownRows.length
+    const changes = ownRows
       .map((row) => ({
         row,
-        accessToken: convert(row.access_token),
-        refreshToken: convert(row.refresh_token),
+        accessToken: convert(row.access_token, ACCESS_TOKEN_CONTEXT),
+        refreshToken: convert(row.refresh_token, REFRESH_TOKEN_CONTEXT),
       }))
       .filter(
         ({ row, accessToken, refreshToken }) =>

@@ -3,13 +3,14 @@ import { sealAccountTokens } from '@sim/db/script-migrations/0037_seal_account_t
 import { createLogger } from '@sim/logger'
 import postgres from 'postgres'
 
-const logger = createLogger('AccountTokenSealing')
+const logger = createLogger('AccountTokenSealing', { enabled: true, logLevel: 'INFO' })
 const REQUIRED_ACK = 'sealed-readers-deployed'
 
 const { values } = parseArgs({
   options: {
     unseal: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'expect-key-id': { type: 'string' },
   },
 })
 
@@ -26,8 +27,19 @@ if (
   )
 }
 
-const sql = postgres(url, {
+if (!values['dry-run'] && !values['expect-key-id']) {
+  throw new Error(
+    'Pass --expect-key-id with the key id the fleet logs at startup (a dry run prints this key id)'
+  )
+}
+
+/** The pass reads and writes the unqualified `account` table, so a URL-supplied path cannot redirect it. */
+const databaseUrl = new URL(url)
+databaseUrl.searchParams.set('search_path', 'public, pg_temp')
+
+const sql = postgres(databaseUrl.toString(), {
   max: 1,
+  prepare: false,
   connect_timeout: 10,
   max_lifetime: null,
   connection: { application_name: 'sim-account-token-sealing' },
@@ -36,6 +48,7 @@ const sql = postgres(url, {
 try {
   const result = await sealAccountTokens(sql, {
     mode: values.unseal ? 'unseal' : 'seal',
+    expectedKeyId: values['expect-key-id'],
     dryRun: values['dry-run'],
   })
   logger.info('Account token sealing finished', result)

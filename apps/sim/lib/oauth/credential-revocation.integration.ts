@@ -36,6 +36,7 @@ import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { completeOAuthCredentialToken } from '@/lib/oauth/token-resolution'
 
 const originalFetch = globalThis.fetch
+const fixtureEncryptionKey = process.env.ENCRYPTION_KEY
 const userId = generateId()
 const workspaceId = generateId()
 const accountId = generateId()
@@ -189,6 +190,7 @@ beforeEach(async () => {
 
 afterEach((context) => {
   sealWrites(false)
+  process.env.ENCRYPTION_KEY = fixtureEncryptionKey
   pausedProvider?.release.resolve()
   checks.push({
     name: context.task.name,
@@ -486,6 +488,15 @@ describe('OAuth refresh chains with sealed account tokens', () => {
       accessToken: 'expired-access',
       refreshToken: 'issued-refresh',
     })
+  })
+
+  it('keeps writing readable tokens when sealing is requested without a usable key', async () => {
+    sealWrites(true)
+    process.env.ENCRYPTION_KEY = 'not-hex'.repeat(6)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({ access_token: 'fresh-access' })
   })
 
   it('rotates a chain stored before sealing was enabled', async () => {

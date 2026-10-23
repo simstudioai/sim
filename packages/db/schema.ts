@@ -177,8 +177,8 @@ export const account = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    accessToken: sealedText('access_token'),
-    refreshToken: sealedText('refresh_token'),
+    accessToken: sealedText('account', 'access_token'),
+    refreshToken: sealedText('account', 'refresh_token'),
     idToken: text('id_token'),
     accessTokenExpiresAt: timestamp('access_token_expires_at'),
     refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
