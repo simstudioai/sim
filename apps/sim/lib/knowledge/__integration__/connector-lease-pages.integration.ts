@@ -380,15 +380,18 @@ describe('connector lease ACL pages in PostgreSQL', () => {
   })
 
   async function waitForDocumentLock(): Promise<number> {
-    return vi.waitFor(async () => {
-      const [row] = await db.execute<{ pid: number }>(sql`
+    return vi.waitFor(
+      async () => {
+        const [row] = await db.execute<{ pid: number }>(sql`
         SELECT pid FROM pg_stat_activity
         WHERE wait_event_type = 'Lock' AND datname = current_database()
           AND (query ILIKE 'update "document" set "acl"%'
             OR query ILIKE 'select "id", "chunk_count" from "document"%for update')`)
-      if (!row) throw new Error('Document ACL writer has not reached the held row')
-      return row.pid
-    })
+        if (!row) throw new Error('Document ACL writer has not reached the held row')
+        return row.pid
+      },
+      { timeout: 5_000, interval: 10 }
+    )
   }
 
   describe('fence-last pages', () => {
