@@ -108,25 +108,22 @@ describe('workflow input schemas', () => {
     expect(z.object(generateWorkflowInputShape(fields)).parse(input)).toEqual(input)
   })
 
-  it('accepts the json and files aliases as their canonical types', () => {
-    const shape = z.object(
-      generateWorkflowInputShape([
-        { name: 'payload', type: 'json' },
-        { name: 'documents', type: 'files' },
-      ])
-    )
-    expect(shape.safeParse({ payload: { a: 1 }, documents: [file] }).success).toBe(true)
-    expect(shape.safeParse({ payload: 'text', documents: [file] }).success).toBe(false)
+  it('accepts the files alias as file[]', () => {
+    const shape = z.object(generateWorkflowInputShape([{ name: 'documents', type: 'files' }]))
+    expect(shape.safeParse({ documents: [file] }).success).toBe(true)
+    expect(shape.safeParse({ documents: 'text' }).success).toBe(false)
   })
 
-  it('rejects unsupported type names as a validation failure naming the field', () => {
-    expect(() => generateToolInputSchema([{ name: 'count', type: 'unsupported' }])).toThrow(
-      expect.objectContaining({
-        name: 'OrchestrationError',
-        code: 'validation',
-        message:
-          'Workflow input "count" has unsupported type "unsupported". Use one of: string, number, boolean, object, array, file[].',
+  it.each(['short-input', 'json'])(
+    'accepts any value for the legacy type %s and advertises no type for it',
+    (type) => {
+      const fields = [{ name: 'title', type }]
+      expect(generateToolInputSchema(fields).properties).toEqual({
+        title: { description: 'title' },
       })
-    )
-  })
+      const shape = z.object(generateWorkflowInputShape(fields))
+      expect(shape.safeParse({ title: 'Quarterly report' }).success).toBe(true)
+      expect(shape.safeParse({ title: { text: 'Quarterly report' } }).success).toBe(true)
+    }
+  )
 })

@@ -115,8 +115,8 @@ describe('file inputs through workflow run options', () => {
   })
 })
 
-describe('mock payloads for aliased field types', () => {
-  it('samples a json field as an object the run validation accepts', () => {
+describe('mock payloads for legacy field types', () => {
+  it('samples a json field with a value the run validation accepts', () => {
     const [option] = resolveTriggerRunOptions({
       start: {
         type: 'start_trigger',
@@ -124,7 +124,6 @@ describe('mock payloads for aliased field types', () => {
         subBlocks: { inputFormat: { value: [{ name: 'payload', type: 'json' }] } },
       },
     })
-    expect(option.mockPayload).toEqual({ payload: {} })
     expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
   })
 })

@@ -345,34 +345,27 @@ describe('validateInputsForBlock', () => {
     ).toBe(false)
   })
 
-  describe('input-format', () => {
-    const config = { id: 'inputFormat', type: 'input-format' as const }
-    const validate = (value: unknown) =>
-      validateValueForSubBlockType(config, value, 'inputFormat', 'start_trigger', 'start-1')
-
-    it('stores type aliases as their canonical type and keeps untyped rows', () => {
-      expect(
-        validate([
-          { name: 'payload', type: 'json' },
-          { name: 'documents', type: 'files' },
-          { name: 'message' },
-        ])
-      ).toEqual({
-        valid: true,
-        value: [
-          { name: 'payload', type: 'object' },
-          { name: 'documents', type: 'file[]' },
-          { name: 'message' },
-        ],
-      })
-    })
-
-    it('rejects a type no workflow input can declare, listing the allowed types', () => {
-      const result = validate([{ name: 'count', type: 'integer' }])
-      expect(result.valid).toBe(false)
-      expect(result.error?.error).toBe(
-        'Invalid type "integer" for inputFormat[0] - use one of: string, number, boolean, object, array, file[]'
+  it('stores input-format rows with legacy or aliased types unchanged', () => {
+    const rows = [
+      { name: 'payload', type: 'json' },
+      { name: 'title', type: 'short-input' },
+      { name: 'message' },
+    ]
+    expect(
+      validateValueForSubBlockType(
+        { id: 'inputFormat', type: 'input-format' },
+        rows,
+        'inputFormat',
+        'start_trigger',
+        'start-1'
       )
+    ).toEqual({
+      valid: true,
+      value: [
+        { name: 'payload', type: 'json' },
+        { name: 'title', type: 'short-input' },
+        { name: 'message' },
+      ],
     })
   })
 

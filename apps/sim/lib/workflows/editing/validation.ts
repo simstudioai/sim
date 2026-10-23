@@ -24,10 +24,6 @@ import {
   type SelectorReference,
   validateSelectorIds,
 } from '@/lib/workflows/editing/selector-validator'
-import {
-  canonicalInputFormatFieldType,
-  INPUT_FORMAT_FIELD_TYPES,
-} from '@/lib/workflows/input-format-schema'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
@@ -643,44 +639,7 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
-    case 'input-format': {
-      if (!Array.isArray(value)) {
-        return {
-          valid: false,
-          error: {
-            blockId,
-            blockType,
-            field: fieldName,
-            value,
-            error: `Invalid ${type} value for field "${fieldName}" - expected an array`,
-          },
-        }
-      }
-      const rows: unknown[] = []
-      for (const [index, row] of value.entries()) {
-        if (!isPlainRecord(row) || row.type === undefined) {
-          rows.push(row)
-          continue
-        }
-        const fieldType =
-          typeof row.type === 'string' ? canonicalInputFormatFieldType(row.type) : null
-        if (!fieldType) {
-          return {
-            valid: false,
-            error: {
-              blockId,
-              blockType,
-              field: fieldName,
-              value,
-              error: `Invalid type ${JSON.stringify(row.type)} for ${fieldName}[${index}] - use one of: ${INPUT_FORMAT_FIELD_TYPES.join(', ')}`,
-            },
-          }
-        }
-        rows.push(fieldType === row.type ? row : { ...row, type: fieldType })
-      }
-      return { valid: true, value: rows }
-    }
-
+    case 'input-format':
     case 'table': {
       // Should be an array
       if (!Array.isArray(value)) {

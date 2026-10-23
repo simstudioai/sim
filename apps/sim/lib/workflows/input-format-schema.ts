@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-/** The input field types the editor offers and workflow runs accept. */
-export const INPUT_FORMAT_FIELD_TYPES = [
+/** The input field types the editor offers. */
+const INPUT_FORMAT_FIELD_TYPES = [
   'string',
   'number',
   'boolean',
@@ -12,14 +12,9 @@ export const INPUT_FORMAT_FIELD_TYPES = [
 
 export type InputFormatFieldType = (typeof INPUT_FORMAT_FIELD_TYPES)[number]
 
-/**
- * Every spelling a stored field's `type` may use, mapped to its canonical type:
- * `json` is the name blocks use for object params and outputs, `files` the
- * legacy MCP alias.
- */
+/** Every canonical type by name, plus `files`, the legacy MCP alias of `file[]`. */
 const INPUT_FORMAT_FIELD_TYPES_BY_NAME = new Map<string, InputFormatFieldType>([
   ...INPUT_FORMAT_FIELD_TYPES.map((type) => [type, type] as const),
-  ['json', 'object'],
   ['files', 'file[]'],
 ])
 
