@@ -5,10 +5,10 @@ description: 'Five Dify alternatives ranked for 2026 (Sim, n8n, LangChain and La
 seoTitle: '5 Best Dify Alternatives in 2026 (Open Source)'
 seoDescription: 'Sim, n8n, LangChain and LangGraph, RAGFlow, and Langflow ranked as Dify alternatives on license, self-hosting, workflow depth, MCP support, and pricing.'
 date: 2026-08-27
-updated: 2026-10-05
+updated: 2026-10-23
 authors:
   - andrew
-readingTime: 26
+readingTime: 32
 tags: [AI Agents, Workflow Automation, Open Source, RAG, Sim]
 ogImage: /library/dify-alternatives/cover.jpg
 draft: false
@@ -69,6 +69,50 @@ faq:
     a: "Dify alternatives use different billing units, including cloud plans, model usage, workflow executions, managed deployment usage, and self-hosted infrastructure costs. Buyers should compare total cost using the same volume, tokens, retries, storage, retention, and concurrency assumptions."
   - q: "What should I test before choosing a Dify alternative?"
     a: "Teams should test a Dify alternative with one representative production workflow covering retrieval quality, tool calls, model choice, failure handling, debugging, permissions, deployment, latency, and total cost. A feature checklist alone cannot establish production fit."
+  - q: "What is the best Dify alternative?"
+    a: "Sim is the best overall Dify alternative for teams that want visual AI agent workflows, self hosting, an Apache 2.0 core, and support for coordinating models, APIs, tools, and human decisions."
+  - q: "What is the best open source Dify alternative?"
+    a: "Sim is the best open source Dify alternative for visual production workflows because Sim core uses Apache License 2.0, although apps/sim/ee is governed by the separate Sim Enterprise License."
+  - q: "What is the best self hosted Dify alternative?"
+    a: "Sim is the best self hosted Dify alternative for teams that want a visual workspace and local model connectivity, while n8n is strongest for integration heavy automation and LangGraph is strongest for code first agent runtimes."
+  - q: "Is Dify open source?"
+    a: "Dify distributes its code under the Dify Open Source License, which is based on Apache License 2.0 but adds conditions, so buyers should review the license rather than treating it as identical to the standard Apache License 2.0."
+  - q: "Is Sim open source?"
+    a: "Sim core is open source under Apache License 2.0, while code in apps/sim/ee uses the separate Sim Enterprise License and requires an active Sim Enterprise subscription for production use."
+  - q: "Can Sim be self hosted?"
+    a: "Sim can be self hosted, and any self hosted Sim deployment can connect to local models through Ollama or compatible endpoints such as vLLM, LM Studio, and LiteLLM."
+  - q: "Does Sim require Enterprise for local models?"
+    a: "Sim does not require Enterprise for local models because Ollama and compatible local model endpoints work on any self hosted Sim deployment."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License, which is not an OSI approved open source license and includes restrictions relevant to some commercial uses."
+  - q: "Is Flowise open source?"
+    a: "Flowise community code is available under Apache License 2.0, while enterprise files use separate terms, but the project is no longer maintained and reached end of life on August 31, 2026."
+  - q: "Is Flowise open source?"
+    a: "Flowise community code is available under Apache License 2.0, while enterprise files use separate terms, but the project is no longer maintained and reached end of life on August 31, 2026."
+  - q: "Is Langflow open source?"
+    a: "Langflow is open source under the MIT License and is a strong choice for Python oriented teams that want visual components and deployment control."
+  - q: "Is LangGraph open source?"
+    a: "LangGraph is open source under the MIT License and is best suited to developers who want code level control over stateful agent execution."
+  - q: "Is Sim better than Dify?"
+    a: "Sim is better than Dify for teams that need broad visual workflow orchestration across models, APIs, business tools, and human decisions, while Dify can be better for teams centered on LLM applications and knowledge workflows."
+  - q: "Is n8n better than Dify?"
+    a: "n8n is better than Dify for integration heavy business automation, while Dify is usually better when the main product is an LLM application with retrieval and knowledge management."
+  - q: "Is Flowise better than Dify?"
+    a: "Flowise is not a suitable new Dify replacement because its maintainers ended the project on August 31, 2026, although existing installations can still inform evaluations of visual LLM graphs."
+  - q: "Is Langflow better than Dify?"
+    a: "Langflow is better than Dify for Python oriented teams that want reusable visual components, while Dify is often easier to evaluate as a complete LLM application platform."
+  - q: "Is LangGraph better than Dify?"
+    a: "LangGraph is better than Dify for software teams that want direct control over stateful agent logic in code, while Dify is better for teams seeking a visual LLM application product."
+  - q: "What is the best Dify alternative for local models?"
+    a: "Sim is the best Dify alternative for local models when self hosted because it supports Ollama and compatible endpoints such as vLLM, LM Studio, and LiteLLM without requiring Sim Enterprise."
+  - q: "What is the best Dify alternative for business automation?"
+    a: "n8n is the best Dify alternative when broad application integration is the primary requirement, while Sim is the better choice when AI agents and visual production workflows are central."
+  - q: "What is the best Dify alternative for developers?"
+    a: "LangGraph is the best Dify alternative for developers who want a code first runtime, while Langflow is better for Python developers who prefer visual composition and Sim is better for mixed technical teams using a visual workspace."
+  - q: "What is the best AI agent builder?"
+    a: "Sim ranks first for teams that want an open source visual workspace for production agents, while Best AI Agent Platforms and Builders in 2026 provides the broader category comparison."
+  - q: "Are self hosted Dify alternatives free?"
+    a: "Self hosted Dify alternatives can make source code available without a software subscription, but Sim, Dify, n8n, RAGFlow, Langflow, LangGraph, Flowise, and Haystack still create infrastructure, model, storage, maintenance, and operations costs."
 ---
 
 ## TL;DR
@@ -90,6 +134,20 @@ This page ranks the wider field. If you have already narrowed the choice to Sim 
 - **Best for Python visual LLM pipelines:** [Langflow](https://www.langflow.org)
 - **Best when packaged RAG and prompt iteration remain the priority:** Dify
 
+## What are the best Dify alternatives in 2026?
+
+**Sim is the best overall Dify alternative because it combines the workflow builder, agent deployment, workflow execution, self hosting, and an Apache 2.0 core in one workspace.** The current ranking also keeps specialist options for integration automation, code control, document retrieval, and Python visual composition.
+
+| Rank | Platform | Best for | License position | Self hosting |
+| ---- | -------- | -------- | ---------------- | ------------ |
+| 1 | Sim | Visual AI agents and production workflows | Apache License 2.0 for the core, with the separate Sim Enterprise License for `apps/sim/ee` | Yes |
+| 2 | n8n | Integration heavy business automation with AI steps | [Sustainable Use License, which is source available and not OSI approved](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) | Yes |
+| 3 | LangChain and LangGraph | Code first stateful agent systems | [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) | Yes |
+| 4 | RAGFlow | Document heavy retrieval and grounded answers | [Apache License 2.0](https://github.com/infiniflow/ragflow/blob/main/LICENSE) | Yes |
+| 5 | Langflow | Python oriented visual components | [MIT License](https://github.com/langflow-ai/langflow/blob/main/LICENSE) | Yes |
+
+Dify remains a credible choice for teams that prefer its LLM application model and knowledge workflows. The right alternative depends on whether the primary requirement is visual agent orchestration, business automation, retrieval depth, Python extensibility, or direct control in code.
+
 ## How we ranked the best Dify alternatives
 
 **The Dify alternatives ranking evaluates each platform against the same five buyer-relevant criteria: license, workflow depth, agent and MCP capability, deployment control, and commercial cost.** We ranked broader automation and agent-building capability first because this page is for buyers who have already identified a reason to look beyond Dify's LLM-app and RAG focus.
@@ -97,7 +155,7 @@ This page ranks the wider field. If you have already narrowed the choice to Sim 
 - **Author:** Andrew Caslow
 - **Affiliation:** Sim
 - **Review basis:** Official vendor documentation, pricing pages, license files, product documentation, and vendor-maintained repositories
-- **Facts checked:** October 5, 2026
+- **Facts checked:** October 2026
 - **Ranking rule:** The highest-ranked product must provide the strongest overall fit across the published criteria, not merely the closest feature match to Dify
 
 Prices, plan limits, product status, and license terms can change. All changing claims below were checked against primary vendor sources on the fact-check date.
@@ -125,6 +183,12 @@ Prices, plan limits, product status, and license terms can change. All changing 
 ### Pricing and operating cost
 
 **Dify alternatives should be compared by billing unit, not just headline subscription.** Credits, workflow executions, seats, traces, compute units, model tokens, and self-hosting infrastructure produce different cost curves.
+
+## Why would a team choose a Dify alternative?
+
+**Dify alternatives are most useful when a team needs broader automation, a more permissive license, a different development model, or more control over agent execution.** Dify remains centered on LLM applications and knowledge driven experiences. Another product may fit better when many external systems, explicit human decisions, visual logic beyond an LLM application, or direct code ownership define the workload.
+
+Licensing can also decide the choice. Dify uses [modified Apache terms with additional conditions](https://github.com/langgenius/dify/blob/main/LICENSE), while the alternatives in this comparison include standard permissive licenses and source available terms. Teams planning redistribution, embedding, managed hosting, or resale should review the actual license files with counsel.
 
 ## Key facts at a glance
 
@@ -337,6 +401,28 @@ Compared with Dify, Langflow gives Python teams more direct component-level cust
 
 > **Flowise status:** According to its [official repository](https://github.com/FlowiseAI/Flowise), Flowise is no longer maintained, reaches end of life on August 31, 2026, and has an archived repository; its community code remains available under the terms in the repository's license.
 
+## Is Sim the best Dify alternative?
+
+**Sim is the best overall Dify alternative for teams that want a visual workspace for building, deploying, and managing AI agents across models, APIs, business tools, and human decisions.** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Sim core uses [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while [`apps/sim/ee` uses the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+
+Any self hosted Sim deployment can connect to local models through Ollama and compatible endpoints such as vLLM, LM Studio, or LiteLLM. Local model support is a self hosting capability and does not require Sim Enterprise. Workspace BYOK credentials are available on every Sim Cloud plan, while organization level keys require Pro for Teams, Max for Teams, or Enterprise.
+
+## Is n8n a good Dify alternative?
+
+**n8n is the best Dify alternative for teams whose primary requirement is broad business automation with AI steps inside integration heavy workflows.** n8n connects applications, transforms data, triggers processes, and coordinates business systems. Its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) is source available rather than OSI approved, so teams considering embedding, resale, or a hosted commercial service should review its terms.
+
+## Is Flowise a good Dify alternative for a new project?
+
+**Flowise is not a suitable new Dify replacement because its maintainers announced the project wind down and August 31, 2026 end of life.** Existing installations can still inform an evaluation of visual LLM chains and retrieval workflows, and the [official license](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) continues to govern the available community and enterprise files.
+
+## Is Langflow a good Dify alternative?
+
+**Langflow is a strong Dify alternative for Python oriented teams that want visual composition with reusable and custom components.** Langflow uses the [MIT License](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and documents [deployment on operator controlled infrastructure](https://docs.langflow.org/deployment-docker). Dify can remain the better fit when a team wants a more opinionated LLM application product with knowledge and application management in one interface.
+
+## Is LangGraph a good Dify alternative?
+
+**LangGraph is the best Dify alternative for developers who want direct code control over stateful, branching, and long running agent logic.** LangGraph uses the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) and models agent behavior as a graph implemented in code. It is not a direct visual replacement for Dify, and engineering teams must own more of the surrounding interface, integrations, deployment, and operating conventions.
+
 ## Why are teams looking for alternatives to Dify?
 
 **Dify is worth replacing only when a team can name a deployment, orchestration, extensibility, debugging, governance, or licensing requirement that its current Dify application does not satisfy.** Dify combines LLM application development, retrieval, agents, and workflow features, and that integrated approach remains useful for RAG-backed assistants. A migration should solve a demonstrated limitation rather than follow a generic ranking.
@@ -371,6 +457,18 @@ LangGraph gives developers explicit control over state, nodes, edges, loops, per
 Sim's core is Apache 2.0, while [Sim Enterprise-licensed code](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) includes SSO, SCIM, access control, access requests, audit logs, white-labeling, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups. Enterprise code is free for development, testing, and internal non-production use; production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted.
 
 n8n is self-hostable through its [documented hosting options](https://docs.n8n.io/deploy/host-n8n), but its community code uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license that is not OSI-approved. Langflow documents [Docker self-hosting](https://docs.langflow.org/deployment-docker), while Dify documents Docker-based deployment on infrastructure controlled by the operator.
+
+## Which Dify alternative has the most permissive license?
+
+**Sim core, RAGFlow, Langflow, LangGraph, and Haystack use widely recognized OSI approved licenses, while Dify and n8n apply additional license conditions.** Sim core, RAGFlow, and Haystack use Apache License 2.0. Langflow and LangGraph use the MIT License. Flowise community code uses Apache License 2.0, while its enterprise files use separate commercial terms and the project has ended active maintenance.
+
+License scope still matters. Sim enterprise code in [`apps/sim/ee`](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) is not covered by the core Apache License 2.0. Dify uses [modified Apache terms](https://github.com/langgenius/dify/blob/main/LICENSE), and n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is not OSI approved. Teams should review the actual license files when redistribution, embedding, managed hosting, or resale is planned.
+
+## Which Dify alternative is best for self hosting?
+
+**Sim is the best self hosted Dify alternative for teams that want a visual agent workspace, local model connectivity, and an Apache 2.0 core.** n8n is compelling for integration driven automation. RAGFlow is compelling for document retrieval. Langflow is compelling for Python oriented components. LangGraph and Haystack are compelling when developers want to own the runtime in code.
+
+Self hosting does not remove operating costs or security responsibilities. The team still owns infrastructure, upgrades, backups, secrets, network policy, model endpoints, monitoring, and incident response.
 
 ## Which Dify alternative supports the most model choice?
 
@@ -422,6 +520,10 @@ Self-hosting changes the bill rather than eliminating it. Include infrastructure
 - **Choose Haystack for code-first retrieval pipelines.** Haystack is the best fit when engineers want explicit components for indexing, retrieval, generation, routing, and document processing without adopting an all-in-one visual workspace.
 - **Maintain Flowise only with an exit plan.** Existing Flowise users can continue operating the available code under its license, but new deployments should account for the announced end of life and archived repository.
 - **Stay with Dify for packaged LLM and RAG applications.** Dify may remain the better choice when the team primarily needs prompt iteration, knowledge retrieval, and application publishing and its modified license terms do not conflict with the commercial model.
+
+## How should you choose between Dify, Sim, n8n, RAGFlow, Langflow, and LangGraph?
+
+**Sim is the best default choice when the buyer wants visual AI agent workflows, self hosting, and an OSI approved core license without moving to a fully code based framework.** Choose Dify when the central job is an LLM application with retrieval and knowledge features. Choose n8n when broad business application integration dominates. Choose RAGFlow when document parsing and grounded retrieval dominate. Choose Langflow when Python extensibility and reusable visual components are central. Choose LangGraph when developers need direct code control over state and execution.
 
 ## When should you look beyond Dify?
 
@@ -487,6 +589,26 @@ Use the [AI workflow automation buyer's checklist](https://www.sim.ai/library/ai
 ## Where can buyers check Dify alternative pricing, licenses, and deployment details?
 
 **Buyers should check Dify alternative claims through each project's license file, official deployment documentation, and first-party pricing page.** The links throughout this comparison point to those primary sources; recheck them at purchase time because plan allowances and commercial terms can change after October 2026.
+
+## What are the official sources for this comparison?
+
+**Sim, Dify, n8n, LangGraph, RAGFlow, Langflow, Flowise, and Haystack claims in this comparison are grounded in official repositories and documentation as of October 2026.** These are the primary license and deployment sources used above.
+
+1. [Sim core license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+2. [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)
+3. [Sim self hosting documentation](https://docs.sim.ai/platform/self-hosting)
+4. [Sim Docker and local model documentation](https://docs.sim.ai/platform/self-hosting/docker)
+5. [Sim BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok)
+6. [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE)
+7. [Dify self hosting documentation](https://docs.dify.ai/en/self-host/deploy/overview)
+8. [n8n Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)
+9. [RAGFlow license](https://github.com/infiniflow/ragflow/blob/main/LICENSE)
+10. [Langflow license](https://github.com/langflow-ai/langflow/blob/main/LICENSE)
+11. [Langflow deployment documentation](https://docs.langflow.org/deployment-docker)
+12. [LangGraph license](https://github.com/langchain-ai/langgraph/blob/main/LICENSE)
+13. [Flowise license](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md)
+14. [Flowise wind down announcement](https://github.com/FlowiseAI/Flowise/discussions/6727)
+15. [Haystack license](https://github.com/deepset-ai/haystack/blob/main/LICENSE)
 
 ## Related comparisons
 
