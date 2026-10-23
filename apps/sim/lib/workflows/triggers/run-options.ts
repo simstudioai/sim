@@ -7,6 +7,7 @@ import {
   normalizeInputFormatValue,
   parseInputFormatFiles,
 } from '@/lib/workflows/input-format'
+import { canonicalInputFormatFieldType } from '@/lib/workflows/input-format-schema'
 import { generateWorkflowInputShape } from '@/lib/workflows/input-schema'
 import {
   getLegacyStarterMode,
@@ -128,7 +129,7 @@ function triggerOutputsToJsonSchema(outputs: Record<string, unknown>): Record<st
 }
 
 function mockValueForType(type: string | undefined, name: string): unknown {
-  switch (type) {
+  switch (canonicalInputFormatFieldType(type)) {
     case 'number':
       return 42
     case 'boolean':

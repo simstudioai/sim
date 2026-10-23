@@ -345,6 +345,37 @@ describe('validateInputsForBlock', () => {
     ).toBe(false)
   })
 
+  describe('input-format', () => {
+    const config = { id: 'inputFormat', type: 'input-format' as const }
+    const validate = (value: unknown) =>
+      validateValueForSubBlockType(config, value, 'inputFormat', 'start_trigger', 'start-1')
+
+    it('stores type aliases as their canonical type and keeps untyped rows', () => {
+      expect(
+        validate([
+          { name: 'payload', type: 'json' },
+          { name: 'documents', type: 'files' },
+          { name: 'message' },
+        ])
+      ).toEqual({
+        valid: true,
+        value: [
+          { name: 'payload', type: 'object' },
+          { name: 'documents', type: 'file[]' },
+          { name: 'message' },
+        ],
+      })
+    })
+
+    it('rejects a type no workflow input can declare, listing the allowed types', () => {
+      const result = validate([{ name: 'count', type: 'integer' }])
+      expect(result.valid).toBe(false)
+      expect(result.error?.error).toBe(
+        'Invalid type "integer" for inputFormat[0] - use one of: string, number, boolean, object, array, file[]'
+      )
+    })
+  })
+
   describe('model-fallback-list', () => {
     const config = { id: 'fallbackModels', type: 'model-fallback-list' as const }
     const validate = (value: unknown) =>

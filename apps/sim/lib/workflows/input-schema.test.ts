@@ -108,9 +108,25 @@ describe('workflow input schemas', () => {
     expect(z.object(generateWorkflowInputShape(fields)).parse(input)).toEqual(input)
   })
 
-  it('rejects unsupported type names instead of advertising strings', () => {
-    expect(() => generateToolInputSchema([{ name: 'files', type: 'unsupported' }])).toThrow(
-      'Unsupported workflow input type "unsupported"'
+  it('accepts the json and files aliases as their canonical types', () => {
+    const shape = z.object(
+      generateWorkflowInputShape([
+        { name: 'payload', type: 'json' },
+        { name: 'documents', type: 'files' },
+      ])
+    )
+    expect(shape.safeParse({ payload: { a: 1 }, documents: [file] }).success).toBe(true)
+    expect(shape.safeParse({ payload: 'text', documents: [file] }).success).toBe(false)
+  })
+
+  it('rejects unsupported type names as a validation failure naming the field', () => {
+    expect(() => generateToolInputSchema([{ name: 'count', type: 'unsupported' }])).toThrow(
+      expect.objectContaining({
+        name: 'OrchestrationError',
+        code: 'validation',
+        message:
+          'Workflow input "count" has unsupported type "unsupported". Use one of: string, number, boolean, object, array, file[].',
+      })
     )
   })
 })

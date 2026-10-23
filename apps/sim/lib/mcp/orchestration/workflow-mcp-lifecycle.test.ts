@@ -11,11 +11,13 @@ vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
   generateParameterSchemaForWorkflow: vi.fn().mockResolvedValue({ type: 'object', properties: {} }),
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_MCP_PARAMETER_SCHEMA_BYTES, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import {
   performCreateWorkflowMcpServer,
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration/workflow-mcp-lifecycle'
+import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 describe('workflow MCP lifecycle orchestration', () => {
@@ -94,6 +96,36 @@ describe('workflow MCP lifecycle orchestration', () => {
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
     expect(dbChainMockFns.for).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('answers an unpublishable workflow input as a validation failure naming the field', async () => {
+    const message =
+      'Workflow input "payload" has unsupported type "integer". Use one of: string, number.'
+    vi.mocked(hasValidStartBlock).mockResolvedValueOnce(true)
+    vi.mocked(generateParameterSchemaForWorkflow).mockRejectedValueOnce(
+      new OrchestrationError('validation', message)
+    )
+    dbChainMockFns.where.mockResolvedValueOnce([
+      {
+        id: 'wf-1',
+        name: 'Workflow',
+        description: null,
+        isDeployed: true,
+        workspaceId: 'workspace-1',
+        deployedAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      },
+    ])
+
+    const result = await performCreateWorkflowMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Server',
+      workflowIds: ['wf-1'],
+    })
+
+    expect(result).toEqual({ success: false, error: message, errorCode: 'validation' })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 

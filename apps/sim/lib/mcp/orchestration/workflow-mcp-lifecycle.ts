@@ -3,6 +3,7 @@ import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES,
@@ -232,7 +233,14 @@ async function prepareWorkflowMcpTool(params: {
   const toolDescription =
     params.toolDescription !== undefined ? params.toolDescription?.trim() || null : null
 
-  const baseSchema = await generateParameterSchemaForWorkflow(workflowRecord.id)
+  const baseSchema = await generateParameterSchemaForWorkflow(workflowRecord.id).catch(
+    (error: unknown) => {
+      if (error instanceof OrchestrationError && error.code === 'validation') {
+        throw new WorkflowMcpExpectedError(error.message, 'validation')
+      }
+      throw error
+    }
+  )
   const requestedOverrides =
     params.parameterDescriptionOverrides ??
     (params.legacyParameterSchema
