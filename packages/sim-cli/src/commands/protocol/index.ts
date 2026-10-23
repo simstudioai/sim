@@ -11,6 +11,7 @@ import {
 import { attachFileUpload, attachProjectFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
 import { attachKnowledgeExport } from './knowledge-export'
+import { attachKnowledgeImport } from './knowledge-import'
 import { attachLogsFollow } from './logs-follow'
 import { attachResourceDirectoryCommands } from './resource-directory'
 import { attachTableImport } from './tables-import'
@@ -49,6 +50,7 @@ export function attachProtocolCommands(program: Command): void {
   const knowledge = group(program, 'knowledge')
   attachKnowledgeDocumentUpload(group(knowledge, 'documents'))
   attachKnowledgeExport(knowledge)
+  attachKnowledgeImport(knowledge)
   attachResourceDirectoryCommands(knowledge, {
     kind: 'knowledge',
     resources: 'listKnowledgeBases',

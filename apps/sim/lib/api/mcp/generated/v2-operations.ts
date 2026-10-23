@@ -97,12 +97,16 @@ import {
   v2AbortKnowledgeDocumentUploadContract,
   v2AddWorkspaceFilesToKnowledgeBaseContract,
   v2BulkUpdateKnowledgeDocumentsContract,
+  v2CancelKnowledgeImportContract,
   v2CompleteKnowledgeDocumentUploadContract,
+  v2CompleteKnowledgeImportContract,
   v2CreateKnowledgeBaseContract,
   v2CreateKnowledgeConnectorContract,
   v2CreateKnowledgeDocumentUploadContract,
   v2CreateKnowledgeDocumentUploadPartUrlsContract,
   v2CreateKnowledgeFolderContract,
+  v2CreateKnowledgeImportContract,
+  v2CreateKnowledgeImportPartUrlsContract,
   v2DeleteKnowledgeBaseContract,
   v2DeleteKnowledgeConnectorContract,
   v2DeleteKnowledgeDocumentContract,
@@ -110,6 +114,7 @@ import {
   v2GetKnowledgeBaseContract,
   v2GetKnowledgeConnectorContract,
   v2GetKnowledgeDocumentContract,
+  v2GetKnowledgeImportContract,
   v2ListKnowledgeBasesContract,
   v2ListKnowledgeConnectorDocumentsContract,
   v2ListKnowledgeConnectorsContract,
@@ -512,6 +517,14 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/rows/bulk-update/route').then((route) => route.POST),
   },
+  cancelKnowledgeImport: {
+    contract: v2CancelKnowledgeImportContract,
+    summary: 'Cancel knowledge base import',
+    description:
+      'Cancel an import. During its upload the transfer is aborted; while processing, it stops after the document in flight and the documents already imported stay in the new knowledge base. Settled imports return `409`.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/knowledge/imports/[importId]/route').then((route) => route.DELETE),
+  },
   cancelOrganizationAccessRequest: {
     contract: v2CancelOrganizationAccessRequestContract,
     summary: 'Cancel organization access request',
@@ -610,6 +623,16 @@ export const V2_MCP_OPERATIONS = {
       import(
         '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
       ).then((route) => route.POST),
+  },
+  completeKnowledgeImport: {
+    contract: v2CompleteKnowledgeImportContract,
+    summary: 'Complete knowledge base import upload',
+    description:
+      "Verify the uploaded bundle and start creating the knowledge base under the same import ID. Vectors are reused when the bundle was embedded with this deployment's model; otherwise documents are re-indexed. Completion records an audit event. Repeating it returns the running import.\n\nOAuth scope: `api:write`.",
+    handler: () =>
+      import('@/app/api/v2/knowledge/imports/[importId]/complete/route').then(
+        (route) => route.POST
+      ),
   },
   completeTableImport: {
     contract: v2CompleteTableImportContract,
@@ -717,6 +740,21 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Create a folder in the knowledge-base folder tree. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/knowledge/folders/route').then((route) => route.POST),
+  },
+  createKnowledgeImport: {
+    contract: v2CreateKnowledgeImportContract,
+    summary: 'Create knowledge base import',
+    description:
+      'Start importing a knowledge base bundle produced by an export. The response carries signed transfer instructions for the archive; once its bytes are uploaded, complete the import to create the knowledge base. Bundles must be `.zip` archives of at most 5 GiB.\n\nOAuth scope: `api:write`.',
+    handler: () => import('@/app/api/v2/knowledge/imports/route').then((route) => route.POST),
+  },
+  createKnowledgeImportPartUrls: {
+    contract: v2CreateKnowledgeImportPartUrlsContract,
+    summary: 'Create knowledge base import part URLs',
+    description:
+      'Create signed URLs for multipart bundle upload parts. Requires the `uploading` state; other states return `409`.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/knowledge/imports/[importId]/parts/route').then((route) => route.POST),
   },
   createKnowledgeTag: {
     contract: v2CreateKnowledgeTagContract,
@@ -1327,6 +1365,14 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/route').then(
         (route) => route.GET
       ),
+  },
+  getKnowledgeImport: {
+    contract: v2GetKnowledgeImportContract,
+    summary: 'Get knowledge base import',
+    description:
+      "Get an import's progress and outcome. During `uploading`, the signed upload token is required; omitting it returns `404`.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/knowledge/imports/[importId]/route').then((route) => route.GET),
   },
   getLog: {
     contract: v2GetLogContract,

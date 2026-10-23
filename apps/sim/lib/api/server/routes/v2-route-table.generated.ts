@@ -275,6 +275,22 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/knowledge/folders/route'),
   },
   {
+    pattern: '/api/v2/knowledge/imports',
+    load: () => import('@/app/api/v2/knowledge/imports/route'),
+  },
+  {
+    pattern: '/api/v2/knowledge/imports/{importId}',
+    load: () => import('@/app/api/v2/knowledge/imports/[importId]/route'),
+  },
+  {
+    pattern: '/api/v2/knowledge/imports/{importId}/complete',
+    load: () => import('@/app/api/v2/knowledge/imports/[importId]/complete/route'),
+  },
+  {
+    pattern: '/api/v2/knowledge/imports/{importId}/parts',
+    load: () => import('@/app/api/v2/knowledge/imports/[importId]/parts/route'),
+  },
+  {
     pattern: '/api/v2/knowledge/search',
     load: () => import('@/app/api/v2/knowledge/search/route'),
   },

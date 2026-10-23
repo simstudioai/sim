@@ -1442,6 +1442,42 @@ export interface DocumentProcessingExecutionContext {
   readonly deadlineAt?: number
 }
 
+/**
+ * Chunks a knowledge-base bundle already holds for a document. A pass given one
+ * indexes these chunks instead of parsing the document's file, and stores
+ * `vectors` instead of calling the embedding provider when the bundle was
+ * embedded with this base's model.
+ */
+export interface PreparedDocumentIndex {
+  readonly chunks: readonly {
+    readonly text: string
+    readonly startOffset: number
+    readonly endOffset: number
+    readonly enabled: boolean
+  }[]
+  /** One per chunk, in this base's embedding dimension. */
+  readonly vectors?: readonly number[][]
+}
+
+/**
+ * The processor's result shape for chunks that were never parsed here. Token
+ * counts are left to the pass, which estimates every chunk against this
+ * base's model whichever way the chunks arrived.
+ */
+function preparedProcessingResult(prepared: PreparedDocumentIndex) {
+  return {
+    chunks: prepared.chunks.map((chunk) => ({
+      text: chunk.text,
+      metadata: { startIndex: chunk.startOffset, endIndex: chunk.endOffset },
+    })),
+    metadata: {
+      chunkCount: prepared.chunks.length,
+      tokenCount: null,
+      characterCount: prepared.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0),
+    },
+  }
+}
+
 export interface DocumentProcessingAttemptContext extends DocumentProcessingExecutionContext {
   /** True only when this invocation follows a successful queue-budget charge. */
   readonly chargedAtDispatch: boolean
@@ -1468,6 +1504,8 @@ export interface DocumentProcessingAttemptContext extends DocumentProcessingExec
   readonly scheduleDatabaseRetry?: (error: unknown) => Date | null
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
+  /** Index these chunks instead of parsing the document's file. */
+  readonly preparedIndex?: PreparedDocumentIndex
 }
 
 /**
@@ -1957,34 +1995,39 @@ export async function processDocumentAsync(
           (processing = runWithKnowledgeModelInputProvenance(
             documentSecretContext.registry,
             async () => {
-              await assertKnowledgeEmbeddingCapacity({
-                ...kbEmbedding,
-                workspaceId: ctx.workspaceId,
-                signal,
-              })
-              const processed = await processDocument(
-                persistedDocData.fileUrl,
-                persistedDocData.filename,
-                persistedDocData.mimeType,
-                kbConfig.maxSize,
-                kbConfig.overlap,
-                kbConfig.minSize,
-                {
-                  ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
+              const prepared = attemptContext?.preparedIndex
+              if (!prepared?.vectors) {
+                await assertKnowledgeEmbeddingCapacity({
+                  ...kbEmbedding,
+                  workspaceId: ctx.workspaceId,
                   signal,
-                  processingDeadlineAt,
-                  imageExtraction: imageExtractionPolicyFor(ctx.connectorType),
-                  onVisionUsage: (usage) => {
-                    visionCharges.push(recordVisionUsage(usage))
-                  },
-                  ...(indexingPassId
-                    ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
-                    : {}),
-                },
-                ctx.workspaceId,
-                rawConfig?.strategy,
-                rawConfig?.strategyOptions
-              )
+                })
+              }
+              const processed = prepared
+                ? preparedProcessingResult(prepared)
+                : await processDocument(
+                    persistedDocData.fileUrl,
+                    persistedDocData.filename,
+                    persistedDocData.mimeType,
+                    kbConfig.maxSize,
+                    kbConfig.overlap,
+                    kbConfig.minSize,
+                    {
+                      ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
+                      signal,
+                      processingDeadlineAt,
+                      imageExtraction: imageExtractionPolicyFor(ctx.connectorType),
+                      onVisionUsage: (usage) => {
+                        visionCharges.push(recordVisionUsage(usage))
+                      },
+                      ...(indexingPassId
+                        ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
+                        : {}),
+                    },
+                    ctx.workspaceId,
+                    rawConfig?.strategy,
+                    rawConfig?.strategyOptions
+                  )
 
               signal.throwIfAborted()
               assertDocumentChunkCountWithinLimit(processed.chunks.length)
@@ -2016,7 +2059,9 @@ export async function processDocumentAsync(
                 ? sha256Hex(JSON.stringify(chunkTexts.map((text) => sha256Hex(text))))
                 : undefined
 
-              if (chunkTexts.length > 0) {
+              if (prepared?.vectors) {
+                embeddings.push(...prepared.vectors)
+              } else if (chunkTexts.length > 0) {
                 const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
                 const totalBatches = Math.ceil(chunkTexts.length / batchSize)
 
@@ -2169,6 +2214,7 @@ export async function processDocumentAsync(
                     embeddingModel: kbEmbeddingModel,
                     startOffset: chunk.metadata.startIndex,
                     endOffset: chunk.metadata.endIndex,
+                    enabled: prepared?.chunks[chunkIndex].enabled ?? true,
                     tag1: documentTags.tag1,
                     tag2: documentTags.tag2,
                     tag3: documentTags.tag3,
@@ -2249,7 +2295,9 @@ export async function processDocumentAsync(
                     .update(document)
                     .set({
                       chunkCount: processed.metadata.chunkCount,
-                      tokenCount: processed.metadata.tokenCount,
+                      tokenCount:
+                        processed.metadata.tokenCount ??
+                        chunkTokenCounts.reduce((sum, count) => sum + count, 0),
                       characterCount: processed.metadata.characterCount,
                       processingStatus: 'completed',
                       processingCompletedAt: now,
@@ -3237,6 +3285,8 @@ export async function createSingleDocument(
   options?: {
     expectedWorkspaceId?: string
     uploadedArtifact?: { cleanupEventId: string; metadataId: string; contentUpdatedAt: Date }
+    /** Whether the document starts out searchable; defaults to `true`. */
+    enabled?: boolean
     processing?: {
       processingOptions: ProcessingOptions
       billingAttribution: BillingAttributionSnapshot
@@ -3318,7 +3368,7 @@ export async function createSingleDocument(
     tokenCount: 0,
     characterCount: 0,
     processingStatus: 'pending' as const,
-    enabled: true,
+    enabled: options?.enabled ?? true,
     uploadedAt: now,
     uploadedBy,
     ...processedTags,

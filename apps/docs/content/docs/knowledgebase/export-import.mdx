@@ -1,9 +1,9 @@
 ---
-title: Export
-description: Download a knowledge base's documents, chunks, tags, and settings in one archive.
+title: Export and import
+description: Move a knowledge base's documents, chunks, tags, and settings between workspaces and deployments in one archive.
 ---
 
-Export a knowledge base as a `.simkb.zip` archive. It carries the base's configuration, tag definitions and values, stored document files, and completed chunk text, with vectors included by default.
+Export a knowledge base as a `.simkb.zip` archive. It carries the base's configuration, tag definitions and values, stored document files, and completed chunk text, with vectors included by default. Import the archive into any workspace, on this deployment or another, to create a new knowledge base from it.
 
 ## Access and scope
 
@@ -33,6 +33,60 @@ sim knowledge export <knowledgeBaseId> --output-file kb.zip --no-vectors
 ```
 
 The CLI uses the selected workspace profile. An existing output file requires `--force` to overwrite it. See the [CLI reference](/cli/reference).
+
+## Import an archive
+
+Importing creates a new knowledge base from a `.simkb.zip` archive. It never changes an existing base.
+
+### Access
+
+Import requires workspace write access and both the **Knowledge Base Creation** and **Knowledge Base Uploads** capabilities. OAuth callers need `api:write`; a workspace API key is accepted.
+
+### CLI
+
+```bash
+sim knowledge import ./kb.simkb.zip
+sim knowledge import ./kb.simkb.zip --name "Product Documentation (copy)"
+sim knowledge import ./kb.simkb.zip --no-wait
+```
+
+The new base takes the archive's name unless you pass `--name`. Knowledge base names are unique within a workspace, so importing next to the original needs a new name. The command uploads the archive, waits for the import to finish, and prints the new base's id with how many documents were imported. With `--no-wait` it returns as soon as the import starts.
+
+To check on or stop an import that is still running:
+
+```bash
+sim knowledge imports get <importId>
+sim knowledge imports cancel <importId>
+```
+
+### API
+
+An import is three requests, like other large uploads:
+
+1. `POST /api/v2/knowledge/imports` with the workspace, an optional `name`, and the archive's file name, type, and size. The response carries the import id, an upload token, and signed transfer instructions.
+2. Upload the archive's bytes as instructed. Multipart transfers request part URLs from `POST /api/v2/knowledge/imports/{importId}/parts`.
+3. `POST /api/v2/knowledge/imports/{importId}/complete` to start the import.
+
+Poll `GET /api/v2/knowledge/imports/{importId}?workspaceId={workspaceId}` until `status` is `completed`, `failed`, or `canceled`. See [Create knowledge base import](/api-reference/knowledge-bases/createKnowledgeImport) for the request contracts.
+
+### What the import creates
+
+The new base is created at the workspace root with the archive's description, chunking configuration, and tag definitions. Each document keeps its filename, tag values, and enabled flag, and its original file when the archive has one. It is attributed to the person who imported it.
+
+How a document is indexed depends on the embedding model:
+
+- **Same model**: when the archive includes vectors from the embedding model and dimensions this deployment uses, documents are indexed directly from the archive's chunks and vectors. Nothing is re-embedded, so nothing is billed for embeddings, and chunk enabled flags are kept.
+- **Different model or no vectors**: documents are processed from their original files, exactly as uploads are, and appear in the base as their processing finishes. A document with chunks but no original file is re-embedded from its chunk text instead.
+
+A document the archive carries only as chunks, such as one from a [connector](/knowledgebase/connectors), is stored as a plain-text file holding its chunk text, so it can still be reprocessed later.
+
+`documentsImported` counts documents created; re-indexed documents may still be processing when the import completes. Documents that cannot be imported, such as an unsupported file type or a storage limit reached partway through, are skipped and reported in `failures`; the rest of the import continues.
+
+### Limits
+
+Archives must be `.zip` files of at most **5 GiB**, and every document file at most **100 MB**. The archive is validated before anything is created, so a damaged or modified archive fails without leaving a partial base. Imports count toward storage and usage limits like uploads do.
+
+Canceling stops after the document in progress. Documents already imported stay in the new base. Each completed import upload records an audit event.
 
 ## Archive contents
 

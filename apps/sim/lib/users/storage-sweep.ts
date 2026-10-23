@@ -82,6 +82,7 @@ const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
   'knowledge-base',
   'execution',
   'table-import',
+  'knowledge-import',
   'workspace-logos',
 ])
 

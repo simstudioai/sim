@@ -71,3 +71,20 @@ export async function resolveKnowledgeUsageAdmission(
   const usage = await checkAttributedUsageLimits(billingAttribution)
   return { billingAttribution, usage, userId }
 }
+
+/** {@link resolveKnowledgeUsageAdmission}, refusing once the caller's usage limit is reached. */
+export async function assertKnowledgeUsageAdmitted(
+  principal: Principal,
+  context: KnowledgeResourceContext
+) {
+  const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
+    principal,
+    context
+  )
+  if (usage.isExceeded) {
+    throw new KnowledgeUsageLimitExceededError(
+      usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+    )
+  }
+  return { billingAttribution, userId }
+}

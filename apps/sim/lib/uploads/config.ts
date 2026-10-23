@@ -224,6 +224,7 @@ function getS3Config(context: StorageContext): StorageConfig {
     case 'test':
     case 'changelog':
     case 'table-import':
+    case 'knowledge-import':
     case 'organization-logos':
       return {
         bucket: S3_CONFIG.bucket,
@@ -291,6 +292,7 @@ function getBlobConfig(context: StorageContext): StorageConfig {
     case 'test':
     case 'changelog':
     case 'table-import':
+    case 'knowledge-import':
     case 'organization-logos':
       return {
         accountName: BLOB_CONFIG.accountName,
@@ -355,6 +357,7 @@ function getGcsConfig(context: StorageContext): StorageConfig {
     case 'test':
     case 'changelog':
     case 'table-import':
+    case 'knowledge-import':
     case 'organization-logos':
       return { bucket: GCS_CONFIG.bucket }
     case 'profile-pictures':

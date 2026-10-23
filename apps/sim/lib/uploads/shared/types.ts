@@ -73,6 +73,7 @@ export type StorageContext =
   | 'test'
   | 'changelog'
   | 'table-import'
+  | 'knowledge-import'
   | 'profile-pictures'
   | 'og-images'
   | 'logs'

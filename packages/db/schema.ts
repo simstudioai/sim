@@ -3304,6 +3304,7 @@ export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
   'workspace_file',
   'project_file',
   'table_import',
+  'knowledge_import',
   'knowledge_document',
   'profile_picture',
   'workspace_logo',
@@ -3849,6 +3850,51 @@ export const knowledgeBase = pgTable(
     workspaceSearchIndexUnique: uniqueIndex('kb_workspace_search_index_unique')
       .on(table.workspaceId)
       .where(sql`${table.isSearchIndex} = true AND ${table.deletedAt} IS NULL`),
+  })
+)
+
+/**
+ * One knowledge-base bundle import, from the moment its uploaded archive is
+ * complete. The id is the upload session's id, so the resource keeps one id
+ * across both halves of its life; the base it creates is linked once it exists.
+ */
+export const knowledgeBaseImport = pgTable(
+  'knowledge_base_import',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    /** The uploaded archive, deleted once the import settles. */
+    sourceKey: text('source_key').notNull(),
+    knowledgeBaseId: text('knowledge_base_id').references(() => knowledgeBase.id, {
+      onDelete: 'set null',
+    }),
+    status: text('status')
+      .$type<'running' | 'completed' | 'failed' | 'canceled'>()
+      .notNull()
+      .default('running'),
+    documentsTotal: integer('documents_total').notNull().default(0),
+    documentsImported: integer('documents_imported').notNull().default(0),
+    documentsFailed: integer('documents_failed').notNull().default(0),
+    /** Whether the bundle's vectors matched this deployment's embedding model and were kept. */
+    vectorsReused: boolean('vectors_reused').notNull().default(false),
+    /** The first few documents that could not be imported, as `{ filename, message }`. */
+    failures: jsonb('failures')
+      .$type<{ filename: string; message: string }[]>()
+      .notNull()
+      .default([]),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    watchdogIdx: index('knowledge_base_import_watchdog_idx').on(table.status, table.updatedAt),
+    knowledgeBaseIdIdx: index('knowledge_base_import_knowledge_base_id_idx').on(
+      table.knowledgeBaseId
+    ),
   })
 )
 
