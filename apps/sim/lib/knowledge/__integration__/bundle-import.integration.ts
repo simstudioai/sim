@@ -600,7 +600,7 @@ describe('knowledge base import requests', () => {
           .where(
             and(
               eq(auditLog.workspaceId, ids.workspaceId),
-              eq(auditLog.action, 'knowledge_base.imported')
+              eq(auditLog.action, 'knowledge_base.import_started')
             )
           )
       )

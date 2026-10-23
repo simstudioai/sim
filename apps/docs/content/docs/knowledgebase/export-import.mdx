@@ -86,7 +86,7 @@ A document the archive carries only as chunks, such as one from a [connector](/k
 
 Archives must be `.zip` files of at most **5 GiB**, and every document file at most **100 MB**. The archive is validated before anything is created, so a damaged or modified archive fails without leaving a partial base. Imports count toward storage and usage limits like uploads do.
 
-Canceling stops after the document in progress. Documents already imported stay in the new base. Each completed import upload records an audit event.
+Canceling stops after the document in progress. Documents already imported stay in the new base. Starting an import records one audit event, naming the knowledge base it creates.
 
 ## Archive contents
 

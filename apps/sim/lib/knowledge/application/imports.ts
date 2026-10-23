@@ -420,15 +420,16 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
     return { import: fromRecord(record) }
   },
   /**
-   * Keyed by the import, so the completion that started it and any retry of it
-   * record one event between them. The base takes the import's id.
+   * What the caller did is start the import: the base exists only once the
+   * runner creates it, under the import's id. Keyed by the import, so the
+   * completion that started it and any retry of it record one event between them.
    */
   projectAudit: ({ context, result }) => ({
-    action: AuditAction.KNOWLEDGE_BASE_IMPORTED,
+    action: AuditAction.KNOWLEDGE_BASE_IMPORT_STARTED,
     resourceType: AuditResourceType.KNOWLEDGE_BASE,
     resourceId: result.import.id,
     resourceName: importedName(context.upload) ?? context.upload.fileName,
-    description: `Imported a knowledge base from bundle "${context.upload.fileName}"`,
+    description: `Started importing a knowledge base from bundle "${context.upload.fileName}"`,
     metadata: { workspaceId: context.workspaceId, importId: result.import.id },
     idempotencyKey: `knowledge-import:${result.import.id}`,
   }),
