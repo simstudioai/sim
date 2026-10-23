@@ -70,9 +70,10 @@ jobs:
     #
     # The two paths build different schemas (migrations add triggers, checks and NOT VALID
     # constraints that `db:push` does not), so each runs the whole suite. Vitest splits each
-    # suite's files across eight shards by measured duration (DurationBalancedSequencer in vitest.shared.ts); a
-    # shard runs its files one at a time against its own database.
-    name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/8)
+    # application's files across eight shards by measured duration (DurationBalancedSequencer in
+    # vitest.shared.ts). Database-package checks run alongside them, so their longest files do
+    # not delay application tests. Each job has its own database.
+    name: integration (${{ matrix.provision }}, ${{ matrix.shard == 'db' && 'db' || format('{0}/8', matrix.shard) }})
     needs: changes
     if: needs.changes.outputs.integration == 'true'
     runs-on: ubuntu-24.04
@@ -81,7 +82,7 @@ jobs:
       fail-fast: false
       matrix:
         provision: [push, migrate]
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [db, 1, 2, 3, 4, 5, 6, 7, 8]
     services:
       redis:
         image: redis:8.2-alpine
@@ -105,9 +106,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Only push/6 runs the PostgreSQL 16 step below; an empty image skips the service elsewhere.
+      # Only push/db runs the PostgreSQL 16 step below; an empty image skips the service elsewhere.
       postgres-legacy:
-        image: ${{ matrix.provision == 'push' && matrix.shard == 6 && 'postgres:16-alpine' || '' }}
+        image: ${{ matrix.provision == 'push' && matrix.shard == 'db' && 'postgres:16-alpine' || '' }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -143,18 +144,17 @@ jobs:
           bun run db:${{ matrix.provision }}
 
       - name: Verify migration replay is a no-op
-        if: matrix.provision == 'migrate' && matrix.shard == 6
+        if: matrix.provision == 'migrate' && matrix.shard == 'db'
         working-directory: packages/db
         run: bun run db:migrate
 
       - name: Run packages/db integration tests
+        if: matrix.shard == 'db'
         working-directory: packages/db
-        # Oppose the longest database shard and the longest application shard.
-        env:
-          SHARD: ${{ matrix.shard }}
-        run: bun run test --mode integration --shard=$((9 - SHARD))/8
+        run: bun run test --mode integration
 
       - name: Run apps/sim integration tests
+        if: matrix.shard != 'db'
         working-directory: apps/sim
         # A non-UTC process zone keeps timestamp-without-time-zone handling honest.
         env:
@@ -162,12 +162,12 @@ jobs:
         run: bun run test --mode integration --shard=${{ matrix.shard }}/8
 
       - name: Run apps/realtime integration tests
-        if: matrix.shard == 6
+        if: matrix.shard == 'db'
         working-directory: apps/realtime
         run: bun run test --mode integration
 
       - name: Verify cumulative billing timeout recovery on PostgreSQL 16
-        if: matrix.provision == 'push' && matrix.shard == 6
+        if: matrix.provision == 'push' && matrix.shard == 'db'
         working-directory: apps/sim
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
