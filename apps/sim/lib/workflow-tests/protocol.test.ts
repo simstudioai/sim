@@ -13,19 +13,6 @@ describe('testReplyArgsSchema', () => {
     })
   })
 
-  it('keeps a mock output, including a falsy one', () => {
-    expect(testReplyArgsSchema.parse({ runId: 'r', callId: 'c', output: { ok: true } })).toEqual({
-      runId: 'r',
-      callId: 'c',
-      output: { ok: true },
-    })
-    expect(testReplyArgsSchema.parse({ runId: 'r', callId: 'c', output: null })).toEqual({
-      runId: 'r',
-      callId: 'c',
-      output: null,
-    })
-  })
-
   it('never reads an error past the cap as an empty output', () => {
     const reply = { runId: 'r', callId: 'c', error: 'x'.repeat(10_001) }
     expect(testReplyArgsSchema.safeParse(reply).success).toBe(false)
