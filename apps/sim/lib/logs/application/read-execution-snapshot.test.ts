@@ -77,17 +77,19 @@ const workflowRecord = {
   endedAt: new Date('2026-08-05T12:00:01.000Z'),
   totalDurationMs: 1000,
   costTotal: '0.75',
-  executionData: null,
 }
 
 /**
  * Answers `db.select(...)` calls in order. The snapshot read walks the workflow
- * log, then (only when that missed) the job log, then the state snapshot.
+ * log, then (only when that missed) the job log, then the state snapshot, then
+ * the run's execution data.
  */
 function queueSelects(...results: unknown[][]): void {
   for (const rows of results) {
     mocks.select.mockReturnValueOnce({
-      from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
+      from: () => ({
+        where: () => Object.assign(Promise.resolve(rows), { limit: () => Promise.resolve(rows) }),
+      }),
     })
   }
 }
@@ -135,7 +137,11 @@ describe('readExecutionSnapshot spend projection', () => {
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideCostInfo: true,
     })
-    queueSelects([workflowRecord], [{ id: 'snapshot-1', stateData: { blocks: {} } }])
+    queueSelects(
+      [workflowRecord],
+      [{ id: 'snapshot-1', stateData: { blocks: {} } }],
+      [{ executionData: null }]
+    )
 
     const result = await read(principal, 'run-1')
 
@@ -153,7 +159,11 @@ describe('readExecutionSnapshot spend projection', () => {
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideCostInfo: true,
     })
-    queueSelects([workflowRecord], [{ id: 'snapshot-1', stateData: { blocks: {} } }])
+    queueSelects(
+      [workflowRecord],
+      [{ id: 'snapshot-1', stateData: { blocks: {} } }],
+      [{ executionData: null }]
+    )
 
     const result = await read(executorPrincipal, 'run-1')
 

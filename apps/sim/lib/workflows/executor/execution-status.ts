@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
@@ -286,6 +286,24 @@ export async function getWorkflowExecutionStatus(
   return (await getProjectedWorkflowExecutionStatus(input))?.status ?? null
 }
 
+/** Run statuses whose error or final output a poll returns, so it reads their execution data. */
+function statusesReadingExecutionData(includeOutput: boolean): string[] {
+  return includeOutput ? ['failed', 'completed'] : ['failed']
+}
+
+/**
+ * `execution_data` only for a row whose status the poll will read it for, so a
+ * poll on an in-flight or output-less run does not pull and parse the payload.
+ */
+function executionDataReadByPoll(
+  input: Pick<GetWorkflowExecutionStatusInput, 'includeOutput' | 'selectedOutputs'>
+) {
+  if (input.selectedOutputs.length > 0) return workflowExecutionLogs.executionData
+  return sql<unknown>`CASE WHEN ${inArray(workflowExecutionLogs.status, statusesReadingExecutionData(input.includeOutput))} THEN ${workflowExecutionLogs.executionData} END`.mapWith(
+    workflowExecutionLogs.executionData
+  )
+}
+
 async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<WorkflowExecutionStatusResponse | null> {
@@ -302,7 +320,7 @@ async function readWorkflowExecutionStatus(
       startedAt: workflowExecutionLogs.startedAt,
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      executionData: workflowExecutionLogs.executionData,
+      executionData: executionDataReadByPoll(input),
       costTotal: workflowExecutionLogs.costTotal,
     })
     .from(workflowExecutionLogs)
@@ -446,7 +464,7 @@ async function readWorkflowExecutionStatus(
 
   // Mirrors the three output conditions below; a poll needing none skips the archive read.
   const readsExecutionData =
-    status === 'failed' || (includeOutput && status === 'completed') || selectedOutputs.length > 0
+    selectedOutputs.length > 0 || statusesReadingExecutionData(includeOutput).includes(status)
   if (!readsExecutionData) {
     return { ...resource, error: null, finalOutput: null, blockOutputs: null }
   }
