@@ -3,26 +3,26 @@ slug: what-is-an-mcp-server
 title: 'What Is an MCP Server?'
 description: 'Learn what an MCP server is, how Model Context Protocol tools, resources, and prompts work, and how Sim acts as both an MCP client and server.'
 date: 2026-07-24
-updated: 2026-10-10
+updated: 2026-10-23
 authors:
   - andrew
-readingTime: 12
+readingTime: 17
 tags: [MCP, AI Agents, Model Context Protocol, Sim]
 ogImage: /library/what-is-an-mcp-server/cover.jpg
 draft: false
 faq:
   - q: "What does MCP server mean?"
-    a: "An MCP server is a program that gives AI applications standardized access to tools and data through the Model Context Protocol. It can also provide reusable prompts, as defined by the official MCP specification. With Sim, you can connect to external MCP servers and publish Sim workflows through our MCP server. Sim lets you add external capabilities to workflows or publish a complete workflow as one reusable tool."
+    a: "An MCP server is a program that gives AI applications standardized access to tools and data through the Model Context Protocol. It can also provide reusable prompts, as defined by the official MCP specification. With Sim, you can connect to external MCP servers and deploy Sim workflows as tools through a workflow MCP server. Sim lets you add external capabilities to workflows or deploy a complete workflow as one reusable tool."
   - q: "Where can I find the official Model Context Protocol documentation?"
-    a: "The official Model Context Protocol documentation is the primary source for the specification and implementation guides. At Sim, we follow this protocol when connecting to external MCP servers and publishing workflows as MCP tools. Use the documentation to verify compatibility and technical requirements before you configure a connection."
+    a: "The official Model Context Protocol documentation is the primary source for the specification and implementation guides. At Sim, we follow this protocol when connecting to external MCP servers and deploying workflows as MCP tools. Use the documentation to verify compatibility and technical requirements before you configure a connection."
   - q: "Is an MCP server a real server?"
-    a: "An MCP server is a software component that can run as a local process or a remote network service. At Sim, we act as an MCP client when connecting to these servers and as an MCP server when publishing workflows. Running an MCP server locally or remotely lets you choose a setup that can reach the required tools and data."
+    a: "An MCP server is a software component that can run as a local process or a remote network service. Sim acts as an MCP client when connecting to these servers, and a workflow MCP server can expose deployed Sim workflows as tools. Running an MCP server locally or remotely lets you choose a setup that can reach the required tools and data."
   - q: "MCP server vs. microservice: What is the difference?"
-    a: "An MCP server exposes discoverable tools, resources, or prompts to AI clients, while a microservice typically exposes application functions through an API. In Sim, a workflow can call one or more microservices and be published as a single MCP tool. Compatible AI clients can then use the workflow without integrating separately with every underlying API."
+    a: "An MCP server exposes discoverable tools, resources, or prompts to AI clients, while a microservice typically exposes application functions through an API. In Sim, a workflow can call one or more microservices and be deployed as a single MCP tool. Compatible AI clients can then use the workflow without integrating separately with every underlying API."
   - q: "Does MCP replace APIs?"
     a: "MCP is a standard interface for discovering and invoking capabilities that may rely on APIs, not a replacement for those APIs. A Sim workflow can combine multiple API calls and expose the result as an MCP tool. A Sim workflow can reuse existing APIs while giving compatible AI clients one callable interface."
   - q: "Can Sim act as both an MCP client and an MCP server?"
-    a: "An MCP client consumes server capabilities, while an MCP server exposes capabilities to compatible clients. At Sim, we support both roles by connecting workflows to external MCP servers and publishing workflows as MCP tools. Supporting both roles lets you consume external capabilities and distribute reusable workflows through the same protocol."
+    a: "An MCP client consumes server capabilities, while an MCP server exposes capabilities to compatible clients. Sim supports both patterns by connecting workflows to external MCP servers and deploying workflows as MCP tools through workflow MCP servers. Supporting both patterns lets you consume external capabilities and distribute reusable workflows through the same protocol."
   - q: "What is an MCP server?"
     a: "An MCP server is a program or service that exposes tools, resources, or reusable prompts to compatible AI applications through the Model Context Protocol."
   - q: "What is Model Context Protocol?"
@@ -71,11 +71,25 @@ faq:
     a: "Sim and n8n should be evaluated against the workflow-building, deployment, security, and governance requirements described in How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)."
   - q: "Where can I learn about MCP security?"
     a: "MCP Security: A Practical Guide to Secure MCP Server Development explains authentication, permissions, validation, credential handling, and other controls for MCP deployments."
+  - q: "What is the difference between an MCP server and an API?"
+    a: "An MCP server exposes discoverable, model-oriented capabilities through the Model Context Protocol, while an API exposes application endpoints through an interface such as REST, GraphQL, or an SDK."
+  - q: "Do I need an MCP server to build an AI agent?"
+    a: "An AI agent does not require an MCP server because it can use native integrations or direct APIs, but an MCP server can make compatible tools and data sources easier to reuse across AI applications."
+  - q: "Are MCP servers safe?"
+    a: "MCP servers are safe only when their code, operator, permissions, inputs, outputs, credentials, and updates are treated as part of an explicit security boundary."
+  - q: "How do I choose an MCP server?"
+    a: "An MCP server should be chosen by evaluating maintainer trust, capability scope, authentication, deployment model, source availability, update practices, auditability, and the sensitivity of the systems it can access."
+  - q: "Can Sim connect to an MCP server?"
+    a: "Sim can connect to an external MCP server so a Sim workflow can use the server’s exposed capabilities as tools, subject to the server’s configuration and permissions."
+  - q: "Can Sim deploy a workflow as an MCP server?"
+    a: "Sim can deploy a workflow so compatible MCP clients can use that workflow as a reusable tool with structured inputs and outputs."
+  - q: "How do Sim and n8n compare for MCP workflows?"
+    a: "Sim and n8n both support MCP-related workflow patterns, but teams should compare how each product builds, deploys, governs, and secures the reusable capability required for their environment."
 ---
 
 An MCP server is a program or service that exposes tools, resources, or reusable prompts to AI applications through the Model Context Protocol.
 
-The Model Context Protocol is an open protocol that standardizes how AI applications connect to external systems and context.
+The Model Context Protocol is an open protocol that standardizes how AI applications connect to external systems and context. As of October 2026, the authoritative definitions and requirements are maintained in the [MCP architecture documentation](https://modelcontextprotocol.io/docs/learn/architecture) and [MCP specification](https://modelcontextprotocol.io/specification/2026-07-28/).
 
 ## TL;DR
 
@@ -125,10 +139,14 @@ The Model Context Protocol separates the AI application that needs a capability 
 | MCP tool | An MCP tool is an action that an AI application can request through an MCP server. |
 | MCP resource | An MCP resource is readable context that an MCP server makes available to a compatible application. |
 | MCP prompt | An MCP prompt is a reusable prompt template exposed by an MCP server. |
+| Local transport | The stdio transport lets a client launch a server as a local subprocess and exchange messages through standard input and output. |
+| Remote transport | Streamable HTTP lets a client communicate with a remote MCP server over HTTP. |
+| Authentication | Authentication depends on the transport and deployment: HTTP servers can use MCP authorization flows, while stdio servers generally receive credentials through their process environment. |
+| Security boundary | Every MCP connection requires explicit trust, least-privilege access, input validation, and auditability. |
 
 ## How an MCP server works
 
-An MCP server exposes selected capabilities to an AI application through a structured connection. During initialization, the client and server negotiate a protocol version and declare the capability groups they support. The client can then list the tools, resources, or prompts available through that connection. The client and server exchange JSON-RPC messages through a supported transport, such as standard input and output for local processes or Streamable HTTP for remote connections.
+An MCP server exposes selected capabilities to an AI application through structured requests. Under the October 2026 specification, each request declares its protocol version and client capabilities in metadata; the server accepts or rejects that request independently. This replaced the initialization handshake used by protocol revisions through 2025. The client can list the tools, resources, or prompts available from the server. Client and server exchange JSON-RPC messages through a supported transport, such as standard input and output for local processes or Streamable HTTP for remote communication. The [July 2026 MCP changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog) documents the stateless request model and removal of protocol-level sessions.
 
 The [official MCP specification](https://modelcontextprotocol.io/specification/latest) groups server capabilities into tools, resources, and prompts. Each capability has a different purpose and uses its own discovery and request methods. A server can expose any subset of these capabilities.
 
@@ -142,12 +160,12 @@ The MCP client controls the connection and routes each request to the server. Af
 
 A typical MCP interaction follows this sequence:
 
-1. An MCP host starts or connects to an MCP client.
-2. The MCP client connects to an MCP server and negotiates supported capabilities.
-3. The MCP server describes the tools, resources, or prompts it offers.
+1. An MCP host creates an MCP client for a server.
+2. The client sends a request with the protocol version and its supported client capabilities.
+3. The client asks the server to list the tools, resources, or prompts it offers.
 4. The host decides when a capability should be shown, read, or invoked.
-5. The MCP client sends the request to the server.
-6. The MCP server interacts with the underlying system and returns a structured result.
+5. The MCP client sends the permitted request to the server.
+6. The server validates the request, interacts with the underlying system, and returns a structured result.
 7. The host gives the result to the model, application, or user.
 
 The [official MCP architecture documentation](https://modelcontextprotocol.io/docs/learn/architecture) explains the host, client, and server roles in greater depth.
@@ -157,6 +175,28 @@ The [official MCP architecture documentation](https://modelcontextprotocol.io/do
 An MCP host runs the user-facing AI experience, an MCP client manages a server connection, and an MCP server supplies capabilities.
 
 The host may be an AI assistant, coding environment, or agent workspace. The client handles protocol communication on the host's behalf. The server sits at the boundary of an external system and decides which operations or context to expose. An MCP server is not itself an AI model; it provides capabilities that a model-enabled host may choose to use.
+
+## How do MCP clients, servers, transports, and authentication fit together?
+
+The host is the user-facing AI application, the client speaks MCP for one server connection, the server supplies capabilities, and the transport carries their messages. Authentication establishes identity and authorization limits what that identity may do.
+
+### What is an MCP client?
+
+An MCP client is the protocol component inside a host that establishes and maintains a connection to one MCP server. A host can run multiple clients at once, such as separate connections to Postgres, GitHub, and Google Drive servers.
+
+### What is the difference between an MCP host and an MCP client?
+
+The host manages the model, user experience, consent, security policy, and capability selection. Each client handles initialization, discovery, requests, responses, and notifications for its server connection. The [official MCP client documentation](https://modelcontextprotocol.io/docs/2025-11-25/learn/client-concepts) confirms that a host can coordinate multiple clients while each client communicates directly with one server.
+
+### Which transports do MCP servers use?
+
+The current specification defines [stdio and Streamable HTTP as its standard transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports). With stdio, the client launches the server as a local subprocess and exchanges messages through standard input and output. With Streamable HTTP, the server runs as a network service that authorized clients can reach over HTTP.
+
+A local child process can inherit environment variables, files, and operating-system permissions, so its launch configuration matters. A remote deployment adds network protection, authorization, rate limiting, and monitoring responsibilities. Older servers may use the earlier HTTP-and-SSE transport, so compatibility should be checked rather than assumed.
+
+### Does MCP replace REST APIs or SDKs?
+
+MCP does not replace REST APIs or SDKs. An MCP server often wraps those interfaces so AI applications can discover and invoke their capabilities consistently, while the underlying service still needs reliable authentication, validation, retries, and error handling.
 
 ## MCP server examples: GitHub, filesystems, and databases
 
@@ -182,6 +222,8 @@ A database MCP server can help an assistant identify which products generated th
 
 Other MCP servers can expose support systems, business applications, internal services, or reusable workflows. A reusable-workflow server can turn a defined workflow into an AI-callable tool.
 
+The implementation and security boundary vary by connected system. See the guides to using MCP with [Postgres](https://www.sim.ai/library/postgres-mcp-server-ai-agents), [Google Drive](https://www.sim.ai/library/google-drive-mcp-server-ai-agent-setup), [Slack](https://www.sim.ai/library/best-slack-mcp-agent-builders), and [GitHub](https://www.sim.ai/library/github-mcp-server-ai-agents) for system-specific setup and evaluation.
+
 ## Is an MCP server the same as an API?
 
 An MCP server is not the same as an API, although an MCP server often calls one or more APIs behind the scenes.
@@ -200,6 +242,14 @@ A direct API integration connects an application to one service-specific interfa
 | MCP server | An MCP client discovers and calls capabilities through a shared protocol. | The model can access the capabilities the server exposes. | The server operator maintains the service-specific implementation behind the MCP interface. |
 | Sim workflow as MCP tool | Sim exposes a workflow through an MCP server. | The model can call the complete workflow as a reusable tool. | You update the workflow in Sim without rebuilding the client integration. |
 
+## How does MCP authentication and security work?
+
+MCP security depends on the host and server enforcing authentication, authorization, consent, validation, and least privilege around every exposed capability. Authentication proves an identity; authorization determines what that identity may do. Protocol compatibility alone does not make a server trustworthy.
+
+For remote HTTP servers, follow the current MCP authorization requirements. The specification's [authorization security considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations) require clients to request tokens for the intended resource, servers to validate token audience, and implementations not to pass a client's MCP token through to an unrelated downstream service. Protect redirect flows and keep credentials out of prompts and tool output.
+
+For local stdio servers, control which executable can run and which environment variables, files, sockets, and operating-system permissions it receives. The MCP authorization specification says stdio implementations should retrieve credentials from the environment rather than use the HTTP authorization flow.
+
 ## Are MCP servers secure?
 
 MCP servers are only as secure as their permissions, authentication, input validation, deployment, and underlying integrations make them.
@@ -207,6 +257,20 @@ MCP servers are only as secure as their permissions, authentication, input valid
 MCP standardizes communication; it does not make every server or tool safe by default. A production deployment should expose the minimum required capabilities, validate tool inputs, protect credentials, authenticate remote users, constrain access to underlying systems, record activity, and require human review for consequential actions where appropriate.
 
 A server description should never be treated as proof that a tool is trustworthy. Operators should review the server's code or provider, understand what data it can access, and test how the host handles tool calls and returned content. See [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security) for a focused security checklist.
+
+### What are the main MCP security risks?
+
+MCP servers face prompt injection, malicious or changed tool descriptions, excessive permissions, credential leakage, unsafe inputs, unauthorized side effects, and compromised server code. Use this checklist before trusting a connection:
+
+- **Server provenance:** Identify the maintainer, distribution channel, release process, and dependency maintenance practices.
+- **Tool definitions:** Review names, descriptions, parameters, and updates so a trusted tool cannot quietly change behavior.
+- **Least privilege:** Limit every credential to the required records, repositories, channels, databases, and actions.
+- **Input validation:** Treat model-generated arguments as untrusted and validate types, ranges, paths, query structure, and allowed actions.
+- **Output handling:** Treat returned documents, issues, web pages, and database fields as untrusted content that may contain prompt injection.
+- **Human approval:** Require confirmation before destructive, expensive, external, or high-impact actions.
+- **Isolation:** Separate sensitive environments and avoid broad access to unrelated systems.
+- **Monitoring:** Record tool selection, arguments, authorization decisions, results, errors, and configuration changes without recording secrets.
+- **Revocation:** Make credentials, sessions, and server access quick to disable after a compromise.
 
 ## How do you build an MCP server?
 
@@ -227,11 +291,17 @@ A narrow server with explicit permissions is generally easier to test and govern
 
 ## Using Sim as an MCP client and MCP server
 
-In Sim, you can connect a workflow to an external MCP server and call its tools. For example, your workflow can use a GitHub MCP server to read an issue or create a pull request, then use the returned data in later steps.
+Sim supports two verified MCP patterns: workflows can use tools from connected external MCP servers, and deployed workflows can be exposed as tools through a workflow MCP server. These are separate configurations; Sim does not create a distinct hosted MCP endpoint for every application.
 
-You can also expose a Sim workflow as a callable MCP tool. External MCP clients can discover and run the tool with the expected inputs, then receive the workflow's output. One MCP tool can contain several workflow steps behind a single interface. For a broader workflow tutorial, learn [how to create an AI agent with Sim](https://www.sim.ai/library/how-to-create-an-ai-agent).
+### When should you connect an external MCP server in Sim?
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. For practical workflow guidance, read [How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool).
+Connect an external MCP server when it already exposes the required system capabilities with an acceptable operator, authentication model, permission boundary, data policy, and update process. In Sim, a workflow can call that server's tools. For example, it can use a GitHub MCP server to read an issue or create a pull request, then use the returned data in later steps.
+
+### When should you deploy a Sim workflow as an MCP server?
+
+Use a workflow MCP server when another compatible application needs a controlled multi-step capability rather than direct access to every underlying integration. A deployed Sim workflow can become a callable MCP tool with structured inputs and outputs. External clients can discover and run that tool, while its models, service calls, business logic, and credentials remain behind the workflow's narrower interface. For a broader workflow tutorial, learn [how to create an AI agent with Sim](https://www.sim.ai/library/how-to-create-an-ai-agent).
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. For practical workflow guidance, read [How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool), or compare options in [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support).
 
 ## How do Sim and n8n relate to MCP?
 
