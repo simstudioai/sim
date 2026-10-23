@@ -1773,7 +1773,7 @@ export class ExecutionLogger {
         // flow and only matters under a cross-process double-completion of the
         // same execution, where it stops a stale already-billed read from
         // dropping the larger delta.
-        await db.transaction(async (tx) => {
+        await dbFor('billing').transaction(async (tx) => {
           await tx.execute(
             sql`select set_config('lock_timeout', ${`${USAGE_RECONCILE_LOCK_TIMEOUT_MS}ms`}, true)`
           )
