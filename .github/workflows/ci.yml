@@ -636,6 +636,42 @@ jobs:
           fi
           bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
 
+  # Production only, once the new app serves traffic: submit the library and comparison URLs this
+  # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
+  indexnow:
+    name: indexnow
+    needs: [promote, trigger-promote]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.promote.outputs.promoted == 'true' &&
+      needs.trigger-promote.result == 'success'
+    runs-on: *runner-2vcpu
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+
+      # The diff needs only the two trees, so the previous head is fetched alone. A push that
+      # created the branch has an all-zero `before`, which the script skips.
+      - name: Submit changed URLs to IndexNow
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ ! "$BASE_SHA" =~ ^0+$ ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          fi
+          bun scripts/ping-indexnow.ts "$BASE_SHA" "$GITHUB_SHA"
+
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
   # are applied by ghcr after the gate, so a failing run

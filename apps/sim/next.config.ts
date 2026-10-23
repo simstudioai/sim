@@ -284,6 +284,11 @@ const nextConfig: NextConfig = {
         headers: [{ key: 'Vary', value: 'Accept' }],
       },
       {
+        /** A library article answers in HTML or Markdown by `Accept` (see the `afterFiles` rewrites). */
+        source: '/library/:slug',
+        headers: [{ key: 'Vary', value: 'Accept' }],
+      },
+      {
         // `/public`-served assets keep their path across deploys (no content
         // hash), so a shorter TTL + revalidation window bounds how long a
         // changed asset can serve stale.
@@ -690,7 +695,13 @@ const nextConfig: NextConfig = {
     return {
       /** `beforeFiles` so a Markdown client's `/` reaches `/index.md` ahead of the HTML page. */
       beforeFiles: [{ source: '/', ...MARKDOWN_REQUEST, destination: '/index.md' }],
+      /**
+       * `afterFiles` so `/library/tags`, the feeds, and every other static library route keep
+       * their own responses; only the dynamic article route is shadowed.
+       */
       afterFiles: [
+        { source: '/library/:slug.md', destination: '/library.md/:slug' },
+        { source: '/library/:slug', ...MARKDOWN_REQUEST, destination: '/library.md/:slug' },
         {
           source: '/favicon.ico',
           destination: '/icon.svg',
