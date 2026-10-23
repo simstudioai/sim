@@ -1,6 +1,7 @@
 import type { BrowserTabState } from '@sim/browser-protocol'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
+import { folderAncestorChain } from '@/lib/folders/tree'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import { terminalTabTitle } from '@/lib/terminal/tab-label'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
@@ -31,6 +32,69 @@ export function withFolderMentions(
         }
       : group
   )
+}
+
+export interface FolderMentionLocation {
+  familyType: 'workflow' | 'file' | 'table' | 'knowledgebase'
+  parentNames: string[]
+}
+
+interface FolderMentionNode {
+  id: string
+  name: string
+  parentId: string | null
+  familyType: FolderMentionLocation['familyType']
+  workspaceId: string
+}
+
+function folderFamilyType(
+  type: MothershipResourceType,
+  item: AvailableItem
+): FolderMentionLocation['familyType'] | null {
+  if (type === 'folder') {
+    if (item.mentionFamily === 'Table folders') return 'table'
+    if (item.mentionFamily === 'Knowledge base folders') return 'knowledgebase'
+    return 'workflow'
+  }
+  if (type === 'filefolder') return 'file'
+  return null
+}
+
+/** Builds display-only locations for the folder rows in the flat resource picker. */
+export function buildFolderMentionLocationMap(
+  groups: readonly ResourceMentionGroup[]
+): Map<string, FolderMentionLocation> {
+  const locations = new Map<string, FolderMentionLocation>()
+
+  for (const group of groups) {
+    if (group.type !== 'folder' && group.type !== 'filefolder') continue
+
+    const nodes = new Map<string, FolderMentionNode>()
+    for (const item of group.items) {
+      const familyType = folderFamilyType(group.type, item)
+      if (!familyType) continue
+      const workspaceId = typeof item.workspaceId === 'string' ? item.workspaceId : ''
+      nodes.set(`${familyType}:${workspaceId}:${item.id}`, {
+        id: item.id,
+        name: item.name,
+        parentId: typeof item.parentId === 'string' ? item.parentId : null,
+        familyType,
+        workspaceId,
+      })
+    }
+
+    for (const node of nodes.values()) {
+      const { familyType, workspaceId } = node
+      const parentNames = folderAncestorChain(node.parentId, (id) =>
+        nodes.get(`${familyType}:${workspaceId}:${id}`)
+      )
+        .filter((parent) => parent.id !== node.id)
+        .map((parent) => parent.name)
+      locations.set(`${group.type}:${workspaceId}:${node.id}`, { familyType, parentNames })
+    }
+  }
+
+  return locations
 }
 
 /** A family query such as "browser" keeps that resource's live tabs visible. */
