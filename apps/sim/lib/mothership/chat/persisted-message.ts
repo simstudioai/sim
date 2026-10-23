@@ -137,8 +137,11 @@ export interface PersistedMessage {
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
   timestamp: string
-  /** "task": a background-task notification opened this turn, not the user (rendered as a system chip). */
-  origin?: 'task'
+  /**
+   * "task": a background-task notification opened this turn, not the user (rendered as a system
+   * chip). "job": a scheduled job's occurrence opened it with the job brief.
+   */
+  origin?: 'task' | 'job'
   requestId?: string
   contentBlocks?: PersistedContentBlock[]
   fileAttachments?: PersistedFileAttachment[]
@@ -571,7 +574,7 @@ export interface UserMessageParams {
   content: string
   fileAttachments?: PersistedFileAttachment[]
   contexts?: PersistedMessageContext[]
-  origin?: 'task'
+  origin?: 'task' | 'job'
 }
 
 export function buildPersistedUserMessage(params: UserMessageParams): PersistedMessage {
@@ -896,7 +899,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
   if (raw.requestId && typeof raw.requestId === 'string') {
     msg.requestId = raw.requestId
   }
-  if (raw.origin === 'task') msg.origin = 'task'
+  if (raw.origin === 'task' || raw.origin === 'job') msg.origin = raw.origin
 
   const rawBlocks = raw.contentBlocks as RawBlock[] | undefined
   const rawToolCalls = raw.toolCalls as LegacyToolCall[] | undefined

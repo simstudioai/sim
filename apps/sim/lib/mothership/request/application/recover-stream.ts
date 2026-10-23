@@ -31,6 +31,7 @@ import {
   planRecovery,
 } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import {
+  parseRecordedSecretAuthority,
   RESOURCE_AUTHORING_VERSION,
   StreamRecoveryConfigSchema,
 } from '@/lib/mothership/request/lifecycle/recovery-config'
@@ -46,6 +47,7 @@ import { assertChatStreamLease } from '@/lib/mothership/request/session/controll
 import { eventToStreamEvent } from '@/lib/mothership/request/session/event'
 import { startsAtReplayHead } from '@/lib/mothership/request/session/recovery'
 import { StreamRecoveryExhaustedError } from '@/lib/mothership/request/session/turn-failure'
+import { NO_SECRET_AUTHORITY } from '@/lib/mothership/secret-mount-policy'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipStreamRecovery')
@@ -236,6 +238,16 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
       exhausted: plan.kind === 'exhausted',
     })
     const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
+    /**
+     * An unattended turn was admitted for nobody to answer and with the secrets its schedule
+     * mounts, so its recovered leg keeps both: no prompt waits on a person, and an authority it
+     * never recorded mounts nothing rather than the interactive default.
+     */
+    const unattended = config.data.kind === 'unattended_stream'
+    const recordedSecretAuthority = parseRecordedSecretAuthority(saved.secretAuthority)
+    const secretAuthority = unattended
+      ? (recordedSecretAuthority ?? NO_SECRET_AUTHORITY)
+      : recordedSecretAuthority
     const completion = {
       chatId,
       userMessageId: run.streamId,
@@ -282,9 +294,15 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
             : undefined,
         billingAttribution,
         userPermission: userPermission ?? undefined,
-        interactive: true,
+        interactive: !unattended,
         autoExecuteTools: true,
         clientToolPickupExpected: config.data.clientToolPickupExpected,
+        ...(secretAuthority
+          ? {
+              secretMountPolicy: secretAuthority.secretMountPolicy,
+              secretActorUserId: secretAuthority.secretActorUserId,
+            }
+          : {}),
         recovery: {
           ...config.data,
           streamId: run.streamId,

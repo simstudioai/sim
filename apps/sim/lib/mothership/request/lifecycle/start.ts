@@ -426,18 +426,20 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               abortSignal: abortController.signal,
               assertControllerOwnership,
               onBillingAdmission: async (admission) => {
-                if (!chatId || !savedRequestContext.recovery) return
-                await assertControllerOwnership()
-                if (!lease) throw new StreamControllerSupersededError()
-                const updated = await recordRunBillingAdmission(
-                  runId,
-                  {
-                    billingRequestId: admission.billingRequestId,
-                    serializedAttribution: admission.serializedAttribution,
-                  },
-                  lease.value
-                )
-                if (!updated) throw new Error('Run no longer owns billing admission')
+                if (chatId && savedRequestContext.recovery) {
+                  await assertControllerOwnership()
+                  if (!lease) throw new StreamControllerSupersededError()
+                  const updated = await recordRunBillingAdmission(
+                    runId,
+                    {
+                      billingRequestId: admission.billingRequestId,
+                      serializedAttribution: admission.serializedAttribution,
+                    },
+                    lease.value
+                  )
+                  if (!updated) throw new Error('Run no longer owns billing admission')
+                }
+                await orchestrateOptions.onBillingAdmission?.(admission)
               },
               onEvent: async (event) => {
                 try {

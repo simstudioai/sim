@@ -193,8 +193,9 @@ export const ChatPayloadSchema = z
      * the worker accepts and ignores it — dispatch semantics live on the sim side. */
     clientCapabilities: z.array(z.string()).default([]),
     /** "task": sim opened this turn for a background-task notification, not for a typed
-     * message (21-background-tasks.md); recorded on the turn's user_message event. */
-    origin: z.enum(["task"]).optional(),
+     * message (21-background-tasks.md); "job": sim's schedule opened it for one occurrence of a
+     * scheduled job (D92), its message the job brief. Recorded on the turn's user_message event. */
+    origin: z.enum(["task", "job"]).optional(),
     /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
     effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
     modelSelection: ModelSelectionSchema.optional(),

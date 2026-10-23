@@ -30,6 +30,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/recovery-config'
 import {
   acquirePendingChatStream,
   getChatStreamLockOwners,
@@ -519,7 +520,7 @@ export async function findAbandonedRecoverableRuns(
         and(
           inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
           isNotNull(controllerToken),
-          sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`,
+          isDurableStreamRun(copilotRuns.requestContext),
           idleFor(ABANDONED_RUN_IDLE_MS),
           not(idleFor(ORPHANED_RUN_GRACE_MS)),
           not(stopRequested),

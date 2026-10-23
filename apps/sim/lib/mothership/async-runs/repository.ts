@@ -30,8 +30,6 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
-import { z } from 'zod'
-import { secretMountPolicySchema } from '@/lib/api/contracts/secret-mount-policy'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -64,7 +62,11 @@ import {
   traceMothershipQuery,
   traceMothershipTransaction,
 } from '@/lib/mothership/observability/database'
-import type { BillingAdmission } from '@/lib/mothership/request/lifecycle/recovery-config'
+import {
+  type BillingAdmission,
+  isDurableStreamRun,
+  parseRecordedSecretAuthority,
+} from '@/lib/mothership/request/lifecycle/recovery-config'
 import { markSpanForError } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
@@ -571,7 +573,7 @@ export async function recordRunBillingAdmission(
             eq(copilotRuns.id, runId),
             notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
             sql`${copilotRuns.requestContext}->>'controllerToken' = ${controllerToken}`,
-            sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`
+            isDurableStreamRun(copilotRuns.requestContext)
           )
         )
         .returning({ id: copilotRuns.id, status: copilotRuns.status })
@@ -579,11 +581,6 @@ export async function recordRunBillingAdmission(
     }
   )
 }
-
-const recordedSecretAuthoritySchema = z.object({
-  secretMountPolicy: secretMountPolicySchema,
-  secretActorUserId: z.string().nullable(),
-})
 
 /**
  * The secret authority a turn was admitted with, for a lane that rebuilds its tool context from
@@ -610,10 +607,8 @@ export async function getRunSecretAuthority(input: {
     .limit(1)
   if (!run || run.chatId !== input.chatId) return NO_SECRET_AUTHORITY
 
-  if (run.recorded !== null) {
-    const recorded = recordedSecretAuthoritySchema.safeParse(run.recorded)
-    return recorded.success ? recorded.data : NO_SECRET_AUTHORITY
-  }
+  if (run.recorded !== null)
+    return parseRecordedSecretAuthority(run.recorded) ?? NO_SECRET_AUTHORITY
   if (run.recoveryKind === 'interactive_stream' && run.requestMode !== 'assistant') {
     return {
       secretMountPolicy: { ...DEFAULT_SECRET_MOUNT_POLICY },

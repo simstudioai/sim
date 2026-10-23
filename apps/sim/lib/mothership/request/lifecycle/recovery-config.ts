@@ -1,8 +1,11 @@
+import { type AnyColumn, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { secretMountPolicySchema } from '@/lib/api/contracts/secret-mount-policy'
 import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
+import type { TurnSecretAuthority } from '@/lib/mothership/secret-mount-policy'
 
 export const BillingAdmissionSchema = z
   .object({
@@ -37,9 +40,24 @@ export function durableResourceAuthoringVersion(
   return admitted ? RESOURCE_AUTHORING_VERSION : undefined
 }
 
+/**
+ * What a durable turn's recovery restores about its audience. An interactive stream answers a
+ * person in the chat; an unattended stream (a scheduled job's occurrence) has nobody to answer a
+ * prompt, so a recovered leg runs it non-interactively too, exactly as it was admitted.
+ */
+const DURABLE_STREAM_KINDS = ['interactive_stream', 'unattended_stream'] as const
+
+/** A run's saved request context names a durable turn that recovery can take over. */
+export function isDurableStreamRun(requestContext: AnyColumn): SQL {
+  return sql`${requestContext}->'recovery'->>'kind' IN (${sql.join(
+    DURABLE_STREAM_KINDS.map((kind) => sql`${kind}`),
+    sql`, `
+  )})`
+}
+
 export const StreamRecoveryConfigSchema = z
   .object({
-    kind: z.literal('interactive_stream'),
+    kind: z.enum(DURABLE_STREAM_KINDS),
     resourceAuthoringVersion: z.literal(RESOURCE_AUTHORING_VERSION).optional(),
     billingAdmission: BillingAdmissionSchema.optional(),
     request: DurableChatRequestSchema,
@@ -64,7 +82,8 @@ export async function streamRecoveryConfig(
   options: CopilotLifecycleOptions,
   request: Record<string, unknown>
 ) {
-  if (options.interactive !== true) return undefined
+  /** Only a turn that declared its audience is durable: a person's (`true`) or nobody's (`false`). */
+  if (options.interactive === undefined) return undefined
   const resourceAuthoringVersion = durableResourceAuthoringVersion(
     hasCopilotResourceAdmission({
       ...options,
@@ -75,7 +94,7 @@ export async function streamRecoveryConfig(
     })
   )
   return StreamRecoveryConfigSchema.parse({
-    kind: 'interactive_stream',
+    kind: options.interactive === true ? 'interactive_stream' : 'unattended_stream',
     request,
     goRoute: options.goRoute ?? '/api/copilot',
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,
@@ -83,4 +102,18 @@ export async function streamRecoveryConfig(
     requestMode: options.executionContext?.requestMode,
     ...(resourceAuthoringVersion ? { resourceAuthoringVersion } : {}),
   })
+}
+
+const RecordedSecretAuthoritySchema = z.object({
+  secretMountPolicy: secretMountPolicySchema,
+  secretActorUserId: z.string().nullable(),
+})
+
+/**
+ * The secret authority a run recorded at admission (`requestContext.secretAuthority`), or
+ * undefined when it recorded none or garbage.
+ */
+export function parseRecordedSecretAuthority(value: unknown): TurnSecretAuthority | undefined {
+  const recorded = RecordedSecretAuthoritySchema.safeParse(value)
+  return recorded.success ? recorded.data : undefined
 }

@@ -197,8 +197,11 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
-  /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
-  origin?: 'task'
+  /**
+   * "task": a background-task notification opened this turn, not the user (a system chip, not a
+   * bubble). "job": a scheduled job's occurrence opened it with the job brief.
+   */
+  origin?: 'task' | 'job'
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   fileAttachments?: FileAttachmentForApi[]
