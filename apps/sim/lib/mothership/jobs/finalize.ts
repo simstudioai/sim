@@ -48,12 +48,18 @@ async function settleJobSchedule(
     .set({
       failedCount: sql`${workflowSchedule.failedCount} + 1`,
       lastFailedAt: new Date(),
-      status: sql`CASE WHEN ${workflowSchedule.failedCount} + 1 >= ${MAX_CONSECUTIVE_JOB_FAILURES} AND ${workflowSchedule.status} = 'active' THEN 'disabled' ELSE ${workflowSchedule.status} END`,
       updatedAt: new Date(),
     })
     .where(eq(workflowSchedule.id, scheduleId))
-    .returning({ status: workflowSchedule.status, failedCount: workflowSchedule.failedCount })
-  return schedule?.status === 'disabled' && schedule.failedCount === MAX_CONSECUTIVE_JOB_FAILURES
+    .returning({ failedCount: workflowSchedule.failedCount })
+  if (!schedule || schedule.failedCount < MAX_CONSECUTIVE_JOB_FAILURES) return false
+  /** Only a job still on is turned off here; one a person already turned off is not reported. */
+  const disabled = await tx
+    .update(workflowSchedule)
+    .set({ status: 'disabled', updatedAt: new Date() })
+    .where(and(eq(workflowSchedule.id, scheduleId), eq(workflowSchedule.status, 'active')))
+    .returning({ id: workflowSchedule.id })
+  return disabled.length > 0
 }
 
 /** The turn's last assistant text, as the summary of a run that reported no outcome. */

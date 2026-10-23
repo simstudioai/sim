@@ -40,7 +40,8 @@ export async function loadJobRun(executionId: string) {
       successCondition: workflowSchedule.successCondition,
       lifecycle: workflowSchedule.lifecycle,
       maxRuns: workflowSchedule.maxRuns,
-      runCount: workflowSchedule.runCount,
+      /** Records claimed before the run number was stored fall back to the schedule's count. */
+      runNumber: sql<number>`COALESCE((${jobExecutionLogs.executionData}->>'runNumber')::int, ${workflowSchedule.runCount})`,
       runBudgetUsd: workflowSchedule.runBudgetUsd,
       userId: workflowSchedule.sourceUserId,
       workspaceId: workflowSchedule.sourceWorkspaceId,
