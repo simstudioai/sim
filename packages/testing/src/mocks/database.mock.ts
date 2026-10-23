@@ -439,6 +439,8 @@ const dbInstance = {
   transaction,
 }
 
+const mockIsPrimaryPoolClient = vi.fn((executor: object): boolean => executor === dbInstance)
+
 /**
  * Static mock module for `@sim/db` backed by `dbChainMockFns`.
  *
@@ -451,8 +453,9 @@ export const dbChainMock = {
   db: dbInstance,
   /** Same instance as `db` so per-test chain overrides cover both clients. */
   dbReplica: dbInstance,
-  /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
+  /** Sub-pool clients (`dbFor('auth' | 'billing' | ...)`) share the same instance too. */
   dbFor: () => dbInstance,
+  isPrimaryPoolClient: mockIsPrimaryPoolClient,
   runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   instrumentPoolClient: <T>(client: T): T => client,
 }
@@ -474,6 +477,11 @@ function resolveDbUrl(
  */
 export const databaseMockFns = {
   mockResolveDbUrl: vi.fn(resolveDbUrl),
+  /**
+   * Recognizes only the shared instance by default; a test that needs a distinct
+   * sub-pool client marks it as a primary root client here.
+   */
+  mockIsPrimaryPoolClient,
   mockEnsureRowCountTriggers: vi.fn(async (): Promise<void> => {}),
   mockVerifyRowCountTriggers: vi.fn(async () => ({
     incrementTrigger: true,

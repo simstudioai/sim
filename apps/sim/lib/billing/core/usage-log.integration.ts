@@ -19,7 +19,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const { transaction } = vi.hoisted(() => ({ transaction: vi.fn() }))
 const databaseUrl = readTestDatabaseUrl()
 
-vi.mock('@sim/db', () => ({ db: { transaction }, dbReplica: {} }))
+vi.mock('@sim/db', () => ({ db: { transaction }, dbFor: () => ({ transaction }), dbReplica: {} }))
 vi.mock('@/lib/billing/core/plan', () => ({ getHighestPrioritySubscription: vi.fn() }))
 vi.mock('@/lib/billing/subscriptions/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/billing/subscriptions/utils')>()),

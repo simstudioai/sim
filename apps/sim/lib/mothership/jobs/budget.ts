@@ -1,4 +1,4 @@
-import { db, jobExecutionLogs, workflowSchedule } from '@sim/db'
+import { dbFor, jobExecutionLogs, workflowSchedule } from '@sim/db'
 import { and, eq, sql } from 'drizzle-orm'
 import type { UsageUpgradePayload } from '@/lib/api/contracts/subscription'
 
@@ -22,7 +22,7 @@ export async function recordJobRunSpend(
   billingRequestId: string,
   cumulativeCostUsd: number
 ): Promise<UsageUpgradePayload | null> {
-  const [run] = await db
+  const [run] = await dbFor('billing')
     .update(jobExecutionLogs)
     .set({
       cost: sql`jsonb_build_object('total', GREATEST(COALESCE((${jobExecutionLogs.cost}->>'total')::numeric, 0), ${cumulativeCostUsd}::numeric))`,
