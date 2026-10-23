@@ -4,7 +4,7 @@
  * on their own pools. postgres.js pipelines new work onto busy connections when none is idle, so
  * anything still on the process pool waits for the lock instead.
  */
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import { session, user } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { sleep } from '@sim/utils/helpers'
@@ -78,10 +78,18 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await control`SELECT pg_advisory_unlock(${lockKey})`
-  await saturation
-  await db.delete(user).where(eq(user.id, userId))
-  await control.end()
+  try {
+    await control`SELECT pg_advisory_unlock(${lockKey})`
+    await saturation
+    await db.delete(user).where(eq(user.id, userId))
+  } finally {
+    await Promise.all([
+      db.$client.end(),
+      dbFor('billing').$client.end(),
+      dbFor('auth').$client.end(),
+      control.end(),
+    ])
+  }
 })
 
 describe('dedicated pools under a saturated process pool', () => {
