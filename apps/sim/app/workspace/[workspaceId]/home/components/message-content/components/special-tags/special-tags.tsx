@@ -3454,7 +3454,11 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
  * A scheduled job's run reached its own spend cap. The cap belongs to the job, not to the
  * account, so the card offers no billing action: the next run starts with a fresh cap.
  */
-function JobRunBudgetDisplay({ message }: { message: string }) {
+interface JobRunBudgetDisplayProps {
+  message: string
+}
+
+function JobRunBudgetDisplay({ message }: JobRunBudgetDisplayProps) {
   return (
     <InteractionCard
       title={

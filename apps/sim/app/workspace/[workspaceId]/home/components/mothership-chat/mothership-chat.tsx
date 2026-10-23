@@ -192,15 +192,17 @@ interface UserMessageRowProps {
  * with one line. A background-task notification (mothership 21-background-tasks.md §6.4) shows
  * its outcome line; a scheduled job's run shows the brief's first line (the job and its run).
  */
+interface AutomatedTurnRowProps {
+  origin: TurnOrigin
+  content: string
+  rowClassName: string
+}
+
 const AutomatedTurnRow = memo(function AutomatedTurnRow({
   origin,
   content,
   rowClassName,
-}: {
-  origin: TurnOrigin
-  content: string
-  rowClassName: string
-}) {
+}: AutomatedTurnRowProps) {
   const lines = content.split('\n').filter((line) => line.length > 0)
   const summary =
     origin === 'task'

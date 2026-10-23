@@ -45,10 +45,9 @@ export function nextJobOccurrence(cadence: JobCadence, occurrenceAt: Date, now: 
     )
   )
   let next = cron.nextRun(earliest)
-  for (let skipped = 0; next && excluded.has(next.toISOString()) && skipped < 1_000; skipped++) {
-    next = cron.nextRun(next)
-  }
-  if (!next || excluded.has(next.toISOString())) return null
+  /** Each step consumes one excluded instant, so this ends. */
+  while (next && excluded.has(next.toISOString())) next = cron.nextRun(next)
+  if (!next) return null
   if (cadence.endsAt && next.getTime() > cadence.endsAt.getTime()) return null
   return next
 }

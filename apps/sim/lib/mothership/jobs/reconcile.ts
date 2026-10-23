@@ -1,4 +1,4 @@
-import { copilotRuns, db, jobExecutionLogs, workflowSchedule } from '@sim/db'
+import { copilotRuns, db, jobExecutionLogs } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
@@ -73,12 +73,11 @@ function openJobRuns(status: OpenJobRunStatus, now: Date) {
       admittedBillingRequestId,
       scheduleId: jobExecutionLogs.scheduleId,
       runStatus: copilotRuns.status,
-      userId: workflowSchedule.sourceUserId,
-      workspaceId: workflowSchedule.sourceWorkspaceId,
+      userId: copilotRuns.userId,
+      workspaceId: copilotRuns.workspaceId,
       chatId: copilotRuns.chatId,
     })
     .from(jobExecutionLogs)
-    .leftJoin(workflowSchedule, eq(workflowSchedule.id, jobExecutionLogs.scheduleId))
     .leftJoin(copilotRuns, eq(copilotRuns.streamId, jobExecutionLogs.executionId))
     .where(and(openJobRun([status]), needsAction))
     .orderBy(asc(jobExecutionLogs.startedAt))

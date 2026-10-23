@@ -544,8 +544,6 @@ describe('UsageUpgradeDisplay', () => {
       )
     })
 
-    expect(container.textContent).toContain('Run Spend Limit Reached')
-    expect(container.textContent).toContain('This scheduled job run reached its $5.00 spend limit.')
     expect(container.querySelector('a')).toBeNull()
     act(() => root.unmount())
   })

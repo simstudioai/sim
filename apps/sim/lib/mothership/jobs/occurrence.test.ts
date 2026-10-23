@@ -33,4 +33,16 @@ describe('nextJobOccurrence', () => {
       new Date('2026-10-22T10:15:00Z')
     )
   })
+
+  it('skips any number of deleted occurrences instead of ending the job', () => {
+    const everyMinute = { ...quarterHourly, cronExpression: '* * * * *' }
+    const occurrenceAt = new Date('2026-10-22T10:00:00Z')
+    const firstSlot = new Date('2026-10-22T10:15:00Z').getTime()
+    const excludedDates = Array.from({ length: 1_500 }, (_, minute) =>
+      new Date(firstSlot + minute * 60_000).toISOString()
+    )
+    expect(
+      nextJobOccurrence({ ...everyMinute, excludedDates }, occurrenceAt, occurrenceAt)
+    ).toEqual(new Date(firstSlot + 1_500 * 60_000))
+  })
 })
