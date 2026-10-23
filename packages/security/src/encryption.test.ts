@@ -83,7 +83,10 @@ describe('unseal', () => {
     }
   })
 
-  it('rejects a malformed envelope', () => {
-    expect(() => unseal(`${seal('token', KEY)}:extra`, KEY)).toThrow(/Malformed/)
+  it('treats a raw token that only starts like an envelope as unsealed', () => {
+    for (const value of ['enc:v1:raw-provider-token', `${seal('token', KEY)}:extra`]) {
+      expect(isSealed(value)).toBe(false)
+      expect(() => unseal(value, KEY)).toThrow(/not a sealed envelope/)
+    }
   })
 })

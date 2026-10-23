@@ -70,6 +70,7 @@ function assertKey(key: Buffer): void {
 const SEALED_PREFIX = 'enc:v1:'
 const SEALED_IV_BYTES = 12
 const SEALED_KEY_ID_BYTES = 4
+const SEALED_ENVELOPE = /^enc:v1:[0-9a-f]{8}:[0-9a-f]{24}:(?:[0-9a-f]{2})*:[0-9a-f]{32}$/
 
 interface SealingKeys {
   keyId: string
@@ -90,7 +91,7 @@ function deriveSealingKeys(key: Buffer): SealingKeys {
 
 /** Whether `value` is an envelope produced by {@link seal}. */
 export function isSealed(value: string): boolean {
-  return value.startsWith(SEALED_PREFIX)
+  return SEALED_ENVELOPE.test(value)
 }
 
 /**
@@ -112,17 +113,12 @@ export function seal(plaintext: string, key: Buffer): string {
 }
 
 /**
- * Opens an envelope produced by {@link seal}. Throws when the value is not an envelope, was sealed
+ * Opens an envelope produced by {@link seal}. Throws when the value is not a well-formed envelope, was sealed
  * under a different key, or fails GCM authentication.
  */
 export function unseal(value: string, key: Buffer): string {
   if (!isSealed(value)) throw new Error('Value is not a sealed envelope')
-  const [keyId, ivHex, ciphertextHex, authTagHex, ...rest] = value
-    .slice(SEALED_PREFIX.length)
-    .split(':')
-  if (!keyId || !ivHex || ciphertextHex === undefined || !authTagHex || rest.length > 0) {
-    throw new Error('Malformed sealed envelope')
-  }
+  const [keyId, ivHex, ciphertextHex, authTagHex] = value.slice(SEALED_PREFIX.length).split(':')
   const keys = deriveSealingKeys(key)
   if (keyId !== keys.keyId) throw new Error('Sealed envelope was sealed under a different key')
   const decipher = createDecipheriv('aes-256-gcm', keys.cipherKey, Buffer.from(ivHex, 'hex'), {

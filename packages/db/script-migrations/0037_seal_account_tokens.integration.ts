@@ -36,7 +36,8 @@ describe('sealing stored account tokens in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    process.env.ENCRYPTION_KEY = previousKey
+    if (previousKey === undefined) Reflect.deleteProperty(process.env, 'ENCRYPTION_KEY')
+    else process.env.ENCRYPTION_KEY = previousKey
     await sql?.end()
     if (admin) {
       await admin.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
