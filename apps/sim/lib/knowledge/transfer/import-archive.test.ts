@@ -51,7 +51,7 @@ function manifest(overrides: Record<string, unknown> = {}, document: Record<stri
   }
 }
 
-const CHUNKS = { chunks: `chunks/${DOCUMENT_ID}.ndjson`, chunkCount: 2 }
+const CHUNKS = { chunks: `chunks/${DOCUMENT_ID}.ndjson`, chunkCount: 2, characterCount: 10 }
 
 function chunkLine(index: number, extra: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -168,6 +168,11 @@ describe('openKnowledgeBundle', () => {
     ['a line that is not JSON', [chunkLine(0), '{'], 'line 2 is not valid JSON'],
     ['a line outside the chunk schema', [chunkLine(0), chunkLine(1, { content: '' })], 'line 2'],
     ['chunks out of index order', [chunkLine(1), chunkLine(0)], 'chunks are out of order'],
+    [
+      'a chunk that ends before it starts',
+      [chunkLine(0), chunkLine(1, { startOffset: 20, endOffset: 10 })],
+      'chunk 1 ends before it starts',
+    ],
     ['fewer chunks than the manifest lists', [chunkLine(0)], 'holds 1 chunks'],
     [
       'a chunk without a vector',
@@ -184,6 +189,17 @@ describe('openKnowledgeBundle', () => {
     try {
       await expect(reader.readChunks(CHUNKS, true)).rejects.toThrow(
         expect.objectContaining({ code: 'validation', message: expect.stringContaining(message) })
+      )
+    } finally {
+      reader.close()
+    }
+  })
+
+  it('refuses a damaged chunk entry when validated, before any document is read', async () => {
+    const reader = await openKnowledgeBundle(await zipOf(validEntries([chunkLine(0), '{'])))
+    try {
+      await expect(reader.validateChunks(false)).rejects.toThrow(
+        expect.objectContaining({ code: 'validation', message: expect.stringContaining('line 2') })
       )
     } finally {
       reader.close()

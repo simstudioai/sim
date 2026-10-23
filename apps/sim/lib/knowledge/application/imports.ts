@@ -13,7 +13,7 @@ import {
   capabilityGovernedPrincipalUserId,
 } from '@/lib/core/application'
 import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { assertKnowledgeUsageAdmitted } from '@/lib/knowledge/application/billing'
@@ -32,7 +32,10 @@ import {
   type KnowledgeImportRecord,
   stopKnowledgeImport,
 } from '@/lib/knowledge/transfer/import-jobs'
-import { runKnowledgeImport } from '@/lib/knowledge/transfer/import-runner'
+import {
+  type KnowledgeImportPayload,
+  runKnowledgeImport,
+} from '@/lib/knowledge/transfer/import-runner'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
@@ -221,66 +224,60 @@ function findStartedImport(context: KnowledgeImportUploadContext) {
 }
 
 /**
- * Writes the durable record for a completed upload and starts its runner. A
- * repeated or concurrent completion finds the record already written and
- * starts nothing.
+ * Writes the durable record while the upload is being completed, before it
+ * counts as complete. From then on the stale-import janitor owns the bundle, so
+ * neither a crash nor a refusal after this point can strand it; a refusal
+ * before it leaves the session unfinished, which its abort and expiry discard.
+ * Returns the runner's payload, or `null` when a repeated completion finds the
+ * record already written.
  */
-async function startKnowledgeImport(
+async function recordKnowledgeImport(
   principal: Principal,
   context: KnowledgeImportUploadContext
-): Promise<{ record: KnowledgeImportRecord; startedKnowledgeBaseId: string | null }> {
+): Promise<KnowledgeImportPayload | null> {
   const { billingAttribution, userId } = await assertKnowledgeUsageAdmitted(principal, context)
   const { upload } = context
-  const knowledgeBaseId = generateId()
   const inserted = await insertKnowledgeImport({
     id: upload.id,
     workspaceId: context.workspaceId,
     userId,
     sourceKey: upload.storageKey,
   })
-  if (!inserted) {
-    return {
-      record: await getKnowledgeImport({
-        importId: upload.id,
-        assertedWorkspaceId: context.workspaceId,
-      }),
-      startedKnowledgeBaseId: null,
-    }
-  }
+  if (!inserted) return null
   const name = importedName(upload)
+  return {
+    importId: upload.id,
+    knowledgeBaseId: generateId(),
+    workspaceId: context.workspaceId,
+    userId,
+    ...(name ? { name } : {}),
+    sourceKey: upload.storageKey,
+    billingAttribution,
+  }
+}
+
+/** Starts the runner; a dispatch that fails settles the import and drops its bundle. */
+async function dispatchKnowledgeImport(payload: KnowledgeImportPayload): Promise<void> {
   try {
-    await dispatchBackgroundTask<typeof knowledgeImportTask>(
-      'knowledge-import',
-      {
-        importId: upload.id,
-        knowledgeBaseId,
-        workspaceId: context.workspaceId,
-        userId,
-        ...(name ? { name } : {}),
-        sourceKey: upload.storageKey,
-        billingAttribution,
-      },
-      {
-        runInProcess: runKnowledgeImport,
-        trigger: { tags: [`workspaceId:${context.workspaceId}`, `importId:${upload.id}`] },
-      }
-    )
+    await dispatchBackgroundTask<typeof knowledgeImportTask>('knowledge-import', payload, {
+      runInProcess: runKnowledgeImport,
+      trigger: { tags: [`workspaceId:${payload.workspaceId}`, `importId:${payload.importId}`] },
+    })
   } catch (error) {
-    await finishKnowledgeImport(upload.id, {
+    await finishKnowledgeImport(payload.importId, {
       status: 'failed',
       error: 'The import could not be started',
     })
-    await deleteFile({ key: upload.storageKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch(
+    await deleteFile({ key: payload.sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch(
       (cleanupError: unknown) => {
         logger.error('Failed to delete a knowledge bundle after dispatch failure', {
-          importId: upload.id,
+          importId: payload.importId,
           error: getErrorMessage(cleanupError, 'Unknown error'),
         })
       }
     )
     throw error
   }
-  return { record: inserted, startedKnowledgeBaseId: knowledgeBaseId }
 }
 
 export const createKnowledgeImport = defineAuthorizedKnowledgeUseCase({
@@ -345,8 +342,10 @@ export const createKnowledgeImportParts = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: CreateKnowledgeImportPartsInput
   }) => resolveUploadContext(principal, input),
-  async execute({ input, context, request }) {
+  async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge import part issuance requires a request context')
+    // Repeated so a group that withdraws uploads mid-transfer stops the bytes, not just the import.
+    await assertImportedDocumentsAllowed(principal, context.workspaceId)
     return {
       parts: await createUploadPartUrls({
         session: context.upload,
@@ -369,30 +368,44 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, context }): Promise<CompleteKnowledgeImportResult> {
     const existing = await findStartedImport(context)
     if (existing) return { import: fromRecord(existing), startedKnowledgeBaseId: null }
-    const completed = await completeUploadSession({
-      session: context.upload,
-      finalize: async (claimed) => {
-        assertUploadSessionAuthBinding(claimed, principal)
-        await authorizeWorkspaceOperation(principal, knowledgeOperations.importComplete, context, {
-          delegation: knowledgeDelegationPolicy,
-        })
-        // Repeated because creation and completion are separate requests; see the helper.
-        await assertImportedDocumentsAllowed(principal, context.workspaceId)
-        return { value: null }
-      },
-    })
-    const { record, startedKnowledgeBaseId } = await startKnowledgeImport(principal, {
-      ...context,
-      upload: completed.session,
-    })
-    if (startedKnowledgeBaseId) {
+    let started: KnowledgeImportPayload | null
+    try {
+      const completed = await completeUploadSession({
+        session: context.upload,
+        finalize: async (claimed) => {
+          assertUploadSessionAuthBinding(claimed, principal)
+          await authorizeWorkspaceOperation(
+            principal,
+            knowledgeOperations.importComplete,
+            context,
+            { delegation: knowledgeDelegationPolicy }
+          )
+          // Repeated because creation and completion are separate requests; see the helper.
+          await assertImportedDocumentsAllowed(principal, context.workspaceId)
+          return { value: await recordKnowledgeImport(principal, { ...context, upload: claimed }) }
+        },
+      })
+      started = completed.value
+    } catch (error) {
+      // A concurrent completion holds the session; report the import it started, if any.
+      const raced =
+        asOrchestrationError(error)?.code === 'conflict' ? await findStartedImport(context) : null
+      if (raced) return { import: fromRecord(raced), startedKnowledgeBaseId: null }
+      throw error
+    }
+    if (started) {
+      await dispatchKnowledgeImport(started)
       logger.info('Started knowledge import', {
-        importId: record.id,
+        importId: started.importId,
         workspaceId: context.workspaceId,
         principalKind: principal.kind,
       })
     }
-    return { import: fromRecord(record), startedKnowledgeBaseId }
+    const record = await getKnowledgeImport({
+      importId: context.upload.id,
+      assertedWorkspaceId: context.workspaceId,
+    })
+    return { import: fromRecord(record), startedKnowledgeBaseId: started?.knowledgeBaseId ?? null }
   },
   /** Recorded once per import: a repeated completion only reads back the one already started. */
   projectAudit: ({ context, result }) =>

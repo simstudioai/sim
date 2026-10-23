@@ -35,11 +35,16 @@ export interface KnowledgeBundleReader {
   /** A document's original file, by the entry its manifest names. */
   readFile(entry: string): Promise<Buffer>
   /**
+   * Reads every chunk entry through once, so a damaged entry refuses the whole
+   * bundle before the import writes anything. `vectors` as for {@link readChunks}.
+   */
+  validateChunks(vectors: boolean): Promise<void>
+  /**
    * A document's chunks in index order, ready to index. With `vectors`, every
    * line must carry a vector of the manifest's dimension; without, none is decoded.
    */
   readChunks(
-    document: Pick<KnowledgeBundleDocument, 'chunkCount'> & { chunks: string },
+    document: Pick<KnowledgeBundleDocument, 'chunkCount' | 'characterCount'> & { chunks: string },
     vectors: boolean
   ): Promise<PreparedDocumentIndex>
   close(): void
@@ -154,56 +159,80 @@ export async function openKnowledgeBundle(path: string): Promise<KnowledgeBundle
       return entry
     }
 
-    return {
-      manifest,
-      readFile: (name) => readEntry(zip, entryFor(name)),
-      async readChunks(document, vectors) {
-        const name = document.chunks
-        const stream = await zip.openReadStreamPromise(entryFor(name))
-        const chunks: PreparedDocumentIndex['chunks'][number][] = []
-        const decoded: number[][] = []
-        let previousIndex = -1
-        for await (const line of createInterface({
-          input: stream,
-          crlfDelay: Number.POSITIVE_INFINITY,
-        })) {
-          if (line.length === 0) continue
-          let raw: unknown
-          try {
-            raw = JSON.parse(line)
-          } catch {
-            throw bundleError(`${name} line ${chunks.length + 1} is not valid JSON`)
-          }
-          const parsed = knowledgeBundleChunkLineSchema.safeParse(raw)
-          if (!parsed.success) {
-            const [issue] = parsed.error.issues
-            throw bundleError(
-              `${name} line ${chunks.length + 1} ${issue.path.join('.')} ${issue.message}`
-            )
-          }
-          const chunk = parsed.data
-          if (chunk.index <= previousIndex) throw bundleError(`${name} chunks are out of order`)
-          previousIndex = chunk.index
-          if (vectors) {
-            const vector = chunk.vector
-              ? decodeVectorBase64(chunk.vector, manifest.embedding.dimension)
-              : null
-            if (!vector) throw bundleError(`${name} chunk ${chunk.index} has no valid vector`)
-            decoded.push(vector)
-          }
-          chunks.push({
+    /** Streams one chunk entry, validating each line and handing it on in index order. */
+    const scanChunks = async (
+      name: string,
+      chunkCount: number,
+      vectors: boolean,
+      onChunk: (chunk: PreparedDocumentIndex['chunks'][number], vector: number[] | null) => void
+    ) => {
+      const stream = await zip.openReadStreamPromise(entryFor(name))
+      let lines = 0
+      let previousIndex = -1
+      for await (const line of createInterface({
+        input: stream,
+        crlfDelay: Number.POSITIVE_INFINITY,
+      })) {
+        if (line.length === 0) continue
+        lines++
+        let raw: unknown
+        try {
+          raw = JSON.parse(line)
+        } catch {
+          throw bundleError(`${name} line ${lines} is not valid JSON`)
+        }
+        const parsed = knowledgeBundleChunkLineSchema.safeParse(raw)
+        if (!parsed.success) {
+          const [issue] = parsed.error.issues
+          throw bundleError(`${name} line ${lines} ${issue.path.join('.')} ${issue.message}`)
+        }
+        const chunk = parsed.data
+        if (chunk.index <= previousIndex) throw bundleError(`${name} chunks are out of order`)
+        if (chunk.endOffset < chunk.startOffset) {
+          throw bundleError(`${name} chunk ${chunk.index} ends before it starts`)
+        }
+        previousIndex = chunk.index
+        let vector: number[] | null = null
+        if (vectors) {
+          vector = chunk.vector
+            ? decodeVectorBase64(chunk.vector, manifest.embedding.dimension)
+            : null
+          if (!vector) throw bundleError(`${name} chunk ${chunk.index} has no valid vector`)
+        }
+        onChunk(
+          {
             text: chunk.content,
             startOffset: chunk.startOffset,
             endOffset: chunk.endOffset,
             enabled: chunk.enabled,
-          })
+          },
+          vector
+        )
+      }
+      if (lines !== chunkCount) {
+        throw bundleError(`${name} holds ${lines} chunks, but the manifest lists ${chunkCount}`)
+      }
+    }
+
+    return {
+      manifest,
+      readFile: (name) => readEntry(zip, entryFor(name)),
+      async validateChunks(vectors) {
+        for (const document of manifest.documents) {
+          if (document.chunks) {
+            await scanChunks(document.chunks, document.chunkCount, vectors, () => {})
+          }
         }
-        if (chunks.length !== document.chunkCount) {
-          throw bundleError(
-            `${name} holds ${chunks.length} chunks, but the manifest lists ${document.chunkCount}`
-          )
-        }
-        return vectors ? { chunks, vectors: decoded } : { chunks }
+      },
+      async readChunks(document, vectors) {
+        const chunks: PreparedDocumentIndex['chunks'][number][] = []
+        const decoded: number[][] = []
+        await scanChunks(document.chunks, document.chunkCount, vectors, (chunk, vector) => {
+          chunks.push(chunk)
+          if (vector) decoded.push(vector)
+        })
+        const { characterCount } = document
+        return vectors ? { chunks, vectors: decoded, characterCount } : { chunks, characterCount }
       },
       close: () => zip.close(),
     }

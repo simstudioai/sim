@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   asyncJobs,
+  document,
   knowledgeBaseImport,
   knowledgeConnectorSyncLog,
   tableJobs,
@@ -158,6 +159,18 @@ async function runBatchedMutation<TCandidate extends { id: string }, TRow>({
   }
 
   return { affected, reachedLimit: affected >= maxRowsPerRun }
+}
+
+/** Deletes import bundles one at a time; a bundle already gone is not an error. */
+async function deleteKnowledgeImportBundles(imports: { sourceKey: string }[]): Promise<void> {
+  for (const { sourceKey } of imports) {
+    await deleteFile({ key: sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch((err) => {
+      logger.warn('Failed to delete a knowledge import bundle', {
+        sourceKey,
+        error: toError(err).message,
+      })
+    })
+  }
 }
 
 /** Settles everything a dead worker left unfinished and prunes expired bookkeeping rows. */
@@ -466,7 +479,9 @@ export async function runCleanupStaleExecutions() {
   /**
    * Fail knowledge imports whose worker died, and delete the bundle that worker
    * would have deleted in its `finally`. Documents it already imported stay in
-   * the base, as they would after a cancel. Settled imports are pruned later.
+   * the base, as they would after a cancel; one it was indexing in-process has
+   * no queue behind it, so it is failed for the user to retry. Settled imports
+   * are pruned later, deleting any bundle a canceled or crashed worker left.
    */
   let staleKnowledgeImportsMarkedFailed = 0
   try {
@@ -497,18 +512,32 @@ export async function runCleanupStaleExecutions() {
             updatedAt: now,
           })
           .where(and(staleKnowledgeImportPredicate, inArray(knowledgeBaseImport.id, candidateIds)))
-          .returning({ sourceKey: knowledgeBaseImport.sourceKey }),
+          .returning({
+            sourceKey: knowledgeBaseImport.sourceKey,
+            knowledgeBaseId: knowledgeBaseImport.knowledgeBaseId,
+          }),
       onBatch: async (imports) => {
-        for (const { sourceKey } of imports) {
-          await deleteFile({ key: sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch(
-            (err) => {
-              logger.warn('Failed to delete a stale knowledge import bundle', {
-                sourceKey,
-                error: toError(err).message,
-              })
-            }
-          )
+        const knowledgeBaseIds = imports.flatMap(({ knowledgeBaseId }) =>
+          knowledgeBaseId ? [knowledgeBaseId] : []
+        )
+        if (knowledgeBaseIds.length > 0) {
+          await db
+            .update(document)
+            .set({
+              processingStatus: 'failed',
+              processingError: 'The import stopped before this document finished indexing',
+              processingCompletedAt: now,
+            })
+            .where(
+              and(
+                inArray(document.knowledgeBaseId, knowledgeBaseIds),
+                eq(document.processingStatus, 'processing'),
+                isNull(document.processingQueueToken),
+                lt(document.processingStartedAt, staleKnowledgeImportThreshold)
+              )
+            )
         }
+        await deleteKnowledgeImportBundles(imports)
       },
     })
     staleKnowledgeImportsMarkedFailed = staleKnowledgeImportResult.affected
@@ -539,7 +568,8 @@ export async function runCleanupStaleExecutions() {
           .where(
             and(settledKnowledgeImportPredicate, inArray(knowledgeBaseImport.id, candidateIds))
           )
-          .returning({ id: knowledgeBaseImport.id }),
+          .returning({ sourceKey: knowledgeBaseImport.sourceKey }),
+      onBatch: deleteKnowledgeImportBundles,
     })
   } catch (error) {
     logger.error('Failed to clean up stale knowledge imports:', {

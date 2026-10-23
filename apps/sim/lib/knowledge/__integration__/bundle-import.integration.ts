@@ -21,6 +21,7 @@ import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import JSZip from 'jszip'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
@@ -71,6 +72,7 @@ import {
   findKnowledgeImport,
   insertKnowledgeImport,
   KNOWLEDGE_IMPORT_STORAGE_CONTEXT,
+  stopKnowledgeImport,
 } from '@/lib/knowledge/transfer/import-jobs'
 import { runKnowledgeImport } from '@/lib/knowledge/transfer/import-runner'
 import { embeddingVectorColumn, embeddingVectorValues } from '@/lib/knowledge/vector-columns'
@@ -243,10 +245,11 @@ afterEach(() => {
   fixture.target = { model: 'text-embedding-3-small', dimensions: 1536 }
 })
 afterAll(async () => {
+  const workspaceBases = sql`SELECT ${knowledgeBase.id} FROM ${knowledgeBase} WHERE ${knowledgeBase.workspaceId} = ${ids.workspaceId}`
   await db
     .delete(outboxEvent)
     .where(
-      sql`${outboxEvent.payload}::jsonb ->> 'knowledgeBaseId' IN (SELECT ${knowledgeBase.id} FROM ${knowledgeBase} WHERE ${knowledgeBase.workspaceId} = ${ids.workspaceId})`
+      sql`${outboxEvent.payload}::jsonb ->> 'knowledgeBaseId' IN (${workspaceBases}) OR ${outboxEvent.payload}::jsonb ->> 'documentId' IN (SELECT ${document.id} FROM ${document} WHERE ${document.knowledgeBaseId} IN (${workspaceBases}))`
     )
   await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
   await db.delete(knowledgeBase).where(eq(knowledgeBase.workspaceId, ids.workspaceId))
@@ -408,6 +411,77 @@ describe('knowledge base bundle import', () => {
     ).rejects.toThrow()
   })
 
+  it('fails a bundle with a damaged chunk entry before creating anything', async () => {
+    const zip = new JSZip()
+    zip.file('chunks/doc-1.ndjson', '{"index": 0, "content": "half a line"\n')
+    zip.file(
+      'manifest.json',
+      JSON.stringify({
+        version: 1,
+        exportedAt: '2026-10-01T00:00:00.000Z',
+        embedding: { model: 'text-embedding-3-small', dimension: 1536, vectorsIncluded: false },
+        knowledgeBase: {
+          name: 'Damaged fixture',
+          description: null,
+          chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 20 },
+        },
+        tags: [],
+        documents: [
+          {
+            id: 'doc-1',
+            filename: 'notes.txt',
+            mimeType: 'text/plain',
+            fileSize: 0,
+            enabled: true,
+            tags: {},
+            file: null,
+            chunks: 'chunks/doc-1.ndjson',
+            chunkCount: 1,
+            tokenCount: 1,
+            characterCount: 11,
+          },
+        ],
+      })
+    )
+    const importId = generateId()
+    const sourceKey = await stageBundleBytes(
+      importId,
+      await zip.generateAsync({ type: 'nodebuffer' })
+    )
+
+    const record = await runImport(importId, sourceKey, 'Damaged fixture')
+
+    expect(record).toMatchObject({ status: 'failed', knowledgeBaseId: null, documentsTotal: 0 })
+    expect(record.error).toContain('chunks/doc-1.ndjson line 1 is not valid JSON')
+    expect(
+      await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.name, 'Damaged fixture'))
+    ).toEqual([])
+  })
+
+  it('creates no base for an import canceled before its worker reached it', async () => {
+    const importId = generateId()
+    const sourceKey = await stageExportedBundle(importId)
+    const staged = await findKnowledgeImport({ importId })
+    if (!staged) throw new Error('Import was not staged')
+    await stopKnowledgeImport(staged)
+
+    const record = await runImport(importId, sourceKey, 'Canceled fixture')
+
+    expect(record).toMatchObject({ status: 'canceled', knowledgeBaseId: null })
+    expect(
+      await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.name, 'Canceled fixture'))
+    ).toEqual([])
+    await expect(
+      downloadFile({ key: sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT })
+    ).rejects.toThrow()
+  })
+
   it('fails without a partial base when the name is already taken', async () => {
     const importId = generateId()
     const sourceKey = await stageExportedBundle(importId)
@@ -459,7 +533,7 @@ describe('knowledge base import requests', () => {
     await writeLocalPutObject({
       uploadId: created.upload.id,
       key: created.upload.finalKey,
-      body: new Blob([bytes]).stream(),
+      body: new Blob([new Uint8Array(bytes)]).stream(),
       expectedSize: bytes.length,
       contentType: created.upload.contentType,
       metadata: uploadSessionObjectMetadata(created.upload),
@@ -499,7 +573,12 @@ describe('knowledge base import requests', () => {
         db
           .select({ resourceId: auditLog.resourceId })
           .from(auditLog)
-          .where(eq(auditLog.action, 'knowledge_base.imported'))
+          .where(
+            and(
+              eq(auditLog.workspaceId, ids.workspaceId),
+              eq(auditLog.action, 'knowledge_base.imported')
+            )
+          )
       )
       .toEqual([{ resourceId: finished.knowledgeBaseId }])
   })
@@ -538,24 +617,48 @@ describe('knowledge base import requests', () => {
 })
 
 describe('stale knowledge import cleanup', () => {
-  it('fails an import whose worker went silent, deletes its bundle, and prunes long-settled imports', async () => {
-    const staleId = generateId()
-    const sourceKey = await stageBundleBytes(staleId, Buffer.from('bundle bytes'))
-    const settledId = generateId()
-    await insertKnowledgeImport({
-      id: settledId,
-      workspaceId: ids.workspaceId,
-      userId: ids.aliceId,
-      sourceKey: `knowledge-import/${ids.workspaceId}/${settledId}/bundle.simkb.zip`,
+  async function seedProcessingDocument(processingQueueToken: string | null) {
+    const id = generateId()
+    await db.insert(document).values({
+      id,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      filename: 'stranded.txt',
+      fileUrl: '',
+      fileSize: 0,
+      mimeType: 'text/plain',
+      processingStatus: 'processing',
+      processingStartedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      processingQueueToken,
     })
+    return id
+  }
+
+  async function processingStatus(documentId: string) {
+    const [row] = await db
+      .select({ status: document.processingStatus })
+      .from(document)
+      .where(eq(document.id, documentId))
+    return row?.status
+  }
+
+  it('fails an import whose worker went silent, its stranded documents, and its bundle, and prunes settled imports with theirs', async () => {
+    const staleId = generateId()
+    const staleBundle = await stageBundleBytes(staleId, Buffer.from('bundle bytes'))
+    const settledId = generateId()
+    const settledBundle = await stageBundleBytes(settledId, Buffer.from('bundle bytes'))
+    const stranded = await seedProcessingDocument(null)
+    const queued = await seedProcessingDocument('queue-token')
     const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     await db
       .update(knowledgeBaseImport)
-      .set({ updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) })
+      .set({
+        knowledgeBaseId: ids.knowledgeBaseId,
+        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      })
       .where(eq(knowledgeBaseImport.id, staleId))
     await db
       .update(knowledgeBaseImport)
-      .set({ status: 'completed', updatedAt: longAgo, completedAt: longAgo })
+      .set({ status: 'canceled', updatedAt: longAgo, completedAt: longAgo })
       .where(eq(knowledgeBaseImport.id, settledId))
 
     await runCleanupStaleExecutions()
@@ -563,9 +666,13 @@ describe('stale knowledge import cleanup', () => {
     const stale = await findKnowledgeImport({ importId: staleId })
     expect(stale).toMatchObject({ status: 'failed' })
     expect(stale?.error).toContain('no progress')
-    await expect(
-      downloadFile({ key: sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT })
-    ).rejects.toThrow()
+    expect(await processingStatus(stranded)).toBe('failed')
+    expect(await processingStatus(queued)).toBe('processing')
     expect(await findKnowledgeImport({ importId: settledId })).toBeNull()
+    for (const key of [staleBundle, settledBundle]) {
+      await expect(
+        downloadFile({ key, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT })
+      ).rejects.toThrow()
+    }
   })
 })

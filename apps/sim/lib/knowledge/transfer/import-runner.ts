@@ -18,7 +18,7 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
 import { getConfiguredKbEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
-import { createAuthorizedKnowledgeBase } from '@/lib/knowledge/service'
+import { createAuthorizedKnowledgeBase, deleteKnowledgeBase } from '@/lib/knowledge/service'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { validateTagValue, validateTagValueLength } from '@/lib/knowledge/tags/utils'
 import type {
@@ -38,6 +38,7 @@ import {
 } from '@/lib/knowledge/transfer/import-jobs'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/file-manager'
 import { deleteFile, downloadFileStream } from '@/lib/uploads/core/storage-service'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSupportedExtension, validateFileType } from '@/lib/uploads/utils/validation'
 
@@ -140,7 +141,11 @@ async function importDocument(
   const prepared: PreparedDocumentIndex | null =
     document.chunks !== null && (reuseVectors || !document.file)
       ? await reader.readChunks(
-          { chunks: document.chunks, chunkCount: document.chunkCount },
+          {
+            chunks: document.chunks,
+            chunkCount: document.chunkCount,
+            characterCount: document.characterCount,
+          },
           reuseVectors
         )
       : null
@@ -155,11 +160,14 @@ async function importDocument(
       mimeType: document.mimeType,
     }
   } else if (prepared) {
-    source = {
-      bytes: Buffer.from(prepared.chunks.map((chunk) => chunk.text).join('\n\n')),
-      filename: textFilename(document.filename),
-      mimeType: 'text/plain',
+    const bytes = Buffer.from(prepared.chunks.map((chunk) => chunk.text).join('\n\n'))
+    if (bytes.byteLength > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        'Document text exceeds the 100MB knowledge document limit'
+      )
     }
+    source = { bytes, filename: textFilename(document.filename), mimeType: 'text/plain' }
   } else {
     throw new Error(`Bundle document ${document.id} has neither a file nor chunks`)
   }
@@ -225,7 +233,10 @@ async function importBundle(
   const target = await getConfiguredKbEmbedding()
   const reuseVectors = canReuseVectors(manifest, target)
   const requestId = generateRequestId()
+  await reader.validateChunks(reuseVectors)
 
+  // A cancel that landed while the bundle was downloading or being validated stops it here.
+  if (!(await updateRunningKnowledgeImport(payload.importId, {}))) return
   const knowledgeBase = await createAuthorizedKnowledgeBase(
     {
       id: payload.knowledgeBaseId,
@@ -245,7 +256,11 @@ async function importBundle(
     documentsTotal: manifest.documents.length,
     vectorsReused: reuseVectors,
   })
-  if (!attached) return
+  if (!attached) {
+    // Canceled between the check above and now: the base is still empty, so it goes too.
+    await deleteKnowledgeBase(knowledgeBase.id, requestId)
+    return
+  }
 
   for (const tag of manifest.tags) {
     await createTagDefinition(
@@ -268,7 +283,20 @@ async function importBundle(
   let documentsImported = 0
   let documentsFailed = 0
   const failures: KnowledgeImportFailure[] = []
-  const progress = () => ({ documentsImported, documentsFailed, failures: [...failures] })
+  // Chained so concurrent documents report in order; each write reads the counts as they stand.
+  let reported = Promise.resolve(true)
+  const report = () => {
+    reported = reported.then(
+      (running) =>
+        running &&
+        updateRunningKnowledgeImport(payload.importId, {
+          documentsImported,
+          documentsFailed,
+          failures: [...failures],
+        })
+    )
+    return reported
+  }
   let stopped = false
   await mapWithConcurrency(manifest.documents, DOCUMENT_CONCURRENCY, async (document) => {
     if (stopped) return
@@ -290,10 +318,9 @@ async function importBundle(
         error: getErrorMessage(error, 'Unknown error'),
       })
     }
-    if (!(await updateRunningKnowledgeImport(payload.importId, progress()))) stopped = true
+    if (!(await report())) stopped = true
   })
-  // Concurrent progress writes can land out of order; this one carries the settled counts.
-  if (stopped || !(await updateRunningKnowledgeImport(payload.importId, progress()))) return
+  if (stopped || !(await reported)) return
   await finishKnowledgeImport(payload.importId, { status: 'completed' })
   logger.info('Knowledge import completed', {
     importId: payload.importId,

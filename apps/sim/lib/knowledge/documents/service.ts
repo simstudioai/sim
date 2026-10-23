@@ -1457,6 +1457,8 @@ export interface PreparedDocumentIndex {
   }[]
   /** One per chunk, in this base's embedding dimension. */
   readonly vectors?: readonly number[][]
+  /** Characters in the document's source text; chunks overlap, so their lengths do not sum to it. */
+  readonly characterCount: number
 }
 
 /**
@@ -1473,7 +1475,7 @@ function preparedProcessingResult(prepared: PreparedDocumentIndex) {
     metadata: {
       chunkCount: prepared.chunks.length,
       tokenCount: null,
-      characterCount: prepared.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0),
+      characterCount: prepared.characterCount,
     },
   }
 }
