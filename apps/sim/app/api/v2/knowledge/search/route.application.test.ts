@@ -276,7 +276,9 @@ describe('Knowledge search provenance through the V2 route and reranker HTTP bou
     expect(body.data.rerankerStatus).toBe('applied')
     expect(providerPayload().documents).toEqual([CONTENT.replace(SECRET, '{{TOKEN}}')])
     expect(body.data.results[0].content).toBe(CONTENT)
-    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledWith('synthetic-encrypted-token')
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledWith('synthetic-encrypted-token', {
+      logFailure: false,
+    })
     expect(mockGenerateSearchEmbedding).toHaveBeenCalledWith(
       requestInput.query,
       expect.anything(),
