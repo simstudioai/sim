@@ -26,6 +26,11 @@ vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import {
+  McpDnsResolutionError,
+  McpDomainNotAllowedError,
+  McpSsrfError,
+} from '@/lib/mcp/domain-check'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { McpConnectionError, McpServerCooldownError } from '@/lib/mcp/types'
 import { GET } from '@/app/api/mcp/tools/discover/route'
@@ -56,6 +61,7 @@ describe('GET /api/mcp/tools/discover', () => {
     )
 
   it.each([
+    ['hostname no longer resolves', () => new McpDnsResolutionError('expired.example.com')],
     ['cannot be reached', () => new McpConnectionError('connect ECONNREFUSED', 'Docs')],
     ['is cooling down after a recent failure', () => new McpServerCooldownError('mcp-1')],
     ['times out on tools/list', () => new McpError(ErrorCode.RequestTimeout, 'Request timed out')],
@@ -70,6 +76,17 @@ describe('GET /api/mcp/tools/discover', () => {
 
     expect(response.status).toBe(422)
     expect((await response.json()).error).toBe('Failed to discover MCP tools')
+  })
+
+  it.each([
+    ['resolves to a blocked address', () => new McpSsrfError('blocked address')],
+    ['is outside ALLOWED_MCP_DOMAINS', () => new McpDomainNotAllowedError('internal.example.com')],
+  ])('answers 403 when the egress policy refuses a server that %s', async (_name, makeError) => {
+    mcpServiceMockFns.mockDiscoverServerTools.mockRejectedValueOnce(makeError())
+
+    const response = await discover()
+
+    expect(response.status).toBe(403)
   })
 
   it('keeps a 500 for a failure that is not the registered server', async () => {

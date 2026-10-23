@@ -5,6 +5,11 @@ import { generateShortId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, isTimeoutError } from '@/lib/core/execution-limits'
 import {
+  McpDnsResolutionError,
+  McpDomainNotAllowedError,
+  McpSsrfError,
+} from '@/lib/mcp/domain-check'
+import {
   type McpApiResponse,
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
@@ -139,16 +144,18 @@ export function mcpOrchestrationStatus(errorCode: string | undefined): number {
 }
 
 /**
- * Reports whether a registered MCP server failed to answer usefully: it could not be
- * reached, timed out, is cooling down after a recent failure, or answered `tools/list`
- * with a protocol or HTTP error. Typed only, never matched on message text, because
- * `McpConnectionError` interpolates the server's display name into its message. Check
- * authorization errors first: `UnauthorizedError` is not one of these, but a caller that
- * wants to answer reauthorization separately must do so before asking.
+ * Reports whether a registered MCP server failed to answer usefully: its hostname no
+ * longer resolves, it could not be reached, timed out, is cooling down after a recent
+ * failure, or answered `tools/list` with a protocol or HTTP error. Typed only, never
+ * matched on message text, because `McpConnectionError` interpolates the server's display
+ * name into its message. Check authorization errors first: `UnauthorizedError` is not one
+ * of these, but a caller that wants to answer reauthorization separately must do so
+ * before asking.
  */
 export function isMcpServerUnavailableError(error: unknown): boolean {
   return (
     isTimeoutError(error) ||
+    error instanceof McpDnsResolutionError ||
     error instanceof McpConnectionError ||
     error instanceof McpSdkError ||
     error instanceof StreamableHTTPError
@@ -173,6 +180,12 @@ export function categorizeError(error: unknown): { message: string; status: numb
   }
   if (error instanceof McpConnectionError) {
     return { message: 'Connection failed', status: 502 }
+  }
+  if (error instanceof McpDnsResolutionError) {
+    return { message: 'Server hostname could not be resolved', status: 502 }
+  }
+  if (error instanceof McpSsrfError || error instanceof McpDomainNotAllowedError) {
+    return { message: 'Server URL is not allowed by egress policy', status: 403 }
   }
 
   // Fall back to substring matching for SDK / third-party errors we don't
