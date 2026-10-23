@@ -14,6 +14,7 @@ import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/ha
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   isResolvedSecretTraceProvenanceV1,
+  type ProvenanceDecryptFailure,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -446,7 +447,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
     'traceStore.blockOutputRunProvenance'
   )
-  const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
+  const provenanceFaults = new Map<string, StoredDisplayFault>()
   if (runImport.fault) provenanceFaults.set('run', runImport.fault)
   const blockOutputs = new Map<string, unknown>()
   const projectionStore = createReadOnlyProjectionStore(context)
@@ -494,9 +495,15 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 type StoredDisplayProvenanceFault = 'incomplete' | 'malformed' | 'undecryptable'
 
+interface StoredDisplayFault {
+  kind: StoredDisplayProvenanceFault
+  /** Set for `undecryptable`: the entry detail the registry would otherwise log on its own line. */
+  decryptFailure?: ProvenanceDecryptFailure
+}
+
 interface StoredDisplayEnvelopeImport {
   registry: ResolvedSecretTraceRegistry | undefined
-  fault: StoredDisplayProvenanceFault | undefined
+  fault: StoredDisplayFault | undefined
 }
 
 /**
@@ -517,15 +524,27 @@ async function importStoredDisplayEnvelope(
 ): Promise<StoredDisplayEnvelopeImport> {
   if (provenance === undefined) return { registry: undefined, fault: undefined }
   if (!isResolvedSecretTraceProvenanceV1(provenance)) {
-    return { registry: undefined, fault: 'malformed' }
+    return { registry: undefined, fault: { kind: 'malformed' } }
   }
 
   const registry = new ResolvedSecretTraceRegistry([], provenance.scope, { staged: true })
-  await registry.importProvenance(provenance, { trusted: true, origin })
-  const fault = !provenance.complete
-    ? 'incomplete'
+  let decryptFailure: ProvenanceDecryptFailure | undefined
+  await registry.importProvenance(provenance, {
+    trusted: true,
+    origin,
+    // Only a complete envelope can classify as `undecryptable`, whose line carries this detail.
+    ...(provenance.complete
+      ? {
+          onDecryptFailure: (failure: ProvenanceDecryptFailure) => {
+            decryptFailure = failure
+          },
+        }
+      : {}),
+  })
+  const fault: StoredDisplayFault | undefined = !provenance.complete
+    ? { kind: 'incomplete' }
     : registry.isPermanentlyIncomplete()
-      ? 'undecryptable'
+      ? { kind: 'undecryptable', decryptFailure }
       : undefined
   return { registry, fault }
 }
@@ -538,7 +557,7 @@ const STORED_PROVENANCE_FAULT_REPORTS = {
     message: 'Stored execution provenance cannot vouch for display content',
   },
   malformed: { level: 'error', message: 'Stored execution provenance is malformed' },
-  /** The entry-level decrypt error already logs its counts; this adds the execution it hit. */
+  /** Carries the entry decrypt detail too, which the registry hands over instead of logging. */
   undecryptable: { level: 'error', message: 'Stored execution provenance could not be decrypted' },
 } as const satisfies Record<
   StoredDisplayProvenanceFault,
@@ -563,7 +582,7 @@ const STORED_PROVENANCE_FAULT_REPORTS = {
 function reportStoredDisplayProvenanceFaults(
   site: string,
   context: TraceStoreReadContext,
-  faults: ReadonlyMap<string, StoredDisplayProvenanceFault>
+  faults: ReadonlyMap<string, StoredDisplayFault>
 ): void {
   if (faults.size === 0) return
   const details = {
@@ -576,13 +595,23 @@ function reportStoredDisplayProvenanceFaults(
     StoredDisplayProvenanceFault,
     (typeof STORED_PROVENANCE_FAULT_REPORTS)[StoredDisplayProvenanceFault],
   ][]) {
-    const parts = [...faults].filter(([, fault]) => fault === kind).map(([part]) => part)
-    if (parts.length === 0) continue
+    const matching = [...faults].filter(([, fault]) => fault.kind === kind)
+    if (matching.length === 0) continue
+    const decryptFailures = matching.flatMap(([, fault]) =>
+      fault.decryptFailure ? [fault.decryptFailure] : []
+    )
     logger[report.level](report.message, {
       ...details,
       fault: kind,
-      parts: parts.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS),
-      partCount: parts.length,
+      parts: matching.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS).map(([part]) => part),
+      partCount: matching.length,
+      ...(decryptFailures.length > 0
+        ? {
+            error: decryptFailures[0].error,
+            failedEntryCount: decryptFailures.reduce((sum, f) => sum + f.failedEntryCount, 0),
+            totalEntryCount: decryptFailures.reduce((sum, f) => sum + f.totalEntryCount, 0),
+          }
+        : {}),
     })
   }
 }
@@ -625,7 +654,7 @@ export async function projectExecutionDataForDisplay(
     return projectLegacyExecutionDataForDisplay(executionData)
   }
 
-  const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
+  const provenanceFaults = new Map<string, StoredDisplayFault>()
   const runImport = await importStoredDisplayEnvelope(provenance, 'traceStore.spanProvenance')
   const registry = runImport.registry
   if (runImport.fault) provenanceFaults.set('traceSpans', runImport.fault)
