@@ -3,6 +3,7 @@ import { toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { TERMINAL_RUN_STATUSES } from '@/lib/mothership/async-runs/repository'
 import {
   type JobRunOutcome,
   MAX_CONSECUTIVE_JOB_FAILURES,
@@ -105,7 +106,7 @@ export async function finalizeJobRun(executionId: string): Promise<boolean> {
       .from(copilotRuns)
       .where(eq(copilotRuns.streamId, executionId))
       .limit(1)
-    if (!run || !['complete', 'error', 'cancelled'].includes(run.status)) return false
+    if (!run || !TERMINAL_RUN_STATUSES.includes(run.status)) return false
 
     const reported = REPORTED_JOB_OUTCOMES.find((outcome) => outcome === record.outcome)
     const deadlineStopped = toRecord(record.executionData).deadlineStopRequestedAt !== undefined

@@ -9,8 +9,6 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   areStreamToolExecutionsSettled,
   getLatestRunForStream,
-  getUnsettledClientWorkflowExecutions,
-  getUnsettledStreamSandboxProcesses,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -19,7 +17,10 @@ import {
   resolveOwnedChatContext,
 } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import { deliverRunStop } from '@/lib/mothership/request/application/stop-delivery'
+import {
+  deliverRunStop,
+  readStoppedRunWork,
+} from '@/lib/mothership/request/application/stop-delivery'
 import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
@@ -160,25 +161,7 @@ export const abortRun = defineAuthorizedChatUseCase({
       { allowBlockedOwner: true }
     )
     /** Read alongside the signals, which need none of it. */
-    const work = Promise.all([
-      getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
-        logger.warn('Stopped stream workflow ownership could not be read', {
-          streamId,
-          error: getErrorMessage(error),
-        })
-        return []
-      }),
-      getUnsettledStreamSandboxProcesses(streamId, userId).catch((error) => {
-        logger.warn('Stopped stream sandbox ownership could not be read', {
-          streamId,
-          error: getErrorMessage(error),
-        })
-        return []
-      }),
-    ]).then(([clientWorkflowExecutionIds, sandboxProcesses]) => ({
-      clientWorkflowExecutionIds,
-      sandboxProcesses,
-    }))
+    const work = readStoppedRunWork(streamId, userId)
     const { settled, workerSettled } = await deliverRunStop(
       { id: run.id, streamId, userId, chatId, desktopDeviceId: run.desktopDeviceId },
       work

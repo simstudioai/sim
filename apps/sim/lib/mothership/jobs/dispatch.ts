@@ -28,7 +28,7 @@ const logger = createLogger('MothershipJobDispatch')
 /** A queued occurrence whose start failed this many times ends as failed instead of retrying. */
 const MAX_JOB_DISPATCH_ATTEMPTS = 5
 
-export type JobDispatchOutcome =
+type JobDispatchOutcome =
   | 'started'
   | 'already_started'
   | 'skipped_busy'
@@ -78,20 +78,15 @@ export async function dispatchJobOccurrence(executionId: string): Promise<JobDis
   }
 
   try {
+    const billingAttribution = await resolveBillingAttribution({ actorUserId: userId, workspaceId })
     if (isHosted) {
-      const usage = await checkAttributedUsageLimits(
-        await resolveBillingAttribution({ actorUserId: userId, workspaceId })
-      )
+      const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         await endUnstartedJobRun(executionId, 'skipped_budget', 'The usage limit was reached.')
         return 'skipped_budget'
       }
     }
-    const message = await buildJobBrief(
-      { ...run, id: run.scheduleId },
-      run.occurrenceAt,
-      jobRunBudgetUsd(run.runBudgetUsd)
-    )
+    const message = await buildJobBrief(run, run.occurrenceAt, jobRunBudgetUsd(run.runBudgetUsd))
     const start = await startUnattendedTurn({
       userId,
       workspaceId,
@@ -99,6 +94,7 @@ export async function dispatchJobOccurrence(executionId: string): Promise<JobDis
       messageId: executionId,
       message,
       origin: 'job',
+      billingAttribution,
       secretAuthority: jobSecretAuthority(run, userId),
       onBillingAdmission: (admission) =>
         recordJobRunBillingRequest(executionId, admission.billingRequestId),

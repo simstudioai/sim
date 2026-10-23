@@ -1,20 +1,16 @@
 import { db, jobExecutionLogs } from '@sim/db'
 import { truncate } from '@sim/utils/string'
 import { and, desc, eq, isNotNull, lt } from 'drizzle-orm'
+import type { JobRun } from '@/lib/mothership/jobs/runs'
 
 /** How many earlier runs' outcomes a brief carries. */
 const BRIEF_RECENT_RUNS = 5
 const BRIEF_SUMMARY_CHARS = 400
 
-export interface JobBriefSchedule {
-  id: string
-  jobTitle: string | null
-  prompt: string | null
-  successCondition: string | null
-  lifecycle: string
-  maxRuns: number | null
-  runCount: number
-}
+type JobBriefSchedule = Pick<
+  JobRun,
+  'scheduleId' | 'jobTitle' | 'prompt' | 'successCondition' | 'lifecycle' | 'maxRuns' | 'runCount'
+>
 
 /**
  * The user message of one occurrence's turn: what the job is, how far along it is, and how its
@@ -35,7 +31,7 @@ export async function buildJobBrief(
     .from(jobExecutionLogs)
     .where(
       and(
-        eq(jobExecutionLogs.scheduleId, schedule.id),
+        eq(jobExecutionLogs.scheduleId, schedule.scheduleId),
         isNotNull(jobExecutionLogs.outcome),
         lt(jobExecutionLogs.occurrenceAt, occurrenceAt)
       )

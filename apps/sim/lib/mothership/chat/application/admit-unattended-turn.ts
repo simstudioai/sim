@@ -1,11 +1,12 @@
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
-import { copilotChats, copilotRuns } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { copilotRuns } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
+import { moveChatToTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedWorkspaceChatContext } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -21,19 +22,13 @@ import type { TurnSecretAuthority } from '@/lib/mothership/secret-mount-policy'
 export const UNATTENDED_TURN_AUDIENCE = 'sim:copilot-jobs'
 
 interface AdmitUnattendedTurnInput {
-  chatId: string
-  /** The occurrence's id: the run, its stream and its user message all carry it. */
-  messageId: string
-  executionId: string
-  requestId: string
-  message: string
-  origin: 'job'
+  /** The turn's request is its identity: its message id names the run, its stream and its user message. */
   recovery: z.input<typeof StreamRecoveryConfigSchema>
   lease: ChatStreamLease
   secretAuthority: TurnSecretAuthority
 }
 
-export type UnattendedAdmission =
+type UnattendedAdmission =
   | { kind: 'admitted'; run: Awaited<ReturnType<typeof insertRunSegment>> }
   | { kind: 'duplicate' }
 
@@ -69,7 +64,7 @@ export const admitUnattendedTurn = defineAuthorizedChatUseCase({
   }: {
     principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
     input: AdmitUnattendedTurnInput
-  }) => resolveOwnedWorkspaceChatContext(principal, input.chatId),
+  }) => resolveOwnedWorkspaceChatContext(principal, input.recovery.request.chatId),
   authorizationOptions: {
     delegation: {
       audience: UNATTENDED_TURN_AUDIENCE,
@@ -85,61 +80,46 @@ export const admitUnattendedTurn = defineAuthorizedChatUseCase({
     const request = recovery.request
     if (
       recovery.kind !== 'unattended_stream' ||
+      !request.origin ||
       request.userId !== userId ||
       request.workspaceId !== workspaceId ||
       request.organizationId !== undefined ||
-      request.chatId !== chatId ||
-      request.messageId !== input.messageId ||
-      request.message !== input.message ||
-      request.origin !== input.origin
+      request.chatId !== chatId
     ) {
       throw new OrchestrationError('validation', 'Turn identity does not match its chat')
     }
+    const { messageId, message, origin } = request
     await assertChatStreamLease(input.lease)
-    return withRunAdmissionLock(userId, input.messageId, async (tx) => {
+    return withRunAdmissionLock(userId, messageId, async (tx) => {
       const [existing] = await tx
         .select({ id: copilotRuns.id })
         .from(copilotRuns)
-        .where(eq(copilotRuns.streamId, input.messageId))
+        .where(eq(copilotRuns.streamId, messageId))
         .limit(1)
       if (existing) return { kind: 'duplicate' } as const
-      const [chat] = await tx
-        .update(copilotChats)
-        .set({ conversationId: input.messageId, updatedAt: new Date() })
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            workspaceId
-              ? eq(copilotChats.workspaceId, workspaceId)
-              : isNull(copilotChats.workspaceId),
-            isNull(copilotChats.deletedAt)
-          )
-        )
-        .returning({ model: copilotChats.model })
-      if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
+      const chat = await moveChatToTurn(tx, context, request)
       await appendCopilotChatMessages(
         chatId,
         [
           buildPersistedUserMessage({
-            id: input.messageId,
-            content: input.message,
-            origin: input.origin,
+            id: messageId,
+            content: message,
+            origin,
             requestMode: 'agent',
           }),
         ],
-        { streamId: input.messageId, chatModel: chat.model },
+        { streamId: messageId, chatModel: chat.model },
         tx
       )
       const run = await insertRunSegment(tx, {
-        id: input.messageId,
-        executionId: input.executionId,
+        id: messageId,
+        executionId: messageId,
         chatId,
         userId,
         workspaceId,
-        streamId: input.messageId,
+        streamId: messageId,
         requestContext: {
-          requestId: input.requestId,
+          requestId: messageId,
           controllerToken: input.lease.value,
           recovery,
           secretAuthority: input.secretAuthority,

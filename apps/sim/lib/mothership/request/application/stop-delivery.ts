@@ -4,10 +4,12 @@ import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
-import type {
-  RunStopTarget,
-  StoppedRun,
-  StoppedRunWork,
+import {
+  getUnsettledClientWorkflowExecutions,
+  getUnsettledStreamSandboxProcesses,
+  type RunStopTarget,
+  type StoppedRun,
+  type StoppedRunWork,
 } from '@/lib/mothership/async-runs/repository'
 import {
   abortActiveStream,
@@ -29,6 +31,33 @@ interface RunStopDelivery {
 interface RunStopDeliveryOptions {
   /** The worker endpoint, resolved while the run's user still exists. */
   mothershipBaseURL?: string
+}
+
+/**
+ * The client workflows and sandbox commands a stopped run started, read once its admission
+ * closed. Each read is best-effort: one that fails stops nothing it would have found.
+ */
+export async function readStoppedRunWork(
+  streamId: string,
+  userId: string
+): Promise<StoppedRunWork> {
+  const [clientWorkflowExecutionIds, sandboxProcesses] = await Promise.all([
+    getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
+      logger.warn('Stopped stream workflow ownership could not be read', {
+        streamId,
+        error: getErrorMessage(error),
+      })
+      return []
+    }),
+    getUnsettledStreamSandboxProcesses(streamId, userId).catch((error) => {
+      logger.warn('Stopped stream sandbox ownership could not be read', {
+        streamId,
+        error: getErrorMessage(error),
+      })
+      return []
+    }),
+  ])
+  return { clientWorkflowExecutionIds, sandboxProcesses }
 }
 
 /**

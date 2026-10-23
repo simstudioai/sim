@@ -18,7 +18,7 @@ export const dueJob = (now: Date) =>
     isNotNull(workflowSchedule.sourceChatId)
   )
 
-export interface ClaimedOccurrence {
+interface ClaimedOccurrence {
   executionId: string
   scheduleId: string
   occurrenceAt: Date
@@ -68,16 +68,7 @@ export async function claimDueJobOccurrences(
         continue
       }
       const executionId = jobOccurrenceId(schedule.id, occurrenceAt)
-      const nextRunAt = nextJobOccurrence(
-        {
-          cronExpression: schedule.cronExpression,
-          timezone: schedule.timezone,
-          excludedDates: schedule.excludedDates,
-          endsAt: schedule.endsAt,
-        },
-        occurrenceAt,
-        now
-      )
+      const nextRunAt = nextJobOccurrence(schedule, occurrenceAt, now)
       const runCount = schedule.runCount + 1
       const finished =
         nextRunAt === null || (schedule.maxRuns !== null && runCount >= schedule.maxRuns)

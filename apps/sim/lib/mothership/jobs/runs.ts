@@ -17,16 +17,13 @@ export const REPORTED_JOB_OUTCOMES: readonly JobRunOutcome[] = ['met', 'not_met'
 /** A job is turned off after this many failed or interrupted runs in a row. */
 export const MAX_CONSECUTIVE_JOB_FAILURES = 3
 
-/** The occurrence's run record, with what dispatching and finalizing it read from its schedule. */
+/** The occurrence's run record, with what dispatching it reads from its schedule. */
 export async function loadJobRun(executionId: string) {
   const [row] = await db
     .select({
       executionId: jobExecutionLogs.executionId,
       status: jobExecutionLogs.status,
-      outcome: jobExecutionLogs.outcome,
       occurrenceAt: jobExecutionLogs.occurrenceAt,
-      startedAt: jobExecutionLogs.startedAt,
-      executionData: jobExecutionLogs.executionData,
       scheduleId: workflowSchedule.id,
       scheduleStatus: workflowSchedule.status,
       archivedAt: workflowSchedule.archivedAt,

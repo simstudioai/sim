@@ -2,12 +2,15 @@ import { copilotRuns, db, jobExecutionLogs, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
-import { requestRunStop } from '@/lib/mothership/async-runs/repository'
+import { requestRunStop, TERMINAL_RUN_STATUSES } from '@/lib/mothership/async-runs/repository'
 import { JOB_RUN_TRIGGER } from '@/lib/mothership/jobs/claim'
 import { dispatchJobOccurrence } from '@/lib/mothership/jobs/dispatch'
 import { finalizeJobRun } from '@/lib/mothership/jobs/finalize'
 import { markJobRunRunning } from '@/lib/mothership/jobs/runs'
-import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import {
+  deliverRunStop,
+  readStoppedRunWork,
+} from '@/lib/mothership/request/application/stop-delivery'
 
 const logger = createLogger('MothershipJobReconciler')
 
@@ -57,33 +60,37 @@ function openJobRuns(status: OpenJobRunStatus) {
 /**
  * Drives every open occurrence to an end, so no crash leaves one queued or running forever:
  * a queued record whose dispatch was lost is dispatched again under the same id (the turn is
- * admitted at most once, so a retry of one that did start only finds it); a running record whose
- * turn ended is finalized; one past the time limit is stopped and finalized once it settles.
+ * admitted at most once, so a retry of one that did start only finds it); a record whose turn
+ * ended is finalized; one past the time limit is stopped and finalized once it settles.
  */
 export async function reconcileJobRuns(now: Date): Promise<void> {
   /** Each status reads its own batch, so a backlog of long runs never starves queued ones. */
-  const open = [...(await openJobRuns('queued')), ...(await openJobRuns('running'))]
-  for (const row of open) {
+  const [queued, running] = await Promise.all([openJobRuns('queued'), openJobRuns('running')])
+  for (const row of [...queued, ...running]) {
     try {
-      if (row.status === 'queued') {
-        if (row.runStatus) await markJobRunRunning(row.executionId)
-        else if (now.getTime() - row.startedAt.getTime() >= JOB_DISPATCH_GRACE_MS)
+      if (!row.runStatus) {
+        if (
+          row.status === 'queued' &&
+          now.getTime() - row.startedAt.getTime() >= JOB_DISPATCH_GRACE_MS
+        )
           await dispatchJobOccurrence(row.executionId)
-        if (!row.runStatus) continue
+        continue
       }
-      if (await finalizeJobRun(row.executionId)) continue
-      if (
-        row.runStatus &&
+      if (row.status === 'queued') await markJobRunRunning(row.executionId)
+      if (TERMINAL_RUN_STATUSES.includes(row.runStatus)) {
+        await finalizeJobRun(row.executionId)
+      } else if (
         !row.deadlineStopRequestedAt &&
         row.userId &&
         row.workspaceId &&
+        row.chatId &&
         now.getTime() - row.startedAt.getTime() >= JOB_RUN_TIME_LIMIT_MS
       ) {
         await stopAtTimeLimit({
           executionId: row.executionId,
           userId: row.userId,
           workspaceId: row.workspaceId,
-          chatId: row.chatId ?? undefined,
+          chatId: row.chatId,
         })
       }
     } catch (error) {
@@ -95,11 +102,12 @@ export async function reconcileJobRuns(now: Date): Promise<void> {
   }
 }
 
+/** Stops a run at its time limit through the same delivery a person's Stop takes. */
 async function stopAtTimeLimit(run: {
   executionId: string
   userId: string
   workspaceId: string
-  chatId?: string
+  chatId: string
 }): Promise<void> {
   await db
     .update(jobExecutionLogs)
@@ -107,16 +115,23 @@ async function stopAtTimeLimit(run: {
       executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, '{deadlineStopRequestedAt}', to_jsonb(now()))`,
     })
     .where(eq(jobExecutionLogs.executionId, run.executionId))
-  await requestRunStop({
+  const stopped = await requestRunStop({
     streamId: run.executionId,
     userId: run.userId,
     workspaceId: run.workspaceId,
-    ...(run.chatId ? { chatId: run.chatId } : {}),
+    chatId: run.chatId,
   })
-  await requestExplicitStreamAbort({
-    streamId: run.executionId,
-    userId: run.userId,
-    ...(run.chatId ? { chatId: run.chatId } : {}),
-  })
+  /** A run outside the job's scope records no Stop, so nothing is delivered to it. */
+  if (!stopped || stopped.workspaceId !== run.workspaceId || stopped.chatId !== run.chatId) return
+  await deliverRunStop(
+    {
+      id: stopped.id,
+      streamId: run.executionId,
+      userId: run.userId,
+      chatId: run.chatId,
+      desktopDeviceId: stopped.desktopDeviceId,
+    },
+    readStoppedRunWork(run.executionId, run.userId)
+  )
   logger.info('Stopped a job run at its time limit', { executionId: run.executionId })
 }

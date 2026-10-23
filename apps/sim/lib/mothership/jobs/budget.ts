@@ -27,19 +27,20 @@ export async function recordJobRunSpend(
     .set({
       cost: sql`jsonb_build_object('total', GREATEST(COALESCE((${jobExecutionLogs.cost}->>'total')::numeric, 0), ${cumulativeCostUsd}::numeric))`,
     })
-    .where(eq(jobExecutionLogs.billingRequestId, billingRequestId))
+    .from(workflowSchedule)
+    .where(
+      and(
+        eq(jobExecutionLogs.billingRequestId, billingRequestId),
+        eq(workflowSchedule.id, jobExecutionLogs.scheduleId),
+        eq(workflowSchedule.sourceType, 'job')
+      )
+    )
     .returning({
-      scheduleId: jobExecutionLogs.scheduleId,
+      runBudgetUsd: workflowSchedule.runBudgetUsd,
       total: sql<string>`${jobExecutionLogs.cost}->>'total'`,
     })
-  if (!run?.scheduleId) return null
-  const [schedule] = await db
-    .select({ runBudgetUsd: workflowSchedule.runBudgetUsd })
-    .from(workflowSchedule)
-    .where(and(eq(workflowSchedule.id, run.scheduleId), eq(workflowSchedule.sourceType, 'job')))
-    .limit(1)
-  if (!schedule) return null
-  const budget = jobRunBudgetUsd(schedule.runBudgetUsd)
+  if (!run) return null
+  const budget = jobRunBudgetUsd(run.runBudgetUsd)
   if (Number(run.total) < budget) return null
   return {
     reason: 'job_run_budget',

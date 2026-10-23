@@ -84,7 +84,7 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
-const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
+export const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
 // Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
 // before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
 // can evaluate modules before instrumentation-node.ts finishes).

@@ -5,8 +5,10 @@
  * driving it dies (a deploy or a crash). The headless lifecycle the wake door uses has none of
  * that: its run carries no controller, so nothing can continue it once its process is gone.
  */
-import type { AttributedBillingRequestEnvelope } from '@/lib/billing/core/attribution'
-import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
+import type {
+  AttributedBillingRequestEnvelope,
+  BillingAttributionSnapshot,
+} from '@/lib/billing/core/attribution'
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import {
   createCopilotResourceAdmission,
@@ -42,6 +44,8 @@ export interface UnattendedTurnInput {
   messageId: string
   message: string
   origin: 'job'
+  /** Who pays for the turn, resolved by the caller (which already needed it to check the limit). */
+  billingAttribution: BillingAttributionSnapshot
   /** Which secrets the turn's code may mount; recorded so a recovered leg mounts the same. */
   secretAuthority: TurnSecretAuthority
   /** Called once the turn's first leg is admitted for billing, with the request its charges settle under. */
@@ -63,10 +67,7 @@ export async function startUnattendedTurn(
   input: UnattendedTurnInput
 ): Promise<UnattendedTurnStart> {
   const { userId, workspaceId, chatId, messageId } = input
-  const [billingAttribution, userPermission] = await Promise.all([
-    resolveBillingAttribution({ actorUserId: userId, workspaceId }),
-    getUserEntityPermissions(userId, 'workspace', workspaceId),
-  ])
+  const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (!(await acquirePendingChatStream(chatId, messageId, 0))) {
     /** The holder may be this very turn, still being admitted by another attempt. */
     const holder = await getPendingChatStreamId(chatId)
@@ -107,17 +108,7 @@ export async function startUnattendedTurn(
     const requestId = messageId
     const admission = await admitUnattendedTurn.execute({
       principal,
-      input: {
-        chatId,
-        messageId,
-        executionId,
-        requestId,
-        message: input.message,
-        origin: input.origin,
-        recovery,
-        lease,
-        secretAuthority: input.secretAuthority,
-      },
+      input: { recovery, lease, secretAuthority: input.secretAuthority },
     })
     if (admission.kind === 'duplicate') {
       await releasePendingChatStream(chatId, messageId, lease)
@@ -154,7 +145,7 @@ export async function startUnattendedTurn(
         runId: admission.run.id,
         goRoute: '/api/mothership',
         copilotResourceAdmission,
-        billingAttribution,
+        billingAttribution: input.billingAttribution,
         ...(userPermission ? { userPermission } : {}),
         interactive: false,
         autoExecuteTools: true,

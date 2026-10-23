@@ -135,6 +135,7 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { ABANDONED_RUN_CURSOR_KEY } from '@/lib/mothership/async-runs/orphaned-runs'
 import { chatPubSub } from '@/lib/mothership/chat-status'
@@ -166,6 +167,9 @@ function planNodes(plan: QueryPlan): QueryPlan[] {
 
 const userId = generateId()
 const workspaceId = generateId()
+
+/** The fixture user's billing attribution, which the caller of an unattended turn resolves. */
+const payer = () => resolveBillingAttribution({ actorUserId: userId, workspaceId })
 const chatIds: string[] = []
 const scheduleIds: string[] = []
 
@@ -454,6 +458,7 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
         messageId: occurrenceId,
         message: 'again',
         origin: 'job',
+        billingAttribution: await payer(),
         secretAuthority: {
           secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
           secretActorUserId: userId,
@@ -509,6 +514,32 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
       }),
     ])
     expect(await schedule(scheduleId)).toMatchObject({ failedCount: 0, status: 'active' })
+  }, 60_000)
+
+  it('stops a run at its time limit as a person pressing Stop would, ending it interrupted', async () => {
+    const { scheduleId, occurrenceId } = await seedJob()
+    worker.legs.set(occurrenceId, [{ text: 'Still triaging. ', mode: 'hang' }])
+    await runJobLane(new Date())
+    await waitFor(async () => worker.open.has(occurrenceId), 'the first leg')
+
+    await reconcileJobRuns(new Date(Date.now() + 6 * 60 * 60_000 + 60_000))
+    await reconcileUntilSettled(occurrenceId)
+
+    expect(
+      worker.requests.filter(
+        (request) =>
+          request.path === '/api/streams/explicit-abort' && request.body.messageId === occurrenceId
+      )
+    ).toHaveLength(1)
+    expect(await runsOf(scheduleId)).toEqual([
+      expect.objectContaining({
+        status: 'complete',
+        outcome: 'interrupted',
+        summary: 'Stopped at the run time limit.',
+      }),
+    ])
+    worker.open.get(occurrenceId)?.response.end()
+    worker.open.delete(occurrenceId)
   }, 60_000)
 
   it('runs a one-shot job once and completes it', async () => {

@@ -5,7 +5,11 @@ import {
   usageLimitReadSchema,
   usageLimitUpdateSchema,
 } from '@/lib/billing/application/usage-limit-validation'
-import { BillingCallbackBody, BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
+import {
+  BillingCallbackBody,
+  BillingCallbackHeaders,
+  UsageUpgrade,
+} from '@/lib/mothership/generated/billing'
 
 const booleanQueryParamSchema = z
   .preprocess((value) => {
@@ -316,8 +320,8 @@ export const billingSwitchPlanResponseSchema = z.object({
  */
 export const usageUpgradePayloadSchema = z.object({
   /** `job_run_budget`: a scheduled job's run reached its own spend cap, not the payer's plan. */
-  reason: z.enum(['usage_limit', 'job_run_budget']),
-  action: z.enum(['upgrade_plan', 'increase_limit']),
+  reason: UsageUpgrade.shape.reason,
+  action: UsageUpgrade.shape.action,
   message: z.string(),
 })
 export type UsageUpgradePayload = z.infer<typeof usageUpgradePayloadSchema>

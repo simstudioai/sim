@@ -133,6 +133,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { asc, eq, sql } from 'drizzle-orm'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { ABANDONED_RUN_CURSOR_KEY } from '@/lib/mothership/async-runs/orphaned-runs'
 import { chatPubSub } from '@/lib/mothership/chat-status'
@@ -145,6 +146,9 @@ import {
 
 const userId = generateId()
 const workspaceId = generateId()
+
+/** The fixture user's billing attribution, which the caller of an unattended turn resolves. */
+const payer = () => resolveBillingAttribution({ actorUserId: userId, workspaceId })
 const chatIds: string[] = []
 const JOB_SECRETS = { secretScope: 'selected' as const, mountedSecrets: ['REPORT_TOKEN'] }
 
@@ -294,7 +298,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
       { text: parts[2], end: false },
       { text: parts[3], end: true },
     ])
-    const start = () =>
+    const start = async () =>
       startUnattendedTurn({
         userId,
         workspaceId,
@@ -302,6 +306,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
         messageId: occurrenceId,
         message: 'Triage the overnight queue.',
         origin: 'job',
+        billingAttribution: await payer(),
         secretAuthority: { secretMountPolicy: JOB_SECRETS, secretActorUserId: userId },
       })
 
@@ -382,6 +387,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
           messageId: occurrenceId,
           message: 'Triage the overnight queue.',
           origin: 'job',
+          billingAttribution: await payer(),
           secretAuthority: { secretMountPolicy: JOB_SECRETS, secretActorUserId: userId },
         })
       ).toBe('busy')

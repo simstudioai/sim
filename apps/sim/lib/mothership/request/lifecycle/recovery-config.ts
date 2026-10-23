@@ -46,6 +46,7 @@ export function durableResourceAuthoringVersion(
  * prompt, so a recovered leg runs it non-interactively too, exactly as it was admitted.
  */
 const DURABLE_STREAM_KINDS = ['interactive_stream', 'unattended_stream'] as const
+export type DurableStreamKind = (typeof DURABLE_STREAM_KINDS)[number]
 
 /** A run's saved request context names a durable turn that recovery can take over. */
 export function isDurableStreamRun(requestContext: AnyColumn): SQL {
@@ -82,8 +83,13 @@ export async function streamRecoveryConfig(
   options: CopilotLifecycleOptions,
   request: Record<string, unknown>
 ) {
-  /** Only a turn that declared its audience is durable: a person's (`true`) or nobody's (`false`). */
-  if (options.interactive === undefined) return undefined
+  /**
+   * A recovered leg keeps the kind its turn was admitted with. A fresh leg is durable only for a
+   * person in the chat; an unattended turn is admitted with its recovery intent already written.
+   */
+  const kind =
+    options.recovery?.kind ?? (options.interactive === true ? 'interactive_stream' : undefined)
+  if (!kind) return undefined
   const resourceAuthoringVersion = durableResourceAuthoringVersion(
     hasCopilotResourceAdmission({
       ...options,
@@ -94,7 +100,7 @@ export async function streamRecoveryConfig(
     })
   )
   return StreamRecoveryConfigSchema.parse({
-    kind: options.interactive === true ? 'interactive_stream' : 'unattended_stream',
+    kind,
     request,
     goRoute: options.goRoute ?? '/api/copilot',
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,

@@ -60,6 +60,7 @@ import {
   authorizeLifecycleContinuation,
   restoreBillingAdmission,
 } from '@/lib/mothership/request/lifecycle/admission'
+import type { DurableStreamKind } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
@@ -300,6 +301,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   goRoute?: string
   /** Reattach this existing run; goRoute still identifies the original interaction surface. */
   recovery?: {
+    kind?: DurableStreamKind
     billingAdmission?: { billingRequestId: string; serializedAttribution: string }
     streamId: string
     events: readonly StreamEvent[]

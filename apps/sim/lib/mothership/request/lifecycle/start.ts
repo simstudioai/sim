@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
@@ -339,7 +340,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             ...(params.admittedRun?.requestContext ?? {}),
             requestId,
             controllerToken: lease?.value,
-            recovery: await streamRecoveryConfig(orchestrateOptions, requestPayload),
+            /** An admitted turn already wrote its recovery intent; a fresh run derives one. */
+            recovery:
+              toRecord(params.admittedRun?.requestContext).recovery ??
+              (await streamRecoveryConfig(orchestrateOptions, requestPayload)),
           }
           try {
             if (chatId && !orchestrateOptions.recovery) {
