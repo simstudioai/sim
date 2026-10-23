@@ -223,6 +223,24 @@ function findStartedImport(context: KnowledgeImportUploadContext) {
   })
 }
 
+/** What the runner needs, with usage admitted for the caller completing the upload. */
+async function importPayload(
+  principal: Principal,
+  context: KnowledgeImportUploadContext
+): Promise<KnowledgeImportPayload> {
+  const { billingAttribution, userId } = await assertKnowledgeUsageAdmitted(principal, context)
+  const { upload } = context
+  const name = importedName(upload)
+  return {
+    importId: upload.id,
+    workspaceId: context.workspaceId,
+    userId,
+    ...(name ? { name } : {}),
+    sourceKey: upload.storageKey,
+    billingAttribution,
+  }
+}
+
 /**
  * Writes the durable record while the upload is being completed, before it
  * counts as complete. From then on the stale-import janitor owns the bundle, so
@@ -235,34 +253,27 @@ async function recordKnowledgeImport(
   principal: Principal,
   context: KnowledgeImportUploadContext
 ): Promise<KnowledgeImportPayload | null> {
-  const { billingAttribution, userId } = await assertKnowledgeUsageAdmitted(principal, context)
-  const { upload } = context
+  const payload = await importPayload(principal, context)
   const inserted = await insertKnowledgeImport({
-    id: upload.id,
-    workspaceId: context.workspaceId,
-    userId,
-    sourceKey: upload.storageKey,
+    id: payload.importId,
+    workspaceId: payload.workspaceId,
+    userId: payload.userId,
+    sourceKey: payload.sourceKey,
   })
-  if (!inserted) return null
-  const name = importedName(upload)
-  return {
-    importId: upload.id,
-    knowledgeBaseId: generateId(),
-    workspaceId: context.workspaceId,
-    userId,
-    ...(name ? { name } : {}),
-    sourceKey: upload.storageKey,
-    billingAttribution,
-  }
+  return inserted ? payload : null
+}
+
+function startKnowledgeImport(payload: KnowledgeImportPayload): Promise<void> {
+  return dispatchBackgroundTask<typeof knowledgeImportTask>('knowledge-import', payload, {
+    runInProcess: runKnowledgeImport,
+    trigger: { tags: [`workspaceId:${payload.workspaceId}`, `importId:${payload.importId}`] },
+  })
 }
 
 /** Starts the runner; a dispatch that fails settles the import and drops its bundle. */
 async function dispatchKnowledgeImport(payload: KnowledgeImportPayload): Promise<void> {
   try {
-    await dispatchBackgroundTask<typeof knowledgeImportTask>('knowledge-import', payload, {
-      runInProcess: runKnowledgeImport,
-      trigger: { tags: [`workspaceId:${payload.workspaceId}`, `importId:${payload.importId}`] },
-    })
+    await startKnowledgeImport(payload)
   } catch (error) {
     await finishKnowledgeImport(payload.importId, {
       status: 'failed',
@@ -277,6 +288,29 @@ async function dispatchKnowledgeImport(payload: KnowledgeImportPayload): Promise
       }
     )
     throw error
+  }
+}
+
+/**
+ * Dispatches again an import whose record no worker has claimed: its first
+ * dispatch was lost with the request that wrote the record, or is still
+ * queued. Either way a second run is safe, since only one worker can claim it,
+ * and a failure here leaves the import to the stale-import janitor rather than
+ * failing one that may already be on its way.
+ */
+async function redispatchUnclaimedImport(
+  principal: Principal,
+  context: KnowledgeImportUploadContext,
+  record: KnowledgeImportRecord
+): Promise<void> {
+  if (record.status !== 'running' || record.startedAt) return
+  try {
+    await startKnowledgeImport(await importPayload(principal, context))
+  } catch (error) {
+    logger.warn('Could not dispatch an unclaimed knowledge import again', {
+      importId: record.id,
+      error: getErrorMessage(error, 'Unknown error'),
+    })
   }
 }
 
@@ -367,7 +401,10 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
   }) => resolveUploadContext(principal, input),
   async execute({ principal, context }): Promise<CompleteKnowledgeImportResult> {
     const existing = await findStartedImport(context)
-    if (existing) return { import: fromRecord(existing), startedKnowledgeBaseId: null }
+    if (existing) {
+      await redispatchUnclaimedImport(principal, context, existing)
+      return { import: fromRecord(existing), startedKnowledgeBaseId: null }
+    }
     let started: KnowledgeImportPayload | null
     try {
       const completed = await completeUploadSession({
@@ -405,7 +442,7 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
       importId: context.upload.id,
       assertedWorkspaceId: context.workspaceId,
     })
-    return { import: fromRecord(record), startedKnowledgeBaseId: started?.knowledgeBaseId ?? null }
+    return { import: fromRecord(record), startedKnowledgeBaseId: started?.importId ?? null }
   },
   /** Recorded once per import: a repeated completion only reads back the one already started. */
   projectAudit: ({ context, result }) =>

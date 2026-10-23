@@ -8,7 +8,7 @@
 import { db } from '@sim/db'
 import { knowledgeBaseImport } from '@sim/db/schema'
 import { truncate } from '@sim/utils/string'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** Where an import's uploaded bundle is stored until the import settles. */
@@ -71,6 +71,20 @@ export async function getKnowledgeImport(params: {
   const record = await findKnowledgeImport(params)
   if (!record) throw new OrchestrationError('not_found', 'Knowledge base import not found')
   return record
+}
+
+/**
+ * Claims a running import for one worker. Returns `false` when another worker
+ * already claimed it, or it settled, so a duplicate dispatch exits untouched.
+ */
+export async function claimKnowledgeImport(importId: string): Promise<boolean> {
+  const now = new Date()
+  const claimed = await db
+    .update(knowledgeBaseImport)
+    .set({ startedAt: now, updatedAt: now })
+    .where(and(whileRunning(importId), isNull(knowledgeBaseImport.startedAt)))
+    .returning({ id: knowledgeBaseImport.id })
+  return claimed.length > 0
 }
 
 /**

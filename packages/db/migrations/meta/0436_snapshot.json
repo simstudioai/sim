@@ -1,5 +1,5 @@
 {
-  "id": "48dddbce-96d1-4552-a641-c16f349d5ac2",
+  "id": "eabb7aa2-0cfb-4872-aa0c-38733757019b",
   "prevId": "2a4095de-e341-4264-becd-1714d26404f5",
   "version": "7",
   "dialect": "postgresql",
@@ -10154,6 +10154,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",

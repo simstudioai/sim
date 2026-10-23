@@ -3887,6 +3887,8 @@ export const knowledgeBaseImport = pgTable(
       .default([]),
     error: text('error'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** When a worker claimed the import; unset, a retried completion dispatches it again. */
+    startedAt: timestamp('started_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
   },

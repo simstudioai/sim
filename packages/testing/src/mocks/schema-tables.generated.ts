@@ -929,6 +929,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'failures',
     'error',
     'createdAt',
+    'startedAt',
     'updatedAt',
     'completedAt',
   ],

@@ -172,9 +172,15 @@ async function stageBundleBytes(importId: string, bytes: Buffer): Promise<string
 }
 
 async function runImport(importId: string, sourceKey: string, name: string) {
-  await runKnowledgeImport({
+  await runKnowledgeImport(await importPayload(importId, sourceKey, name))
+  const record = await findKnowledgeImport({ importId, assertedWorkspaceId: ids.workspaceId })
+  if (!record) throw new Error('Import record disappeared')
+  return record
+}
+
+async function importPayload(importId: string, sourceKey: string, name: string) {
+  return {
     importId,
-    knowledgeBaseId: generateId(),
     workspaceId: ids.workspaceId,
     userId: ids.aliceId,
     name,
@@ -183,10 +189,7 @@ async function runImport(importId: string, sourceKey: string, name: string) {
       actorUserId: ids.aliceId,
       workspaceId: ids.workspaceId,
     }),
-  })
-  const record = await findKnowledgeImport({ importId, assertedWorkspaceId: ids.workspaceId })
-  if (!record) throw new Error('Import record disappeared')
-  return record
+  }
 }
 
 async function importedDocuments(knowledgeBaseId: string) {
@@ -482,6 +485,27 @@ describe('knowledge base bundle import', () => {
     ).rejects.toThrow()
   })
 
+  it('lets exactly one of two concurrent workers run an import', async () => {
+    const importId = generateId()
+    const sourceKey = await stageExportedBundle(importId)
+    const payload = await importPayload(importId, sourceKey, 'Claimed fixture')
+
+    await Promise.all([runKnowledgeImport(payload), runKnowledgeImport(payload)])
+
+    expect(await findKnowledgeImport({ importId })).toMatchObject({
+      status: 'completed',
+      knowledgeBaseId: importId,
+      documentsImported: 2,
+      documentsFailed: 0,
+    })
+    expect(
+      await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.name, 'Claimed fixture'))
+    ).toEqual([{ id: importId }])
+  })
+
   it('fails without a partial base when the name is already taken', async () => {
     const importId = generateId()
     const sourceKey = await stageExportedBundle(importId)
@@ -581,6 +605,62 @@ describe('knowledge base import requests', () => {
           )
       )
       .toEqual([{ resourceId: finished.knowledgeBaseId }])
+  })
+
+  it('starts an import whose first dispatch was lost when its completion is retried', async () => {
+    const bytes = await exportedBundleBytes()
+    const created = await createKnowledgeImport.execute({
+      principal: session,
+      input: {
+        body: {
+          workspaceId: ids.workspaceId,
+          name: 'Redispatched import',
+          source: {
+            type: 'upload',
+            name: 'fixture.simkb.zip',
+            contentType: 'application/zip',
+            size: bytes.length,
+          },
+        },
+      },
+      request,
+    })
+    await writeLocalPutObject({
+      uploadId: created.upload.id,
+      key: created.upload.finalKey,
+      body: new Blob([new Uint8Array(bytes)]).stream(),
+      expectedSize: bytes.length,
+      contentType: created.upload.contentType,
+      metadata: uploadSessionObjectMetadata(created.upload),
+    })
+    // The record a completion wrote before the request died, with no worker behind it.
+    await insertKnowledgeImport({
+      id: created.upload.id,
+      workspaceId: ids.workspaceId,
+      userId: ids.aliceId,
+      sourceKey: created.upload.storageKey,
+    })
+    const input = {
+      importId: created.import.id,
+      workspaceId: ids.workspaceId,
+      uploadToken: created.upload.uploadToken,
+    }
+
+    await completeKnowledgeImport.execute({ principal: session, input, request })
+
+    await expect
+      .poll(
+        async () =>
+          (await readKnowledgeImport.execute({ principal: session, input })).import.status,
+        { interval: 50, timeout: 10_000 }
+      )
+      .toBe('completed')
+    expect(
+      await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.name, 'Redispatched import'))
+    ).toEqual([{ id: created.import.id }])
   })
 
   it('refuses a bundle that is not a zip archive before creating an upload', async () => {

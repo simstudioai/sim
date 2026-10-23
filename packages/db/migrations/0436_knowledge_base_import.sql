@@ -13,6 +13,7 @@ CREATE TABLE "knowledge_base_import" (
 	"failures" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"error" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
+	"started_at" timestamp,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"completed_at" timestamp
 );

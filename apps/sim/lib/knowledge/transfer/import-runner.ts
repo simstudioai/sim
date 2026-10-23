@@ -30,6 +30,8 @@ import {
   openKnowledgeBundle,
 } from '@/lib/knowledge/transfer/import-archive'
 import {
+  claimKnowledgeImport,
+  findKnowledgeImport,
   finishKnowledgeImport,
   KNOWLEDGE_IMPORT_STORAGE_CONTEXT,
   type KnowledgeImportFailure,
@@ -50,10 +52,13 @@ const logger = createLogger('KnowledgeImportRunner')
  */
 const DOCUMENT_CONCURRENCY = 2
 
+/**
+ * What a worker needs to run an import. The base it creates takes the import's
+ * id, so every dispatch of one import names the same base, and the import's
+ * audit names it before it exists.
+ */
 export interface KnowledgeImportPayload {
   importId: string
-  /** Minted when the upload completed, so the audit of the import names this base. */
-  knowledgeBaseId: string
   workspaceId: string
   /** The person the base and its documents are attributed to. */
   userId: string
@@ -239,7 +244,7 @@ async function importBundle(
   if (!(await updateRunningKnowledgeImport(payload.importId, {}))) return
   const knowledgeBase = await createAuthorizedKnowledgeBase(
     {
-      id: payload.knowledgeBaseId,
+      id: payload.importId,
       name: payload.name ?? manifest.knowledgeBase.name,
       description: manifest.knowledgeBase.description ?? undefined,
       workspaceId: payload.workspaceId,
@@ -262,16 +267,22 @@ async function importBundle(
     return
   }
 
-  for (const tag of manifest.tags) {
-    await createTagDefinition(
-      {
-        knowledgeBaseId: knowledgeBase.id,
-        tagSlot: tag.slot,
-        displayName: tag.displayName,
-        fieldType: tag.fieldType,
-      },
-      requestId
-    )
+  try {
+    for (const tag of manifest.tags) {
+      await createTagDefinition(
+        {
+          knowledgeBaseId: knowledgeBase.id,
+          tagSlot: tag.slot,
+          displayName: tag.displayName,
+          fieldType: tag.fieldType,
+        },
+        requestId
+      )
+    }
+  } catch (error) {
+    // No document has landed yet, so a base without its tags is removed rather than kept half-built.
+    await deleteKnowledgeBase(knowledgeBase.id, requestId)
+    throw error
   }
 
   const context: ImportDocumentContext = {
@@ -332,11 +343,18 @@ async function importBundle(
 }
 
 /**
- * Runs one import to a settled state. The bundle is copied to local disk so
- * its entries can be read by offset, and both copies are removed however the
- * import ends.
+ * Runs one import to a settled state. The worker claims the import first, so a
+ * second dispatch of it leaves the first worker's bundle alone. The bundle is
+ * copied to local disk so its entries can be read by offset, and both copies
+ * are removed however the import ends.
  */
 export async function runKnowledgeImport(payload: KnowledgeImportPayload): Promise<void> {
+  if (!(await claimKnowledgeImport(payload.importId))) {
+    // Settled before any worker claimed it, so no worker is reading the bundle.
+    const record = await findKnowledgeImport({ importId: payload.importId })
+    if (record && !record.startedAt) await deleteBundle(payload)
+    return
+  }
   const directory = await mkdtemp(join(tmpdir(), 'knowledge-import-'))
   let reader: KnowledgeBundleReader | undefined
   try {
@@ -365,13 +383,17 @@ export async function runKnowledgeImport(payload: KnowledgeImportPayload): Promi
   } finally {
     reader?.close()
     await rm(directory, { recursive: true, force: true })
-    await deleteFile({ key: payload.sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch(
-      (error: unknown) => {
-        logger.warn('Failed to delete an imported knowledge bundle', {
-          importId: payload.importId,
-          error: getErrorMessage(error, 'Unknown error'),
-        })
-      }
-    )
+    await deleteBundle(payload)
   }
+}
+
+async function deleteBundle(payload: KnowledgeImportPayload): Promise<void> {
+  await deleteFile({ key: payload.sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch(
+    (error: unknown) => {
+      logger.warn('Failed to delete an imported knowledge bundle', {
+        importId: payload.importId,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+    }
+  )
 }
