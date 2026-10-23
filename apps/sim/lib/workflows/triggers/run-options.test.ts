@@ -115,6 +115,20 @@ describe('file inputs through workflow run options', () => {
   })
 })
 
+describe('mock payloads for aliased field types', () => {
+  it('samples a json field as an object the run validation accepts', () => {
+    const [option] = resolveTriggerRunOptions({
+      start: {
+        type: 'start_trigger',
+        name: 'Start',
+        subBlocks: { inputFormat: { value: [{ name: 'payload', type: 'json' }] } },
+      },
+    })
+    expect(option.mockPayload).toEqual({ payload: {} })
+    expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
+  })
+})
+
 describe('workflow input discovery schemas', () => {
   it('matches optional defaults and describes stored-file and upload alternatives', () => {
     const [option] = resolveTriggerRunOptions({
