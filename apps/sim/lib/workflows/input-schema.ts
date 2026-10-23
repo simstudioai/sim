@@ -3,13 +3,16 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { workflowFileInputSchema } from '@/lib/workflows/input-file-schema'
 import {
   canonicalInputFormatFieldType,
-  INPUT_FORMAT_FIELD_TYPES,
   type InputFormatFieldType,
 } from '@/lib/workflows/input-format-schema'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { isSafeKey } from '@/tools/safe-assign'
 
-function fieldTypeToSchema(type: InputFormatFieldType): z.ZodType {
+/**
+ * A stored type outside the editor's list (legacy widget names such as `short-input`) accepts any
+ * value, as the executor passes it through unchanged.
+ */
+function fieldTypeToSchema(type: InputFormatFieldType | null): z.ZodType {
   switch (type) {
     case 'string':
       return z.string()
@@ -23,6 +26,8 @@ function fieldTypeToSchema(type: InputFormatFieldType): z.ZodType {
       return z.array(z.unknown())
     case 'file[]':
       return z.array(workflowFileInputSchema)
+    case null:
+      return z.unknown()
   }
 }
 
@@ -30,8 +35,7 @@ function fieldTypeToSchema(type: InputFormatFieldType): z.ZodType {
  * Shared by workflow run validation and MCP discovery so the advertised input
  * types match execution. The executor supplies configured defaults at run time.
  *
- * @throws OrchestrationError `validation` when a field name is reserved or its
- * type is not one a workflow input can declare.
+ * @throws OrchestrationError `validation` when a field name is reserved.
  */
 export function generateWorkflowInputShape(inputFormat: InputFormatField[]): z.ZodRawShape {
   const shape: Record<string, z.ZodType> = {}
@@ -46,12 +50,6 @@ export function generateWorkflowInputShape(inputFormat: InputFormatField[]): z.Z
       )
     }
     const type = canonicalInputFormatFieldType(field.type)
-    if (!type) {
-      throw new OrchestrationError(
-        'validation',
-        `Workflow input "${name}" has unsupported type "${field.type}". Use one of: ${INPUT_FORMAT_FIELD_TYPES.join(', ')}.`
-      )
-    }
 
     const schema = fieldTypeToSchema(type).describe(
       field.description?.trim() ||

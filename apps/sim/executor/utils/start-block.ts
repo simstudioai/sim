@@ -7,7 +7,6 @@ import {
   isInternalFileUrl,
   parseInternalFileUrl,
 } from '@/lib/uploads/utils/file'
-import { canonicalInputFormatFieldType } from '@/lib/workflows/input-format-schema'
 import {
   classifyStartBlockType,
   resolveStartCandidates,
@@ -246,7 +245,7 @@ export function coerceValue(type: string | null | undefined, value: unknown): un
     return value
   }
 
-  switch (type ? (canonicalInputFormatFieldType(type) ?? type) : type) {
+  switch (type) {
     case 'string':
       return typeof value === 'string' ? value : String(value)
     case 'number': {
