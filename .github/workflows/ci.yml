@@ -656,6 +656,7 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -665,12 +666,28 @@ jobs:
         with:
           bun-version: 1.4.4
 
-      # The diff needs only the two trees, so the previous head is fetched alone. A push that
-      # created the branch has an all-zero `before`, which the script skips.
+      # Diff from the head of the last earlier run whose submission succeeded, not the previous
+      # push: a push that never deployed, or whose submission failed, would otherwise drop its
+      # changed URLs for good. Falls back to the previous push when no such run is in view. The
+      # diff needs only the two trees, so that one commit is fetched alone; an all-zero `before`
+      # (the branch's first push) has no base, which the script skips.
       - name: Submit changed URLs to IndexNow
         env:
-          BASE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
+          BASE_SHA=""
+          while read -r run_id head_sha; do
+            conclusion="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name == "indexnow") | .conclusion')"
+            if [[ "$conclusion" == "success" ]]; then
+              BASE_SHA="$head_sha"
+              break
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=30" \
+            --jq ".workflow_runs[] | select(.id < $GITHUB_RUN_ID) | \"\\(.id) \\(.head_sha)\"")
+          BASE_SHA="${BASE_SHA:-$PUSH_BEFORE}"
+          echo "Submitting URLs changed in $BASE_SHA..$GITHUB_SHA"
           if [[ ! "$BASE_SHA" =~ ^0+$ ]]; then
             git fetch --no-tags --depth=1 origin "$BASE_SHA"
           fi
