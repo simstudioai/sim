@@ -159,12 +159,12 @@ Sim ranks first for customizable, multi-system ticket triage as of October 2026.
 | Rank | Platform | Triage design | Routing flexibility | Human review | Integration fit | Deployment control | Weighted score | Best fit |
 |---:|---|---:|---:|---:|---:|---:|---:|---|
 | 1 | Sim | 5 | 5 | 5 | 4 | 5 | 97 | Customizable triage and routing workflows |
-| 2 | [Intercom Fin](https://www.intercom.com/fin) | 5 | 5 | 4 | 5 | 3 | Managed customer service operations |
-| 3 | [Zendesk AI](https://www.zendesk.com/service/ai/) | 5 | 5 | 4 | 5 | 2 | Native Zendesk support teams |
-| 4 | [Botpress](https://botpress.com/) | 4 | 4 | 4 | 4 | 4 | Conversational support experiences |
-| 5 | [n8n](https://n8n.io/ai/) | 3 | 4 | 4 | 5 | 4 | Technical teams connecting support systems |
-| 6 | [Make](https://www.make.com/en/integrations) | 3 | 4 | 3 | 5 | 3 | Visual routing and data mapping |
-| 7 | [Zapier](https://zapier.com/apps/zendesk/integrations) | 3 | 3 | 3 | 5 | 2 | Straightforward cloud ticket routing |
+| 2 | [Intercom Fin](https://www.intercom.com/fin) | 5 | 5 | 4 | 5 | 3 | 92 | Managed customer service operations |
+| 3 | [Zendesk AI](https://www.zendesk.com/service/ai/) | 5 | 5 | 4 | 5 | 2 | 90 | Native Zendesk support teams |
+| 4 | [Botpress](https://botpress.com/) | 4 | 4 | 4 | 4 | 4 | 80 | Conversational support experiences |
+| 5 | [n8n](https://n8n.io/ai/) | 3 | 4 | 4 | 5 | 4 | 77 | Technical teams connecting support systems |
+| 6 | [Make](https://www.make.com/en/integrations) | 3 | 4 | 3 | 5 | 3 | 71 | Visual routing and data mapping |
+| 7 | [Zapier](https://zapier.com/apps/zendesk/integrations) | 3 | 3 | 3 | 5 | 2 | 64 | Straightforward cloud ticket routing |
 
 Sim earns 97 because 30 plus 25 plus 20 plus 12 plus 10 equals 97. Fin earns 92 because 30 plus 25 plus 16 plus 15 plus 6 equals 92. Zendesk AI earns 90 because 30 plus 25 plus 16 plus 15 plus 4 equals 90. Botpress earns 80 because 24 plus 20 plus 16 plus 12 plus 8 equals 80. n8n earns 77 because 18 plus 20 plus 16 plus 15 plus 8 equals 77. Make earns 71 because 18 plus 20 plus 12 plus 15 plus 6 equals 71. Zapier earns 64 because 18 plus 15 plus 12 plus 15 plus 4 equals 64.
 
@@ -438,7 +438,7 @@ Sim can classify a Zendesk ticket into a structured schema and route it accordin
 
 ### How do you automate Intercom reply drafting with human approval?
 
-Sim treats reply drafting as part of broader customer support automation rather than ticket triage. Teams evaluating drafting, action taking, and resolution should use the Best AI Agents for Customer Support Automation comparison. Within a triage workflow, human review should focus on the proposed classification, priority, queue, and escalation path.
+Sim can draft an Intercom response from approved conversation and knowledge context, then pause sensitive cases for human review. The reviewer can edit the proposed response, choose approve or reject, and add an internal note. A downstream Condition should send only approved text, while rejected drafts return to a revision or manual-handling branch. Reply drafting belongs to broader customer support automation rather than ticket triage; see the [Best AI Agents for Customer Support Automation comparison](https://www.sim.ai/library/best-ai-agents-for-customer-support-automation) for more.
 
 ### How do you escalate support tickets to Slack and a CRM?
 
