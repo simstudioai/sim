@@ -70,13 +70,14 @@ export function resolveExecutable(binary: string): string | null {
  * and fonts, never the variables this process was configured with.
  */
 function executableEnv(): NodeJS.ProcessEnv {
-  return filterUndefined({
+  const allowed = filterUndefined({
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     FONTCONFIG_FILE: process.env.FONTCONFIG_FILE,
     FONTCONFIG_PATH: process.env.FONTCONFIG_PATH,
     SYSTEMROOT: process.env.SYSTEMROOT,
   })
+  return { ...allowed, NODE_ENV: process.env.NODE_ENV }
 }
 
 /**

@@ -27,7 +27,7 @@ export interface IsolatedVMWorkerProcess {
 export interface RemoteWorkerOptions {
   url: string
   token: string
-  /** Limits the worker reads from its environment, so a remote worker enforces the app's values. */
+  /** Worker settings the app owns (limits, timezone, locale), so a remote worker matches a local one. */
   workerEnv: Record<string, string | undefined>
 }
 

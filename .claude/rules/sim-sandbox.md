@@ -78,9 +78,9 @@ payload or `ivm.Reference` wrapper in the worker:
       allowlist in `isolated-vm.ts` **and** to the allowlist regression test in
       `isolated-vm.test.ts` — the worker does not inherit the app environment,
       so an un-allowlisted var is simply absent in the child. If the app owns
-      its value, also add it to `workerLimitsEnv()` and to
-      `CLIENT_WORKER_ENV_KEYS` in `isolated-vm-host.cjs`, so a remote worker
-      enforces the same value.
+      its value, put it in `appWorkerEnv()` and add it with its accepted shape
+      to `CLIENT_WORKER_ENV` in `isolated-vm-host.cjs`, so a remote worker
+      gets the same value.
 - [ ] Does the host send the worker a new message type? Add it to
       `ALLOWED_INBOUND_TYPES` in `isolated-vm-host.cjs`, or remote workers
       never receive it.

@@ -1013,10 +1013,7 @@ function resetWorkerIdleTimeout(workerId: number) {
 function buildWorkerEnv(): NodeJS.ProcessEnv {
   const allowed: Record<string, string | undefined> = {
     PATH: process.env.PATH,
-    ...workerLimitsEnv(),
-    TZ: process.env.TZ,
-    LANG: process.env.LANG,
-    LC_ALL: process.env.LC_ALL,
+    ...appWorkerEnv(),
     SYSTEMROOT: process.env.SYSTEMROOT,
     WINDIR: process.env.WINDIR,
     COMSPEC: process.env.COMSPEC,
@@ -1027,11 +1024,18 @@ function buildWorkerEnv(): NodeJS.ProcessEnv {
   return { ...filterUndefined(allowed), NODE_ENV: process.env.NODE_ENV }
 }
 
-/** The limits the worker reads from its environment; a remote worker receives them on connect. */
-function workerLimitsEnv(): Record<string, string | undefined> {
+/**
+ * Worker settings whose value the app owns: its limits, and the timezone and locale that shape
+ * `Date` and `Intl` inside isolates. A remote worker receives them on connect, so moving workers
+ * to the host changes no results.
+ */
+function appWorkerEnv(): Record<string, string | undefined> {
   return {
     IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
     IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
+    TZ: process.env.TZ,
+    LANG: process.env.LANG,
+    LC_ALL: process.env.LC_ALL,
   }
 }
 
@@ -1047,7 +1051,7 @@ async function openWorkerProcess(target: WorkerTarget): Promise<IsolatedVMWorker
     return connectRemoteWorker({
       url: target.url,
       token: target.token,
-      workerEnv: workerLimitsEnv(),
+      workerEnv: appWorkerEnv(),
     })
   }
 
@@ -1070,13 +1074,14 @@ async function openWorkerProcess(target: WorkerTarget): Promise<IsolatedVMWorker
     throw new Error(`Worker file not found at any of: ${candidatePaths.join(', ')}`)
   }
 
-  const { spawn } = await import('node:child_process')
-  // Required for isolated-vm on Node.js 20+ (issue #377)
-  return spawn('node', ['--no-node-snapshot', workerPath], {
-    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-    serialization: 'json',
-    env: buildWorkerEnv(),
-  })
+  return import('node:child_process').then(({ spawn }) =>
+    // Required for isolated-vm on Node.js 20+ (issue #377)
+    spawn('node', ['--no-node-snapshot', workerPath], {
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      serialization: 'json',
+      env: buildWorkerEnv(),
+    })
+  )
 }
 
 function spawnWorker(): Promise<WorkerInfo> {
@@ -1256,6 +1261,12 @@ function dispatchToWorker(
       termination: 'cancelled',
     })
     drainQueue()
+    return
+  }
+
+  // A target change can retire and remove the worker between its selection and this dispatch.
+  if (workers.get(workerInfo.id) !== workerInfo) {
+    enqueueExecution(ownerState, req, resolve, state, brokers)
     return
   }
 

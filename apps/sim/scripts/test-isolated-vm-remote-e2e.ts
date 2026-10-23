@@ -205,14 +205,15 @@ const CHECK_DEADLINE_MS = 30_000
 async function check(name: string, run: () => Promise<void>) {
   const started = performance.now()
   let deadline: ReturnType<typeof setTimeout> | undefined
+  let timedOut = false
   try {
     await Promise.race([
       run(),
       new Promise<never>((_, reject) => {
-        deadline = setTimeout(
-          () => reject(new Error(`Did not settle within ${CHECK_DEADLINE_MS}ms`)),
-          CHECK_DEADLINE_MS
-        )
+        deadline = setTimeout(() => {
+          timedOut = true
+          reject(new Error(`Did not settle within ${CHECK_DEADLINE_MS}ms`))
+        }, CHECK_DEADLINE_MS)
       }),
     ])
     checks.push({ name, status: 'passed', durationMs: Math.round(performance.now() - started) })
@@ -226,6 +227,9 @@ async function check(name: string, run: () => Promise<void>) {
     })
     logger.error(`FAIL ${name}`, { error: getErrorMessage(error) })
     process.exitCode = 1
+    // A check that never settled may still be running against the shared hosts and pool, so
+    // later checks would not be independent of it.
+    if (timedOut) throw new Error(`Aborting: "${name}" did not settle`)
   } finally {
     clearTimeout(deadline)
   }
@@ -271,8 +275,9 @@ async function run() {
   await check("enforces the app's limits on the remote worker", async () => {
     const result = await execute("console.log('y'.repeat(5000)); return 1")
     assert.equal(result.result, 1, result.error?.message)
+    assert(result.stdout.endsWith('[stdout truncated]\n'), 'stdout was not truncated')
     assert(
-      result.stdout.length < 2 * STDOUT_LIMIT_CHARS,
+      result.stdout.length <= STDOUT_LIMIT_CHARS + '\n[stdout truncated]\n'.length,
       `stdout was ${result.stdout.length} chars; the app limit is ${STDOUT_LIMIT_CHARS}`
     )
   })
@@ -338,6 +343,12 @@ async function run() {
   await check('rejects a connection whose first frame is not authentication', async () => {
     const ws = await openSocket(probeHost, '{"type":"execute","executionId":1}')
     assert.equal(await closeCode(ws), 4401)
+  })
+
+  await check('rejects an unparseable request target and keeps serving', async () => {
+    assert.equal(await upgradeStatus(probeHost, { path: '//[' }), 400)
+    const health = await fetch(`http://127.0.0.1:${probeHost.port}/health`)
+    assert.equal(health.status, 200)
   })
 
   await check('rejects paths other than the worker endpoint', async () => {

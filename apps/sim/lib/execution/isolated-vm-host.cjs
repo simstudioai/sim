@@ -10,7 +10,8 @@
  *
  * Wire contract (`/v1/worker`): one JSON object per text frame. The first
  * client frame is `{ type: 'auth', token, env }`, where `env` carries the
- * worker limits the app enforces; after it, frames are the objects the worker
+ * worker settings the app owns (limits, timezone, locale); after it, frames
+ * are the objects the worker
  * exchanges over IPC. Host-originated frames are `{ type: 'host:heartbeat' }`
  * every 30s and `{ type: 'host:draining' }` on SIGTERM, after which the app
  * retires the connection once its executions finish. A breaking change to the
@@ -40,8 +41,14 @@ const MAX_STARTUP_STDERR_CHARS = 64 * 1024
 const MIN_TOKEN_LENGTH = 32
 const UNAUTHORIZED_CLOSE_CODE = 4401
 const ALLOWED_INBOUND_TYPES = new Set(['execute', 'cancel', 'fetchResponse', 'brokerResponse'])
-/** Worker limits a client may set, each a decimal integer. */
-const CLIENT_WORKER_ENV_KEYS = new Set(['IVM_MAX_STDOUT_CHARS', 'IVM_MAX_FETCH_OPTIONS_JSON_CHARS'])
+/** Worker settings a client may set, each with the only shape it accepts. */
+const CLIENT_WORKER_ENV = {
+  IVM_MAX_STDOUT_CHARS: /^\d{1,12}$/,
+  IVM_MAX_FETCH_OPTIONS_JSON_CHARS: /^\d{1,12}$/,
+  TZ: /^:?[A-Za-z0-9_+\-/]{1,64}$/,
+  LANG: /^[A-Za-z0-9_.@-]{1,64}$/,
+  LC_ALL: /^[A-Za-z0-9_.@-]{1,64}$/,
+}
 
 function readPositiveInt(name, fallback) {
   const parsed = Number.parseInt(process.env[name] || '', 10)
@@ -62,6 +69,8 @@ if (process.versions.bun) {
 
 const PORT = readPositiveInt('IVM_HOST_PORT', 3100)
 const MAX_WORKERS = readPositiveInt('IVM_HOST_MAX_WORKERS', 16)
+/** Unauthenticated connections are bounded on their own, so they never hold a worker slot. */
+const MAX_PENDING_AUTH = MAX_WORKERS * 4
 const MAX_MESSAGE_BYTES = readPositiveInt('IVM_HOST_MAX_MESSAGE_BYTES', 64 * 1024 * 1024)
 const DRAIN_TIMEOUT_MS = readPositiveInt('IVM_HOST_DRAIN_TIMEOUT_MS', 110000)
 
@@ -87,22 +96,18 @@ function isAuthorized(presented) {
 /**
  * Mirrors `buildWorkerEnv()` in `isolated-vm.ts`: the worker runs untrusted
  * code and receives an explicit allowlist, never this process's environment.
- * The limits come from the client so a remote worker enforces the app's values.
+ * Settings the app owns come from the client, so a remote worker behaves like
+ * a local one.
  */
 function buildWorkerEnv(clientEnv) {
   const workerEnv = {}
-  for (const key of ['PATH', 'NODE_ENV', 'TZ', 'LANG', 'LC_ALL']) {
+  for (const key of ['PATH', 'NODE_ENV']) {
     if (process.env[key] !== undefined) workerEnv[key] = process.env[key]
   }
   if (clientEnv && typeof clientEnv === 'object') {
-    for (const [key, value] of Object.entries(clientEnv)) {
-      if (
-        CLIENT_WORKER_ENV_KEYS.has(key) &&
-        typeof value === 'string' &&
-        /^\d{1,12}$/.test(value)
-      ) {
-        workerEnv[key] = value
-      }
+    for (const [key, pattern] of Object.entries(CLIENT_WORKER_ENV)) {
+      const value = clientEnv[key]
+      if (typeof value === 'string' && pattern.test(value)) workerEnv[key] = value
     }
   }
   return workerEnv
@@ -154,7 +159,14 @@ const wss = new WebSocketServer({
 
 server.on('upgrade', (req, socket, head) => {
   socket.on('error', () => socket.destroy())
-  if (new URL(req.url || '/', 'http://host').pathname !== WORKER_PATH) {
+  let pathname
+  try {
+    pathname = new URL(req.url || '/', 'http://host').pathname
+  } catch {
+    rejectUpgrade(socket, 400, 'Bad Request')
+    return
+  }
+  if (pathname !== WORKER_PATH) {
     rejectUpgrade(socket, 404, 'Not Found')
     return
   }
@@ -162,7 +174,7 @@ server.on('upgrade', (req, socket, head) => {
     rejectUpgrade(socket, 503, 'Service Unavailable')
     return
   }
-  if (workers.size + pendingConnections >= MAX_WORKERS) {
+  if (workers.size >= MAX_WORKERS || pendingConnections >= MAX_PENDING_AUTH) {
     log('warn', 'Rejected worker connection at capacity', { maxWorkers: MAX_WORKERS })
     rejectUpgrade(socket, 503, 'Service Unavailable')
     return
@@ -170,7 +182,7 @@ server.on('upgrade', (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => authenticate(ws))
 })
 
-/** Holds a capacity slot until the client's first frame proves it holds the token. */
+/** Admits the connection to a worker slot only once its first frame proves it holds the token. */
 function authenticate(ws) {
   pendingConnections++
   let settled = false
@@ -204,6 +216,11 @@ function authenticate(ws) {
     if (!settle()) return
     if (draining) {
       ws.close(1012, 'draining')
+      return
+    }
+    if (workers.size >= MAX_WORKERS) {
+      log('warn', 'Rejected worker connection at capacity', { maxWorkers: MAX_WORKERS })
+      ws.close(1013, 'at capacity')
       return
     }
     ws.off('error', onPreAuthError)
