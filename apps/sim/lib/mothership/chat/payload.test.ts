@@ -292,11 +292,13 @@ describe('buildIntegrationToolSchemas', () => {
     })
     const first = await buildIntegrationToolSchemas('user-mutating')
     first.push({ name: 'mcp-private-tool', description: '', input_schema: {} })
-    try {
+    expect(() => {
       ;(first[0].input_schema.properties as Record<string, unknown>).recipients = { type: 'number' }
-      ;(first[0].input_schema.required as string[]).push('forged')
+    }).toThrow(TypeError)
+    expect(() => (first[0].input_schema.required as string[]).push('forged')).toThrow(TypeError)
+    expect(() => {
       first[0].description = 'forged'
-    } catch {}
+    }).toThrow(TypeError)
 
     const second = await buildIntegrationToolSchemas('user-reading')
     expect(second.map((tool) => tool.name)).toEqual([

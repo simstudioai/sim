@@ -1,15 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { type db, dbFor } from '@sim/db'
+import { dbFor } from '@sim/db'
 import type { DbOrTx } from '@/lib/db/types'
 
 const authDatabase = new AsyncLocalStorage<DbOrTx>()
 
-/**
- * The auth pool's root client. Session, adapter, and API-key lookups gate every
- * authenticated request, so they keep their own connections when slow work
- * saturates the process pool.
- */
-export function getAuthPool(): typeof db {
+/** The auth pool's root client (see `DB_POOL_PROFILES.auth`). */
+export function getAuthPool() {
   return dbFor('auth')
 }
 

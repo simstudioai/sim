@@ -138,8 +138,9 @@ type IntegrationToolSchemaVariantOptions = Required<
 /**
  * Every exposed integration tool's schema for one surface and mode, by tool id.
  *
- * Depends only on the tool registry and deployment config, never on the viewer, so it is
- * built once per process and shared: the entries are frozen and must not be mutated.
+ * Depends only on the tool registry and deployment config (`isHosted`, OAuth availability),
+ * fixed for the process's life, never on the viewer, so it is built once per process and
+ * shared: the entries are frozen and must not be mutated.
  * Viewer gating (block visibility, permission groups, the deployment allowlist) picks
  * which entries a request returns. Tools whose description gains the free-plan email
  * tagline also get a tagged copy in `withEmailTagline`, sharing the same input schema.

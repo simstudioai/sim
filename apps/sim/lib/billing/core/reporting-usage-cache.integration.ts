@@ -23,7 +23,15 @@ const { transaction, summedPeriods } = vi.hoisted(() => ({
 const databaseUrl = readTestDatabaseUrl()
 const redisUrl = readTestRedisUrl()
 
-vi.mock('@sim/db', () => ({ db: { transaction }, dbFor: () => ({ transaction }), dbReplica: {} }))
+vi.mock('@sim/db', () => {
+  const db = { transaction }
+  return {
+    db,
+    dbFor: () => ({ transaction }),
+    dbReplica: {},
+    isPrimaryPoolClient: (executor: object) => executor === db,
+  }
+})
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('@/lib/billing/core/usage-log', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/billing/core/usage-log')>()

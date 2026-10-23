@@ -477,10 +477,7 @@ function resolveDbUrl(
  */
 export const databaseMockFns = {
   mockResolveDbUrl: vi.fn(resolveDbUrl),
-  /**
-   * Recognizes only the shared instance by default; a test that needs a distinct
-   * sub-pool client marks it as a primary root client here.
-   */
+  /** Recognizes only the shared instance unless a test marks its own client. */
   mockIsPrimaryPoolClient,
   mockEnsureRowCountTriggers: vi.fn(async (): Promise<void> => {}),
   mockVerifyRowCountTriggers: vi.fn(async () => ({

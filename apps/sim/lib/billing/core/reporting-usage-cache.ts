@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, isPrimaryPoolClient } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -417,7 +417,7 @@ export function readSoftGateUsageCost(
   period: UsageQueryPeriod,
   executor: DbClient = db
 ): Promise<number> {
-  if (isReportingPeriod(period) && executor === db) {
+  if (isReportingPeriod(period) && isPrimaryPoolClient(executor)) {
     return readCachedReportingUsageCost(entity, period)
   }
   return getBillingPeriodUsageCost(entity, period, undefined, executor)

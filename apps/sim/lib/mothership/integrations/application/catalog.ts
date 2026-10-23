@@ -135,8 +135,10 @@ function rankByBm25(tools: ToolSchema[], queryTerms: string[]): number[] {
   const documents = tools.map((tool) => {
     const stats = getOperationTermStats(tool)
     const frequencies = new Map<string, number>()
-    for (const [term, frequency] of stats.frequencies)
-      if (query.has(term)) frequencies.set(term, frequency)
+    for (const term of query) {
+      const frequency = stats.frequencies.get(term)
+      if (frequency) frequencies.set(term, frequency)
+    }
     return { length: stats.length, frequencies }
   })
   const averageLength =

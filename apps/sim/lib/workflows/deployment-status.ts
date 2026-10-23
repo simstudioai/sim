@@ -20,11 +20,8 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  * draft, so that the server and the client answered the same question
  * differently for the same workflow.
  *
- * Every read — the active version row, the normalized draft, its variables and
- * the credential rows the block migrations consult — runs in one REPEATABLE READ
- * transaction so both operands come from the same snapshot. The diff does not:
- * it is pure CPU over values already read, and running it after commit returns
- * the pooled connection instead of holding it idle in transaction.
+ * All reads share one REPEATABLE READ snapshot; the CPU-only diff runs after
+ * commit so the connection is not held idle in transaction.
  */
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
   const snapshot = await db.transaction(async (tx) => {
