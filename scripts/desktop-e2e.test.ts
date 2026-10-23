@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 
-it('executes imported test factories and unmeasured files exactly once across desktop shards', () => {
+it.each([
+  { index: 1, title: 'brand-new.test.ts' },
+  { index: 2, title: 'factory' },
+  { index: 3, title: 'ordinary.spec.ts' },
+])('executes only $title on desktop shard $index/3', ({ index, title }) => {
   const root = resolve(import.meta.dirname, '..')
   const fixture = mkdtempSync(join(tmpdir(), 'desktop-shard-'))
   try {
@@ -31,34 +35,25 @@ it('executes imported test factories and unmeasured files exactly once across de
       )
     }
     const cases: { title: string; status: string }[] = []
-    for (const index of [1, 2, 3]) {
-      const reportPath = join(fixture, `${index}.json`)
-      const result = spawnSync('bun', ['run', join(root, 'scripts/desktop-e2e.ts'), `${index}/3`], {
-        cwd: fixture,
-        env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
-        encoding: 'utf8',
-        timeout: 10_000,
-      })
-      expect(result.status, result.stdout + result.stderr).toBe(0)
-      const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
-        suites: { specs: { title: string; tests: { results: { status: string }[] }[] }[] }[]
-      }
-      for (const suite of report.suites) {
-        for (const spec of suite.specs) {
-          for (const test of spec.tests) {
-            for (const run of test.results) cases.push({ title: spec.title, status: run.status })
-          }
+    const reportPath = join(fixture, `${index}.json`)
+    const result = spawnSync('bun', ['run', join(root, 'scripts/desktop-e2e.ts'), `${index}/3`], {
+      cwd: fixture,
+      env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+      suites: { specs: { title: string; tests: { results: { status: string }[] }[] }[] }[]
+    }
+    for (const suite of report.suites) {
+      for (const spec of suite.specs) {
+        for (const test of spec.tests) {
+          for (const run of test.results) cases.push({ title: spec.title, status: run.status })
         }
       }
     }
-    expect(cases).toEqual(
-      expect.arrayContaining([
-        { title: 'factory', status: 'passed' },
-        { title: 'brand-new.test.ts', status: 'passed' },
-        { title: 'ordinary.spec.ts', status: 'passed' },
-      ])
-    )
-    expect(cases).toHaveLength(3)
+    expect(cases).toEqual([{ title, status: 'passed' }])
   } finally {
     rmSync(fixture, { recursive: true, force: true })
   }
