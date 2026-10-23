@@ -4,10 +4,10 @@ title: 'AI Agent Examples by Department and Industry: A Practical Roundup'
 description: 'A practical roundup of AI agent examples across sales, support, operations, engineering, marketing, HR, and seven industries, with build patterns for Sim.'
 seoTitle: 'AI Agent Examples by Department and Industry'
 date: 2026-09-17
-updated: 2026-10-18
+updated: 2026-10-23
 authors:
   - andrew
-readingTime: 35
+readingTime: 42
 tags: [AI Agents, Workflow Automation, Industry Use Cases, Sim]
 ogImage: /library/ai-agent-examples-by-department-and-industry/cover.jpg
 draft: false
@@ -136,6 +136,54 @@ faq:
     a: "The Sim guide titled 25 Multi-Step AI Agent Examples Beyond Chatbots provides a broader catalog of multistep workflow patterns."
   - q: "Where can I find AI agent ideas for my business?"
     a: "The Sim guide titled 10 AI Agent Ideas for Real Impact: Get Started With Sim helps teams identify and prioritize an initial use case."
+  - q: "What are the best AI agent examples for business teams?"
+    a: "The best AI agent examples for business teams are lead enrichment, support ticket triage, grounded knowledge retrieval, invoice reconciliation, recruiting coordination, IT help desk intake, and project update preparation because each has clear inputs, bounded actions, and measurable outcomes."
+  - q: "What is a simple AI agent example?"
+    a: "A simple AI agent example is a support intake agent that reads a request, retrieves approved documentation, asks for missing details, and routes the case to the correct queue."
+  - q: "What is an AI agent example in sales?"
+    a: "A sales AI agent can enrich a new lead, compare the account with qualification criteria, update the CRM, and prepare a follow up draft for representative approval."
+  - q: "What is an AI agent example in marketing?"
+    a: "A marketing AI agent can turn approved customer research into a sourced campaign brief and prepare channel specific drafts for editor review."
+  - q: "What is an AI agent example in customer service?"
+    a: "A customer service AI agent can classify a ticket, retrieve a grounded answer, draft a response, and escalate urgent or uncertain cases to a specialist."
+  - q: "What is an AI agent example in finance?"
+    a: "A finance AI agent can compare invoices, purchase records, and payment data before presenting mismatches to an authorized reviewer."
+  - q: "What is an AI agent example in human resources?"
+    a: "A human resources AI agent can coordinate candidate scheduling and summarize job related evidence while leaving hiring decisions with accountable people."
+  - q: "What is an AI agent example in IT support?"
+    a: "An IT support AI agent can collect diagnostic details, search approved documentation, create a complete ticket, and escalate access changes for authorization."
+  - q: "What is an AI agent example in software engineering?"
+    a: "A software engineering AI agent can investigate a GitHub issue, identify relevant files and tests, and prepare an implementation plan or proposed change for review."
+  - q: "What is an AI agent example in procurement?"
+    a: "A procurement AI agent can extract supplier terms, map evidence to an evaluation rubric, and prepare a comparison packet for procurement and legal reviewers."
+  - q: "What is an AI agent example in ecommerce?"
+    a: "An ecommerce AI agent can investigate order exceptions by combining order, payment, inventory, and shipment information before recommending an approved next action."
+  - q: "What is the difference between an AI agent and automation?"
+    a: "An AI agent interprets context and chooses among permitted actions, while conventional automation follows predetermined rules and paths for predictable inputs."
+  - q: "Do AI agents need human approval?"
+    a: "AI agents need human approval when they can create material financial, legal, security, employment, customer, or production consequences."
+  - q: "How do you evaluate an AI agent?"
+    a: "Teams should evaluate an AI agent with representative test cases covering task completion, factual accuracy, tool selection, escalation, safety, cost, latency, and human corrections."
+  - q: "Can AI agents work with Slack?"
+    a: "AI agents can work with Slack to receive requests, request human input, deliver summaries, and notify owners when a workflow needs attention."
+  - q: "Can AI agents connect to a CRM?"
+    a: "AI agents can connect to CRM systems such as HubSpot, Salesforce, and Pipedrive to retrieve context, prepare updates, and support approved sales actions."
+  - q: "Can AI agents use company documents?"
+    a: "AI agents can use company documents when the workflow has authorized access, retrieves relevant passages, preserves source references, and respects document permissions."
+  - q: "Can Sim use local models?"
+    a: "Self hosted Sim can use local models through Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise."
+  - q: "Does Sim support bring your own key?"
+    a: "Sim supports workspace BYOK on every Sim Cloud plan, while organization level keys require Pro for Teams, Max for Teams, or Enterprise."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License rather than OSI approved open source."
+  - q: "Which guide has more AI agent ideas?"
+    a: "10 AI Agent Ideas for Real Impact: Get Started With Sim provides an idea focused starting point, while AI Agent Examples by Department and Industry: A Practical Roundup organizes concrete operating patterns by business function and industry context."
+  - q: "What is the difference between an AI agent and a chatbot?"
+    a: "An AI agent can use tools and take permitted actions across systems, while a chatbot primarily exchanges messages with a user."
+  - q: "How do you choose an AI agent use case?"
+    a: "Teams should choose an AI agent use case with frequent work, accessible data, measurable quality, bounded permissions, and a clear path for human review."
+  - q: "Is Sim open source?"
+    a: "Sim's core is Apache 2.0 open source, while code in apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
 ---
 
 ## TL;DR
@@ -159,6 +207,8 @@ The interface does not define the category. A chatbot might explain a return pol
 Invoice processing provides another useful distinction. OCR software extracts vendor names, amounts, and line items from a document. An invoice agent compares those fields with purchase orders and receipts, then evaluates why records differ. For example, the agent might identify a partial delivery rather than merely flagging an amount mismatch. Invoice agents can route uncertain or exceptional cases to a reviewer with the relevant records attached.
 
 The examples in this roundup follow a recurring pattern. A trigger starts the job, the agent gathers context, and tool calls perform an action. A human-in-the-loop checkpoint controls sensitive or irreversible decisions. In [Sim](https://www.sim.ai), an Agent block handles reasoning, a knowledge base supplies trusted context, and workflows connect triggers, tools, actions, and review steps. The guide to [what an AI agent is](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples) explains these components in more detail.
+
+A useful example should make five details explicit: what starts the agent, what information it needs, which tools it may use, which decisions require human approval, and what business outcome the team will measure. An agent differs from simple trigger-and-action automation because it can interpret context before choosing a permitted action. Deterministic controls still belong around high-impact actions such as sending a contract, changing a payment, or updating production. [AI Agents vs RPA: When to Use Each for Enterprise Automation](https://www.sim.ai/library/ai-agents-vs-rpa) explains when contextual interpretation is useful and when fixed automation is the better fit.
 
 ## What every AI agent workflow should define before implementation
 
@@ -212,13 +262,17 @@ For inbound sales, the Agent block can evaluate submitted details against your q
 
 An inbound lead qualification agent can enrich a new lead, assess fit, identify buying intent, and route the record to the right sales owner. A form submission or CRM record starts the workflow. The agent validates fields, requests approved enrichment, compares the account with documented qualification criteria, and summarizes needs, urgency, and missing evidence. High-fit leads go to the appropriate representative, while ambiguous records enter a review queue. The CRM update should retain the evidence, routing reason, and recommended next action so teams can measure routing accuracy, response time, meeting conversion, and human overrides.
 
+#### Inbound lead enrichment and qualification
+
+A new HubSpot or Salesforce lead can trigger an agent that validates the submission, inspects the company website and permitted public sources, compares the account with documented qualification criteria, and writes a source-linked summary to the CRM. Slack can notify the account owner when the record is ready. Human approval belongs immediately before external outreach or any commercial commitment. Measure record completeness, accepted recommendations, time to first review, and incorrectly qualified leads. The focused [HubSpot lead-enrichment workflow](https://www.sim.ai/library/hubspot-ai-agent-lead-enrichment-follow-up-workflow) and [Salesforce lead-scoring workflow](https://www.sim.ai/library/salesforce-ai-agent-lead-scoring-workflow) show how to implement this pattern.
+
 #### Discovery-call preparation
 
 A discovery-call preparation agent can combine account research, CRM history, and recent interactions into a concise, evidence-based briefing. An upcoming meeting starts retrieval of the account record, opportunity notes, prior messages, and approved external research. The agent identifies unresolved objections and missing discovery information, then prepares stakeholder context, open questions, and source references. The salesperson reviews unsupported assumptions before using the briefing, and feedback records whether the preparation was useful.
 
 #### Sales meeting follow-up
 
-A sales follow-up agent can turn an approved transcript or meeting notes into a draft email, CRM update, and task list. The agent extracts decisions, objections, promised materials, owners, and dates, compares them with the CRM, and flags conflicts. The account owner approves commitments, pricing references, and deadlines before the workflow sends the message, changes CRM fields, or creates tasks.
+A sales follow-up agent can turn an approved transcript or meeting notes into a draft email, CRM update, and task list. The agent extracts decisions, objections, promised materials, owners, and dates, compares them with the CRM, and flags conflicts. The account owner approves commitments, pricing references, and deadlines before the workflow sends the message, changes CRM fields, or creates tasks. Measure draft acceptance, editing time, response rate, and drafts blocked because supporting evidence is missing. The [Pipedrive deal follow-up guide](https://www.sim.ai/library/pipedrive-crm-ai-agent-deal-follow-up) provides a CRM-specific version.
 
 #### Runnable recipe: sales account research
 
@@ -267,6 +321,8 @@ An agent-assist workflow gives support representatives similar tool access witho
 Place human approval immediately before an agent takes a consequential or difficult-to-reverse action. Examples include issuing a refund, cancelling an account, changing an entitlement, or sending a binding response. Classification and context gathering can run automatically when a reviewer can correct their outputs before execution. See [what human in the loop means for AI agents](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents) for more approval patterns.
 
 In [Sim](https://www.sim.ai), an Agent block can classify the ticket and enrich it with CRM or bug-tracker data. Workflow branches can route routine questions to support and known incidents to engineering. A Human in the Loop block can pause refund execution and resume the run with submitted form fields. A downstream Condition can check the approval field before allowing the refund action. Sim’s run logs then record the blocks, actions, costs, and failures associated with each support request.
+
+The operational goal is a shorter, more consistent path from ticket creation to the correct owner. Track routing accuracy, reassignment rate, urgent cases missed, and median time to the first qualified owner. [Best AI Agents for Customer Support Ticket Triage and Routing](https://www.sim.ai/library/best-ai-agents-support-ticket-triage) provides platform-selection criteria for this pattern.
 
 #### Knowledge-grounded support answers
 
@@ -354,7 +410,7 @@ A runnable invoice exception agent starts only after a deterministic validation 
 
 An engineering and IT AI agent can summarize an incident or pull request, identify missing evidence, and propose the next check without bypassing repository or production protections.
 
-An IT helpdesk agent can diagnose common requests, retrieve approved instructions, execute low-risk actions, and escalate security-sensitive issues. It retrieves identity, device, service, and active-incident context, then selects an approved runbook and asks for missing diagnostics. Access changes, security indicators, and destructive actions require human review. The agent verifies whether a permitted action resolved the request and records the evidence, actions, outcome, and escalation status.
+An IT helpdesk agent can diagnose common requests, retrieve approved instructions, execute low-risk actions, and escalate security-sensitive issues. A Slack request can trigger retrieval from Confluence and creation or updating of a Jira ticket. Identity checks and explicit authorization rules must gate password resets, access grants, and device changes. The outcome is either a grounded answer or a complete ticket rather than an incomplete handoff; measure successful self-service, escalation accuracy, missing ticket fields, and unauthorized actions prevented. See [Best AI Agents for IT Helpdesk Teams](https://www.sim.ai/library/best-ai-agents-for-it-helpdesk-teams) and the [Confluence knowledge-base agent guide](https://www.sim.ai/library/confluence-knowledge-base-ai-agent-guide). It retrieves identity, device, service, and active-incident context, then selects an approved runbook and asks for missing diagnostics. Access changes, security indicators, and destructive actions require human review. The agent verifies whether a permitted action resolved the request and records the evidence, actions, outcome, and escalation status.
 
 An incident-coordination agent can collect alerts, assemble context, maintain a timeline, and route decisions to the incident commander. The workflow groups duplicate signals, drafts an impact summary, notifies responders, and records hypotheses, actions, owners, timestamps, and outcomes. The incident commander approves consequential remediation and external communication, and reviews the final timeline and follow-up actions.
 
@@ -363,6 +419,8 @@ A helpdesk triage agent resolves routine requests and sends complex cases to an 
 [Bank of America reports](https://newsroom.bankofamerica.com/content/newsroom/press-releases/2025/04/ai-adoption-by-bofa-s-global-workforce-improves-productivity--cl.html) that more than 90 percent of its employees use its internal virtual assistant for HR, payroll, benefits, and IT questions, while service desk calls have fallen by more than 50 percent. The deployment illustrates how an assistant can handle routine requests while people retain responsibility for exceptions.
 
 Coding agents apply a similar model to repetitive engineering work. A coding agent can inspect a repository, generate replacement modules, and run tests, but an engineer should review proposed changes before merging or deployment.
+
+A GitHub issue agent starts with a new or assigned issue, gathers repository context, searches related files and recent changes, identifies relevant tests, and produces an evidence-based implementation plan or proposed branch. Repository protections, tests, and human review remain authoritative. Measure accepted plans, incorrect file selection, test failures, review time, and reverted changes. [How to Use the GitHub MCP Server With AI Agents](https://www.sim.ai/library/github-mcp-server-ai-agents) covers setup and security controls.
 
 You can build the helpdesk pattern with a [Sim workflow](https://www.sim.ai/) that sends each incoming ticket to an Agent block. The agent routes the request by type and calls approved integrations. A Guardrails or Evaluator block can check the proposed response and tool output before the workflow closes a ticket. Because Guardrails reports whether checks passed or failed rather than stopping the run, a downstream Condition must route on that result. Low-confidence answers, failed tool calls, and sensitive access requests should route to a human reviewer instead.
 
@@ -377,6 +435,8 @@ A content repurposing agent can start when you upload a webinar transcript or pu
 An SEO research agent can run when you submit a topic or on a recurring schedule. It calls search and analytics tools, compares ranking pages with your existing coverage, and produces a brief with suggested questions and source material. A social listening agent follows a similar pattern. It monitors incoming mentions, groups related comments, checks known issues, and routes urgent items to the appropriate owner.
 
 In [Sim](https://www.sim.ai/), an Agent block can draw context from a Knowledge Base containing brand assets and approved content. Workflow branches can format the agent’s output for different channels, while a review step prevents unapproved claims or off-brand copy from reaching publication.
+
+For more marketing patterns that connect research, approved claims, distribution, and review, see [AI Agents for Marketing Automation: Building Agentic Workflows Beyond HubSpot and Zapier](https://www.sim.ai/library/ai-agents-for-marketing-automation).
 
 #### Customer research to campaign brief
 
@@ -420,6 +480,8 @@ Employment laws can limit how much authority you give the agent. [New York City�
 
 An employee-onboarding agent can translate an approved hire record into sequenced tasks across HR, IT, facilities, and the hiring team. It validates the role, manager, location, start date, and required access against an approved checklist, then creates tasks for accounts, equipment, training, workspace, and introductions. Authorized owners approve permissions and exceptions. The agent monitors completion, escalates blocked tasks, and gives the onboarding owner a readiness summary.
 
+A recruiting-coordination agent can also start when a candidate reaches the interview stage, read interviewer availability and scheduling constraints, propose valid times, create calendar events after confirmation, and update the applicant tracking system. It should escalate accommodation requests, unavailable interviewers, and policy exceptions. Track scheduling time, reschedules, calendar errors, and candidate escalations. An application-review variant can extract job-related evidence against a documented rubric while excluding protected attributes and unsupported inferences from its output. [7 Best AI Agents for Recruiting Teams in 2026](https://www.sim.ai/library/best-ai-agents-for-recruiting-teams) compares screening, scheduling, ATS, and outreach options.
+
 Onboarding agents can handle more of the workflow because a person has already approved the hire. A signed offer can trigger document generation, signature requests, and IT or facilities tickets. The agent can notify each owner as prerequisites finish. A location change, failed background check, delayed start, or missing signature should stop the workflow and route the case to a named person rather than prompt the agent to improvise.
 
 In [Sim](https://www.sim.ai/), an Agent block can receive documents and extract the required fields. A Human in the Loop step can gate every action that affects a candidate, while workflow branches can apply the correct onboarding sequence for each role or region. Run logs can record completed actions, failures, and approvals for later review.
@@ -429,6 +491,10 @@ In [Sim](https://www.sim.ai/), an Agent block can receive documents and extract 
 A finance AI agent can gather the records related to an invoice or policy exception and produce an evidence packet for an authorized reviewer.
 
 The agent can compare invoices with purchase orders, receiving records, vendor records, and deterministic policy thresholds. It should report mismatches without inventing a reason for them. Human review belongs before payment, rejection, bank-detail changes, journal entries, credit decisions, or policy exceptions.
+
+#### Failed-payment investigation
+
+A Stripe failure event can trigger an agent that retrieves account context, classifies the failure, checks previous attempts, and prepares an evidence-based recovery recommendation or customer-message draft. Credits, account changes, and unusual retries follow the organization's approval policy. Measure classification accuracy, review time, recovered payments, customer complaints, and actions blocked by policy. [How to Build a Stripe Billing and Failed-Payment AI Agent](https://www.sim.ai/library/stripe-billing-failed-payment-ai-agent-guide) provides the complete workflow pattern.
 
 #### Reconciliation mismatch investigation
 
@@ -442,13 +508,17 @@ A reviewable output includes the contract type, supplied jurisdiction, missing a
 
 A legal matter-intake agent can collect request details, search approved records for potential conflicts, organize documents, and route the matter to an authorized legal professional. Structured intake captures parties, jurisdictions, deadlines, matter type, and relevant files. The agent flags missing or time-sensitive information, but a qualified legal professional decides conflicts, legal conclusions, and matter acceptance before the matter opens with its required access controls.
 
+### Operations: project-maintenance agents
+
+A project-operations agent can start with approved meeting notes, identify explicit decisions and commitments, and propose tasks, owners, due dates, dependencies, and status changes in Asana or monday.com. The agent requests confirmation when an owner or deadline is ambiguous and never invents a commitment or silently changes a critical deadline. The outcome is a more current project system; measure accepted updates, incorrect assignments, stale tasks, and changes reversed by project owners. See [AI Agents for Asana and monday.com Task Automation](https://www.sim.ai/library/ai-agents-asana-monday-task-automation) for platform and workflow details.
+
 ### Procurement: supplier comparison agents
 
 A procurement AI agent can normalize supplier responses into a requirements matrix and show the source passage behind each entry.
 
 The agent should treat missing information as missing rather than interpreting silence as compliance. Scoring rules, mandatory requirements, and conflicts of interest should remain explicit and reviewable. Human review belongs before supplier shortlisting, negotiation, award, rejection, or policy changes.
 
-A vendor-review agent can collect due-diligence documents, check required fields, summarize risk evidence, and route the request to the correct reviewers. The workflow chooses a checklist based on service type and data access, gathers the business purpose, contract, security material, and compliance responses, and identifies missing, expired, or contradictory evidence. Procurement, security, privacy, finance, or legal reviewers make the decision and record its conditions, evidence, and renewal date.
+A vendor-review agent can collect due-diligence documents, check required fields, summarize risk evidence, and route the request to the correct reviewers. The trigger is a completed supplier submission; the tools are the approved rubric, document store, procurement system, and policy records. The output should quote or reference the source for every material price component, renewal term, security claim, service commitment, and exception. Legal and procurement reviewers resolve uncertain clauses and make the supplier decision. Measure extraction accuracy, missing clauses, reviewer corrections, and evaluation cycle time. [AI Agents in Procurement: A Comprehensive Guide](https://www.sim.ai/library/ai-agents-in-procurement) covers additional controls and use cases. The workflow chooses a checklist based on service type and data access, gathers the business purpose, contract, security material, and compliance responses, and identifies missing, expired, or contradictory evidence. Procurement, security, privacy, finance, or legal reviewers make the decision and record its conditions, evidence, and renewal date.
 
 #### Runnable recipe: supplier comparison
 
@@ -497,6 +567,8 @@ Industry labels do not remove the need for workflow-level risk analysis. Identif
 Ecommerce agents commonly handle either customer support or merchandising decisions. A support agent receives an order question, identifies the customer, checks the live order system, and returns the current status. For returns, the agent checks the purchase date and policy before approving an eligible request or routing an exception to a person.
 
 An ecommerce returns agent can validate a request, check order and policy data, recommend a resolution, and coordinate the approved return path. The agent retrieves the order, delivery, product, payment, and prior-return context, identifies policy exceptions, and proposes a return, replacement, store credit, troubleshooting step, or human review. Controlled financial actions and exceptions require approval before the workflow generates instructions or updates the order system. Categorized return reasons then support product and operations analysis.
+
+An order-exception agent can also start when an order becomes blocked, combine order, payment, inventory, and shipment records, explain the likely cause, and recommend an approved next action. Refunds, substitutions, and address changes require authorization under the merchant's policy. Measure resolution time, incorrect recommendations, repeat contacts, and policy exceptions. [6 Best AI Agent Options for Ecommerce Operations in 2026](https://www.sim.ai/library/best-ai-agents-ecommerce-operations-2026) discusses platform considerations.
 
 Klarna shows both the value and the limit of this approach. [Klarna reported](https://www.klarna.com/international/press/klarna-ai-assistant-handles-two-thirds-of-customer-service-chats-in-its-first-month/) that its AI assistant handled 2.3 million conversations in one month, reduced resolution time from 11 minutes to under two, and lowered repeat inquiries by 25 percent. Routine questions fit automation better than ambiguous complaints or unusual refund requests.
 
@@ -588,6 +660,8 @@ In Sim, the Human in the Loop block pauses a run and resumes with submitted form
 
 ## How to measure whether an AI agent works
 
+AI agent success should be measured with task quality, business outcomes, safety controls, and human effort rather than output volume alone. A practical evaluation set includes task completion, correct tool selection, factual accuracy and source coverage, human acceptance and correction rates, escalation accuracy, unauthorized actions prevented, time to resolution, cost per completed task, failure and retry rates, and the relevant customer or employee outcome. [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability) describes how to operate this measurement loop.
+
 An AI agent should be evaluated on task correctness, evidence quality, tool behavior, escalation behavior, and the safety of its failures before deployment. Measure business outcomes, decision quality, safety, reliability, cost, and human effort rather than output volume alone. Start with a baseline for the existing process, then track task completion, correction and escalation rates, latency, cost per completed case, review time, tool failures, policy violations, and the business metric named in the workflow's objective.
 
 Create a representative test set containing routine cases, incomplete inputs, conflicting records, policy exceptions, malicious instructions, tool failures, duplicate events, and cases that must escalate. For each case, record whether the agent selected the correct tools, used authorized evidence, followed the output schema, avoided unsupported claims, and routed the case correctly.
@@ -595,6 +669,16 @@ Create a representative test set containing routine cases, incomplete inputs, co
 Review results by case type because a strong average can hide failures on rare but consequential requests. Preserve enough run data to explain the context used, tools called, approvals received, errors encountered, and final outcome. Production monitoring should inspect traces, tool calls, outputs, reviewer overrides, and failure categories rather than relying only on user satisfaction. That evidence supports both debugging individual runs and evaluating whether the agent improves over time.
 
 ## Choosing a pattern versus building it yourself
+
+### Key facts at a glance
+
+As of October 2026, Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in apps/sim/ee is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). [Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can use Ollama, vLLM, LM Studio, or LiteLLM without Enterprise. On Sim Cloud, [workspace BYOK is available on every plan, organization-level keys require Pro for Teams, Max for Teams, or Enterprise, and hosted model keys cost about 1.1 times provider pricing](https://docs.sim.ai/platform/costs).
+
+As of October 2026, n8n offers cloud and self-hosted workflow automation. Its repository uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license rather than an OSI-approved open-source license, and [n8n Cloud pricing](https://n8n.io/pricing/) uses monthly workflow executions as its billing unit.
+
+As of October 2026, Zapier is a hosted automation product with AI features, and [Zapier plans](https://zapier.com/pricing) use tasks as a primary unit for automated actions.
+
+Sim is a practical choice when a team wants model calls, tool use, branching, human review, and deployment in one visual workflow builder. n8n is a strong incumbent for teams centered on broad workflow automation and execution-based billing. Zapier is a strong incumbent for teams that prioritize a large hosted app-automation ecosystem and familiar trigger-and-action patterns. For a direct comparison, see [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](https://www.sim.ai/library/openai-vs-n8n-vs-sim).
 
 Sim, n8n, Zapier, and Make are implementation options rather than a ranking for any single use case, and n8n may be the incumbent where a team already has its credentials, integrations, and operational experience. For broad platform selection, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
