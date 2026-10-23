@@ -66,6 +66,13 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
+const completedRun = {
+  executionData: null,
+  endedAt: new Date('2026-08-05T12:00:01.000Z'),
+  totalDurationMs: 1000,
+  costTotal: '0.75',
+}
+
 const workflowRecord = {
   id: 'log-1',
   workflowId: 'workflow-1',
@@ -140,7 +147,7 @@ describe('readExecutionSnapshot spend projection', () => {
     queueSelects(
       [workflowRecord],
       [{ id: 'snapshot-1', stateData: { blocks: {} } }],
-      [{ executionData: null }]
+      [completedRun]
     )
 
     const result = await read(principal, 'run-1')
@@ -162,12 +169,28 @@ describe('readExecutionSnapshot spend projection', () => {
     queueSelects(
       [workflowRecord],
       [{ id: 'snapshot-1', stateData: { blocks: {} } }],
-      [{ executionData: null }]
+      [completedRun]
     )
 
     const result = await read(executorPrincipal, 'run-1')
 
     expect(result.executionMetadata.cost).toEqual({ total: 0.75 })
     expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('reports the timing and cost read with the execution data, not the earlier context', async () => {
+    queueSelects(
+      [{ ...workflowRecord, endedAt: null, totalDurationMs: null, costTotal: null }],
+      [{ id: 'snapshot-1', stateData: { blocks: {} } }],
+      [completedRun]
+    )
+
+    const result = await read(executorPrincipal, 'run-1')
+
+    expect(result.executionMetadata).toMatchObject({
+      endedAt: '2026-08-05T12:00:01.000Z',
+      totalDurationMs: 1000,
+      cost: { total: 0.75 },
+    })
   })
 })

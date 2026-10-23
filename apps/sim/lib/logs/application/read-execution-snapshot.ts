@@ -138,16 +138,23 @@ async function readSnapshotStates(
 }
 
 /**
- * Read here, after authorization, rather than with the context: a caller the
- * use case refuses never fetches the run's execution data.
+ * The run's execution data with the fields a completion write changes alongside it,
+ * read in one statement after authorization: a caller the use case refuses never
+ * fetches the payload, and a run finishing mid-request cannot pair new data with
+ * stale timing or cost.
  */
-async function readExecutionData(executionId: string): Promise<unknown> {
+async function readRunCompletion(executionId: string) {
   const [row] = await db
-    .select({ executionData: workflowExecutionLogs.executionData })
+    .select({
+      executionData: workflowExecutionLogs.executionData,
+      endedAt: workflowExecutionLogs.endedAt,
+      totalDurationMs: workflowExecutionLogs.totalDurationMs,
+      costTotal: workflowExecutionLogs.costTotal,
+    })
     .from(workflowExecutionLogs)
     .where(eq(workflowExecutionLogs.executionId, executionId))
     .limit(1)
-  return row?.executionData ?? null
+  return row
 }
 
 function collectChildSnapshotIds(traceSpans: TraceSpan[]): string[] {
@@ -215,8 +222,10 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
     }
 
     input.signal?.throwIfAborted()
+    const completion = await readRunCompletion(record.executionId)
+    if (!completion) throw new OrchestrationError('not_found', 'Workflow execution not found')
     const executionData = (await materializeExecutionData(
-      (await readExecutionData(record.executionId)) as Record<string, unknown> | null,
+      completion.executionData as Record<string, unknown> | null,
       {
         workspaceId: context.workspaceId,
         workflowId: record.workflowId,
@@ -246,9 +255,9 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
       executionMetadata: {
         trigger: record.trigger,
         startedAt: record.startedAt.toISOString(),
-        endedAt: record.endedAt?.toISOString(),
-        totalDurationMs: record.totalDurationMs,
-        cost: projectCostTotal(record.costTotal, projection),
+        endedAt: completion.endedAt?.toISOString(),
+        totalDurationMs: completion.totalDurationMs,
+        cost: projectCostTotal(completion.costTotal, projection),
       },
     }
   },
