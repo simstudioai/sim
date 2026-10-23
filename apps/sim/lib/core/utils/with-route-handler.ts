@@ -9,6 +9,7 @@ import { FILE_DELIVERY_CSP_PATH_PATTERN, getMainCSPPolicy } from '@/lib/core/sec
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_CALL_CHAIN_DEPTH, parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { trackInFlightRequest } from '@/lib/monitoring/in-flight-requests'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 
 const fileDeliveryPath = new RegExp(`^${FILE_DELIVERY_CSP_PATH_PATTERN}$`)
@@ -178,6 +179,7 @@ export function withRouteHandler<T>(
       callChain: callChainFor(request),
     }
 
+    const settleInFlight = trackInFlightRequest(requestId, method, path)
     return runWithRequestContext(requestContext, async () => {
       let response: NextResponse | Response
       try {
@@ -242,6 +244,6 @@ export function withRouteHandler<T>(
 
       applyResponseHeaders(response, request, requestId)
       return response
-    })
+    }).finally(settleInFlight)
   }
 }

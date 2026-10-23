@@ -213,6 +213,12 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@napi-rs ./node_modules
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
+# Spreadsheet parse worker bundle (build:xlsx-worker, run by `bun run build`;
+# under the build task's declared `dist/**` output so a Turbo cache hit restores it).
+# Without it parsing falls back in-process, so a missing file fails the image
+# build here instead of silently putting XLSX parsing back on the event loop.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/xlsx-worker.mjs ./apps/sim/dist/xlsx-worker.mjs
+
 # Copy the pre-built sandbox library bundles (pptxgenjs, docx, pdf-lib) that
 # run inside the V8 isolate. Committed into the repo; see
 # apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.

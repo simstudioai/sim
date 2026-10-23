@@ -92,7 +92,7 @@ upstream release provides equivalent font handling and these tests pass.
 
 # Next.js application Vary preservation
 
-`next@16.4.0` replaces application `Vary` values when the Node App Page handler
+`next@16.4.1` replaces application `Vary` values when the Node App Page handler
 sets its router cache dimensions. The docs proxy's `Vary: Accept` therefore
 vanishes from the final HTML response, allowing downstream caches to confuse
 HTML with negotiated Markdown.

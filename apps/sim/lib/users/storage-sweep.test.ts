@@ -122,6 +122,7 @@ const DOOMED_KEYS = [
   'table-snapshots/wsdoomed1/table-1/v1-hash.csv',
   'copilot-doc-compiled/wsdoomed1/hash.pdf',
   'workspace-logos/wsdoomed1/logo.png',
+  'knowledge-import/wsdoomed1/import-1/bundle.simkb.zip',
 ]
 
 const NEIGHBOR_KEYS = [

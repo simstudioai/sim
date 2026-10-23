@@ -1,0 +1,199 @@
+---
+slug: langchain-vs-langgraph
+title: 'LangChain vs LangGraph: What’s the Difference and Which Should You Use?'
+description: 'Compare LangChain vs LangGraph for AI agents, including abstraction level, state, control flow, code examples, and when to use each framework.'
+seoTitle: 'LangChain vs LangGraph: Key Differences'
+date: 2026-10-22
+updated: 2026-10-22
+authors:
+  - andrew
+readingTime: 6
+tags: [LangChain, LangGraph, AI Agents, Sim]
+ogImage: /library/langchain-vs-langgraph/cover.jpg
+draft: false
+faq:
+  - q: "Is LangGraph part of LangChain?"
+    a: "LangGraph is a separate framework in the LangChain ecosystem, not merely a LangChain class or optional configuration. Developers can install and use LangGraph without LangChain, while current LangChain agents use LangGraph as their underlying orchestration runtime."
+  - q: "Does LangChain use LangGraph?"
+    a: "LangChain uses LangGraph to power its current agent runtime. LangChain’s documentation says its agents are built on top of LangGraph, which provides durable execution, persistence, and human-in-the-loop support."
+  - q: "Can you use LangGraph without LangChain?"
+    a: "LangGraph can be used without LangChain. A LangGraph node can run ordinary Python code, call a model through another SDK, access an internal service, or perform deterministic application logic without using LangChain’s agent or integration abstractions."
+  - q: "Is LangGraph better than LangChain for production agents?"
+    a: "LangGraph is better for production agents that require custom state transitions and explicit orchestration, while LangChain is better when its prebuilt agent architecture fits the production requirement. Both can support production applications because LangChain agents themselves run on LangGraph."
+  - q: "Is LangChain or LangGraph easier for beginners?"
+    a: "LangChain is usually easier for beginners who want to build a standard tool-calling agent because it starts from a higher-level agent API. LangGraph requires developers to reason directly about state, nodes, edges, and routing, but that explicit structure can make complex behavior easier to understand and test."
+  - q: "Do you need both LangChain and LangGraph?"
+    a: "LangChain users do not usually need to define a LangGraph manually because LangChain’s agent runtime already uses LangGraph. Developers should work directly with LangGraph only when they need more control over graph structure, state updates, routing, interruptions, or deterministic execution than the higher-level LangChain API provides."
+---
+
+## TL;DR
+
+LangChain is the higher-level choice for building agents quickly, while LangGraph is the lower-level choice for orchestrating stateful workflows with explicit control over execution. This guide is published by Sim, the open-source AI workspace for building, deploying, and managing AI agents.
+
+The two projects are complementary rather than mutually exclusive. As of October 2026, [LangChain’s official documentation](https://docs.langchain.com/oss/python/langchain/overview) says that LangChain agents are built on top of LangGraph, while [LangGraph’s documentation](https://docs.langchain.com/oss/python/langgraph/overview) says LangGraph can be used without LangChain.
+
+**The short answer:** Start with LangChain when its standard agent loop and integrations fit your application. Use LangGraph directly when you need to define the graph, state transitions, branches, retries, pauses, or deterministic steps yourself.
+
+## What is the difference between LangChain and LangGraph?
+
+LangChain provides higher-level agent abstractions and integrations, whereas LangGraph provides lower-level orchestration for long-running, stateful agents and workflows.
+
+LangChain is designed to help developers assemble model calls, tools, middleware, and agent behavior without implementing the orchestration runtime from scratch. Its current [agent API](https://docs.langchain.com/oss/python/langchain/agents) exposes a prebuilt agent loop through `create_agent`, with customization available through tools, prompts, middleware, and model configuration.
+
+LangGraph models an application as state that moves through nodes and edges. Developers define what each node does, which node runs next, how state is updated, and where execution can branch or stop. Its [Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) centers on constructs such as `StateGraph`, nodes, edges, reducers, and compiled graphs.
+
+This distinction is about abstraction level, not whether one project can support production agents. LangChain inherits LangGraph capabilities because its agents run on LangGraph, while direct LangGraph use exposes more of those orchestration decisions to application code.
+
+## How are LangChain and LangGraph related?
+
+LangChain agents run on LangGraph, but LangGraph remains a separately installable framework that developers can use without LangChain.
+
+As of October 2026, the [LangChain v1 overview](https://docs.langchain.com/oss/python/langchain/overview) says that LangChain’s agents are built on top of LangGraph, which lets them use LangGraph’s durable execution, human-in-the-loop support, persistence, and more. Developers get these capabilities through `create_agent` without defining every graph node themselves.
+
+LangGraph sits below that agent abstraction. A team can use LangGraph directly to create an agent loop, a deterministic workflow, or a hybrid graph in which some nodes call models and other nodes execute ordinary application logic.
+
+A useful mental model is:
+
+- LangChain supplies a ready-made agent architecture and a broad interface for models and tools.
+- LangGraph supplies the orchestration primitives and runtime beneath that architecture.
+- LangChain with LangGraph is appropriate when a prebuilt agent is a good starting point but lower-level runtime features are still needed.
+- LangGraph without LangChain is appropriate when the application needs a custom graph and does not need LangChain’s higher-level agent abstraction.
+
+## How do LangChain and LangGraph compare?
+
+LangChain is optimized for faster agent development, while LangGraph is optimized for explicit control over state and execution flow.
+
+| Criterion | LangChain | LangGraph |
+|---|---|---|
+| Primary role | [High-level framework](https://docs.langchain.com/oss/python/langchain/overview) for agents, models, tools, and middleware | [Low-level orchestration framework](https://docs.langchain.com/oss/python/langgraph/overview) and runtime for stateful agents and workflows |
+| Default abstraction | [Prebuilt agent loop](https://docs.langchain.com/oss/python/langchain/agents) through `create_agent` | [Developer-defined graph](https://docs.langchain.com/oss/python/langgraph/graph-api) with state, nodes, and edges |
+| Best fit | [Standard tool-calling agents](https://docs.langchain.com/oss/python/langchain/agents) and rapid development | [Custom control flow](https://docs.langchain.com/oss/python/langgraph/graph-api), deterministic steps, branching, loops, and long-running execution |
+| State management | Available through the [LangGraph runtime](https://docs.langchain.com/oss/python/langchain/overview) beneath LangChain agents | Defined directly in the [graph’s state schema and updates](https://docs.langchain.com/oss/python/langgraph/graph-api) |
+| Control over execution | Customizable through [tools, prompts, models, and middleware](https://docs.langchain.com/oss/python/langchain/agents) | Explicitly controlled through [nodes, edges, routing functions, and commands](https://docs.langchain.com/oss/python/langgraph/graph-api) |
+| Integrations | Higher-level [model and tool integrations](https://docs.langchain.com/oss/python/langchain/overview) are a core part of LangChain | Can call any Python function or service from a node; [LangChain components are optional](https://docs.langchain.com/oss/python/langgraph/overview) |
+| Can be used alone? | No; [LangGraph is a required dependency](https://docs.langchain.com/oss/python/langchain/overview) of its agent runtime | Yes; [LangChain is not required](https://docs.langchain.com/oss/python/langgraph/overview) |
+| Open-source license | [MIT License](https://github.com/langchain-ai/langchain/blob/master/LICENSE) | [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) |
+
+### What are the key LangChain and LangGraph facts at a glance?
+
+LangChain and LangGraph are self-managed open-source libraries. Developers separately cover the models, APIs, infrastructure, and commercial services they choose to use.
+
+- **LangChain:** As of October 2026, LangChain is available under the [MIT License](https://github.com/langchain-ai/langchain/blob/master/LICENSE).
+- **LangGraph:** As of October 2026, LangGraph is available under the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE).
+
+These statements concern the open-source libraries, not separate hosted observability, evaluation, or deployment services. Model providers and infrastructure vendors apply their own pricing.
+
+## What does LangChain and LangGraph code look like?
+
+LangChain code usually starts from a prebuilt agent, while LangGraph code explicitly declares state, nodes, and edges before compiling the graph.
+
+### What does a basic LangChain agent look like?
+
+LangChain can create a tool-calling agent with `create_agent` and invoke it using a message-based input.
+
+```python
+from langchain.agents import create_agent
+
+
+def get_weather(city: str) -> str:
+    """Return the weather for a supported city."""
+    weather = {
+        "Berlin": "18°C and clear",
+        "London": "15°C with light rain",
+    }
+    return weather.get(city, "Weather is unavailable for that city.")
+
+
+agent = create_agent(
+    model="openai:gpt-5.5",
+    tools=[get_weather],
+    system_prompt="You are a concise weather assistant.",
+)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What is the weather in Berlin?"}]}
+)
+
+print(result["messages"][-1].content)
+```
+
+This example delegates the tool-selection loop to LangChain. The model identifier is illustrative and requires the matching provider package, credentials, and an available model. The current interface is documented in [LangChain agents](https://docs.langchain.com/oss/python/langchain/agents).
+
+### What does a basic LangGraph workflow look like?
+
+LangGraph can define a typed state and move that state through an explicitly declared node.
+
+```python
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+
+class TextState(TypedDict):
+    text: str
+    character_count: int
+
+
+def count_characters(state: TextState):
+    return {"character_count": len(state["text"])}
+
+
+builder = StateGraph(TextState)
+builder.add_node("count_characters", count_characters)
+builder.add_edge(START, "count_characters")
+builder.add_edge("count_characters", END)
+
+graph = builder.compile()
+result = graph.invoke({"text": "LangGraph", "character_count": 0})
+
+print(result["character_count"])
+```
+
+This example makes the execution path visible in code: the graph starts, runs one node, updates state, and ends. A real agent graph can add model calls, tools, conditional edges, loops, persistence, interrupts, and multiple nodes using the same core model.
+
+## When should you use LangChain instead of LangGraph?
+
+LangChain is the better starting point when a [conventional tool-calling agent](https://docs.langchain.com/oss/python/langchain/agents) meets the application’s needs and development speed matters more than defining every state transition.
+
+Choose LangChain when:
+
+- You want to create an agent from a model, tools, and a system prompt.
+- You prefer a prebuilt agent loop over writing graph topology.
+- You need LangChain’s model and tool interfaces.
+- You expect to customize behavior through middleware rather than replace the entire runtime structure.
+- You want underlying LangGraph runtime capabilities without managing graph nodes and edges directly.
+
+### When should you use LangGraph instead of LangChain?
+
+LangGraph is the better choice when application logic must [explicitly control state and routing](https://docs.langchain.com/oss/python/langgraph/graph-api), pauses, loops, or the order in which deterministic and model-driven steps run.
+
+Choose LangGraph directly when:
+
+- The workflow has custom branches, loops, parallel paths, or stopping conditions.
+- State must persist across steps or execution must resume after an interruption.
+- Human review is a defined transition in the application’s control flow.
+- Some steps must remain deterministic rather than being selected by an agent.
+- The team needs to inspect and test the orchestration structure as application code.
+- A prebuilt agent loop would hide decisions the team needs to control.
+
+### Should you use LangChain and LangGraph together?
+
+LangChain and LangGraph should be used together when LangChain’s agent abstraction is useful but the application also needs [LangGraph-backed persistence, streaming, or runtime customization](https://docs.langchain.com/oss/python/langchain/overview).
+
+For many projects, developers do not need to choose only one package conceptually: LangChain’s current agents already use LangGraph underneath. The practical decision is whether to work primarily through LangChain’s higher-level API or define the graph directly.
+
+### When should you choose a visual builder instead?
+
+Sim, the open-source AI workspace for building, deploying, and managing AI agents, fits teams that want a visual builder, 270+ integrations, and deployment without maintaining framework-level orchestration code.
+
+That option fits a different operating model from LangChain or LangGraph: the primary users may include technical and non-technical collaborators, and the team may prefer visual workflow ownership over a Python-defined application graph.
+
+n8n is another incumbent for teams whose main requirement is node-based SaaS automation rather than a code-first agent framework; as of October 2026, n8n uses its [Sustainable Use License](https://docs.n8n.io/n8n-community-license), which n8n describes as a fair-code license.
+
+### What other LangChain and LangGraph comparisons should you read?
+
+LangChain and LangGraph buyers can use these related guides to compare adjacent frameworks, orchestration approaches, and agent-building platforms:
+
+- [Best LangChain and LangGraph Alternatives for Production AI Agent Workflows](https://www.sim.ai/library/langgraph-alternatives)
+- [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained)
+- [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026)
+- [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026)

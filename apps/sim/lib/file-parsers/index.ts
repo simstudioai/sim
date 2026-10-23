@@ -26,10 +26,23 @@ import type {
   SupportedFileType,
 } from '@/lib/file-parsers/types'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
+import { parseXlsxBufferOffThread } from '@/lib/file-parsers/xlsx-worker-pool'
 import { parseYAML, parseYAMLBuffer } from '@/lib/file-parsers/yaml-parser'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('FileParser')
+
+const xlsxParser = new XlsxParser()
+
+/**
+ * Spreadsheet buffers parse on a worker thread (see `xlsx-worker-pool.ts`); the
+ * in-process parser stays the fallback and the `parseFile` path.
+ */
+const SPREADSHEET_PARSER: FileParser = {
+  parseFile: (filePath, options) => xlsxParser.parseFile(filePath, options),
+  parseBuffer: (buffer, options = {}) =>
+    parseXlsxBufferOffThread(buffer, options, () => xlsxParser.parseBuffer(buffer, options)),
+}
 
 /**
  * Extension → parser. Several extensions deliberately share one parser because
@@ -65,12 +78,12 @@ const PARSERS = new Map<string, FileParser>([
   ['dotx', new DocxParser()],
   ['txt', new TxtParser()],
   ['md', new MdParser()],
-  ['xlsx', new XlsxParser()],
-  ['xls', new XlsxParser()],
-  ['xlsm', new XlsxParser()],
-  ['xlsb', new XlsxParser()],
-  ['xltx', new XlsxParser()],
-  ['ods', new XlsxParser()],
+  ['xlsx', SPREADSHEET_PARSER],
+  ['xls', SPREADSHEET_PARSER],
+  ['xlsm', SPREADSHEET_PARSER],
+  ['xlsb', SPREADSHEET_PARSER],
+  ['xltx', SPREADSHEET_PARSER],
+  ['ods', SPREADSHEET_PARSER],
   ['pptx', new PptxParser()],
   ['pptm', new PptxParser()],
   ['potx', new PptxParser()],

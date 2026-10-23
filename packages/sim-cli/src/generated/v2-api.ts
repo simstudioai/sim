@@ -967,6 +967,44 @@ export type BulkUpdateTableRowsResponse = {
   data: BulkUpdateTableRowsResponseRef0
 }
 
+/** `DELETE /api/v2/knowledge/imports/[importId]` */
+export type CancelKnowledgeImportParams = {
+  importId: string
+}
+
+export type CancelKnowledgeImportQuery = {
+  workspaceId: string
+}
+
+export type CancelKnowledgeImportHeaders = {
+  'upload-token'?: string
+}
+
+type CancelKnowledgeImportResponseRef0 = {
+  filename: string
+  message: string
+}
+
+type CancelKnowledgeImportResponseRef1 = {
+  id: string
+  workspaceId: string
+  status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+  knowledgeBaseId: string | null
+  documentsTotal: number
+  documentsImported: number
+  documentsFailed: number
+  vectorsReused: boolean
+  failures: Array<CancelKnowledgeImportResponseRef0>
+  error: string | null
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+}
+
+export type CancelKnowledgeImportResponse = {
+  data: CancelKnowledgeImportResponseRef1
+}
+
 /** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel` */
 export type CancelOrganizationAccessRequestParams = {
   organizationId: string
@@ -1701,6 +1739,44 @@ type CompleteKnowledgeDocumentUploadResponseRef1 = {
 
 export type CompleteKnowledgeDocumentUploadResponse = {
   data: CompleteKnowledgeDocumentUploadResponseRef1
+}
+
+/** `POST /api/v2/knowledge/imports/[importId]/complete` */
+export type CompleteKnowledgeImportParams = {
+  importId: string
+}
+
+export type CompleteKnowledgeImportQuery = {
+  workspaceId: string
+}
+
+export type CompleteKnowledgeImportHeaders = {
+  'upload-token': string
+}
+
+type CompleteKnowledgeImportResponseRef0 = {
+  filename: string
+  message: string
+}
+
+type CompleteKnowledgeImportResponseRef1 = {
+  id: string
+  workspaceId: string
+  status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+  knowledgeBaseId: string | null
+  documentsTotal: number
+  documentsImported: number
+  documentsFailed: number
+  vectorsReused: boolean
+  failures: Array<CompleteKnowledgeImportResponseRef0>
+  error: string | null
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+}
+
+export type CompleteKnowledgeImportResponse = {
+  data: CompleteKnowledgeImportResponseRef1
 }
 
 /** `POST /api/v2/projects/[projectId]/files/uploads/[uploadId]/complete` */
@@ -2461,6 +2537,98 @@ type CreateKnowledgeFolderResponseRef0 = {
 
 export type CreateKnowledgeFolderResponse = {
   data: CreateKnowledgeFolderResponseRef0
+}
+
+/** `POST /api/v2/knowledge/imports` */
+export type CreateKnowledgeImportQuery = Record<string, unknown>
+
+type CreateKnowledgeImportBodyRef0 = {
+  type: 'upload'
+  name: string
+  contentType: string
+  size: number
+}
+
+export type CreateKnowledgeImportBody = {
+  workspaceId: string
+  name?: string
+  source: CreateKnowledgeImportBodyRef0
+}
+
+type CreateKnowledgeImportResponseRef0 = {
+  filename: string
+  message: string
+}
+
+type CreateKnowledgeImportResponseRef1 = {
+  id: string
+  workspaceId: string
+  status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+  knowledgeBaseId: string | null
+  documentsTotal: number
+  documentsImported: number
+  documentsFailed: number
+  vectorsReused: boolean
+  failures: Array<CreateKnowledgeImportResponseRef0>
+  error: string | null
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+}
+
+type CreateKnowledgeImportResponseRef2 = {
+  method: 'put'
+  url: string
+  headers: Record<string, string>
+  expiresAt: string
+}
+
+type CreateKnowledgeImportResponseRef3 = {
+  method: 'multipart'
+  partSize: number
+  partCount: number
+}
+
+type CreateKnowledgeImportResponseRef4 = {
+  session: CreateKnowledgeImportResponseRef1
+  uploadToken: string
+  transfer: CreateKnowledgeImportResponseRef2 | CreateKnowledgeImportResponseRef3
+}
+
+export type CreateKnowledgeImportResponse = {
+  data: CreateKnowledgeImportResponseRef4
+}
+
+/** `POST /api/v2/knowledge/imports/[importId]/parts` */
+export type CreateKnowledgeImportPartUrlsParams = {
+  importId: string
+}
+
+export type CreateKnowledgeImportPartUrlsQuery = {
+  workspaceId: string
+}
+
+export type CreateKnowledgeImportPartUrlsBody = {
+  partNumbers: Array<number>
+}
+
+export type CreateKnowledgeImportPartUrlsHeaders = {
+  'upload-token': string
+}
+
+type CreateKnowledgeImportPartUrlsResponseRef0 = {
+  partNumber: number
+  url: string
+  headers: Record<string, string>
+  expiresAt: string
+}
+
+type CreateKnowledgeImportPartUrlsResponseRef1 = {
+  parts: Array<CreateKnowledgeImportPartUrlsResponseRef0>
+}
+
+export type CreateKnowledgeImportPartUrlsResponse = {
+  data: CreateKnowledgeImportPartUrlsResponseRef1
 }
 
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/tags` */
@@ -6198,6 +6366,44 @@ export type GetKnowledgeDocumentResponse = {
   data: GetKnowledgeDocumentResponseRef0
 }
 
+/** `GET /api/v2/knowledge/imports/[importId]` */
+export type GetKnowledgeImportParams = {
+  importId: string
+}
+
+export type GetKnowledgeImportQuery = {
+  workspaceId: string
+}
+
+export type GetKnowledgeImportHeaders = {
+  'upload-token'?: string
+}
+
+type GetKnowledgeImportResponseRef0 = {
+  filename: string
+  message: string
+}
+
+type GetKnowledgeImportResponseRef1 = {
+  id: string
+  workspaceId: string
+  status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+  knowledgeBaseId: string | null
+  documentsTotal: number
+  documentsImported: number
+  documentsFailed: number
+  vectorsReused: boolean
+  failures: Array<GetKnowledgeImportResponseRef0>
+  error: string | null
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+}
+
+export type GetKnowledgeImportResponse = {
+  data: GetKnowledgeImportResponseRef1
+}
+
 /** `GET /api/v2/logs/[runId]` */
 export type GetLogParams = {
   runId: string
@@ -6244,6 +6450,7 @@ type GetLogResponseRef1 = {
     toolCost?: number
   }
   relativeStartMs?: number
+  contentWithheld?: true
   toolCalls?: Array<{
     id?: string
     name?: string
@@ -9037,6 +9244,7 @@ type ListLogsResponseRef2 = {
     toolCost?: number
   }
   relativeStartMs?: number
+  contentWithheld?: true
   toolCalls?: Array<{
     id?: string
     name?: string
@@ -16122,6 +16330,24 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  cancelKnowledgeImport: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/imports/[importId]',
+    pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique knowledge-base import identifier.' },
+    responseMode: 'json',
+    summary: 'Cancel knowledge base import',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the import.' },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe:
+          'Signed upload control token returned when the import was created; required to read or cancel the import before its upload completes.',
+      },
+    },
+  },
   cancelOrganizationAccessRequest: {
     method: 'POST',
     path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel',
@@ -16315,6 +16541,24 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace that owns the knowledge base.',
       },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  completeKnowledgeImport: {
+    method: 'POST',
+    path: '/api/v2/knowledge/imports/[importId]/complete',
+    pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique knowledge-base import identifier.' },
+    responseMode: 'json',
+    summary: 'Complete knowledge base import upload',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the import.' },
     },
     headers: {
       'upload-token': {
@@ -16698,6 +16942,54 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the folder.',
       },
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
+    },
+  },
+  createKnowledgeImport: {
+    method: 'POST',
+    path: '/api/v2/knowledge/imports',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create knowledge base import',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the knowledge base.',
+      },
+      name: {
+        kind: 'string',
+        describe: "Name for the new knowledge base; defaults to the bundle's own name.",
+      },
+      source: {
+        kind: 'object',
+        required: true,
+        describe: 'Bundle archive uploaded through signed transfer instructions.',
+      },
+    },
+  },
+  createKnowledgeImportPartUrls: {
+    method: 'POST',
+    path: '/api/v2/knowledge/imports/[importId]/parts',
+    pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique knowledge-base import identifier.' },
+    responseMode: 'json',
+    summary: 'Create knowledge base import part URLs',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the import.' },
+    },
+    body: {
+      partNumbers: {
+        kind: 'array',
+        required: true,
+        describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
     },
   },
   createKnowledgeTag: {
@@ -18490,6 +18782,24 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  getKnowledgeImport: {
+    method: 'GET',
+    path: '/api/v2/knowledge/imports/[importId]',
+    pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique knowledge-base import identifier.' },
+    responseMode: 'json',
+    summary: 'Get knowledge base import',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the import.' },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe:
+          'Signed upload control token returned when the import was created; required to read or cancel the import before its upload completes.',
       },
     },
   },
@@ -20373,7 +20683,7 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 100,
         describe:
-          'Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
+          'Maximum log entries per page. When execution data is returned (`includeTraceSpans` or `includeFinalOutput`), a page holds at most 20 entries, and fewer when their stored traces are large; follow `nextCursor` for the rest. A page whose execution data is withheld by permissions is not capped. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
       },
       cursor: {
         kind: 'string',

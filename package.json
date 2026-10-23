@@ -137,8 +137,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.4.0",
-    "@next/env": "16.4.0",
+    "next": "16.4.1",
+    "@next/env": "16.4.1",
     "drizzle-orm": "^0.45.4",
     "postgres": "3.4.9",
     "minimatch": "10.2.6",
@@ -146,17 +146,21 @@
     "mermaid": "11.16.1",
     "zod": "4.3.6",
     "e2b": "2.50.0",
+    "@ai-sdk/provider-utils": "3.0.28",
     "@grpc/grpc-js": "1.14.6",
     "@hono/node-server": "1.19.15",
     "@xmldom/xmldom": "0.8.15",
     "axios": "1.20.0",
+    "baseline-browser-mapping": "2.11.28",
     "brace-expansion": "5.0.12",
     "deepmerge-ts": "8.0.0",
     "dompurify": "3.4.17",
     "engine.io": "6.6.11",
+    "fast-copy": "4.2.0",
     "fast-uri": "3.1.8",
     "follow-redirects": "1.16.1",
     "hono": "4.13.13",
+    "image-size": "2.0.4",
     "ip-address": "10.7.4",
     "joi": "17.13.8",
     "postcss": "8.5.30",
@@ -170,13 +174,14 @@
     "shell-quote": "1.12.0",
     "socket.io": "4.8.4",
     "socket.io-parser": "4.2.7",
+    "source-map-js": "1.2.2",
     "ws": "8.21.3"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "16.4.0",
-    "@next/swc-darwin-x64": "16.4.0",
-    "@next/swc-linux-arm64-gnu": "16.4.0",
-    "@next/swc-linux-x64-gnu": "16.4.0"
+    "@next/swc-darwin-arm64": "16.4.1",
+    "@next/swc-darwin-x64": "16.4.1",
+    "@next/swc-linux-arm64-gnu": "16.4.1",
+    "@next/swc-linux-x64-gnu": "16.4.1"
   },
   "devDependencies": {
     "@babel/parser": "7.29.9",
@@ -225,6 +230,6 @@
     "postgres@3.4.9": "patches/postgres@3.4.9.patch",
     "oracledb@7.0.1": "patches/oracledb@7.0.1.patch",
     "echarts@6.1.0": "patches/echarts@6.1.0.patch",
-    "next@16.4.0": "patches/next@16.4.0.patch"
+    "next@16.4.1": "patches/next@16.4.1.patch"
   }
 }

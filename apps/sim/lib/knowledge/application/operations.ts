@@ -309,8 +309,8 @@ export const knowledgeOperations = {
     })
   ),
   /**
-   * The only operation that brings a knowledge base into existence, so it is the
-   * only one `knowledge.create` governs — a group may be allowed to query,
+   * Brings a knowledge base into existence, which `knowledge.create` governs here
+   * and on the bundle-import steps alone — a group may be allowed to query,
    * populate and organize the bases it already has without opening new ones.
    */
   create: defineKnowledgeOperation(
@@ -949,6 +949,67 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
+      contentDelivery: 'none',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * A bundle import is one new knowledge base, split across requests because
+   * the archive is uploaded before it is read. Every step carries
+   * `knowledge.create` for the reason the upload steps share `knowledge.upload`:
+   * a group denied new bases must find no open step, cancel included.
+   */
+  importCreate: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.imports.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.create',
+      contentDelivery: 'none',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  importParts: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.imports.parts',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.create',
+      contentDelivery: 'none',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  importComplete: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.imports.complete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.create',
+      contentDelivery: 'none',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  importCancel: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.imports.cancel',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.create',
+      contentDelivery: 'none',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  importRead: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.imports.read',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
       contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })

@@ -9,6 +9,7 @@
  * on every page. Known limitation.
  */
 
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import type { PdfLine } from '@/lib/file-parsers/pdf-lines'
 
 export interface PdfPageLines {
@@ -101,25 +102,27 @@ interface KeyOccurrences {
   groups: Array<{ page: number; group: BandGroup }>
 }
 
-/** Returns each page's lines with repeated furniture and page numbers removed. */
-export function suppressFurniture(pages: readonly PdfPageLines[]): PdfLine[][] {
+/**
+ * Returns each page's lines with repeated furniture and page numbers removed,
+ * yielding to the event loop between pages.
+ */
+export async function suppressFurniture(pages: readonly PdfPageLines[]): Promise<PdfLine[][]> {
   const drops = pages.map(() => new Set<number>())
   const occurrences = new Map<string, KeyOccurrences>()
 
-  const interiorKeys = collectInteriorKeys(pages)
+  const interiorKeys = await collectInteriorKeys(pages)
 
-  pages.forEach((page, pageIndex) => {
+  for (const [pageIndex, page] of pages.entries()) {
+    await yieldWhenSliceExpires()
     const seen = new Set<string>()
-    const baselines = pageBaselines(page)
-    const pitch = baselinePitch(baselines)
+    const reachesInterior = textFlow(pageBaselines(page))
     for (const index of edgeLineIndices(page)) {
       if (sharesBaseline(page.lines, index)) continue
       const line = page.lines[index]
       if (!isPageNumber(line.text, pages.length)) continue
       const y = line.y as number
       const half: Band = y > (page.pageHeight as number) / 2 ? 'top' : 'bottom'
-      const folio = { band: half, indices: [index], text: line.text, y, height: line.height }
-      if (isInTextFlow(folio, baselines, pitch)) continue
+      if (reachesInterior(y, half)) continue
       drops[pageIndex].add(index)
     }
     for (const group of bandGroups(page)) {
@@ -132,7 +135,7 @@ export function suppressFurniture(pages: readonly PdfPageLines[]): PdfLine[][] {
       if (normalized.length === 0) continue
       if (interiorKeys.has(normalized)) continue
       if (isHyphenOrphan(page.lines, group)) continue
-      if (isInTextFlow(group, baselines, pitch)) continue
+      if (reachesInterior(group.y, group.band)) continue
       const key = `${group.band}|${normalized}`
       const entry = occurrences.get(key) ?? { pages: [], groups: [] }
       if (!seen.has(key)) {
@@ -142,7 +145,7 @@ export function suppressFurniture(pages: readonly PdfPageLines[]): PdfLine[][] {
       entry.groups.push({ page: pageIndex, group })
       occurrences.set(key, entry)
     }
-  })
+  }
 
   const threshold = furnitureThreshold(pages.length)
   for (const entry of occurrences.values()) {
@@ -158,11 +161,15 @@ export function suppressFurniture(pages: readonly PdfPageLines[]): PdfLine[][] {
     }
   }
 
-  return pages.map((page, pageIndex) =>
-    drops[pageIndex].size === 0
-      ? page.lines
-      : page.lines.filter((_, index) => !drops[pageIndex].has(index))
-  )
+  const filtered: PdfLine[][] = []
+  for (const [pageIndex, page] of pages.entries()) {
+    await yieldWhenSliceExpires()
+    const pageDrops = drops[pageIndex]
+    filtered.push(
+      pageDrops.size === 0 ? page.lines : page.lines.filter((_, index) => !pageDrops.has(index))
+    )
+  }
+  return filtered
 }
 
 /**
@@ -276,9 +283,10 @@ function bandGroups(page: PdfPageLines): BandGroup[] {
  * body positions — a table header on a page where the table starts mid-page —
  * is recognised as content rather than furniture.
  */
-function collectInteriorKeys(pages: readonly PdfPageLines[]): Set<string> {
+async function collectInteriorKeys(pages: readonly PdfPageLines[]): Promise<Set<string>> {
   const keys = new Set<string>()
   for (const page of pages) {
+    await yieldWhenSliceExpires()
     const { pageHeight } = page
     if (pageHeight === undefined || !(pageHeight > 0)) continue
     for (const line of page.lines) {
@@ -340,28 +348,57 @@ function baselinePitch(baselines: readonly Baseline[]): number {
 }
 
 /**
- * Whether a group reaches an interior line through steps no larger than a line
- * pitch. A running header, footer, or folio is cut off from the body by a
- * margin gap; a repeated table header runs straight into its rows, and a table
- * cell near the page edge sits at the row pitch.
+ * Precomputes, for every baseline of a page, whether the walk toward the page
+ * interior reaches an interior baseline before a gap wider than the line pitch.
+ * Each answer extends its neighbour's, so a page is resolved in one linear pass
+ * per direction instead of one walk per band line, which grows quadratically on
+ * a tall page packed with band baselines.
+ *
+ * @returns Whether the band line on baseline `y` reaches an interior line
+ * through steps no larger than a line pitch. A running header, footer, or folio
+ * is cut off from the body by a margin gap; a repeated table header runs
+ * straight into its rows, and a table cell near the page edge sits at the row
+ * pitch.
  */
-function isInTextFlow(group: BandGroup, baselines: readonly Baseline[], pitch: number): boolean {
-  let index = baselines.findIndex((entry) => Math.abs(entry.y - group.y) <= SAME_BASELINE_TOLERANCE)
-  if (index === -1) return false
-  const step = group.band === 'top' ? 1 : -1
-  while (true) {
-    const current = baselines[index]
-    const next = baselines[index + step]
-    if (!next) return false
-    const gap = Math.abs(current.y - next.y)
-    const limit = Math.max(
-      FLOW_PITCH_RATIO * pitch,
-      FLOW_HEIGHT_RATIO * Math.max(current.height, next.height)
-    )
-    if (gap > limit) return false
-    if (next.band === undefined) return true
-    index += step
+function textFlow(baselines: readonly Baseline[]): (y: number, band: Band) => boolean {
+  const pitch = baselinePitch(baselines)
+  const count = baselines.length
+  const joinsNext = (from: Baseline, to: Baseline): boolean =>
+    Math.abs(from.y - to.y) <=
+    Math.max(FLOW_PITCH_RATIO * pitch, FLOW_HEIGHT_RATIO * Math.max(from.height, to.height))
+  const reach = (step: 1 | -1): boolean[] => {
+    const reaches = new Array<boolean>(count).fill(false)
+    for (let k = 1; k < count; k++) {
+      const i = step === 1 ? count - 1 - k : k
+      const next = baselines[i + step]
+      reaches[i] = joinsNext(baselines[i], next) && (next.band === undefined || reaches[i + step])
+    }
+    return reaches
   }
+  const downward = reach(1)
+  const upward = reach(-1)
+
+  return (y, band) => {
+    const index = firstBaselineAt(baselines, y)
+    if (index === -1) return false
+    return band === 'top' ? downward[index] : upward[index]
+  }
+}
+
+/**
+ * Index of the first baseline within `SAME_BASELINE_TOLERANCE` of `y`, or -1.
+ * Baselines are sorted from top to bottom, so the matches are contiguous and
+ * the first is the first baseline not above `y + SAME_BASELINE_TOLERANCE`.
+ */
+function firstBaselineAt(baselines: readonly Baseline[], y: number): number {
+  let low = 0
+  let high = baselines.length
+  while (low < high) {
+    const mid = (low + high) >>> 1
+    if (baselines[mid].y > y + SAME_BASELINE_TOLERANCE) low = mid + 1
+    else high = mid
+  }
+  return low < baselines.length && baselines[low].y >= y - SAME_BASELINE_TOLERANCE ? low : -1
 }
 
 /** Whether a neighbouring line in reading order shares this line's baseline. */

@@ -1,15 +1,13 @@
-import { setTimeout as sleep } from 'node:timers/promises'
 import { type Command, Option } from 'commander'
-import { writeStderr } from '#sim-cli/output/io'
-import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type {
   CompleteTableImportResponse,
   CreateTableImportResponse,
   GetTableImportResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { apiCommand } from '../../runtime/called-operations'
 import { coerce, encodeFolderPath, type FieldSpec } from '../../runtime/request'
+import { watchImport } from '../../transfer/import-watch'
 import { contentTypeFor, localFile } from '../../transfer/local-file'
 import { finishUploadSession } from '../../transfer/upload-session'
 import { printProtocolResult } from './result'
@@ -28,9 +26,6 @@ interface ImportOptions {
   wait: boolean
   yes?: boolean
 }
-
-const IMPORT_POLL_MS = 1500
-const IMPORT_SETTLED = new Set(['completed', 'failed', 'canceled', 'expired'])
 
 function tableNameFrom(fileName: string): string {
   const stem = fileName.replace(/\.[^.]+$/, '')
@@ -89,32 +84,6 @@ function progressLine(job: TableImport): string {
   if (cells > 0) parts.push(`${cells} cells rejected`)
   const suffix = parts.length > 0 ? `, ${parts.join(', ')}` : ''
   return `${job.status}… ${job.rowsProcessed} rows${suffix}`
-}
-
-async function watchImport(
-  client: OperationClient<'getTableImport'>,
-  workspaceId: string,
-  job: TableImport
-): Promise<TableImport> {
-  let current = job
-  let reported: string | null = null
-
-  while (!IMPORT_SETTLED.has(current.status)) {
-    await sleep(IMPORT_POLL_MS)
-    const next = await client.request<{ data: TableImport }>('getTableImport', {
-      params: { importId: current.id },
-      query: { workspaceId },
-    })
-    current = next.data
-    const line = progressLine(current)
-    if (hasProgressTerminal() && line !== reported) {
-      reported = line
-      writeStderr(`\r${styles().dim(line)}\u001b[K`)
-    }
-  }
-
-  if (hasProgressTerminal() && reported !== null) writeStderr('\r\u001b[K')
-  return current
 }
 
 function validateTargetOptions(options: ImportOptions): boolean {
@@ -277,7 +246,17 @@ export function attachTableImport(tables: Command): void {
         return
       }
 
-      const finished = await watchImport(client, workspaceId, job)
+      const finished = await watchImport(
+        job,
+        async (current) =>
+          (
+            await client.request<{ data: TableImport }>('getTableImport', {
+              params: { importId: current.id },
+              query: { workspaceId },
+            })
+          ).data,
+        progressLine
+      )
       if (finished.status !== 'completed') {
         throw new SimApiError(
           `Import ${finished.status}${finished.error ? `: ${finished.error}` : ''}`,

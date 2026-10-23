@@ -44,6 +44,7 @@ import {
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
+  v2OptionalUploadTokenHeadersSchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
   v2UploadStatusSchema,
@@ -63,7 +64,10 @@ import {
   KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES,
   knowledgeDocumentUploadMetadataSchema,
 } from '@/lib/knowledge/upload-metadata'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+  MAX_WORKSPACE_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 
 /**
  * v2 knowledge contracts.
@@ -801,6 +805,206 @@ export const v2ExportKnowledgeBaseContract = defineRouteContract({
   params: v2KnowledgeBaseParamsSchema,
   query: v2ExportKnowledgeBaseQuerySchema,
   response: { mode: 'binary' },
+})
+
+const v2KnowledgeImportParamsSchema = z.object({
+  importId: z.string().min(1).describe('Unique knowledge-base import identifier.'),
+})
+
+const v2KnowledgeImportWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the import.'),
+  })
+  .strict()
+
+const v2KnowledgeImportOptionalUploadTokenHeadersSchema = v2OptionalUploadTokenHeadersSchema.extend(
+  {
+    'upload-token': v2OptionalUploadTokenHeadersSchema.shape['upload-token'].describe(
+      'Signed upload control token returned when the import was created; required to read or cancel the import before its upload completes.'
+    ),
+  }
+)
+
+const v2KnowledgeImportSourceSchema = z
+  .object({
+    type: z.literal('upload').describe('Upload-backed import discriminator.'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name is required')
+      .max(255)
+      .describe('Bundle filename, as produced by a knowledge base export.'),
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'contentType is required')
+      .max(255)
+      .describe('Bundle MIME type, normally application/zip.'),
+    size: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_WORKSPACE_FILE_SIZE)
+      .describe('Exact bundle size in bytes; the maximum is 5 GiB.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeImportSource',
+    title: 'Knowledge base import source',
+    description: 'Bundle archive uploaded through signed transfer instructions.',
+  })
+
+const v2CreateKnowledgeImportBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the knowledge base.'),
+    name: v1CreateKnowledgeBaseBodySchema.shape.name
+      .optional()
+      .describe("Name for the new knowledge base; defaults to the bundle's own name.")
+      .meta({ examples: ['Product Documentation'] }),
+    source: v2KnowledgeImportSourceSchema,
+  })
+  .strict()
+export type V2CreateKnowledgeImportBody = z.input<typeof v2CreateKnowledgeImportBodySchema>
+
+/**
+ * `uploading` until the archive's upload completes, then `processing` while the
+ * base and its documents are created. There is no `queued`: the durable record
+ * is written as the runner is dispatched.
+ */
+const v2KnowledgeImportStatusSchema = z.enum([
+  'uploading',
+  'processing',
+  'completed',
+  'failed',
+  'canceled',
+  'expired',
+])
+export type V2KnowledgeImportStatus = z.output<typeof v2KnowledgeImportStatusSchema>
+
+const v2KnowledgeImportFailureSchema = z
+  .object({
+    filename: z.string().describe('Filename of the document that was not imported.'),
+    message: z.string().describe('Why the document was not imported.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeImportFailure',
+    title: 'Knowledge import failure',
+    description: 'One bundle document the import could not bring over.',
+  })
+
+const v2KnowledgeImportSchema = z
+  .object({
+    id: z.string().describe('Unique knowledge-base import identifier.'),
+    workspaceId: z.string().describe('Workspace that owns the import.'),
+    status: v2KnowledgeImportStatusSchema.describe('Current import lifecycle state.'),
+    knowledgeBaseId: z
+      .string()
+      .nullable()
+      .describe('Knowledge base the import created, or null until it exists.'),
+    documentsTotal: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Documents the bundle carries; zero until its manifest has been read.'),
+    documentsImported: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Documents created so far. A document whose vectors could not be reused is indexed afterwards, as an upload is, so it may still be processing in the knowledge base.'
+      ),
+    documentsFailed: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Documents that could not be imported. Non-zero still allows `completed`.'),
+    vectorsReused: z
+      .boolean()
+      .describe(
+        "Whether the bundle's vectors matched this deployment's embedding model and were stored without re-embedding."
+      ),
+    failures: z
+      .array(v2KnowledgeImportFailureSchema)
+      .describe('Bounded sample of the documents that could not be imported.'),
+    error: z.string().nullable().describe('Terminal failure reason, or null.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 creation timestamp.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 last-update timestamp.'),
+    completedAt: v2TimestampSchema.nullable().describe('ISO 8601 completion timestamp, or null.'),
+  })
+  .meta({
+    id: 'V2KnowledgeImport',
+    title: 'Knowledge base import',
+    description: 'Durable lifecycle resource for importing a knowledge base bundle.',
+  })
+export type V2KnowledgeImport = z.output<typeof v2KnowledgeImportSchema>
+
+const v2CreateKnowledgeImportDataSchema = z
+  .object({
+    session: v2KnowledgeImportSchema.describe('Created import, waiting for its upload.'),
+    uploadToken: z.string().min(1).describe('Signed token for upload control requests.'),
+    transfer: v2UploadTransferSchema.describe('Signed bundle upload instructions.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2CreateKnowledgeImportData',
+    title: 'Create knowledge base import data',
+    description: 'Created import and the instructions for uploading its bundle.',
+  })
+export type V2CreateKnowledgeImportData = z.output<typeof v2CreateKnowledgeImportDataSchema>
+
+export const v2CreateKnowledgeImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/imports',
+  query: noInputSchema,
+  body: v2CreateKnowledgeImportBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CreateKnowledgeImportDataSchema),
+    status: 201,
+  },
+})
+
+/**
+ * Reads an import in any of its states. The optional upload token makes the
+ * upload phase readable: the durable record is written only once the upload
+ * completes, so without it the id the 201 returned would 404 until then.
+ */
+export const v2GetKnowledgeImportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/imports/[importId]',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2KnowledgeImportOptionalUploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeImportSchema) },
+})
+
+export const v2CancelKnowledgeImportContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/knowledge/imports/[importId]',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2KnowledgeImportOptionalUploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeImportSchema) },
+})
+
+export const v2CreateKnowledgeImportPartUrlsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/imports/[importId]/parts',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  body: v2PartUrlsBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
+})
+
+export const v2CompleteKnowledgeImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/imports/[importId]/complete',
+  params: v2KnowledgeImportParamsSchema,
+  query: v2KnowledgeImportWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeImportSchema) },
 })
 
 /**

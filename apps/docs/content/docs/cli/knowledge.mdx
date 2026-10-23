@@ -173,7 +173,7 @@ sim knowledge restore <knowledgeBaseId>
 
 API request and response schemas: [restoreKnowledgeBase](/api-reference/knowledge-bases/restoreKnowledgeBase).
 
-## Search and export
+## Search
 
 ### Search knowledge
 
@@ -200,6 +200,8 @@ sim knowledge search [options]
 </CommandTable>
 
 API request and response schemas: [searchKnowledge](/api-reference/knowledge-bases/searchKnowledge).
+
+## Export and import
 
 ### Export a knowledge base as a .simkb.zip bundle
 
@@ -230,6 +232,71 @@ sim knowledge export <knowledgeBaseId> [options]
 </CommandTable>
 
 API request and response schemas: [exportKnowledgeBase](/api-reference/knowledge-bases/exportKnowledgeBase).
+
+### Create a knowledge base from an exported .simkb.zip bundle
+
+```bash
+sim knowledge import <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Bundle archive written by `sim knowledge export` |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Name for the new knowledge base; defaults to the bundle's own name. |
+| `--no-wait` | No | Return once the import is started instead of watching it. |
+
+</CommandTable>
+
+API request and response schemas: [createKnowledgeImport](/api-reference/knowledge-bases/createKnowledgeImport), [createKnowledgeImportPartUrls](/api-reference/knowledge-bases/createKnowledgeImportPartUrls), [completeKnowledgeImport](/api-reference/knowledge-bases/completeKnowledgeImport), [cancelKnowledgeImport](/api-reference/knowledge-bases/cancelKnowledgeImport), [getKnowledgeImport](/api-reference/knowledge-bases/getKnowledgeImport).
+
+### Get knowledge base import
+
+```bash
+sim knowledge imports get <importId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique knowledge-base import identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getKnowledgeImport](/api-reference/knowledge-bases/getKnowledgeImport).
+
+### Stop a running import
+
+```bash
+sim knowledge imports cancel <importId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique knowledge-base import identifier. |
+
+</CommandTable>
+
+API request and response schemas: [cancelKnowledgeImport](/api-reference/knowledge-bases/cancelKnowledgeImport).
 
 ## Documents
 

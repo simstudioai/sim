@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { copilotConfirmBodySchema } from '@/lib/api/contracts/copilot'
 import { executeComputerToolOnClient } from '@/lib/mothership/tools/client/computer-tool-execution'
 import { clearUserData } from '@/stores'
+import '@/stores/reset-all-stores'
 
 const native = vi.hoisted(() => ({ execute: vi.fn(), cancel: vi.fn() }))
 vi.mock('@/lib/computer-use/transport', () => ({

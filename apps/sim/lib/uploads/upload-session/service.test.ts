@@ -334,6 +334,7 @@ describe('upload sessions', () => {
   it.each([
     ['knowledge_document', { knowledgeBaseId: 'kb-1' }],
     ['table_import', {}],
+    ['knowledge_import', {}],
     ['profile_picture', {}],
     ['workspace_logo', {}],
     ['execution_attachment', { workflowId: 'workflow-1', executionId: 'execution-1' }],
@@ -560,6 +561,7 @@ describe('upload sessions', () => {
   it.each([
     ['workspace_file', 'sim:workspace-files'],
     ['knowledge_document', 'sim:knowledge'],
+    ['knowledge_import', 'sim:knowledge'],
     ['table_import', 'sim:tables'],
   ] as const)(
     'binds %s Copilot uploads to the actual subject/chat/workspace across refreshed calls',

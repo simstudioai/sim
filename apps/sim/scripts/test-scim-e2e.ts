@@ -283,6 +283,24 @@ async function run() {
   )
 
   await check(
+    'Hosted SCIM rejects administration and bearer access after Enterprise entitlement ends',
+    async () => {
+      await admin(primary)
+      await scim(token, '/Users')
+      await sql`update subscription set status = 'canceled' where reference_id = ${primary.orgId}`
+      try {
+        const denied = await admin(primary, '', { expected: 403 })
+        assert.match(string(denied.body.error), /active enterprise subscription/)
+        await scim(token, '/Users', { expected: 401 })
+      } finally {
+        await sql`update subscription set status = 'active' where reference_id = ${primary.orgId}`
+      }
+      await admin(primary)
+      await scim(token, '/Users')
+    }
+  )
+
+  await check(
     'Protocol authentication, malformed JSON, and content-type errors are SCIM responses',
     async () => {
       const missing = await request('/api/scim/v2/Users', { expected: 401 })

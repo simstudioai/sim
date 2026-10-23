@@ -20,6 +20,7 @@ import {
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import { v2RunFileSchema } from '@/lib/api/contracts/v2/workflows'
+import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
@@ -594,7 +595,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       max: 1000,
       fallback: 100,
       outOfRange: 'clamp',
-      description: 'Maximum log entries per page.',
+      description: `Maximum log entries per page. When execution data is returned (\`includeTraceSpans\` or \`includeFinalOutput\`), a page holds at most ${MATERIALIZE_CONCURRENCY} entries, and fewer when their stored traces are large; follow \`nextCursor\` for the rest. A page whose execution data is withheld by permissions is not capped.`,
     }),
     ...v2LogSortFieldSchemas,
     /**

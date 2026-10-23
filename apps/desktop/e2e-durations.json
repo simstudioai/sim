@@ -1,0 +1,20 @@
+{
+  "background-executor.spec.ts": 131.12,
+  "browser-chrome.spec.ts": 15.28,
+  "browser-focus.spec.ts": 6.53,
+  "browser-page-dialogs.spec.ts": 11.81,
+  "browser-tools.spec.ts": 94.66,
+  "chat-panel.spec.ts": 31.08,
+  "check-report.spec.ts": 3.78,
+  "computer-use.spec.ts": 2.07,
+  "desktop-tools-live-sim.spec.ts": 0.0,
+  "local-files.spec.ts": 27.68,
+  "packaged-smoke.spec.ts": 0.0,
+  "password-autofill.spec.ts": 46.56,
+  "session-cookies.spec.ts": 11.45,
+  "smoke.spec.ts": 25.56,
+  "source-connect.spec.ts": 41.49,
+  "terminal-cancel.spec.ts": 199.76,
+  "update-notification.spec.ts": 19.55,
+  "updater.spec.ts": 2.48
+}

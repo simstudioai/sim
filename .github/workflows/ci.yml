@@ -8,8 +8,8 @@ name: ci
 # A repo variable, not a committed value: during a Blacksmith outage there is no
 # working CI to merge a switchover through. Only unset/'blacksmith' selects
 # Blacksmith; anything unrecognized selects GitHub so a typo can't queue jobs
-# against the provider you're escaping. Every runs-on and both composite actions
-# share this predicate and must change together.
+# against the provider you're escaping. Paid build/browser jobs and their cache actions share
+# this predicate. Task planning, the aggregate gate, HTTP acceptance and integration tests use free GitHub runners.
 #
 # GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
 # is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills

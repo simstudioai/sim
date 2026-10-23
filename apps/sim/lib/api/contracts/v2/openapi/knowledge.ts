@@ -2,12 +2,16 @@ import {
   v2AbortKnowledgeDocumentUploadContract,
   v2AddWorkspaceFilesToKnowledgeBaseContract,
   v2BulkUpdateKnowledgeDocumentsContract,
+  v2CancelKnowledgeImportContract,
   v2CompleteKnowledgeDocumentUploadContract,
+  v2CompleteKnowledgeImportContract,
   v2CreateKnowledgeBaseContract,
   v2CreateKnowledgeConnectorContract,
   v2CreateKnowledgeDocumentUploadContract,
   v2CreateKnowledgeDocumentUploadPartUrlsContract,
   v2CreateKnowledgeFolderContract,
+  v2CreateKnowledgeImportContract,
+  v2CreateKnowledgeImportPartUrlsContract,
   v2DeleteKnowledgeBaseContract,
   v2DeleteKnowledgeConnectorContract,
   v2DeleteKnowledgeDocumentContract,
@@ -16,6 +20,7 @@ import {
   v2GetKnowledgeBaseContract,
   v2GetKnowledgeConnectorContract,
   v2GetKnowledgeDocumentContract,
+  v2GetKnowledgeImportContract,
   v2ListKnowledgeBasesContract,
   v2ListKnowledgeConnectorDocumentsContract,
   v2ListKnowledgeConnectorsContract,
@@ -67,6 +72,7 @@ import { MAX_KNOWLEDGE_BUNDLE_DOCUMENTS } from '@/lib/knowledge/constants'
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const KNOWLEDGE_BASE_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 const KNOWLEDGE_CONNECTOR_ID = 'kc-9f8e7d6c'
+const KNOWLEDGE_IMPORT_ID = '5e8a2c4f-1d7b-4396-a0e3-8f6b2d9c1a47'
 
 const KNOWLEDGE_CONNECTOR_EXAMPLE = {
   id: KNOWLEDGE_CONNECTOR_ID,
@@ -229,6 +235,205 @@ const declaredRoutes = [
         'ExportKnowledgeBaseQuery',
         'Export knowledge base query',
         'Workspace scope and whether chunk vectors are included.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateKnowledgeImportContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.importCreate,
+      operationId: 'createKnowledgeImport',
+      summary: 'Create knowledge base import',
+      description:
+        'Start importing a knowledge base bundle produced by an export. The response carries signed transfer instructions for the archive; once its bytes are uploaded, complete the import to create the knowledge base. Bundles must be `.zip` archives of at most 5 GiB.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge', 'UsageLimitExceeded'],
+      success: { description: 'The created import and its upload instructions.' },
+    }),
+    {
+      query: v2CreateKnowledgeImportContract.query,
+      body: documentedSchema(
+        v2CreateKnowledgeImportContract.body,
+        'CreateKnowledgeImportRequest',
+        'Create knowledge base import request',
+        'Workspace, bundle archive, and an optional name for the new knowledge base.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            name: 'Product Documentation',
+            source: {
+              type: 'upload',
+              name: 'product-documentation.simkb.zip',
+              contentType: 'application/zip',
+              size: 7340032,
+            },
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateKnowledgeImportContract.response.schema,
+        'V2CreateKnowledgeImportResponse',
+        'Create knowledge base import response',
+        'The import and the instructions for uploading its bundle.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetKnowledgeImportContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.importRead,
+      operationId: 'getKnowledgeImport',
+      summary: 'Get knowledge base import',
+      description:
+        "Get an import's progress and outcome. During `uploading`, the signed upload token is required; omitting it returns `404`.",
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The requested knowledge base import.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetKnowledgeImportContract.params,
+        'GetKnowledgeImportParams',
+        'Get knowledge base import path parameters',
+        'Import selected for retrieval.',
+        [{ importId: KNOWLEDGE_IMPORT_ID }]
+      ),
+      query: documentedSchema(
+        v2GetKnowledgeImportContract.query,
+        'GetKnowledgeImportQuery',
+        'Get knowledge base import query',
+        'Workspace scope for the import.'
+      ),
+      headers: documentedSchema(
+        v2GetKnowledgeImportContract.headers,
+        'GetKnowledgeImportHeaders',
+        'Get knowledge base import headers',
+        'Optional signed upload control token for the import.'
+      ),
+      response: documentedSchema(
+        v2GetKnowledgeImportContract.response.schema,
+        'V2KnowledgeImportResponse',
+        'Knowledge base import response',
+        'A knowledge base import lifecycle resource.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CancelKnowledgeImportContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.importCancel,
+      operationId: 'cancelKnowledgeImport',
+      summary: 'Cancel knowledge base import',
+      description:
+        'Cancel an import. During its upload the transfer is aborted; while processing, it stops after the document in flight and the documents already imported stay in the new knowledge base. Settled imports return `409`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The canceled knowledge base import.' },
+    }),
+    {
+      params: documentedSchema(
+        v2CancelKnowledgeImportContract.params,
+        'CancelKnowledgeImportParams',
+        'Cancel knowledge base import path parameters',
+        'Import selected for cancellation.'
+      ),
+      query: documentedSchema(
+        v2CancelKnowledgeImportContract.query,
+        'CancelKnowledgeImportQuery',
+        'Cancel knowledge base import query',
+        'Workspace scope for the import.'
+      ),
+      headers: documentedSchema(
+        v2CancelKnowledgeImportContract.headers,
+        'CancelKnowledgeImportHeaders',
+        'Cancel knowledge base import headers',
+        'Optional signed upload control token for the import.'
+      ),
+      response: documentedSchema(
+        v2CancelKnowledgeImportContract.response.schema,
+        'V2CancelKnowledgeImportResponse',
+        'Cancel knowledge base import response',
+        'The canceled knowledge base import.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateKnowledgeImportPartUrlsContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.importParts,
+      operationId: 'createKnowledgeImportPartUrls',
+      summary: 'Create knowledge base import part URLs',
+      description:
+        'Create signed URLs for multipart bundle upload parts. Requires the `uploading` state; other states return `409`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The signed multipart upload URLs.' },
+    }),
+    {
+      params: documentedSchema(
+        v2CreateKnowledgeImportPartUrlsContract.params,
+        'CreateKnowledgeImportPartUrlsParams',
+        'Create knowledge base import part URLs path parameters',
+        'Import receiving uploaded parts.'
+      ),
+      query: documentedSchema(
+        v2CreateKnowledgeImportPartUrlsContract.query,
+        'CreateKnowledgeImportPartUrlsQuery',
+        'Create knowledge base import part URLs query',
+        'Workspace scope for the import.'
+      ),
+      headers: documentedSchema(
+        v2CreateKnowledgeImportPartUrlsContract.headers,
+        'CreateKnowledgeImportPartUrlsHeaders',
+        'Create knowledge base import part URLs headers',
+        'Signed upload control token for the import.'
+      ),
+      body: documentedSchema(
+        v2CreateKnowledgeImportPartUrlsContract.body,
+        'CreateKnowledgeImportPartUrlsRequest',
+        'Create knowledge base import part URLs request',
+        'Multipart part numbers for which signed URLs should be created.',
+        [{ partNumbers: [1, 2, 3] }]
+      ),
+      response: documentedSchema(
+        v2CreateKnowledgeImportPartUrlsContract.response.schema,
+        'V2CreateKnowledgeImportPartUrlsResponse',
+        'Create knowledge base import part URLs response',
+        'Signed URLs and required headers for each requested upload part.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CompleteKnowledgeImportContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.importComplete,
+      operationId: 'completeKnowledgeImport',
+      summary: 'Complete knowledge base import upload',
+      description:
+        "Verify the uploaded bundle and start creating the knowledge base under the same import ID. Vectors are reused when the bundle was embedded with this deployment's model; otherwise documents are re-indexed. Completion records an audit event. Repeating it returns the running import.",
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'UsageLimitExceeded'],
+      success: { description: 'The knowledge base import after its upload completed.' },
+    }),
+    {
+      params: documentedSchema(
+        v2CompleteKnowledgeImportContract.params,
+        'CompleteKnowledgeImportParams',
+        'Complete knowledge base import path parameters',
+        'Import whose upload should be completed.'
+      ),
+      query: documentedSchema(
+        v2CompleteKnowledgeImportContract.query,
+        'CompleteKnowledgeImportQuery',
+        'Complete knowledge base import query',
+        'Workspace scope for the import.'
+      ),
+      headers: documentedSchema(
+        v2CompleteKnowledgeImportContract.headers,
+        'CompleteKnowledgeImportHeaders',
+        'Complete knowledge base import headers',
+        'Signed upload control token for the import.'
+      ),
+      response: documentedSchema(
+        v2CompleteKnowledgeImportContract.response.schema,
+        'V2CompleteKnowledgeImportResponse',
+        'Complete knowledge base import response',
+        'The import lifecycle resource once processing has started.'
       ),
     }
   ),
