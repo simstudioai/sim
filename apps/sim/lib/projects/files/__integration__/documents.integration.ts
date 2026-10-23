@@ -137,14 +137,15 @@ async function fixture(permissionType: 'read' | 'write' = 'write') {
     },
   })
   const target = { projectId: ids.projectId, fileId: created.file.id }
+  const issuedAt = new Date()
   const principal: ResourceDelegatedPrincipal = {
     kind: 'resource_delegated',
     serviceId: 'realtime',
     subjectUserId: editorId,
     audience: 'sim:project-files',
     delegationId: generateId(),
-    issuedAt: new Date(),
-    expiresAt: new Date(Date.now() + 60_000),
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + 60_000),
     scope: {
       kind: 'entity',
       entityType: 'project',
