@@ -3053,6 +3053,13 @@
       "when": 1792721320645,
       "tag": "0436_knowledge_base_import",
       "breakpoints": true
+    },
+    {
+      "idx": 437,
+      "version": "7",
+      "when": 1792723218755,
+      "tag": "0437_scheduled_job_occurrences",
+      "breakpoints": true
     }
   ]
 }
