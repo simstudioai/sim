@@ -60,7 +60,7 @@ import {
   authorizeLifecycleContinuation,
   restoreBillingAdmission,
 } from '@/lib/mothership/request/lifecycle/admission'
-import type { DurableStreamKind } from '@/lib/mothership/request/lifecycle/recovery-config'
+import type { DurableStreamKind } from '@/lib/mothership/request/lifecycle/durable-run'
 import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'

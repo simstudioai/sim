@@ -30,8 +30,8 @@ import {
   claimRunController,
   planRecovery,
 } from '@/lib/mothership/request/lifecycle/controller-ownership'
+import { parseRecordedSecretAuthority } from '@/lib/mothership/request/lifecycle/durable-run'
 import {
-  parseRecordedSecretAuthority,
   RESOURCE_AUTHORING_VERSION,
   StreamRecoveryConfigSchema,
 } from '@/lib/mothership/request/lifecycle/recovery-config'

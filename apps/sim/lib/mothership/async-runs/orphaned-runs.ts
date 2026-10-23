@@ -30,7 +30,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/recovery-config'
+import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/durable-run'
 import {
   acquirePendingChatStream,
   getChatStreamLockOwners,

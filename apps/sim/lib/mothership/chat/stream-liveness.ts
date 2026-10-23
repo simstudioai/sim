@@ -3,7 +3,7 @@ import { copilotChats, copilotRuns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, notInArray } from 'drizzle-orm'
-import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/recovery-config'
+import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/durable-run'
 import { getChatStreamLockOwners } from '@/lib/mothership/request/session'
 
 const logger = createLogger('ChatStreamLiveness')
