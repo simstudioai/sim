@@ -165,6 +165,7 @@
       ]
     },
     "build": {
+      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
@@ -176,7 +177,12 @@
         "!**/CLAUDE.md",
         "!scripts/test-*-e2e.ts",
         "!vitest.*",
-        "!test-results/**"
+        "!test-results/**",
+        "!ee/README.md",
+        "!ee/access-requests/README.md",
+        "!ee/scim/TESTING.md",
+        "!lib/projects/README.md",
+        "!tools/pitchbook/__fixtures__/README.md"
       ]
     }
   }
