@@ -299,7 +299,7 @@ export function UsageConsumers({
           row={row}
           info={
             dimension === 'workspace' && !row.id
-              ? 'Usage without a workspace link, including organization-level activity and retained charges from permanently deleted workspaces. This view cannot distinguish between them.'
+              ? 'Includes organization-wide activity and charges from deleted workspaces.'
               : undefined
           }
           isMember={dimension === 'member'}
