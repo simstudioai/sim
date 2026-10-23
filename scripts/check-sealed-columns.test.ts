@@ -60,13 +60,13 @@ describe('check-sealed-columns', () => {
 
   it('flags physical column names in raw SQL outside tests and the backfill', () => {
     const source = [
-      `await db.execute(sql\`SELECT access_token FROM account WHERE id = \${id}\`)`,
+      `await db.execute(sql\`SELECT id FROM account WHERE id = \${id}\nAND access_token IS NULL\`)`,
       "sql.raw('refresh_token IS NULL')",
       `sql\`SELECT id FROM oauth_refresh_token WHERE grant = \${'refresh_token'}\``,
     ].join('\n')
     expect(found(source)).toEqual([
-      ['raw-column-name', 1],
       ['raw-column-name', 2],
+      ['raw-column-name', 3],
     ])
     expect(found(source, 'lib/file.integration.ts')).toEqual([])
     expect(found(source, 'packages/db/script-migrations/0037_seal_account_tokens.ts')).toEqual([])

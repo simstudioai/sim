@@ -143,12 +143,11 @@ export function findViolations(file: string, source: string, columns: SealedColu
   const names = new RegExp(`\\b(?:${columns.map((c) => escapeRegExp(c.columnName)).join('|')})\\b`)
   for (const pattern of [SQL_TEMPLATE, SQL_RAW]) {
     for (const match of source.matchAll(pattern)) {
-      const body = match[match.length - 1].replace(/\$\{[^}]*\}/g, (value) =>
-        ' '.repeat(value.length)
-      )
+      const capture = match[match.length - 1]
+      const bodyOffset = (match.index ?? 0) + match[0].lastIndexOf(capture)
+      const body = capture.replace(/\$\{[^}]*\}/g, (value) => ' '.repeat(value.length))
       const hit = names.exec(body)
-      if (hit)
-        report('raw-column-name', (match.index ?? 0) + match[0].indexOf(body) + hit.index, hit[0])
+      if (hit) report('raw-column-name', bodyOffset + hit.index, hit[0])
     }
   }
   return violations
