@@ -31,7 +31,7 @@ import {
 } from '@/providers/bedrock/utils'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -1060,7 +1060,7 @@ export const bedrockProvider: ProviderConfig = {
       if (
         isAbortError(error) ||
         request.abortSignal?.aborted ||
-        isConversationContextError(error)
+        isPermanentGenerationError(error)
       ) {
         throw error
       }

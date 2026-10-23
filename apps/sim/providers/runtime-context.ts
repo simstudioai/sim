@@ -23,6 +23,7 @@ import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-sec
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import type { TokenUsageCost } from '@/providers/pricing'
+import { type AgentRunLimits, RUN_LIMIT_TOOL_REFUSAL } from '@/providers/run-limits'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { ProviderId } from '@/providers/types'
@@ -44,6 +45,8 @@ export interface ProviderRuntimeContext {
   failedFunctionToolCost?: { total: number }
   /** Billed cost of this request's settled model steps and tool calls, charged if the run stops it. */
   settledCost?: TokenUsageCost
+  /** Spend, model-call, and time limits shared by every model the Agent block tries. */
+  runLimits?: AgentRunLimits
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -255,6 +258,11 @@ export async function executeProviderTool(
       logger.warn('Agent tool result durability unavailable')
     }
     return result
+  }
+  // Left unrecorded: a refusal belongs to this try's budget, so a retry with a fresh one runs the call.
+  if (runtimeContext?.runLimits && !runtimeContext.runLimits.admitTool()) {
+    const refusal: ToolResponse = { success: false, output: {}, error: RUN_LIMIT_TOOL_REFUSAL }
+    return { rawResponse: refusal, modelResponse: refusal }
   }
   const registry =
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry

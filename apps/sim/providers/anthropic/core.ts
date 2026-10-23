@@ -21,7 +21,7 @@ import {
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -1006,7 +1006,7 @@ export async function executeAnthropicProviderRequest(
       }
     )
 
-    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isPermanentGenerationError(error)) {
       throw error
     }
 
