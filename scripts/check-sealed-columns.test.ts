@@ -63,10 +63,15 @@ describe('check-sealed-columns', () => {
       `await db.execute(sql\`SELECT id FROM account WHERE id = \${id}\nAND access_token IS NULL\`)`,
       "sql.raw('refresh_token IS NULL')",
       `sql\`SELECT id FROM oauth_refresh_token WHERE grant = \${'refresh_token'}\``,
+      "sql`SELECT * FROM account WHERE user_id = 'u'`",
+      'sql`SELECT a.* FROM account_activity a`',
+      "sql.identifier('refresh_token')",
     ].join('\n')
     expect(found(source)).toEqual([
       ['raw-column-name', 2],
       ['raw-column-name', 3],
+      ['raw-column-name', 5],
+      ['raw-column-name', 7],
     ])
     expect(found(source, 'lib/file.integration.ts')).toEqual([])
     expect(found(source, 'packages/db/script-migrations/0037_seal_account_tokens.ts')).toEqual([])

@@ -10,8 +10,9 @@
  *   `isNotNull` are unaffected and allowed.
  * - `raw-interpolation`: `${table.column}` inside a raw `sql` template. A raw expression is read
  *   or compared as stored, so it sees ciphertext; select the column itself, or use the helper.
- * - `raw-column-name`: the physical column name inside a `sql` template or `sql.raw(...)` body,
- *   which reads the stored form the same way. Tests and the sealing backfill read it on purpose.
+ * - `raw-column-name`: the physical column name inside a `sql` template or `sql.raw(...)` body, a
+ *   `sql.identifier(...)` of it, or a `* FROM <table>` wildcard over its table, all of which read
+ *   the stored form the same way. Tests and the sealing backfill read it on purpose.
  *
  * Table aliases count as the table: renamed imports from `@sim/db` / `@sim/db/schema` and
  * `alias(table, ...)` bindings.
@@ -61,6 +62,7 @@ const COMPARISON_OPERATORS = [
 ]
 const SQL_TEMPLATE = /\bsql(?:<[^>\n]*>)?`((?:[^`\\]|\\.)*)`/g
 const SQL_RAW = /\bsql\.raw\(\s*(['"`])((?:(?!\1)[\s\S])*)\1/g
+const SQL_IDENTIFIER = /\bsql\.identifier\(\s*(['"`])(\w+)\1/g
 
 type Rule = 'comparison' | 'raw-interpolation' | 'raw-column-name'
 
@@ -76,6 +78,8 @@ interface SealedColumn {
   table: string
   /** The column's property (`accessToken`). */
   property: string
+  /** The physical table name (`account`). */
+  tableName: string
   /** The physical column name (`access_token`). */
   columnName: string
   /** How code references it, for reports (`account.accessToken`). */
@@ -90,6 +94,7 @@ function lineOf(source: string, index: number): number {
 export function readSealedColumns(schemaSource: string): SealedColumn[] {
   const tables = [...schemaSource.matchAll(TABLE_DECLARATION)].map((match) => ({
     exportName: match[1],
+    tableName: match[2],
     index: match.index ?? 0,
   }))
   const columns: SealedColumn[] = []
@@ -99,6 +104,7 @@ export function readSealedColumns(schemaSource: string): SealedColumn[] {
     if (!table) continue
     columns.push({
       table: table.exportName,
+      tableName: table.tableName,
       property,
       columnName,
       reference: `${table.exportName}.${property}`,
@@ -140,15 +146,21 @@ export function findViolations(file: string, source: string, columns: SealedColu
     }
   }
   if (STORED_FORM_READERS.test(file)) return violations
-  const names = new RegExp(`\\b(?:${columns.map((c) => escapeRegExp(c.columnName)).join('|')})\\b`)
+  const columnNames = new Set(columns.map((column) => column.columnName))
+  const names = new RegExp(`\\b(?:${[...columnNames].map(escapeRegExp).join('|')})\\b`)
+  const tables = [...new Set(columns.map((column) => column.tableName))].map(escapeRegExp).join('|')
+  const wildcard = new RegExp(`\\*\\s*from\\s+(?:"?public"?\\.)?"?(?:${tables})"?(?![\\w"])`, 'i')
   for (const pattern of [SQL_TEMPLATE, SQL_RAW]) {
     for (const match of source.matchAll(pattern)) {
       const capture = match[match.length - 1]
       const bodyOffset = (match.index ?? 0) + match[0].lastIndexOf(capture)
       const body = capture.replace(/\$\{[^}]*\}/g, (value) => ' '.repeat(value.length))
-      const hit = names.exec(body)
+      const hit = names.exec(body) ?? wildcard.exec(body)
       if (hit) report('raw-column-name', bodyOffset + hit.index, hit[0])
     }
+  }
+  for (const match of source.matchAll(SQL_IDENTIFIER)) {
+    if (columnNames.has(match[2])) report('raw-column-name', match.index ?? 0, match[0])
   }
   return violations
 }
