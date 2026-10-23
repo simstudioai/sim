@@ -501,6 +501,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@sim/logger": "workspace:*",
+        "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
         "drizzle-orm": "^0.45.4",
         "postgres": "^3.4.5",

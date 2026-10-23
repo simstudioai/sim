@@ -5,7 +5,7 @@ import { account, credential, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl } = await vi.hoisted(async () => {
@@ -36,6 +36,7 @@ import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { completeOAuthCredentialToken } from '@/lib/oauth/token-resolution'
 
 const originalFetch = globalThis.fetch
+const fixtureEncryptionKey = process.env.ENCRYPTION_KEY
 const userId = generateId()
 const workspaceId = generateId()
 const accountId = generateId()
@@ -79,6 +80,17 @@ async function storedRow(rowId: string) {
   const [row] = await db.select().from(account).where(eq(account.id, rowId))
   if (!row) throw new Error('Missing fixture account')
   return row
+}
+
+async function rawTokens() {
+  const [row] = await db.execute<{ access_token: string | null; refresh_token: string | null }>(
+    sql`SELECT access_token, refresh_token FROM account WHERE id = ${accountId}`
+  )
+  return row
+}
+
+function sealWrites(enabled: boolean) {
+  process.env.ENCRYPT_ACCOUNT_TOKENS = enabled ? 'true' : 'false'
 }
 
 async function resolveToken(rowId = accountId) {
@@ -177,6 +189,8 @@ beforeEach(async () => {
 })
 
 afterEach((context) => {
+  sealWrites(false)
+  process.env.ENCRYPTION_KEY = fixtureEncryptionKey
   pausedProvider?.release.resolve()
   checks.push({
     name: context.task.name,
@@ -451,5 +465,81 @@ describe('OAuth refresh-token revocation against PostgreSQL and Redis', () => {
       accessToken: 'fresh-access',
       refreshed: true,
     })
+  })
+})
+
+describe('OAuth refresh chains with sealed account tokens', () => {
+  async function sealStoredChain() {
+    sealWrites(true)
+    await db
+      .update(account)
+      .set({ accessToken: 'expired-access', refreshToken: 'issued-refresh' })
+      .where(eq(account.id, accountId))
+  }
+
+  it('stores tokens sealed and reads them back as plaintext', async () => {
+    await sealStoredChain()
+
+    const raw = await rawTokens()
+    expect(raw.access_token).toMatch(/^enc:v1:/)
+    expect(raw.refresh_token).toMatch(/^enc:v1:/)
+    expect(JSON.stringify(raw)).not.toContain('issued-refresh')
+    expect(await storedAccount()).toMatchObject({
+      accessToken: 'expired-access',
+      refreshToken: 'issued-refresh',
+    })
+  })
+
+  it('keeps writing readable tokens when sealing is requested without a usable key', async () => {
+    sealWrites(true)
+    process.env.ENCRYPTION_KEY = 'not-hex'.repeat(6)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({ access_token: 'fresh-access' })
+  })
+
+  it('rotates a chain stored before sealing was enabled', async () => {
+    sealWrites(true)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({
+      access_token: expect.stringMatching(/^enc:v1:/),
+      refresh_token: 'issued-refresh',
+    })
+    expect((await storedAccount()).accessToken).toBe('fresh-access')
+  })
+
+  it('rotates a sealed chain on a process that does not seal writes', async () => {
+    await sealStoredChain()
+    sealWrites(false)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({
+      access_token: 'fresh-access',
+      refresh_token: expect.stringMatching(/^enc:v1:/),
+    })
+  })
+
+  it('records a revocation against a sealed chain on a process that does not seal writes', async () => {
+    await sealStoredChain()
+    sealWrites(false)
+
+    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+    await expect(getCredentialTerminalRefreshError(credentialId)).resolves.toEqual({
+      errorCode: 'invalid_grant',
+      providerId: PROVIDER_ID,
+    })
+  })
+
+  it('keeps a revocation recorded before the chain was sealed', async () => {
+    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+    await expireRedisFlags()
+    await sealStoredChain()
+
+    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+    expect(providerRequests).toBe(1)
   })
 })
