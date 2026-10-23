@@ -88,8 +88,10 @@ payload or `ivm.Reference` wrapper in the worker:
 ## Where the worker runs
 
 The pool in `isolated-vm.ts` opens each worker either as a local child process
-or, when `IVM_REMOTE_WORKER_URL` is set (and the `isolated-vm-local-workers`
-kill switch is off), as a WebSocket connection to `isolated-vm-host.cjs`, which runs the
+or, when `IVM_REMOTE_WORKER_URL` is set (with `IVM_REMOTE_WORKER_TOKEN`; a URL
+without a valid token fails executions rather than falling back) and the
+`isolated-vm-local-workers` kill switch is off, as a WebSocket connection to
+`isolated-vm-host.cjs`, which runs the
 same worker in a dedicated service that holds no platform credentials. Every
 rule in this file applies in both modes.
 

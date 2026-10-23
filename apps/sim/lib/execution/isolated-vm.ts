@@ -1155,8 +1155,7 @@ function spawnWorker(): Promise<WorkerInfo> {
               return
             }
             workerInfo.ready = true
-            // The target changed while this worker was starting: it serves at most the
-            // execution awaiting it, then retires.
+            // The target changed while this worker was starting, so it takes no work.
             workerInfo.retiring = workerInfo.targetKey !== workerTargetKey(workerTarget)
             clearTimeout(startTimeout)
             proc.off('message', readyHandler)
@@ -1265,8 +1264,10 @@ function dispatchToWorker(
     return
   }
 
-  // A target change can retire and remove the worker between its selection and this dispatch.
-  if (workers.get(workerInfo.id) !== workerInfo) {
+  // A target change can retire (or retire and remove) the worker between its selection and this
+  // dispatch; the execution then waits for a worker on the current target.
+  if (workers.get(workerInfo.id) !== workerInfo || workerInfo.retiring) {
+    if (workerInfo.retiring && workerInfo.activeExecutions === 0) cleanupWorker(workerInfo.id)
     enqueueExecution(ownerState, req, resolve, state, brokers)
     return
   }

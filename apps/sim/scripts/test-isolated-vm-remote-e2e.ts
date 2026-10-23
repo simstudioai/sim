@@ -90,6 +90,8 @@ async function startHost(maxWorkers: number): Promise<Host> {
       SIM_HOST_ONLY_SETTING: HOST_ONLY_VALUE,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Its own process group, so cleanup can stop the host and its worker children together.
+    detached: true,
   })
   const relay = (data: Buffer) => logger.info(`host:${port} ${data.toString().trim()}`)
   child.stdout?.on('data', relay)
@@ -410,7 +412,11 @@ run()
     process.exitCode = 1
   })
   .finally(async () => {
-    for (const host of hosts) if (host.process.exitCode === null) host.process.kill('SIGKILL')
+    for (const host of hosts) {
+      try {
+        if (host.process.pid) process.kill(-host.process.pid, 'SIGKILL')
+      } catch {}
+    }
     const report = {
       suite: 'isolated-vm-remote',
       startedAt,
