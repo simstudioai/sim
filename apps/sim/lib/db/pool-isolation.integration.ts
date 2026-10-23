@@ -125,4 +125,13 @@ describe('dedicated pools under a saturated process pool', () => {
     await expect(settlesWithin(lookup, ISOLATED_BUDGET_MS)).resolves.toBe('done')
     await expect(lookup).resolves.toEqual({ success: false, error: 'Invalid API key' })
   })
+
+  it('reads workspace key settings on the auth pool', async () => {
+    const lookup = authenticateApiKeyFromHeader(`sk-sim-${generateId()}`, {
+      workspaceId: generateId(),
+    })
+
+    await expect(settlesWithin(lookup, ISOLATED_BUDGET_MS)).resolves.toBe('done')
+    await expect(lookup).resolves.toEqual({ success: false, error: 'Workspace not found' })
+  })
 })

@@ -56,7 +56,7 @@ export async function authenticateApiKeyFromHeader(
     let workspaceSettings: WorkspaceBillingSettings | null = null
 
     if (options.workspaceId) {
-      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId)
+      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId, getAuthPool())
       if (!workspaceSettings) {
         return { success: false, error: 'Workspace not found' }
       }

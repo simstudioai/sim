@@ -30,8 +30,8 @@ const fixture = vi.hoisted(() => ({
   uploads: '',
 }))
 
-vi.mock('@sim/db', () => ({
-  db: new Proxy(
+vi.mock('@sim/db', () => {
+  const db = new Proxy(
     {},
     {
       get(_target, property) {
@@ -40,8 +40,9 @@ vi.mock('@sim/db', () => ({
         return typeof value === 'function' ? value.bind(fixture.database) : value
       },
     }
-  ),
-}))
+  )
+  return { db, dbFor: () => db }
+})
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixture.uploads

@@ -9,7 +9,7 @@ import {
   type ChangeWorkspaceStoragePayerParams,
   changeWorkspaceStoragePayerInTx,
 } from '@/lib/billing/storage/payer-transfer'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('WorkspaceUtils')
 
@@ -21,13 +21,14 @@ export interface WorkspaceBillingSettings {
 export type WorkspaceScope = 'active' | 'archived' | 'all'
 
 export async function getWorkspaceBillingSettings(
-  workspaceId: string
+  workspaceId: string,
+  executor: DbClient = db
 ): Promise<WorkspaceBillingSettings | null> {
   if (!workspaceId) {
     return null
   }
 
-  const rows = await db
+  const rows = await executor
     .select({
       billedAccountUserId: workspaceTable.billedAccountUserId,
       allowPersonalApiKeys: workspaceTable.allowPersonalApiKeys,
