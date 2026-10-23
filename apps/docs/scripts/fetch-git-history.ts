@@ -11,7 +11,8 @@ import { execFileSync } from 'node:child_process'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
-const logger = createLogger('DocsGitHistory')
+/** A build step's outcome belongs in the build log, which the production default (errors only) would hide. */
+const logger = createLogger('DocsGitHistory', { logLevel: 'INFO' })
 
 /** Bounds the fetch so a stalled remote costs at most this much of the deployment, never all of it. */
 const FETCH_TIMEOUT_MS = 120_000
@@ -29,6 +30,8 @@ if (process.env.VERCEL) {
     if (git(['rev-parse', '--is-shallow-repository']) === 'true') {
       git(['fetch', '--unshallow', '--filter=blob:none', '--no-tags', 'origin'], FETCH_TIMEOUT_MS)
       logger.info('Fetched full commit history for docs last-modified dates')
+    } else {
+      logger.info('Clone already has full commit history')
     }
   } catch (error) {
     logger.warn(
