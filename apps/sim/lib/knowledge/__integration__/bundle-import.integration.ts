@@ -661,6 +661,19 @@ describe('knowledge base import requests', () => {
         .from(knowledgeBase)
         .where(eq(knowledgeBase.name, 'Redispatched import'))
     ).toEqual([{ id: created.import.id }])
+    await expect
+      .poll(async () =>
+        db
+          .select({ resourceId: auditLog.resourceId })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.workspaceId, ids.workspaceId),
+              eq(auditLog.resourceId, created.import.id)
+            )
+          )
+      )
+      .toEqual([{ resourceId: created.import.id }])
   })
 
   it('refuses a bundle that is not a zip archive before creating an upload', async () => {

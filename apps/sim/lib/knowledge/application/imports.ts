@@ -24,7 +24,6 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   findKnowledgeImport,
-  finishKnowledgeImport,
   getKnowledgeImport,
   insertKnowledgeImport,
   KNOWLEDGE_IMPORT_STORAGE_CONTEXT,
@@ -37,7 +36,6 @@ import {
   runKnowledgeImport,
 } from '@/lib/knowledge/transfer/import-runner'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import {
   abortUploadSession,
@@ -99,11 +97,6 @@ export interface CreateKnowledgeImportResult {
 
 interface KnowledgeImportResult {
   import: KnowledgeImportResource
-}
-
-interface CompleteKnowledgeImportResult extends KnowledgeImportResult {
-  /** The base this completion started importing, or `null` when the import was already started. */
-  startedKnowledgeBaseId: string | null
 }
 
 interface KnowledgeImportRecordContext extends KnowledgeWorkspaceContext {
@@ -270,33 +263,13 @@ function startKnowledgeImport(payload: KnowledgeImportPayload): Promise<void> {
   })
 }
 
-/** Starts the runner; a dispatch that fails settles the import and drops its bundle. */
-async function dispatchKnowledgeImport(payload: KnowledgeImportPayload): Promise<void> {
-  try {
-    await startKnowledgeImport(payload)
-  } catch (error) {
-    await finishKnowledgeImport(payload.importId, {
-      status: 'failed',
-      error: 'The import could not be started',
-    })
-    await deleteFile({ key: payload.sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch(
-      (cleanupError: unknown) => {
-        logger.error('Failed to delete a knowledge bundle after dispatch failure', {
-          importId: payload.importId,
-          error: getErrorMessage(cleanupError, 'Unknown error'),
-        })
-      }
-    )
-    throw error
-  }
-}
-
 /**
  * Dispatches again an import whose record no worker has claimed: its first
- * dispatch was lost with the request that wrote the record, or is still
- * queued. Either way a second run is safe, since only one worker can claim it,
- * and a failure here leaves the import to the stale-import janitor rather than
- * failing one that may already be on its way.
+ * dispatch failed or was lost with the request that wrote the record, or is
+ * still queued. Either way a second run is safe, since only one worker can
+ * claim it. A dispatch never settles the import itself, since another one may
+ * already be on its way; one that never runs is failed by the stale-import
+ * janitor, which also deletes its bundle.
  */
 async function redispatchUnclaimedImport(
   principal: Principal,
@@ -399,11 +372,11 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: KnowledgeImportUploadInput
   }) => resolveUploadContext(principal, input),
-  async execute({ principal, context }): Promise<CompleteKnowledgeImportResult> {
+  async execute({ principal, context }): Promise<KnowledgeImportResult> {
     const existing = await findStartedImport(context)
     if (existing) {
       await redispatchUnclaimedImport(principal, context, existing)
-      return { import: fromRecord(existing), startedKnowledgeBaseId: null }
+      return { import: fromRecord(existing) }
     }
     let started: KnowledgeImportPayload | null
     try {
@@ -427,11 +400,11 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
       // A concurrent completion holds the session; report the import it started, if any.
       const raced =
         asOrchestrationError(error)?.code === 'conflict' ? await findStartedImport(context) : null
-      if (raced) return { import: fromRecord(raced), startedKnowledgeBaseId: null }
+      if (raced) return { import: fromRecord(raced) }
       throw error
     }
     if (started) {
-      await dispatchKnowledgeImport(started)
+      await startKnowledgeImport(started)
       logger.info('Started knowledge import', {
         importId: started.importId,
         workspaceId: context.workspaceId,
@@ -442,20 +415,21 @@ export const completeKnowledgeImport = defineAuthorizedKnowledgeUseCase({
       importId: context.upload.id,
       assertedWorkspaceId: context.workspaceId,
     })
-    return { import: fromRecord(record), startedKnowledgeBaseId: started?.importId ?? null }
+    return { import: fromRecord(record) }
   },
-  /** Recorded once per import: a repeated completion only reads back the one already started. */
-  projectAudit: ({ context, result }) =>
-    result.startedKnowledgeBaseId
-      ? {
-          action: AuditAction.KNOWLEDGE_BASE_IMPORTED,
-          resourceType: AuditResourceType.KNOWLEDGE_BASE,
-          resourceId: result.startedKnowledgeBaseId,
-          resourceName: importedName(context.upload) ?? context.upload.fileName,
-          description: `Imported a knowledge base from bundle "${context.upload.fileName}"`,
-          metadata: { workspaceId: context.workspaceId, importId: result.import.id },
-        }
-      : [],
+  /**
+   * Keyed by the import, so the completion that started it and any retry of it
+   * record one event between them. The base takes the import's id.
+   */
+  projectAudit: ({ context, result }) => ({
+    action: AuditAction.KNOWLEDGE_BASE_IMPORTED,
+    resourceType: AuditResourceType.KNOWLEDGE_BASE,
+    resourceId: result.import.id,
+    resourceName: importedName(context.upload) ?? context.upload.fileName,
+    description: `Imported a knowledge base from bundle "${context.upload.fileName}"`,
+    metadata: { workspaceId: context.workspaceId, importId: result.import.id },
+    idempotencyKey: `knowledge-import:${result.import.id}`,
+  }),
 })
 
 /**
@@ -473,6 +447,10 @@ export const cancelKnowledgeImport = defineAuthorizedKnowledgeUseCase({
     const started = await findStartedImport(context)
     if (started) return { import: fromRecord(await stopKnowledgeImport(started)) }
     assertUploadSessionAuthBinding(context.upload, principal)
-    return { import: fromUpload(await abortUploadSession(context.upload), context.workspaceId) }
+    const aborted = await abortUploadSession(context.upload)
+    // A completion finalizing alongside this abort may have written the record first.
+    const late = await findStartedImport(context)
+    if (late) return { import: fromRecord(await stopKnowledgeImport(late)) }
+    return { import: fromUpload(aborted, context.workspaceId) }
   },
 })

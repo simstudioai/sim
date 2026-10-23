@@ -40,7 +40,10 @@ import {
 } from '@/lib/knowledge/transfer/import-jobs'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/file-manager'
 import { deleteFile, downloadFileStream } from '@/lib/uploads/core/storage-service'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSupportedExtension, validateFileType } from '@/lib/uploads/utils/validation'
 
@@ -166,6 +169,9 @@ async function importDocument(
     }
   } else if (prepared) {
     const bytes = Buffer.from(prepared.chunks.map((chunk) => chunk.text).join('\n\n'))
+    if (bytes.byteLength === 0) {
+      throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
+    }
     if (bytes.byteLength > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
       throw new OrchestrationError(
         'payload_too_large',

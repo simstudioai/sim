@@ -3865,7 +3865,9 @@ export const knowledgeBaseImport = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     /** The uploaded archive, deleted once the import settles. */
     sourceKey: text('source_key').notNull(),
     knowledgeBaseId: text('knowledge_base_id').references(() => knowledgeBase.id, {

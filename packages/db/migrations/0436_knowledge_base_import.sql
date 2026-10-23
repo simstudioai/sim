@@ -19,6 +19,7 @@ CREATE TABLE "knowledge_base_import" (
 );
 --> statement-breakpoint
 ALTER TABLE "knowledge_base_import" ADD CONSTRAINT "knowledge_base_import_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "knowledge_base_import" ADD CONSTRAINT "knowledge_base_import_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_base_import" ADD CONSTRAINT "knowledge_base_import_knowledge_base_id_knowledge_base_id_fk" FOREIGN KEY ("knowledge_base_id") REFERENCES "public"."knowledge_base"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "knowledge_base_import_watchdog_idx" ON "knowledge_base_import" USING btree ("status","updated_at");--> statement-breakpoint
 CREATE INDEX "knowledge_base_import_knowledge_base_id_idx" ON "knowledge_base_import" USING btree ("knowledge_base_id");
