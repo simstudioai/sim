@@ -19,6 +19,7 @@ vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { McpDnsResolutionError } from '@/lib/mcp/domain-check'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
   McpConnectionError,
@@ -147,6 +148,19 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
     expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
     expect(response.headers.get('Retry-After')).not.toBeNull()
     expect(JSON.stringify(body)).not.toContain('ECONNREFUSED')
+  })
+
+  it('reports a server whose hostname no longer resolves as a retryable 503', async () => {
+    mockDiscoverMcpServerToolsUseCase.mockRejectedValueOnce(
+      new McpDnsResolutionError('expired.example.com')
+    )
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
+    expect(JSON.stringify(body)).not.toContain('expired.example.com')
   })
 
   it('reports a stale OAuth grant as a 409 a client can branch on, never as a Sim credential failure', async () => {
