@@ -94,27 +94,26 @@ function toProviderModelResponse(
 }
 
 /**
- * Drops a custom block's child-run handle from the copy bound for the model.
+ * Drops executor-owned diagnostics from the copy bound for the model, before secret projection.
  *
  * The handle has to survive on `rawResponse`, which is what the tool-call record
  * (and therefore the trace span) is built from — but it is trace plumbing, and an
  * opaque execution id in a tool result reads to a model like data the tool
  * returned, which it may then quote back to the user. Applied at this single
  * split point because every provider's tool loop goes through here; there is no
- * other place both copies exist.
+ * other place both copies exist. Workflow tools also carry full child spans, including intermediate
+ * inputs and outputs, which can dwarf their final result. Only their wrapper is filtered; nested
+ * business data and similarly named output fields from unrelated tools remain untouched.
  */
-function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
+function withoutToolDiagnostics(response: ToolResponse, toolId: string): ToolResponse {
   const output = response.output
   if (!isRecordLike(output)) return response
-  if (
-    !Object.hasOwn(output, CHILD_EXECUTION_ID_OUTPUT_KEY) &&
-    !Object.hasOwn(output, CHILD_TRACE_DISABLED_OUTPUT_KEY)
-  ) {
-    return response
-  }
+  const keys = [CHILD_EXECUTION_ID_OUTPUT_KEY, CHILD_TRACE_DISABLED_OUTPUT_KEY]
+  if (toolId === 'workflow_executor') keys.push('childTraceSpans', '_childWorkflowInstanceId')
+  if (!keys.some((key) => Object.hasOwn(output, key))) return response
   return {
     ...response,
-    output: omit(output, [CHILD_EXECUTION_ID_OUTPUT_KEY, CHILD_TRACE_DISABLED_OUTPUT_KEY]),
+    output: omit(output, keys),
   }
 }
 
@@ -226,8 +225,10 @@ export async function executeProviderTool(
       : recorded.rawResponse
     return {
       rawResponse,
-      modelResponse:
+      modelResponse: withoutToolDiagnostics(
         session?.getRecordedResult?.(invocationId!)?.modelResponse ?? recorded.modelResponse,
+        executionToolId
+      ),
     }
   }
   const recordResult = async (
@@ -249,7 +250,10 @@ export async function executeProviderTool(
         })
         const retained = session.getRecordedResult?.(invocationId)
         if (retained && !memoryRetrieval)
-          return { ...result, modelResponse: retained.modelResponse }
+          return {
+            ...result,
+            modelResponse: withoutToolDiagnostics(retained.modelResponse, executionToolId),
+          }
       }
     } catch {
       logger.warn('Agent tool result durability unavailable')
@@ -314,12 +318,14 @@ export async function executeProviderTool(
           resolvedSecretTraceRegistry: toolCallRegistry,
         })
     accumulateToolCost(executionToolId, result, runtimeContext)
+    const functionalResult = withoutToolDiagnostics(result, executionToolId)
     if (!registry || !toolCallRegistry) {
-      return recordResult({ rawResponse: result, modelResponse: withoutChildTraceHandle(result) })
+      return recordResult({ rawResponse: result, modelResponse: functionalResult })
     }
 
-    const modelResponse = withoutChildTraceHandle(
-      toProviderModelResponse(result, projectToolResultForCopilot(result, toolCallRegistry))
+    const modelResponse = toProviderModelResponse(
+      functionalResult,
+      projectToolResultForCopilot(functionalResult, toolCallRegistry)
     )
     registry.mergeToolCallRegistry(toolCallRegistry)
     return recordResult({ rawResponse: result, modelResponse })

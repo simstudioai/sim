@@ -32,6 +32,95 @@ async function executeProviderTool(
 }
 
 describe('provider runtime context', () => {
+  it.each([false, true])(
+    'keeps workflow diagnostics out of model context with secret projection=%s',
+    async (withRegistry) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      ])
+      const rawResponse = {
+        success: true,
+        output: {
+          success: true,
+          result: { token: 'secret-value', childTraceSpans: 'business field' },
+          childTraceSpans: [{ input: { source: 'x'.repeat(17 * 1024 * 1024) } }],
+          _childWorkflowInstanceId: 'child-instance',
+          cost: { total: 0.25 },
+        },
+      }
+      mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+        options.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value', {
+          propagated: true,
+        })
+        return rawResponse
+      })
+      const result = await runWithProviderRuntimeContext(
+        {
+          toolIdByWireId: new Map([['selected_workflow', 'workflow_executor']]),
+          ...(withRegistry ? { resolvedSecretTraceRegistry: registry } : {}),
+        },
+        () => executeProviderToolWithInput('selected_workflow', {})
+      )
+      expect(result.rawResponse).toBe(rawResponse)
+      expect(Object.keys(result.modelResponse.output)).not.toContain('childTraceSpans')
+      expect(Object.keys(result.modelResponse.output)).not.toContain('_childWorkflowInstanceId')
+      expect(result.modelResponse.output.result).toEqual({
+        token: withRegistry ? '{{TOKEN}}' : 'secret-value',
+        childTraceSpans: 'business field',
+      })
+      expect(result.rawResponse.output.cost.total).toBe(0.25)
+      if (withRegistry) expect(registry.isComplete()).toBe(true)
+    }
+  )
+
+  it('preserves similarly named business fields from non-workflow tools', async () => {
+    const response = {
+      success: true,
+      output: {
+        childTraceSpans: ['business data'],
+        _childWorkflowInstanceId: 'business identifier',
+      },
+    }
+    mockExecuteTool.mockResolvedValueOnce(response)
+    const result = await executeProviderToolWithInput('http_request', {})
+    expect(result.modelResponse).toEqual(response)
+  })
+
+  it('does not replay legacy workflow diagnostics into the model or rebill the child', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    await session.captureStep({
+      assistant: { role: 'assistant', content: '' },
+      calls: [{ toolId: 'workflow_executor', providerCallId: 'child-call', arguments: '{}' }],
+      native: {
+        protocol: 'responses',
+        providerId: 'openai',
+        model: 'gpt-4.1-mini',
+        binding: 'binding',
+        value: {},
+      },
+    })
+    const invocationId = session.resolveInvocationId('child-call', 'workflow_executor')!
+    const response = {
+      success: true,
+      output: {
+        result: { answer: 'retained answer' },
+        childTraceSpans: [{ input: 'internal trace' }],
+        _childWorkflowInstanceId: 'child-instance',
+        cost: { total: 0.25 },
+      },
+    }
+    await session.recordToolResult({ invocationId, rawResponse: response, modelResponse: response })
+    const replay = await runWithProviderRuntimeContext({ agentConversation: session }, () =>
+      executeProviderToolWithInput('workflow_executor', { _context: { invocationId } })
+    )
+    expect(replay.rawResponse.output.childTraceSpans).toEqual(response.output.childTraceSpans)
+    expect(replay.rawResponse.output.cost).toMatchObject({ total: 0 })
+    expect(Object.keys(replay.modelResponse.output)).not.toContain('childTraceSpans')
+    expect(Object.keys(replay.modelResponse.output)).not.toContain('_childWorkflowInstanceId')
+    expect(replay.modelResponse.output.result).toEqual({ answer: 'retained answer' })
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
   it('dispatches the bound memory reader and reauthorizes repeated invocation reads', async () => {
     const execute = vi
       .fn()
