@@ -373,15 +373,22 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
     }
   })
 
-  it('retries a CONNECT dropped before the tunnel opens and completes the request', async () => {
-    connectFailures.push('reset')
-    const start = admissions.length
-    const response = await runWithOutboundOrganization('org_a', () =>
-      secureFetchWithPinnedIP(url(), '1.1.1.1', options)
-    )
-    expect(await response.text()).toBe('tls reached')
-    expect(admissions.length).toBe(start + 2)
-  })
+  it.each(['reset', 503] as const)(
+    'retries a CONNECT that fails with %s before the tunnel opens and completes the request',
+    async (failure) => {
+      connectFailures.push(failure)
+      const start = admissions.length
+      try {
+        const response = await runWithOutboundOrganization('org_a', () =>
+          secureFetchWithPinnedIP(url(), '1.1.1.1', options)
+        )
+        expect(await response.text()).toBe('tls reached')
+        expect(admissions.length).toBe(start + 2)
+      } finally {
+        connectFailures.length = 0
+      }
+    }
+  )
 
   it('does not retry a rejected proxy credential', async () => {
     const start = admissions.length
