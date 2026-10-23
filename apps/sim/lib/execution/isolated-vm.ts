@@ -1,4 +1,4 @@
-import { type ChildProcess, execSync } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,7 @@ import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
 import {
@@ -17,6 +18,10 @@ import {
 import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolated-vm-limits'
+import {
+  connectRemoteWorker,
+  type IsolatedVMWorkerProcess,
+} from '@/lib/execution/isolated-vm-remote'
 
 const logger = createLogger('IsolatedVMExecution')
 
@@ -177,7 +182,9 @@ interface PendingExecution {
 }
 
 interface WorkerInfo {
-  process: ChildProcess
+  process: IsolatedVMWorkerProcess
+  /** {@link workerTargetKey} of the target this worker was opened on. */
+  targetKey: string
   ready: boolean
   readyPromise: Promise<void> | null
   activeExecutions: number
@@ -241,6 +248,43 @@ let queueIdCounter = 0
 let nextWorkerId = 0
 let spawnInProgress = 0
 let queueDrainRetryTimeout: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Where workers run: local child processes, or connections to the dedicated
+ * worker host (`isolated-vm-host.cjs`). Remote needs both
+ * `IVM_REMOTE_WORKER_URL` and the `isolated-vm-remote-workers` flag.
+ */
+type WorkerTarget = { kind: 'local' } | { kind: 'remote'; url: string; token: string }
+
+const LOCAL_WORKER_TARGET: WorkerTarget = { kind: 'local' }
+let workerTarget: WorkerTarget = LOCAL_WORKER_TARGET
+
+function workerTargetKey(target: WorkerTarget): string {
+  return target.kind === 'remote' ? `remote:${target.url}` : 'local'
+}
+
+async function resolveWorkerTarget(): Promise<WorkerTarget> {
+  const url = env.IVM_REMOTE_WORKER_URL?.trim()
+  if (!url || !(await isFeatureEnabled('isolated-vm-remote-workers'))) return LOCAL_WORKER_TARGET
+  return { kind: 'remote', url, token: env.IVM_REMOTE_WORKER_TOKEN ?? '' }
+}
+
+/**
+ * Switches where new workers open. Workers on the previous target retire: they
+ * finish what they are running and take no new work, so a flag change moves
+ * every subsequent execution without interrupting one in flight.
+ */
+function activateWorkerTarget(target: WorkerTarget) {
+  const key = workerTargetKey(target)
+  if (key === workerTargetKey(workerTarget)) return
+  logger.info('Isolated-vm worker target changed', { from: workerTarget.kind, to: target.kind })
+  workerTarget = target
+  for (const [workerId, workerInfo] of workers) {
+    if (workerInfo.targetKey === key || workerInfo.retiring) continue
+    workerInfo.retiring = true
+    if (workerInfo.activeExecutions === 0) cleanupWorker(workerId)
+  }
+}
 
 type IsolatedFetchOptions = RequestInit & {
   timeout?: number
@@ -815,6 +859,15 @@ function handleWorkerMessage(workerId: number, message: unknown) {
     return
   }
 
+  if (msg.type === 'host:draining') {
+    if (!workerInfo || workerInfo.retiring) return
+    workerInfo.retiring = true
+    logger.info('Remote worker host draining; retiring worker', { workerId })
+    if (workerInfo.activeExecutions === 0) cleanupWorker(workerId)
+    drainQueue()
+    return
+  }
+
   if (msg.type === 'fetch') {
     const pending =
       typeof msg.executionId === 'number'
@@ -960,8 +1013,7 @@ function resetWorkerIdleTimeout(workerId: number) {
 function buildWorkerEnv(): NodeJS.ProcessEnv {
   const allowed: Record<string, string | undefined> = {
     PATH: process.env.PATH,
-    IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
-    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
+    ...workerLimitsEnv(),
     TZ: process.env.TZ,
     LANG: process.env.LANG,
     LC_ALL: process.env.LC_ALL,
@@ -975,11 +1027,64 @@ function buildWorkerEnv(): NodeJS.ProcessEnv {
   return { ...filterUndefined(allowed), NODE_ENV: process.env.NODE_ENV }
 }
 
+/** The limits the worker reads from its environment; a remote worker receives them on connect. */
+function workerLimitsEnv(): Record<string, string | undefined> {
+  return {
+    IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
+  }
+}
+
+/**
+ * Starts the process a worker runs in for `target`.
+ *
+ * A remote target never falls back to a local child: when the host is
+ * unreachable or misconfigured the spawn fails and executions report a system
+ * error, exactly as a local worker that cannot start.
+ */
+async function openWorkerProcess(target: WorkerTarget): Promise<IsolatedVMWorkerProcess> {
+  if (target.kind === 'remote') {
+    return connectRemoteWorker({
+      url: target.url,
+      token: target.token,
+      workerEnv: workerLimitsEnv(),
+    })
+  }
+
+  if (!checkNodeAvailable()) {
+    throw new Error(
+      'Node.js is required for code execution but was not found. ' +
+        'Please install Node.js (v20+) from https://nodejs.org'
+    )
+  }
+
+  const currentDir = path.dirname(fileURLToPath(import.meta.url))
+  const candidatePaths = [
+    path.join(currentDir, 'isolated-vm-worker.cjs'),
+    path.join(currentDir, '..', '..', 'lib', 'execution', 'isolated-vm-worker.cjs'),
+    path.join(process.cwd(), 'apps', 'sim', 'lib', 'execution', 'isolated-vm-worker.cjs'),
+    path.join(process.cwd(), 'lib', 'execution', 'isolated-vm-worker.cjs'),
+  ]
+  const workerPath = candidatePaths.find((p) => fs.existsSync(p))
+  if (!workerPath) {
+    throw new Error(`Worker file not found at any of: ${candidatePaths.join(', ')}`)
+  }
+
+  const { spawn } = await import('node:child_process')
+  // Required for isolated-vm on Node.js 20+ (issue #377)
+  return spawn('node', ['--no-node-snapshot', workerPath], {
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    serialization: 'json',
+    env: buildWorkerEnv(),
+  })
+}
+
 function spawnWorker(): Promise<WorkerInfo> {
   const workerId = nextWorkerId++
   spawnInProgress++
   let spawnSettled = false
-  let childProcess: ChildProcess | null = null
+  let childProcess: IsolatedVMWorkerProcess | null = null
+  const target = workerTarget
 
   const settleSpawnInProgress = () => {
     if (spawnSettled) {
@@ -1003,45 +1108,14 @@ function spawnWorker(): Promise<WorkerInfo> {
     pendingExecutions: new Map(),
     idleTimeout: null,
     id: workerId,
+    targetKey: workerTargetKey(target),
     lifetimeExecutions: 0,
     retiring: false,
   }
 
   workerInfo.readyPromise = new Promise<void>((resolve, reject) => {
-    if (!checkNodeAvailable()) {
-      settleSpawnInProgress()
-      reject(
-        new Error(
-          'Node.js is required for code execution but was not found. ' +
-            'Please install Node.js (v20+) from https://nodejs.org'
-        )
-      )
-      return
-    }
-
-    const currentDir = path.dirname(fileURLToPath(import.meta.url))
-    const candidatePaths = [
-      path.join(currentDir, 'isolated-vm-worker.cjs'),
-      path.join(currentDir, '..', '..', 'lib', 'execution', 'isolated-vm-worker.cjs'),
-      path.join(process.cwd(), 'apps', 'sim', 'lib', 'execution', 'isolated-vm-worker.cjs'),
-      path.join(process.cwd(), 'lib', 'execution', 'isolated-vm-worker.cjs'),
-    ]
-    const workerPath = candidatePaths.find((p) => fs.existsSync(p))
-
-    if (!workerPath) {
-      settleSpawnInProgress()
-      reject(new Error(`Worker file not found at any of: ${candidatePaths.join(', ')}`))
-      return
-    }
-
-    import('node:child_process')
-      .then(({ spawn }) => {
-        // Required for isolated-vm on Node.js 20+ (issue #377)
-        const proc = spawn('node', ['--no-node-snapshot', workerPath], {
-          stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-          serialization: 'json',
-          env: buildWorkerEnv(),
-        })
+    openWorkerProcess(target)
+      .then((proc) => {
         childProcess = proc
 
         proc.on('message', (message: unknown) => handleWorkerMessage(workerId, message))
@@ -1075,6 +1149,9 @@ function spawnWorker(): Promise<WorkerInfo> {
               return
             }
             workerInfo.ready = true
+            // The target changed while this worker was starting: it serves at most the
+            // execution awaiting it, then retires.
+            workerInfo.retiring = workerInfo.targetKey !== workerTargetKey(workerTarget)
             clearTimeout(startTimeout)
             proc.off('message', readyHandler)
             workers.set(workerId, workerInfo)
@@ -1092,7 +1169,7 @@ function spawnWorker(): Promise<WorkerInfo> {
             clearTimeout(startTimeout)
             if (!settleSpawnInProgress()) return
 
-            let errorMessage = 'Worker process exited unexpectedly'
+            let errorMessage = proc.exitReason ?? 'Worker process exited unexpectedly'
             if (stderrData.includes('isolated_vm') || stderrData.includes('MODULE_NOT_FOUND')) {
               errorMessage =
                 'Code execution requires the isolated-vm native module which failed to load. ' +
@@ -1114,7 +1191,7 @@ function spawnWorker(): Promise<WorkerInfo> {
       })
       .catch((error) => {
         if (!settleSpawnInProgress()) return
-        reject(error instanceof Error ? error : new Error('Failed to load child_process module'))
+        reject(error instanceof Error ? error : new Error('Failed to start worker process'))
       })
   })
 
@@ -1367,7 +1444,10 @@ function drainQueue() {
       const currentPoolSize = activeWorkerCount + spawnInProgress
       if (currentPoolSize < POOL_SIZE) {
         spawnWorker()
-          .then(() => drainQueue())
+          .then((spawned) => {
+            if (spawned.retiring && spawned.activeExecutions === 0) cleanupWorker(spawned.id)
+            drainQueue()
+          })
           .catch((err) => {
             logger.error('Failed to spawn worker during drain', { err })
             scheduleDrainRetry()
@@ -1402,6 +1482,7 @@ export async function executeInIsolatedVM(
   req: IsolatedVMExecutionRequest,
   options?: IsolatedVMExecutionOptions
 ): Promise<IsolatedVMExecutionResult> {
+  activateWorkerTarget(await resolveWorkerTarget())
   const ownerKey = normalizeOwnerKey(req.ownerKey)
   const ownerWeight = normalizeOwnerWeight(req.ownerWeight)
   const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)

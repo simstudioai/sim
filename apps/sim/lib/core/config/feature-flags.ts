@@ -121,6 +121,14 @@ const FEATURE_FLAGS = {
       'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
+  'isolated-vm-remote-workers': {
+    description:
+      'Run JavaScript sandbox workers on the dedicated worker host at IVM_REMOTE_WORKER_URL ' +
+      'instead of as local child processes. Global on/off only; no effect where ' +
+      'IVM_REMOTE_WORKER_URL is unset. While on, an unreachable host fails executions ' +
+      'instead of falling back to local workers. Off-AppConfig falls back to IVM_REMOTE_WORKERS.',
+    fallback: 'IVM_REMOTE_WORKERS',
+  },
   'mothership-abandoned-run-takeover-disabled': {
     description:
       'Kill switch for Sim taking over Chat runs whose controller died (a deploy or a crash) and ' +
