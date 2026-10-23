@@ -161,13 +161,6 @@ async function stopAtTimeLimit(run: {
   })
   /** A run outside the job's scope records no Stop, so nothing is delivered to it. */
   if (!stopped || stopped.workspaceId !== run.workspaceId || stopped.chatId !== run.chatId) return
-  /** Marked once the Stop is durable, so a pass that fails before it stops the run again. */
-  await db
-    .update(jobExecutionLogs)
-    .set({
-      executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, '{deadlineStopRequestedAt}', to_jsonb(now()))`,
-    })
-    .where(eq(jobExecutionLogs.executionId, run.executionId))
   await deliverRunStop(
     {
       id: stopped.id,
@@ -178,5 +171,15 @@ async function stopAtTimeLimit(run: {
     },
     readStoppedRunWork(run.executionId, run.userId)
   )
+  /**
+   * Marked once the Stop is delivered: a pass that dies before then requests and delivers it
+   * again (both are idempotent), so the run's client workflows and sandbox work still end.
+   */
+  await db
+    .update(jobExecutionLogs)
+    .set({
+      executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, '{deadlineStopRequestedAt}', to_jsonb(now()))`,
+    })
+    .where(eq(jobExecutionLogs.executionId, run.executionId))
   logger.info('Stopped a job run at its time limit', { executionId: run.executionId })
 }

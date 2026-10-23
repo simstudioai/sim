@@ -108,6 +108,10 @@ vi.mock('@/lib/mothership/jobs/reconcile', async (importOriginal) => {
   return { ...actual, reconcileJobRuns: vi.fn(actual.reconcileJobRuns) }
 })
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+/** Spied so a test can tell an automatic turn-off, which emails the job's people, from none. */
+vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
+  notifyScheduleAutoDisabled: vi.fn(async () => {}),
+}))
 
 const { controllers } = vi.hoisted(() => ({ controllers: new Map<string, AbortController>() }))
 vi.mock('@/lib/mothership/request/session/abort', async (importOriginal) => {
@@ -136,7 +140,12 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
-import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import {
+  acquireLock,
+  closeRedisConnection,
+  getRedisClient,
+  releaseLock,
+} from '@/lib/core/config/redis'
 import { ABANDONED_RUN_CURSOR_KEY } from '@/lib/mothership/async-runs/orphaned-runs'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { recordJobRunSpend } from '@/lib/mothership/jobs/budget'
@@ -152,6 +161,7 @@ import {
   chatStreamLockKey,
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
+import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 
 interface QueryPlan {
   'Node Type': string
@@ -542,6 +552,59 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     worker.open.delete(occurrenceId)
   }, 60_000)
 
+  it('does not report a job a person turned off as turned off by its failures', async () => {
+    vi.mocked(notifyScheduleAutoDisabled).mockClear()
+    const { scheduleId, occurrenceId } = await seedJob()
+    worker.legs.set(occurrenceId, [{ text: 'Still triaging. ', mode: 'hang' }])
+    await runJobLane(new Date())
+    await waitFor(async () => worker.open.has(occurrenceId), 'the first leg')
+    /** Off by hand with two failures behind it, while this run is still live. */
+    await db
+      .update(workflowSchedule)
+      .set({ status: 'disabled', failedCount: 2 })
+      .where(eq(workflowSchedule.id, scheduleId))
+
+    await reconcileJobRuns(new Date(Date.now() + 6 * 60 * 60_000 + 60_000))
+    await reconcileUntilSettled(occurrenceId)
+
+    expect(await schedule(scheduleId)).toMatchObject({ status: 'disabled', failedCount: 3 })
+    expect(notifyScheduleAutoDisabled).not.toHaveBeenCalled()
+    worker.open.get(occurrenceId)?.response.end()
+    worker.open.delete(occurrenceId)
+  }, 60_000)
+
+  it('briefs a retried occurrence with its own run number, not the job count a later claim moved', async () => {
+    const { scheduleId, occurrenceId } = await seedJob()
+    await claimDueJobOccurrences(new Date(), 10)
+    const later = await dueAgain(scheduleId)
+    await claimDueJobOccurrences(new Date(), 10)
+    expect(await schedule(scheduleId)).toMatchObject({ runCount: 2 })
+
+    for (const id of [occurrenceId, later]) {
+      await dispatchJobOccurrence(id)
+      await reconcileUntilSettled(id)
+    }
+
+    expect(legsFor(occurrenceId)[0]?.body.message).toContain('(Run 1, scheduled for')
+    expect(legsFor(later)[0]?.body.message).toContain('(Run 2, scheduled for')
+  })
+
+  it('leaves an occurrence another attempt is dispatching to that attempt', async () => {
+    const { scheduleId, occurrenceId } = await seedJob()
+    await claimDueJobOccurrences(new Date(), 10)
+    const lock = `mothership:job-dispatch:${occurrenceId}`
+    expect(await acquireLock(lock, 'another-attempt', 60)).toBe(true)
+    try {
+      expect(await dispatchJobOccurrence(occurrenceId)).toBe('already_started')
+      expect(legsFor(occurrenceId)).toHaveLength(0)
+      expect(await runsOf(scheduleId)).toEqual([expect.objectContaining({ status: 'queued' })])
+    } finally {
+      await releaseLock(lock, 'another-attempt')
+    }
+    expect(await dispatchJobOccurrence(occurrenceId)).toBe('started')
+    await reconcileUntilSettled(occurrenceId)
+  })
+
   it('runs a one-shot job once and completes it', async () => {
     const { scheduleId, occurrenceId } = await seedJob({ cronExpression: null })
     await runJobLane(new Date())
@@ -682,6 +745,7 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
   })
 
   it('turns a job off after three failed runs in a row, and a verdict clears the streak', async () => {
+    vi.mocked(notifyScheduleAutoDisabled).mockClear()
     const { scheduleId, occurrenceId } = await seedJob()
     const fail = (id: string) =>
       worker.legs.set(
@@ -710,6 +774,10 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     }
     const outcomes = (await runsOf(scheduleId)).map((run) => run.outcome).sort()
     expect(outcomes).toEqual(['failed', 'failed', 'failed', 'failed', 'not_met'])
+    expect(notifyScheduleAutoDisabled).toHaveBeenCalledExactlyOnceWith({
+      scheduleId,
+      reason: 'consecutive_failures',
+    })
 
     await dueAgain(scheduleId)
     await runJobLane(new Date())
