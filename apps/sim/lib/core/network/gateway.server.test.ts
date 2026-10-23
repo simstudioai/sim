@@ -45,6 +45,8 @@ let originRequests = 0
 let receivedHeaders: Record<string, unknown> = {}
 let receivedTarget = ''
 const proxiedPorts = new Set<number>()
+/** Each queued entry makes one CONNECT fail: `reset` drops the connection, a number answers with that status. */
+const connectFailures: Array<'reset' | number> = []
 const secureOrigin = httpsServer(async (req, res) => {
   res.setHeader('x-via-proxy', proxiedPorts.has(req.socket.remotePort ?? 0) ? 'yes' : 'no')
   originRequests++
@@ -70,6 +72,15 @@ proxy.on('connect', (req, socket, head) => {
     destination: req.url,
     sni: tlsSocket.servername,
   })
+  const failure = connectFailures.shift()
+  if (failure === 'reset') {
+    socket.destroy()
+    return
+  }
+  if (failure !== undefined) {
+    socket.end(`HTTP/1.1 ${failure} Gateway Failure\r\nContent-Length: 0\r\n\r\n`)
+    return
+  }
   if (!req.headers['proxy-authorization']?.match(/^Bearer (alpha|bravo|a{48})$/)) {
     socket.end('HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n')
     return
@@ -150,6 +161,11 @@ afterAll(async () => {
   rmSync(certificateDirectory, { recursive: true, force: true })
 })
 const url = () => 'https://origin.invalid'
+const gatewayFor = (organizationId: string): OutboundGateway => {
+  const gateway = state.gateways.get(organizationId)
+  if (!gateway) throw new Error(`No gateway for ${organizationId}`)
+  return gateway
+}
 const options = { profile: 'selfHostedService' as const }
 
 describe('organization gateways over real TLS CONNECT sockets', () => {
@@ -354,6 +370,37 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       await expect(promise).rejects.toThrow()
     } finally {
       await transport.dispatcher.destroy()
+    }
+  })
+
+  it('retries a CONNECT dropped before the tunnel opens and completes the request', async () => {
+    connectFailures.push('reset')
+    const start = admissions.length
+    const response = await runWithOutboundOrganization('org_a', () =>
+      secureFetchWithPinnedIP(url(), '1.1.1.1', options)
+    )
+    expect(await response.text()).toBe('tls reached')
+    expect(admissions.length).toBe(start + 2)
+  })
+
+  it('does not retry a rejected proxy credential', async () => {
+    const start = admissions.length
+    await expect(
+      openGatewayTunnel({ ...gatewayFor('org_a'), token: 'denied' }, '1.1.1.1', 443)
+    ).rejects.toMatchObject({ code: 'GATEWAY_UNAVAILABLE' })
+    expect(admissions.length).toBe(start + 1)
+  })
+
+  it('gives up after two failed CONNECT attempts', async () => {
+    connectFailures.push('reset', 503)
+    const start = admissions.length
+    try {
+      await expect(openGatewayTunnel(gatewayFor('org_a'), '1.1.1.1', 443)).rejects.toMatchObject({
+        code: 'GATEWAY_UNAVAILABLE',
+      })
+      expect(admissions.length).toBe(start + 2)
+    } finally {
+      connectFailures.length = 0
     }
   })
 })
