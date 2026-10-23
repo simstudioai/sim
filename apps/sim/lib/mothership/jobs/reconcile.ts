@@ -1,12 +1,16 @@
 import { copilotRuns, db, jobExecutionLogs, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { requestRunStop, TERMINAL_RUN_STATUSES } from '@/lib/mothership/async-runs/repository'
 import { JOB_RUN_TRIGGER } from '@/lib/mothership/jobs/claim'
 import { dispatchJobOccurrence } from '@/lib/mothership/jobs/dispatch'
 import { finalizeJobRun } from '@/lib/mothership/jobs/finalize'
-import { markJobRunRunning } from '@/lib/mothership/jobs/runs'
+import {
+  endUnstartedJobRun,
+  markJobRunRunning,
+  recordJobRunBillingRequest,
+} from '@/lib/mothership/jobs/runs'
 import {
   deliverRunStop,
   readStoppedRunWork,
@@ -35,7 +39,28 @@ export const openJobRun = (statuses: OpenJobRunStatus[]) =>
     isNotNull(jobExecutionLogs.occurrenceAt)
   )
 
-function openJobRuns(status: OpenJobRunStatus) {
+/** The billing request a run's first leg was admitted under, as its recovery intent recorded it. */
+const admittedBillingRequestId = sql<
+  string | null
+>`${copilotRuns.requestContext}->'recovery'->'billingAdmission'->>'billingRequestId'`
+
+/**
+ * Open records that need this pass, oldest first. Every queued record does; a running one only
+ * once its turn ended, its time limit passed without a Stop, or its spend-cap link is missing,
+ * so a backlog of healthy long runs never hides the ones that finished.
+ */
+function openJobRuns(status: OpenJobRunStatus, now: Date) {
+  const needsAction =
+    status === 'queued'
+      ? undefined
+      : or(
+          inArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+          and(
+            lte(jobExecutionLogs.startedAt, new Date(now.getTime() - JOB_RUN_TIME_LIMIT_MS)),
+            sql`${jobExecutionLogs.executionData}->>'deadlineStopRequestedAt' IS NULL`
+          ),
+          and(isNull(jobExecutionLogs.billingRequestId), isNotNull(admittedBillingRequestId))
+        )
   return db
     .select({
       executionId: jobExecutionLogs.executionId,
@@ -44,15 +69,18 @@ function openJobRuns(status: OpenJobRunStatus) {
       deadlineStopRequestedAt: sql<
         string | null
       >`${jobExecutionLogs.executionData}->>'deadlineStopRequestedAt'`,
+      billingRequestId: jobExecutionLogs.billingRequestId,
+      admittedBillingRequestId,
+      scheduleId: jobExecutionLogs.scheduleId,
       runStatus: copilotRuns.status,
       userId: workflowSchedule.sourceUserId,
       workspaceId: workflowSchedule.sourceWorkspaceId,
       chatId: copilotRuns.chatId,
     })
     .from(jobExecutionLogs)
-    .innerJoin(workflowSchedule, eq(workflowSchedule.id, jobExecutionLogs.scheduleId))
+    .leftJoin(workflowSchedule, eq(workflowSchedule.id, jobExecutionLogs.scheduleId))
     .leftJoin(copilotRuns, eq(copilotRuns.streamId, jobExecutionLogs.executionId))
-    .where(openJobRun([status]))
+    .where(and(openJobRun([status]), needsAction))
     .orderBy(asc(jobExecutionLogs.startedAt))
     .limit(RECONCILE_BATCH_SIZE)
 }
@@ -61,22 +89,35 @@ function openJobRuns(status: OpenJobRunStatus) {
  * Drives every open occurrence to an end, so no crash leaves one queued or running forever:
  * a queued record whose dispatch was lost is dispatched again under the same id (the turn is
  * admitted at most once, so a retry of one that did start only finds it); a record whose turn
- * ended is finalized; one past the time limit is stopped and finalized once it settles.
+ * ended is finalized; one past the time limit is stopped and finalized once it settles; one
+ * whose job was deleted before it started is ended. A run whose spend-cap link was lost (its
+ * process died between recording the billing admission and the link) gets it back.
  */
 export async function reconcileJobRuns(now: Date): Promise<void> {
   /** Each status reads its own batch, so a backlog of long runs never starves queued ones. */
-  const [queued, running] = await Promise.all([openJobRuns('queued'), openJobRuns('running')])
+  const [queued, running] = await Promise.all([
+    openJobRuns('queued', now),
+    openJobRuns('running', now),
+  ])
   for (const row of [...queued, ...running]) {
     try {
       if (!row.runStatus) {
-        if (
-          row.status === 'queued' &&
-          now.getTime() - row.startedAt.getTime() >= JOB_DISPATCH_GRACE_MS
-        )
+        if (row.status !== 'queued') continue
+        if (!row.scheduleId) {
+          await endUnstartedJobRun(
+            row.executionId,
+            'blocked',
+            'The job was deleted before this run.'
+          )
+        } else if (now.getTime() - row.startedAt.getTime() >= JOB_DISPATCH_GRACE_MS) {
           await dispatchJobOccurrence(row.executionId)
+        }
         continue
       }
       if (row.status === 'queued') await markJobRunRunning(row.executionId)
+      if (!row.billingRequestId && row.admittedBillingRequestId) {
+        await recordJobRunBillingRequest(row.executionId, row.admittedBillingRequestId)
+      }
       if (TERMINAL_RUN_STATUSES.includes(row.runStatus)) {
         await finalizeJobRun(row.executionId)
       } else if (
@@ -109,12 +150,6 @@ async function stopAtTimeLimit(run: {
   workspaceId: string
   chatId: string
 }): Promise<void> {
-  await db
-    .update(jobExecutionLogs)
-    .set({
-      executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, '{deadlineStopRequestedAt}', to_jsonb(now()))`,
-    })
-    .where(eq(jobExecutionLogs.executionId, run.executionId))
   const stopped = await requestRunStop({
     streamId: run.executionId,
     userId: run.userId,
@@ -123,6 +158,13 @@ async function stopAtTimeLimit(run: {
   })
   /** A run outside the job's scope records no Stop, so nothing is delivered to it. */
   if (!stopped || stopped.workspaceId !== run.workspaceId || stopped.chatId !== run.chatId) return
+  /** Marked once the Stop is durable, so a pass that fails before it stops the run again. */
+  await db
+    .update(jobExecutionLogs)
+    .set({
+      executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, '{deadlineStopRequestedAt}', to_jsonb(now()))`,
+    })
+    .where(eq(jobExecutionLogs.executionId, run.executionId))
   await deliverRunStop(
     {
       id: stopped.id,

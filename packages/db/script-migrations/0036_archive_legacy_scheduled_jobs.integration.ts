@@ -60,6 +60,13 @@ describe('archiving legacy scheduled jobs in PostgreSQL', () => {
     const workflowSchedule = await schedule('workflow')
     const archivedAt = new Date('2026-08-04T00:00:00Z')
     const alreadyArchived = await schedule('job', 'disabled', archivedAt)
+    /** Read as text on both sides: a timestamp without zone round-trips through the local zone. */
+    const archivedAtText = async () =>
+      (
+        await sql<{ at: string }[]>`
+          SELECT archived_at::text AS at FROM workflow_schedule WHERE id = ${alreadyArchived}`
+      )[0].at
+    const archivedBefore = await archivedAtText()
 
     expect(await archiveLegacyScheduledJobs(sql, 2)).toBe(8)
 
@@ -71,7 +78,7 @@ describe('archiving legacy scheduled jobs in PostgreSQL', () => {
       archived_at: expect.any(Date),
     })
     expect(await stored(workflowSchedule)).toEqual({ status: 'active', archived_at: null })
-    expect((await stored(alreadyArchived)).archived_at).toEqual(archivedAt)
+    expect(await archivedAtText()).toBe(archivedBefore)
     const [{ due }] = await sql<{ due: number }[]>`
       SELECT count(*)::int AS due FROM workflow_schedule
       WHERE source_type = 'job' AND archived_at IS NULL`

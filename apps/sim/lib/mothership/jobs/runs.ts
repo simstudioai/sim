@@ -1,5 +1,6 @@
 import { db, jobExecutionLogs, workflowSchedule } from '@sim/db'
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 
 /** What a job run record says about how its occurrence ended. */
 export type JobRunOutcome =
@@ -13,6 +14,13 @@ export type JobRunOutcome =
 
 /** Outcomes the agent reports itself; finalize keeps them rather than inferring one. */
 export const REPORTED_JOB_OUTCOMES: readonly JobRunOutcome[] = ['met', 'not_met', 'blocked']
+
+/** How an ended run reads in the logs: a failed run is an error, every other outcome is not. */
+export function endedRunStatus(outcome: JobRunOutcome) {
+  return outcome === 'failed'
+    ? ({ status: 'error', level: 'error' } as const)
+    : ({ status: 'complete', level: 'info' } as const)
+}
 
 /** A job is turned off after this many failed or interrupted runs in a row. */
 export const MAX_CONSECUTIVE_JOB_FAILURES = 3
@@ -70,12 +78,13 @@ export async function markJobRunRunning(executionId: string): Promise<boolean> {
 export async function endUnstartedJobRun(
   executionId: string,
   outcome: JobRunOutcome,
-  summary: string
+  summary: string,
+  tx: DbOrTx = db
 ): Promise<boolean> {
-  const rows = await db
+  const rows = await tx
     .update(jobExecutionLogs)
     .set({
-      status: 'complete',
+      ...endedRunStatus(outcome),
       outcome,
       summary,
       endedAt: new Date(),

@@ -523,3 +523,30 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 })
+
+describe('UsageUpgradeDisplay', () => {
+  it("shows a job run's own spend cap without an account billing action", () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    act(() => {
+      root.render(
+        <SpecialTags
+          segment={{
+            type: 'usage_upgrade',
+            data: {
+              reason: 'job_run_budget',
+              action: 'increase_limit',
+              message: 'This scheduled job run reached its $5.00 spend limit.',
+            },
+          }}
+        />
+      )
+    })
+
+    expect(container.textContent).toContain('Run Spend Limit Reached')
+    expect(container.textContent).toContain('This scheduled job run reached its $5.00 spend limit.')
+    expect(container.querySelector('a')).toBeNull()
+    act(() => root.unmount())
+  })
+})

@@ -5,6 +5,8 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { TERMINAL_RUN_STATUSES } from '@/lib/mothership/async-runs/repository'
 import {
+  endedRunStatus,
+  endUnstartedJobRun,
   type JobRunOutcome,
   MAX_CONSECUTIVE_JOB_FAILURES,
   REPORTED_JOB_OUTCOMES,
@@ -19,7 +21,7 @@ const SUMMARY_CHARS = 2_000
  * turns the job off. A met `until_complete` job completes. Returns whether the job was turned
  * off, so the caller can tell its people.
  */
-export async function settleJobSchedule(
+async function settleJobSchedule(
   tx: DbOrTx,
   scheduleId: string,
   outcome: JobRunOutcome
@@ -95,7 +97,7 @@ export async function finalizeJobRun(executionId: string): Promise<boolean> {
         and(eq(jobExecutionLogs.executionId, executionId), eq(jobExecutionLogs.status, 'running'))
       )
       .for('update')
-    if (!record?.scheduleId) return false
+    if (!record) return false
     const [run] = await tx
       .select({
         status: copilotRuns.status,
@@ -129,15 +131,15 @@ export async function finalizeJobRun(executionId: string): Promise<boolean> {
     await tx
       .update(jobExecutionLogs)
       .set({
-        status: outcome === 'failed' ? 'error' : 'complete',
-        level: outcome === 'failed' ? 'error' : 'info',
+        ...endedRunStatus(outcome),
         outcome,
         summary,
         endedAt,
         totalDurationMs: Math.max(0, endedAt.getTime() - record.startedAt.getTime()),
       })
       .where(eq(jobExecutionLogs.executionId, executionId))
-    if (await settleJobSchedule(tx, record.scheduleId, outcome)) {
+    /** A record whose job was deleted mid-run still ends; there is no streak left to count. */
+    if (record.scheduleId && (await settleJobSchedule(tx, record.scheduleId, outcome))) {
       disabledScheduleId = record.scheduleId
     }
     return true
@@ -149,4 +151,20 @@ export async function finalizeJobRun(executionId: string): Promise<boolean> {
     })
   }
   return settled
+}
+
+/**
+ * Ends an occurrence that could never be started as failed, counting it toward the job's failure
+ * streak in the same transaction, so a crash cannot close the record without the count.
+ */
+export async function failUnstartedJobRun(
+  executionId: string,
+  scheduleId: string,
+  summary: string
+): Promise<void> {
+  const disabled = await db.transaction(async (tx) => {
+    if (!(await endUnstartedJobRun(executionId, 'failed', summary, tx))) return false
+    return settleJobSchedule(tx, scheduleId, 'failed')
+  })
+  if (disabled) await notifyScheduleAutoDisabled({ scheduleId, reason: 'consecutive_failures' })
 }

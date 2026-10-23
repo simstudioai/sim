@@ -602,12 +602,65 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
       .set({ outcome: 'met', summary: 'Queue empty.' })
       .where(eq(jobExecutionLogs.executionId, occurrenceId))
     worker.finish(occurrenceId, chatId)
-    await reconcileUntilSettled(occurrenceId)
+    await waitFor(async () => {
+      const [run] = await db
+        .select({ status: copilotRuns.status })
+        .from(copilotRuns)
+        .where(eq(copilotRuns.streamId, occurrenceId))
+      return run?.status === 'complete'
+    }, 'the turn to complete')
+    /** The next occurrence comes due before any pass settled the met run. */
+    await dueAgain(scheduleId)
+    await runJobLane(new Date())
 
     expect(await runsOf(scheduleId)).toEqual([
       expect.objectContaining({ status: 'complete', outcome: 'met', summary: 'Queue empty.' }),
     ])
     expect(await schedule(scheduleId)).toMatchObject({ status: 'completed', nextRunAt: null })
+  })
+
+  it('gives a recovered run back the spend-cap link its dead process never wrote', async () => {
+    const { chatId, scheduleId, occurrenceId } = await seedJob()
+    worker.legs.set(occurrenceId, [{ text: 'Working.', mode: 'hang' }])
+    await runJobLane(new Date())
+    await waitFor(async () => worker.open.has(occurrenceId), 'the leg')
+    const billingRequestId = generateId()
+    /** Its admission was recorded on the run, then the process died before linking the record. */
+    await db
+      .update(copilotRuns)
+      .set({
+        requestContext: sql`jsonb_set(${copilotRuns.requestContext}, '{recovery,billingAdmission}', ${JSON.stringify({ billingRequestId, serializedAttribution: 'fixture' })}::jsonb)`,
+      })
+      .where(eq(copilotRuns.streamId, occurrenceId))
+    await db
+      .update(jobExecutionLogs)
+      .set({ billingRequestId: null })
+      .where(eq(jobExecutionLogs.executionId, occurrenceId))
+
+    await reconcileJobRuns(new Date())
+
+    const [record] = await db
+      .select({ billingRequestId: jobExecutionLogs.billingRequestId })
+      .from(jobExecutionLogs)
+      .where(eq(jobExecutionLogs.scheduleId, scheduleId))
+    expect(record?.billingRequestId).toBe(billingRequestId)
+    worker.finish(occurrenceId, chatId)
+    await reconcileUntilSettled(occurrenceId)
+  })
+
+  it('ends a queued occurrence whose job was deleted, so the lane goes idle', async () => {
+    const { scheduleId, occurrenceId } = await seedJob()
+    await claimDueJobOccurrences(new Date(), 10)
+    await db.delete(workflowSchedule).where(eq(workflowSchedule.id, scheduleId))
+
+    await reconcileJobRuns(new Date())
+
+    const [record] = await db
+      .select({ status: jobExecutionLogs.status, outcome: jobExecutionLogs.outcome })
+      .from(jobExecutionLogs)
+      .where(eq(jobExecutionLogs.executionId, occurrenceId))
+    expect(record).toEqual({ status: 'complete', outcome: 'blocked' })
+    await db.delete(jobExecutionLogs).where(eq(jobExecutionLogs.executionId, occurrenceId))
   })
 
   it('turns a job off after three failed runs in a row, and a verdict clears the streak', async () => {

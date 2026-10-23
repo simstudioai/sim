@@ -163,7 +163,7 @@ export function useChatFind({
     if (term) {
       for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
         const message = messages[messageIndex]
-        if (!message || hiddenUserByIndex[messageIndex] || message.origin === 'task') continue
+        if (!message || hiddenUserByIndex[messageIndex] || message.origin) continue
         const text = getMessageSearchText(message, textCache)
         const occurrences: ChatFindMatch[] = []
         let found = 0

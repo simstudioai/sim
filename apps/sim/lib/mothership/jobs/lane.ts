@@ -27,8 +27,10 @@ export function jobLaneWorkQuery(now: Date) {
 }
 
 /**
- * The schedule tick's job lane: claims due occurrences, starts each as a durable turn, then
- * drives every open occurrence (including ones a crashed tick left) towards its end.
+ * The schedule tick's job lane: drives every open occurrence (including ones a crashed tick
+ * left) towards its end, then claims due occurrences and starts each as a durable turn. Settling
+ * first means a run that met its condition, or a third failure that turned its job off, stops
+ * the job before its next occurrence is claimed.
  *
  * Jobs run only where their turns are durable: the worker is configured, and Redis holds the
  * chat locks that let Sim take a turn over after its process dies. Elsewhere the lane does
@@ -37,6 +39,7 @@ export function jobLaneWorkQuery(now: Date) {
 export async function runJobLane(now: Date = new Date()): Promise<{ claimed: number }> {
   if (!env.COPILOT_API_KEY || !env.REDIS_URL) return { claimed: 0 }
   const [work] = await db.execute<{ due: boolean; open: boolean }>(jobLaneWorkQuery(now))
+  if (work?.open) await reconcileJobRuns(now)
   const claimed = work?.due ? await claimDueJobOccurrences(now, JOB_CLAIM_LIMIT) : []
   for (const occurrence of claimed) {
     await dispatchJobOccurrence(occurrence.executionId).catch((error) =>
@@ -46,6 +49,5 @@ export async function runJobLane(now: Date = new Date()): Promise<{ claimed: num
       })
     )
   }
-  if (work?.open || claimed.length > 0) await reconcileJobRuns(now)
   return { claimed: claimed.length }
 }

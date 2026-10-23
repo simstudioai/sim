@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
+import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
@@ -187,24 +188,34 @@ interface UserMessageRowProps {
 }
 
 /**
- * A background-task notification that opened a turn (mothership 21-background-tasks.md
- * §6.4): a muted system chip, never a user bubble — the user did not type it. Shows the
- * outcome line; the provenance header and the agent's own note stay out of the way.
+ * A turn automation opened, never a user bubble — the user did not type it: a muted system chip
+ * with one line. A background-task notification (mothership 21-background-tasks.md §6.4) shows
+ * its outcome line; a scheduled job's run shows the brief's first line (the job and its run).
  */
-const TaskNotificationRow = memo(function TaskNotificationRow({
+const AutomatedTurnRow = memo(function AutomatedTurnRow({
+  origin,
   content,
   rowClassName,
 }: {
+  origin: TurnOrigin
   content: string
   rowClassName: string
 }) {
   const lines = content.split('\n').filter((line) => line.length > 0)
-  const outcome = lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? ''
+  const summary =
+    origin === 'task'
+      ? (lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? '').replace(
+          /^Task [0-9a-f-]+ /,
+          ''
+        )
+      : (lines[0] ?? '').replace(/^Job: /, '')
   return (
     <div className={cn('flex w-full justify-center', rowClassName)}>
       <div className='max-w-[85%] rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[12px] text-[var(--text-secondary)]'>
-        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>Background task</span>
-        {outcome.replace(/^Task [0-9a-f-]+ /, '')}
+        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>
+          {origin === 'task' ? 'Background task' : 'Scheduled job'}
+        </span>
+        {summary}
       </div>
     </div>
   )
@@ -930,8 +941,12 @@ export function MothershipChat({
                     style={{ top: virtualItem.start }}
                   >
                     {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin === 'task' ? (
-                        <TaskNotificationRow content={msg.content} rowClassName={styles.rowGap} />
+                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
+                        <AutomatedTurnRow
+                          origin={msg.origin}
+                          content={msg.content}
+                          rowClassName={styles.rowGap}
+                        />
                       ) : (
                         <UserMessageRow
                           content={msg.content}

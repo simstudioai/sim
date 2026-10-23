@@ -1,4 +1,3 @@
-import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -9,7 +8,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { buildJobBrief } from '@/lib/mothership/jobs/brief'
 import { jobRunBudgetUsd } from '@/lib/mothership/jobs/budget'
-import { settleJobSchedule } from '@/lib/mothership/jobs/finalize'
+import { failUnstartedJobRun } from '@/lib/mothership/jobs/finalize'
 import {
   countJobDispatchFailure,
   disableJob,
@@ -119,14 +118,7 @@ export async function dispatchJobOccurrence(executionId: string): Promise<JobDis
       error: getErrorMessage(error),
     })
     if (failures < MAX_JOB_DISPATCH_ATTEMPTS) return 'retry'
-    if (await endUnstartedJobRun(executionId, 'failed', 'The run could not be started.')) {
-      if (await settleJobSchedule(db, run.scheduleId, 'failed')) {
-        await notifyScheduleAutoDisabled({
-          scheduleId: run.scheduleId,
-          reason: 'consecutive_failures',
-        })
-      }
-    }
+    await failUnstartedJobRun(executionId, run.scheduleId, 'The run could not be started.')
     return 'failed'
   }
 }
