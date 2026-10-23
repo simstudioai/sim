@@ -33,7 +33,6 @@ import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link
 import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-menu'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { WORKSPACE_SEARCH_THRESHOLD } from '@/lib/workspaces/constants'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
@@ -308,8 +307,6 @@ function WorkspaceHeaderImpl({
     }
   }, [isWorkspaceMenuOpen, editingWorkspaceId, editingName, workspaces, onRenameWorkspace])
 
-  const workspaceInitial = getWorkspaceInitial(activeWorkspace?.name)
-
   /**
    * Opens the context menu for a workspace at the specified position
    */
@@ -457,7 +454,7 @@ function WorkspaceHeaderImpl({
               {activeWorkspace ? (
                 <>
                   <IdentityTile
-                    initial={workspaceInitial}
+                    glyphSeed={workspaceId}
                     logoUrl={activeWorkspaceFull?.logoUrl}
                     alt={activeWorkspaceFull?.name || 'Workspace logo'}
                     className='group-hover:invisible'
@@ -508,7 +505,7 @@ function WorkspaceHeaderImpl({
               }}
               leftAdornment={
                 <IdentityTile
-                  initial={workspaceInitial}
+                  glyphSeed={activeWorkspaceFull.id}
                   logoUrl={activeWorkspaceFull.logoUrl}
                   alt={activeWorkspaceFull.name || 'Workspace logo'}
                 />
@@ -603,7 +600,6 @@ function WorkspaceHeaderImpl({
                     </div>
                   )}
                   {filteredWorkspaces.map((workspace, idx) => {
-                    const initial = getWorkspaceInitial(workspace.name)
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
                     const isKeyboardHighlighted = showSearch && isKeyboardNav && idx === activeIndex
@@ -633,7 +629,7 @@ function WorkspaceHeaderImpl({
                             aria-label={`Rename workspace ${workspace.name}`}
                             leadingAdornment={
                               <IdentityTile
-                                initial={initial}
+                                glyphSeed={workspace.id}
                                 logoUrl={workspace.logoUrl}
                                 alt={workspace.name || 'Workspace logo'}
                               />
@@ -726,7 +722,7 @@ function WorkspaceHeaderImpl({
                             onContextMenu={(e) => handleContextMenu(e, workspace)}
                           >
                             <IdentityTile
-                              initial={initial}
+                              glyphSeed={workspace.id}
                               logoUrl={workspace.logoUrl}
                               alt={workspace.name || 'Workspace logo'}
                             />
@@ -799,7 +795,7 @@ function WorkspaceHeaderImpl({
         >
           {activeWorkspace ? (
             <IdentityTile
-              initial={workspaceInitial}
+              glyphSeed={workspaceId}
               logoUrl={activeWorkspaceFull?.logoUrl}
               alt={activeWorkspaceFull?.name || 'Workspace logo'}
             />

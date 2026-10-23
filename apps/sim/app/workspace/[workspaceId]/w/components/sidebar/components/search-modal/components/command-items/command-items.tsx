@@ -6,7 +6,6 @@ import { OverflowText } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { BlockTile } from '@/blocks/block-tile'
@@ -245,6 +244,7 @@ export const MemoizedWorkspaceItem = memo(
   function WorkspaceItem({
     value,
     onSelect,
+    workspaceId,
     name,
     isCurrent,
     logoUrl,
@@ -252,13 +252,14 @@ export const MemoizedWorkspaceItem = memo(
   }: {
     value: string
     onSelect: () => void
+    workspaceId: string
     name: string
     isCurrent?: boolean
     logoUrl?: string | null
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <IdentityTile initial={getWorkspaceInitial(name)} logoUrl={logoUrl} slot='workspace-icon' />
+        <IdentityTile glyphSeed={workspaceId} logoUrl={logoUrl} slot='workspace-icon' />
         <span className='flex min-w-0 text-[var(--text-body)]'>
           <OverflowText label={name} />
           {isCurrent && <span className='shrink-0 whitespace-pre'> (current)</span>}
@@ -269,6 +270,7 @@ export const MemoizedWorkspaceItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.workspaceId === next.workspaceId &&
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     prev.logoUrl === next.logoUrl &&

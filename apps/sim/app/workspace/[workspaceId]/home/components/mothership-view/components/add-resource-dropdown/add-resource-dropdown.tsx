@@ -20,7 +20,6 @@ import { Folder, Plus } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
   type AvailableItemsByType,
   type AvailableResources,
@@ -476,9 +475,7 @@ export function WorkspaceResourceSubmenu({
   subContentClassName,
 }: WorkspaceResourceSubmenuProps) {
   const [open, setOpen] = useState(false)
-  const icon = (
-    <IdentityTile initial={getWorkspaceInitial(workspace.name)} logoUrl={workspace.logoUrl} />
-  )
+  const icon = <IdentityTile glyphSeed={workspace.id} logoUrl={workspace.logoUrl} />
   return (
     <DropdownMenuSub open={open} onOpenChange={setOpen}>
       <DropdownMenuSubTrigger>

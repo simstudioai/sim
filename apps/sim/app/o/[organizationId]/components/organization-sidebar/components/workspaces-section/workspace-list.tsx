@@ -16,7 +16,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-menu'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-workspaces'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
@@ -84,10 +83,7 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
         const isPinned = pinnedWorkspaceIds.has(workspace.id)
         const label = (
           <>
-            <IdentityTile
-              initial={getWorkspaceInitial(workspace.name)}
-              logoUrl={workspace.logoUrl}
-            />
+            <IdentityTile glyphSeed={workspace.id} logoUrl={workspace.logoUrl} />
             <OverflowText
               label={workspace.name}
               className='flex-1 text-[var(--text-body)]'
@@ -114,10 +110,7 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
               key={workspace.id}
               ref={rename.inputRef}
               leadingAdornment={
-                <IdentityTile
-                  initial={getWorkspaceInitial(workspace.name)}
-                  logoUrl={workspace.logoUrl}
-                />
+                <IdentityTile glyphSeed={workspace.id} logoUrl={workspace.logoUrl} />
               }
               aria-label={`Rename workspace ${workspace.name}`}
               value={rename.value}
