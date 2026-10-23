@@ -121,13 +121,13 @@ const FEATURE_FLAGS = {
       'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
-  'isolated-vm-remote-workers': {
+  'isolated-vm-local-workers': {
     description:
-      'Run JavaScript sandbox workers on the dedicated worker host at IVM_REMOTE_WORKER_URL ' +
-      'instead of as local child processes. Global on/off only; no effect where ' +
-      'IVM_REMOTE_WORKER_URL is unset. While on, an unreachable host fails executions ' +
-      'instead of falling back to local workers. Off-AppConfig falls back to IVM_REMOTE_WORKERS.',
-    fallback: 'IVM_REMOTE_WORKERS',
+      'Kill switch: run JavaScript sandbox workers as local child processes even where ' +
+      'IVM_REMOTE_WORKER_URL names a dedicated worker host. Global on/off only; off by default, ' +
+      'so a configured host is used unless this is turned on. AppConfig-only: when AppConfig is ' +
+      'unreachable the host stays in use.',
+    fallback: null,
   },
   'mothership-abandoned-run-takeover-disabled': {
     description:

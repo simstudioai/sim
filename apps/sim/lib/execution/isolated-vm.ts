@@ -250,9 +250,10 @@ let spawnInProgress = 0
 let queueDrainRetryTimeout: ReturnType<typeof setTimeout> | null = null
 
 /**
- * Where workers run: local child processes, or connections to the dedicated
- * worker host (`isolated-vm-host.cjs`). Remote needs both
- * `IVM_REMOTE_WORKER_URL` and the `isolated-vm-remote-workers` flag.
+ * Where workers run: connections to the dedicated worker host
+ * (`isolated-vm-host.cjs`) when `IVM_REMOTE_WORKER_URL` is set, otherwise
+ * local child processes. The `isolated-vm-local-workers` kill switch forces
+ * local workers during rollout.
  */
 type WorkerTarget = { kind: 'local' } | { kind: 'remote'; url: string; token: string }
 
@@ -265,7 +266,7 @@ function workerTargetKey(target: WorkerTarget): string {
 
 async function resolveWorkerTarget(): Promise<WorkerTarget> {
   const url = env.IVM_REMOTE_WORKER_URL?.trim()
-  if (!url || !(await isFeatureEnabled('isolated-vm-remote-workers'))) return LOCAL_WORKER_TARGET
+  if (!url || (await isFeatureEnabled('isolated-vm-local-workers'))) return LOCAL_WORKER_TARGET
   return { kind: 'remote', url, token: env.IVM_REMOTE_WORKER_TOKEN ?? '' }
 }
 

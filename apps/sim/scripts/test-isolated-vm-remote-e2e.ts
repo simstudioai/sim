@@ -12,8 +12,7 @@ import { generateRandomHex } from '@sim/utils/random'
 
 /**
  * Runs the isolated-vm pool against a real `isolated-vm-host.cjs` over real
- * WebSockets, the topology used when `IVM_REMOTE_WORKER_URL` is set and the
- * `isolated-vm-remote-workers` flag is on. This process plays the app; the
+ * WebSockets, the topology used when `IVM_REMOTE_WORKER_URL` is set. This process plays the app; the
  * hosts are separate Node processes.
  *
  * Usage: bun run apps/sim/scripts/test-isolated-vm-remote-e2e.ts
@@ -241,7 +240,6 @@ async function run() {
 
   process.env.IVM_REMOTE_WORKER_URL = `ws://127.0.0.1:${host.port}/v1/worker`
   process.env.IVM_REMOTE_WORKER_TOKEN = host.token
-  process.env.IVM_REMOTE_WORKERS = 'true'
   process.env.IVM_MAX_STDOUT_CHARS = String(STDOUT_LIMIT_CHARS)
   process.env.IVM_QUEUE_TIMEOUT_MS = '5000'
   process.env.IVM_POOL_SIZE = '2'
