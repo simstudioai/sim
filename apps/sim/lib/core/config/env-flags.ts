@@ -112,6 +112,14 @@ export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISS
 export const isMothershipBenchmarkEnabled = isTruthy(env.MOTHERSHIP_BENCHMARK_ENABLED)
 
 /**
+ * Scheduled agent jobs: the schedule tick claims due job occurrences and runs each as an
+ * unattended durable turn in its job's chat. Off by default, and must stay off in production
+ * until unattended runs hold production effects for human approval: until then an unattended
+ * run can do anything its owner can.
+ */
+export const isMothershipJobsEnabled = isTruthy(env.MOTHERSHIP_JOBS_ENABLED)
+
+/**
  * Is billing enforcement enabled.
  *
  * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser

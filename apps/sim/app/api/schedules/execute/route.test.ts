@@ -108,6 +108,12 @@ vi.mock('@/lib/execution/manual-cancellation', () => ({
 
 vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
+/** The job lane is off by default and has its own integration suite. */
+vi.mock('@/lib/mothership/jobs/lane', () => ({
+  isJobLaneEnabled: () => false,
+  runJobLane: vi.fn(),
+}))
+
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),

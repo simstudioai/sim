@@ -16,6 +16,7 @@ interface EnvFlagsMockState {
   isStatusNoticePreviewEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
   isMothershipBenchmarkEnabled: boolean
+  isMothershipJobsEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
@@ -70,6 +71,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isStatusNoticePreviewEnabled: false,
   isCopilotToolPermissionsEnabled: false,
   isMothershipBenchmarkEnabled: false,
+  isMothershipJobsEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,

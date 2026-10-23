@@ -1,0 +1,136 @@
+import { db } from '@sim/db'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  checkAttributedUsageLimits,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/attribution'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { buildJobBrief } from '@/lib/mothership/jobs/brief'
+import { jobRunBudgetUsd } from '@/lib/mothership/jobs/budget'
+import { settleJobSchedule } from '@/lib/mothership/jobs/finalize'
+import {
+  countJobDispatchFailure,
+  disableJob,
+  endUnstartedJobRun,
+  type JobRun,
+  loadJobRun,
+  markJobRunRunning,
+  recordJobRunBillingRequest,
+} from '@/lib/mothership/jobs/runs'
+import { startUnattendedTurn } from '@/lib/mothership/request/lifecycle/unattended'
+import type { TurnSecretAuthority } from '@/lib/mothership/secret-mount-policy'
+import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
+
+const logger = createLogger('MothershipJobDispatch')
+
+/** A queued occurrence whose start failed this many times ends as failed instead of retrying. */
+const MAX_JOB_DISPATCH_ATTEMPTS = 5
+
+export type JobDispatchOutcome =
+  | 'started'
+  | 'already_started'
+  | 'skipped_busy'
+  | 'skipped_budget'
+  | 'blocked'
+  | 'retry'
+  | 'failed'
+  | 'not_queued'
+
+/**
+ * An unattended run mounts only the secrets a person named for the job: a job whose policy
+ * says `all` (the column's default for workflow schedules) mounts none.
+ */
+function jobSecretAuthority(run: JobRun, userId: string): TurnSecretAuthority {
+  return {
+    secretMountPolicy: {
+      secretScope: 'selected',
+      mountedSecrets: run.secretScope === 'selected' ? run.mountedSecrets : [],
+    },
+    secretActorUserId: userId,
+  }
+}
+
+async function block(run: JobRun, summary: string): Promise<JobDispatchOutcome> {
+  await endUnstartedJobRun(run.executionId, 'blocked', summary)
+  if (await disableJob(run.scheduleId)) {
+    await notifyScheduleAutoDisabled({ scheduleId: run.scheduleId, reason: 'authorization_error' })
+  }
+  return 'blocked'
+}
+
+/**
+ * Starts a queued occurrence as a durable turn in its job's chat, at most once: the occurrence id
+ * is the turn's id, so a retry after a crash (or a second tick) finds the turn it already
+ * admitted instead of starting another. The owner's access is re-checked at admission; losing it
+ * turns the job off. An occurrence whose chat is busy, or whose payer is over its plan limit, is
+ * skipped rather than queued behind it.
+ */
+export async function dispatchJobOccurrence(executionId: string): Promise<JobDispatchOutcome> {
+  const run = await loadJobRun(executionId)
+  if (!run || run.status !== 'queued' || !run.occurrenceAt) return 'not_queued'
+  const { userId, workspaceId, chatId } = run
+  if (!userId || !workspaceId || !chatId) return block(run, 'The job has no owner or chat.')
+  if (run.archivedAt || run.scheduleStatus === 'disabled') {
+    await endUnstartedJobRun(executionId, 'blocked', 'The job was turned off before this run.')
+    return 'blocked'
+  }
+
+  try {
+    if (isHosted) {
+      const usage = await checkAttributedUsageLimits(
+        await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      )
+      if (usage.isExceeded) {
+        await endUnstartedJobRun(executionId, 'skipped_budget', 'The usage limit was reached.')
+        return 'skipped_budget'
+      }
+    }
+    const message = await buildJobBrief(
+      { ...run, id: run.scheduleId },
+      run.occurrenceAt,
+      jobRunBudgetUsd(run.runBudgetUsd)
+    )
+    const start = await startUnattendedTurn({
+      userId,
+      workspaceId,
+      chatId,
+      messageId: executionId,
+      message,
+      origin: 'job',
+      secretAuthority: jobSecretAuthority(run, userId),
+      onBillingAdmission: (admission) =>
+        recordJobRunBillingRequest(executionId, admission.billingRequestId),
+    })
+    if (start === 'busy') {
+      await endUnstartedJobRun(executionId, 'skipped_busy', 'Another turn was running in the chat.')
+      return 'skipped_busy'
+    }
+    /** Another attempt admitted (or is admitting) this turn; the reconciler marks it once its run exists. */
+    if (start === 'duplicate') return 'already_started'
+    await markJobRunRunning(executionId)
+    return 'started'
+  } catch (error) {
+    const code = asOrchestrationError(error)?.code
+    if (code === 'forbidden' || code === 'not_found') {
+      return block(run, 'The job owner can no longer run it in this workspace.')
+    }
+    const failures = await countJobDispatchFailure(executionId)
+    logger.warn('Job occurrence could not start; the reconciler retries it', {
+      executionId,
+      failures,
+      error: getErrorMessage(error),
+    })
+    if (failures < MAX_JOB_DISPATCH_ATTEMPTS) return 'retry'
+    if (await endUnstartedJobRun(executionId, 'failed', 'The run could not be started.')) {
+      if (await settleJobSchedule(db, run.scheduleId, 'failed')) {
+        await notifyScheduleAutoDisabled({
+          scheduleId: run.scheduleId,
+          reason: 'consecutive_failures',
+        })
+      }
+    }
+    return 'failed'
+  }
+}
