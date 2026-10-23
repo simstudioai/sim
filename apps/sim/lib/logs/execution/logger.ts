@@ -15,6 +15,7 @@ import {
   getPostgresErrorCode,
 } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
@@ -257,6 +258,27 @@ function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpa
 
     return summarized
   })
+}
+
+/** Puts each loop or parallel scope's own provenance back onto its masked copy. */
+function restoreSubflowScopeProvenance(
+  redactedScopes: Record<string, unknown> | undefined,
+  originalScopes: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!redactedScopes) return redactedScopes
+  const scopes = { ...redactedScopes }
+  for (const [scopeId, originalScope] of Object.entries(originalScopes ?? {})) {
+    const redactedScope = scopes[scopeId]
+    if (!isRecordLike(redactedScope) || !isRecordLike(originalScope)) continue
+    scopes[scopeId] = {
+      ...redactedScope,
+      ...filterUndefined({
+        inputResolvedSecretTraceProvenance: originalScope.inputResolvedSecretTraceProvenance,
+        resolvedSecretTraceProvenance: originalScope.resolvedSecretTraceProvenance,
+      }),
+    }
+  }
+  return scopes
 }
 
 function summarizeExecutionState(executionState?: SerializableExecutionState) {
@@ -777,18 +799,19 @@ export class ExecutionLogger {
     })
   }
 
-  /** Restores server-only lifecycle metadata after broad execution-state PII masking. */
+  /**
+   * Restores server-only lifecycle metadata after broad execution-state PII masking. The masker
+   * walks every string leaf, so it can rewrite a substring of an encrypted provenance entry or an
+   * id and make it unusable; these fields carry no user content, so the originals go back verbatim.
+   */
   private preservePrivateExecutionStateMetadata(
     redactedState: SerializableExecutionState | undefined,
     originalState: SerializableExecutionState | undefined
   ): SerializableExecutionState | undefined {
-    if (!redactedState) return redactedState
+    if (!redactedState || !originalState) return redactedState
 
-    const provenance = originalState?.resolvedSecretTraceProvenance
-    const provenanceCheckpointVersion = originalState?.resolvedSecretTraceCheckpointVersion
-    const trustedLargeValueAccess = originalState?.trustedLargeValueAccess
     const blockStates = { ...redactedState.blockStates }
-    for (const [blockId, originalBlockState] of Object.entries(originalState?.blockStates ?? {})) {
+    for (const [blockId, originalBlockState] of Object.entries(originalState.blockStates)) {
       const redactedBlockState = blockStates[blockId]
       if (redactedBlockState && originalBlockState.resolvedSecretTraceProvenance) {
         blockStates[blockId] = {
@@ -798,8 +821,7 @@ export class ExecutionLogger {
       }
     }
     const blockLogs = redactedState.blockLogs.map((log, index) => {
-      const displayProvenance =
-        originalState?.blockLogs[index]?.displayResolvedSecretTraceProvenance
+      const displayProvenance = originalState.blockLogs[index]?.displayResolvedSecretTraceProvenance
       return displayProvenance
         ? { ...log, displayResolvedSecretTraceProvenance: displayProvenance }
         : log
@@ -809,17 +831,26 @@ export class ExecutionLogger {
       ...redactedState,
       blockStates,
       blockLogs,
-      ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
-      ...(originalState?.workflowVariableResolvedSecretTraceProvenance !== undefined
-        ? {
-            workflowVariableResolvedSecretTraceProvenance:
-              originalState.workflowVariableResolvedSecretTraceProvenance,
-          }
-        : {}),
-      ...(provenanceCheckpointVersion !== undefined
-        ? { resolvedSecretTraceCheckpointVersion: provenanceCheckpointVersion }
-        : {}),
-      ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
+      ...filterUndefined({
+        loopExecutions: restoreSubflowScopeProvenance(
+          redactedState.loopExecutions,
+          originalState.loopExecutions
+        ),
+        parallelExecutions: restoreSubflowScopeProvenance(
+          redactedState.parallelExecutions,
+          originalState.parallelExecutions
+        ),
+        sourceExecutionId: originalState.sourceExecutionId,
+        trustedLargeValueAccess: originalState.trustedLargeValueAccess,
+        resolvedSecretTraceProvenance: originalState.resolvedSecretTraceProvenance,
+        workflowVariableResolvedSecretTraceProvenance:
+          originalState.workflowVariableResolvedSecretTraceProvenance,
+        workflowInputResolvedSecretTraceProvenance:
+          originalState.workflowInputResolvedSecretTraceProvenance,
+        finalOutputResolvedSecretTraceProvenance:
+          originalState.finalOutputResolvedSecretTraceProvenance,
+        resolvedSecretTraceCheckpointVersion: originalState.resolvedSecretTraceCheckpointVersion,
+      }),
     }
   }
 
