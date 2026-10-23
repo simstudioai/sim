@@ -2281,6 +2281,21 @@ export const CLI_CONTRACT: CliContract = {
   completeKnowledgeDocumentUpload: { hidden: true },
   abortKnowledgeDocumentUpload: { hidden: true },
 
+  // The handshake behind `sim knowledge import`, hidden for the reason the
+  // table import steps are; `get` and `cancel` stay without the upload token,
+  // which only addresses an import the command never leaves mid-transfer.
+  createKnowledgeImport: { hidden: true },
+  createKnowledgeImportPartUrls: { hidden: true },
+  completeKnowledgeImport: { hidden: true },
+  getKnowledgeImport: { flags: TRANSFER_TOKEN_OMITTED },
+  cancelKnowledgeImport: {
+    command: 'knowledge imports cancel',
+    flags: TRANSFER_TOKEN_OMITTED,
+    describe: 'Stop a running import',
+    // Not `confirm`-gated: the documents already imported stay in the new
+    // knowledge base, and nothing that existed before the import is touched.
+  },
+
   // Steps of a transfer, not commands
   // Uploading is a presigned multipart handshake: create the upload, ask for
   // part URLs in batches, PUT each part to storage, then complete with the

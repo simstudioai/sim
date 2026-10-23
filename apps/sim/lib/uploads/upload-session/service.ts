@@ -226,6 +226,7 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
         secretProvenance?: WorkspaceFileUploadSource
       }
     | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
+    | { purpose: 'knowledge_import'; workspaceId: string; principal: Principal }
     | {
         purpose: 'knowledge_document'
         workspaceId: string
@@ -408,7 +409,11 @@ export async function createUploadSession(
       )
     }
   }
-  if (params.purpose === 'workspace_file' || params.purpose === 'knowledge_document') {
+  if (
+    params.purpose === 'workspace_file' ||
+    params.purpose === 'knowledge_document' ||
+    params.purpose === 'knowledge_import'
+  ) {
     if (!workspaceId) throw new Error(`${params.purpose} upload is missing workspaceId`)
     if (!params.principal) {
       throw new Error(`${params.purpose} upload requires an authenticated principal`)
@@ -750,7 +755,9 @@ export function assertUploadSessionAuthBinding(
   if (!isPrincipalBoundUploadPurpose(session.purpose)) return
   const candidate = session.metadata.authBinding
   if (candidate === undefined) {
-    if (session.purpose === 'table_import') throw uploadNotFound()
+    if (session.purpose === 'table_import' || session.purpose === 'knowledge_import') {
+      throw uploadNotFound()
+    }
     assertLegacyUploadSessionOwner(session, principal)
     return
   }
@@ -1278,6 +1285,29 @@ export function expectedUploadPartSize(session: UploadSessionRecord, partNumber:
   return session.fileSize - session.partSize * (session.partCount - 1)
 }
 
+/**
+ * How an import resource built on an upload session reads while it is still
+ * that session: everything short of a settled outcome is still `uploading`.
+ */
+export function importStatusForUploadSession(
+  status: UploadSessionStatus
+): 'uploading' | 'canceled' | 'failed' | 'expired' {
+  switch (status) {
+    case 'uploading':
+    case 'completing':
+    case 'finalizing':
+    case 'completed':
+      return 'uploading'
+    case 'aborting':
+    case 'aborted':
+      return 'canceled'
+    case 'failed':
+      return 'failed'
+    case 'expired':
+      return 'expired'
+  }
+}
+
 export function uploadSessionObjectMetadata(
   session: Pick<
     UploadSessionRecord,
@@ -1582,7 +1612,7 @@ function requiresStorageQuota(purpose: UploadSessionPurpose): boolean {
 
 function copilotUploadAudience(purpose: UploadSessionPurpose): string | undefined {
   if (purpose === 'workspace_file') return WORKSPACE_FILES_DELEGATION_AUDIENCE
-  if (purpose === 'knowledge_document') return 'sim:knowledge'
+  if (purpose === 'knowledge_document' || purpose === 'knowledge_import') return 'sim:knowledge'
   if (purpose === 'table_import') return 'sim:tables'
   return undefined
 }
@@ -1593,6 +1623,7 @@ function isPrincipalBoundUploadPurpose(purpose: UploadSessionPurpose): boolean {
     purpose === 'project_file' ||
     purpose === 'knowledge_document' ||
     purpose === 'table_import' ||
+    purpose === 'knowledge_import' ||
     purpose === 'mothership_attachment' ||
     purpose === 'organization_logo'
   )
@@ -1617,6 +1648,11 @@ function resolveUploadStorage(
       return {
         storageContext: 'table-import',
         finalKey: `table-import/${params.workspaceId}/${id}/${buildStorageKeySegment('', params.fileName)}`,
+      }
+    case 'knowledge_import':
+      return {
+        storageContext: 'knowledge-import',
+        finalKey: `knowledge-import/${params.workspaceId}/${id}/${buildStorageKeySegment('', params.fileName)}`,
       }
     case 'knowledge_document':
       return {
@@ -1669,6 +1705,7 @@ function isStorageContext(value: string): value is StorageContext {
     'workspace',
     'project',
     'table-import',
+    'knowledge-import',
     'knowledge-base',
     'profile-pictures',
     'workspace-logos',

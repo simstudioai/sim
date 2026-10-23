@@ -43,6 +43,7 @@ Examples:
   $ sim workflows export 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 > wf.json
   $ sim workflows import --workflow @wf.json
   $ sim knowledge export 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 -o ./kb.simkb.zip
+  $ sim knowledge import ./kb.simkb.zip --name "Docs (copy)"
   $ sim whoami --profile dev
 `
 

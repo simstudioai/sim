@@ -124,6 +124,7 @@ export async function finalizeUploadPurpose({
     case 'execution_attachment':
       return finalizeExecutionAttachment(session)
     case 'table_import':
+    case 'knowledge_import':
     case 'knowledge_document':
       throw new UploadSessionError(
         'validation',
@@ -154,6 +155,7 @@ export async function loadCompletedUploadPurpose(
     case 'mothership_attachment':
     case 'execution_attachment':
     case 'table_import':
+    case 'knowledge_import':
     case 'knowledge_document':
       throw new UploadSessionError(
         'internal',

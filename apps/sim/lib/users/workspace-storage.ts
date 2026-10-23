@@ -18,6 +18,7 @@ export const WORKSPACE_STORAGE_FAMILIES = [
   { root: 'table-snapshots', context: 'execution' },
   { root: 'copilot-doc-compiled', context: 'copilot' },
   { root: 'workspace-logos', context: 'workspace-logos' },
+  { root: 'knowledge-import', context: 'knowledge-import' },
 ] as const satisfies readonly { root: string; context: StorageContext }[]
 
 const WORKSPACE_KEYED_ROOTS: ReadonlySet<string> = new Set(

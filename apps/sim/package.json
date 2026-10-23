@@ -277,6 +277,7 @@
     "word-extractor": "1.0.4",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "y-protocols": "1.0.7",
+    "yauzl": "3.4.0",
     "yjs": "13.6.33",
     "zod": "4.3.6",
     "zustand": "^5.0.15"
@@ -307,6 +308,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ssh2": "^1.15.6",
+    "@types/yauzl": "3.4.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^5.0.4",
     "@vitest/expect": "5.0.4",

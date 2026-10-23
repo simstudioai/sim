@@ -5,6 +5,7 @@ export type UploadSessionPurpose =
   | 'workspace_file'
   | 'project_file'
   | 'table_import'
+  | 'knowledge_import'
   | 'knowledge_document'
   | 'profile_picture'
   | 'workspace_logo'
