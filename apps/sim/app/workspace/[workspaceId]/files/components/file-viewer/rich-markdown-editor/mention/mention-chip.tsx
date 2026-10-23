@@ -28,9 +28,10 @@ const CHIP_CLASS =
 
 /**
  * Live chip: an entity icon + label matching the chat input's mention rendering. Where the host opted
- * into navigation (the file viewer), Cmd/Ctrl-click routes to the resource; in a modal field it stays
- * inert so a click can't navigate away from an unsaved edit. This view pulls the block registry (for
- * integration brand icons), so it's kept out of the headless {@link MarkdownMention} module.
+ * into navigation (the file viewer), a click routes to the resource and Cmd/Ctrl-click opens it in a
+ * new tab; in a modal field it stays inert so a click can't navigate away from an unsaved edit. This
+ * view pulls the block registry (for integration brand icons), so it's kept out of the headless
+ * {@link MarkdownMention} module.
  */
 export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const router = useRouter()
@@ -42,8 +43,13 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
 
   const handleClick = (event: MouseEvent) => {
-    if (!path || !(event.metaKey || event.ctrlKey)) return
+    if (!path) return
     event.preventDefault()
+    event.stopPropagation()
+    if (event.metaKey || event.ctrlKey) {
+      window.open(path, '_blank', 'noopener,noreferrer')
+      return
+    }
     router.push(path)
   }
 
