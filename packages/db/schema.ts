@@ -28,6 +28,7 @@ import {
   vector,
 } from 'drizzle-orm/pg-core'
 import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
+import { sealedText } from './sealed-text'
 
 /**
  * Drizzle push compares index options as JSON, while Postgres introspection
@@ -176,8 +177,8 @@ export const account = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    accessToken: text('access_token'),
-    refreshToken: text('refresh_token'),
+    accessToken: sealedText('access_token'),
+    refreshToken: sealedText('refresh_token'),
     idToken: text('id_token'),
     accessTokenExpiresAt: timestamp('access_token_expires_at'),
     refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
