@@ -569,6 +569,9 @@ jobs:
       needs.promote.result == 'success' &&
       needs.trigger-upload.result == 'success' &&
       needs.promote.outputs.promoted == 'true'
+    outputs:
+      # The new app serves traffic; indexnow keys off this, not the later Trigger.dev promotion.
+      cutover: ${{ steps.cutover.outcome }}
     # Mostly waiting on the ECS cutover after a dependency install: the smallest runner is enough.
     runs-on: *runner-2vcpu
     # Leave setup/promotion headroom above the 70-minute cutover poll.
@@ -596,6 +599,7 @@ jobs:
       # An unchanged tag may belong to a failed or still-running earlier deploy.
       # Verify its latest cutover rather than treating tag equality as success.
       - name: Wait for ECS traffic cutover
+        id: cutover
         env:
           OVERALL_TIMEOUT: 4200
           APP_IMAGE_CHANGED: ${{ needs.promote.outputs.app_image_changed }}
@@ -646,7 +650,7 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.promote.outputs.promoted == 'true' &&
-      needs.trigger-promote.result == 'success'
+      needs.trigger-promote.outputs.cutover == 'success'
     runs-on: *runner-2vcpu
     timeout-minutes: 5
     continue-on-error: true

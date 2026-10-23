@@ -104,6 +104,33 @@ describe('collectIndexNowUrls', () => {
     ])
   })
 
+  it('submits a post that went from published to draft, since it now 404s', () => {
+    const { repo, urls } = fixture()
+    write(repo, `${LIBRARY}/published/index.mdx`, post(true))
+    expect(urls()).toEqual(['https://www.sim.ai/library', 'https://www.sim.ai/library/published'])
+  })
+
+  it('submits both the old and new URL when a comparison id changes', () => {
+    const { repo, urls } = fixture()
+    write(repo, `${COMPETITORS}/n8n.ts`, "export const p = {\n  id: 'n8n-io',\n}\n")
+    expect(urls()).toEqual([
+      'https://www.sim.ai/comparisons',
+      'https://www.sim.ai/comparisons/n8n',
+      'https://www.sim.ai/comparisons/n8n-io',
+    ])
+  })
+
+  it("keeps a deleted comparison when Sim's profile changes in the same release", () => {
+    const { repo, urls } = fixture()
+    write(repo, 'apps/sim/lib/compare/data/sim.ts', 'export const sim = 2\n')
+    git(repo, 'rm', '-q', `${COMPETITORS}/n8n.ts`)
+    expect(urls()).toEqual([
+      'https://www.sim.ai/comparisons',
+      'https://www.sim.ai/comparisons/n8n',
+      'https://www.sim.ai/comparisons/stack-ai',
+    ])
+  })
+
   it('submits nothing when no library or comparison source changed', () => {
     const { repo, urls } = fixture()
     write(repo, 'README.md', 'changed\n')

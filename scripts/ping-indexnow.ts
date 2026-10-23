@@ -45,10 +45,11 @@ function profileId(source: string): string | undefined {
 }
 
 /**
- * The public URLs whose source changed between two commits: each published library article
- * (renamed and deleted ones under their old slug too, so engines learn of the redirect or 404),
- * each comparison whose profile changed (every comparison when Sim's own profile did), and the
- * index page of each section that changed. Drafts are never submitted.
+ * The public URLs whose source changed between two commits: each library article published on
+ * either side (renamed, deleted, and newly drafted ones too, so engines learn of the 404), each
+ * comparison whose profile changed under its old and new id (every comparison when Sim's own
+ * profile did), and the index page of each section that changed. A post that was never published
+ * is never submitted.
  */
 export function collectIndexNowUrls(repo: string, base: string, head: string): string[] {
   const diff = git(repo, ['diff', '--name-status', '-M', base, head, '--']) ?? ''
@@ -67,21 +68,28 @@ export function collectIndexNowUrls(repo: string, base: string, head: string): s
   )
   for (const slug of slugs) {
     const index = `${LIBRARY_DIR}/${slug}/index.mdx`
-    const source = show(head, index) ?? show(base, index)
-    if (source !== null && !isDraft(source)) urls.add(`${SITE}/library/${slug}`)
+    const wasOrIsPublished = [show(base, index), show(head, index)].some(
+      (source) => source !== null && !isDraft(source)
+    )
+    if (wasOrIsPublished) urls.add(`${SITE}/library/${slug}`)
   }
   if (urls.size > 0) urls.add(`${SITE}/library`)
 
-  const profiles = paths.includes(SIM_PROFILE)
-    ? (git(repo, ['ls-tree', '--name-only', head, `${COMPETITORS_DIR}/`]) ?? '')
-        .split('\n')
-        .filter(Boolean)
-    : paths.filter((file) => path.dirname(file) === COMPETITORS_DIR && file.endsWith('.ts'))
-  const ids = profiles
-    .map((file) => profileId(show(head, file) ?? show(base, file) ?? ''))
-    .filter(Boolean)
+  const changedProfiles = paths.filter(
+    (file) => path.dirname(file) === COMPETITORS_DIR && file.endsWith('.ts')
+  )
+  const currentProfiles = paths.includes(SIM_PROFILE)
+    ? (git(repo, ['ls-tree', '--name-only', head, `${COMPETITORS_DIR}/`]) ?? '').split('\n')
+    : []
+  const ids = new Set(
+    [...new Set([...changedProfiles, ...currentProfiles])]
+      .filter(Boolean)
+      .flatMap((file) => [show(base, file), show(head, file)])
+      .map((source) => profileId(source ?? ''))
+      .filter((id): id is string => Boolean(id))
+  )
   for (const id of ids) urls.add(`${SITE}/comparisons/${id}`)
-  if (ids.length > 0) urls.add(`${SITE}/comparisons`)
+  if (ids.size > 0) urls.add(`${SITE}/comparisons`)
 
   return [...urls].sort()
 }
