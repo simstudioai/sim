@@ -552,6 +552,35 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     worker.open.delete(occurrenceId)
   }, 60_000)
 
+  it('delivers a time-limit Stop an earlier pass recorded but died delivering, before finalizing', async () => {
+    const { scheduleId, occurrenceId } = await seedJob()
+    worker.legs.set(occurrenceId, [{ text: 'Still triaging. ', mode: 'hang' }])
+    await runJobLane(new Date())
+    await waitFor(async () => worker.open.has(occurrenceId), 'the first leg')
+    /** What a pass leaves when it dies after recording why the run stops, before delivering it. */
+    await db
+      .update(jobExecutionLogs)
+      .set({ executionData: sql`jsonb_build_object('deadlineStopRequestedAt', now())` })
+      .where(eq(jobExecutionLogs.executionId, occurrenceId))
+
+    await reconcileUntilSettled(occurrenceId)
+
+    expect(
+      worker.requests.filter(
+        (request) =>
+          request.path === '/api/streams/explicit-abort' && request.body.messageId === occurrenceId
+      )
+    ).toHaveLength(1)
+    expect(await runsOf(scheduleId)).toEqual([
+      expect.objectContaining({
+        outcome: 'interrupted',
+        summary: 'Stopped at the run time limit.',
+      }),
+    ])
+    worker.open.get(occurrenceId)?.response.end()
+    worker.open.delete(occurrenceId)
+  }, 60_000)
+
   it('does not report a job a person turned off as turned off by its failures', async () => {
     vi.mocked(notifyScheduleAutoDisabled).mockClear()
     const { scheduleId, occurrenceId } = await seedJob()
