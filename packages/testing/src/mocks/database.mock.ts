@@ -392,8 +392,9 @@ export const dbChainMockFns = {
 }
 
 /**
- * Restores every `dbChainMockFns` entry to its default wiring, drains any
- * unconsumed `...Once` overrides, and clears all table-routed row queues.
+ * Restores every `dbChainMockFns` entry and `isPrimaryPoolClient` to their default
+ * wiring, drains any unconsumed `...Once` overrides, and clears all table-routed
+ * row queues.
  * Call this in `beforeEach` so each test starts from fresh defaults — a
  * `...Once` override queued by a previous test but never consumed would
  * otherwise leak into the next test (`clearMocks` clears call history only,
@@ -409,6 +410,7 @@ export function resetDbChainMock(): void {
     ;(spy as ChainSpy).mockReset()
   }
   query.mockReset()
+  mockIsPrimaryPoolClient.mockReset()
   for (const key of [
     'select',
     'selectDistinct',
