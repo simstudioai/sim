@@ -70,7 +70,14 @@ const MARKETING_DOCUMENT_PATHS: ReadonlySet<string> = new Set([
   '/changelog.xml',
 ])
 
+/** Top-level route segments that republish landing content as documents, e.g. `/library.md/<slug>`. */
+const MARKETING_DOCUMENT_SEGMENTS: ReadonlySet<string> = new Set(['library.md'])
+
 /** Whether a pathname serves marketing content: a landing page or a marketing document. */
 export function isMarketingPath(pathname: string): boolean {
-  return isLandingPath(pathname) || MARKETING_DOCUMENT_PATHS.has(pathname)
+  return (
+    isLandingPath(pathname) ||
+    MARKETING_DOCUMENT_PATHS.has(pathname) ||
+    MARKETING_DOCUMENT_SEGMENTS.has(pathname.split('/')[1])
+  )
 }

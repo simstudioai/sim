@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: CustomerPageProps): Promise<M
   const { slug } = await params
   if (!CUSTOMER_STORIES.some((story) => story.slug === slug)) return {}
   const post = await getCustomerStoryBySlug(slug)
-  return post ? buildPostMetadata(post) : {}
+  return post ? buildPostMetadata(post, CUSTOMER_SECTION) : {}
 }
 
 export default async function Page({ params }: CustomerPageProps) {

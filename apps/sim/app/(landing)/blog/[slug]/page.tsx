@@ -24,7 +24,7 @@ export async function generateMetadata({
   const { slug } = await params
   const post = await getPostBySlug(slug)
   if (!post || post.draft) return {}
-  return buildPostMetadata(post)
+  return buildPostMetadata(post, BLOG_SECTION)
 }
 
 export const revalidate = 86400
