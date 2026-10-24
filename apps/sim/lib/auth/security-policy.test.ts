@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { databaseMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMemberOrganizationId,
   getSecurityPolicyVersion,
@@ -152,10 +152,6 @@ describe('shared caches behind a sub-pool client', () => {
     resetDbChainMock()
     invalidateMembershipCache('pool-user')
     invalidateSecurityPolicyVersionCache('pool-org')
-  })
-
-  afterEach(() => {
-    databaseMockFns.mockIsPrimaryPoolClient.mockReset()
   })
 
   /**
