@@ -469,7 +469,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   }> = [
     {
       flag: 'BILLING_ENABLED',
-      needs: ['STRIPE_SECRET_KEY'],
+      needs: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
       label: 'billing',
     },
     {
