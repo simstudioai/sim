@@ -67,10 +67,10 @@ export function connectRemoteWorker(options: RemoteWorkerOptions): IsolatedVMWor
   }
 
   /** Exits on a later tick, as a killed child does, so the pool never re-enters its own cleanup. */
-  const terminate = (reason: string) => {
+  const terminate = (reason: string, closeCode?: number) => {
     exitReason ??= reason
     try {
-      socket.close()
+      socket.close(closeCode)
     } catch {}
     setImmediate(() => emitExit(reason))
   }
@@ -120,7 +120,8 @@ export function connectRemoteWorker(options: RemoteWorkerOptions): IsolatedVMWor
       return true
     },
     kill() {
-      terminate('Remote isolated-vm worker closed by the app')
+      // A normal closure, so the pool retiring an idle or recycled worker isn't logged as a failure.
+      terminate('Remote isolated-vm worker closed by the app', 1000)
       return true
     },
     on(event: 'message' | 'exit', listener: (message: unknown) => void) {
