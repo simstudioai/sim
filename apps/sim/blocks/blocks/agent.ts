@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   getAgentModelOptions,
@@ -41,6 +41,12 @@ const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 const EVALUATION_MODELS = getEvaluationModels()
 const MODELS_WITHOUT_CHAT_CONTROLS = [...MODELS_WITH_DEEP_RESEARCH, ...EVALUATION_MODELS]
+
+const RUN_LIMIT_FIELD_CONDITION: SubBlockConfig['condition'] = {
+  field: 'runLimits',
+  value: true,
+  and: { field: 'model', value: MODELS_WITHOUT_CHAT_CONTROLS, not: true },
+}
 
 // Helper function to get the tool ID from a block type
 const getToolIdFromBlock = (blockType: string): string | undefined => {
@@ -423,6 +429,56 @@ Return ONLY the JSON array.`,
       },
     },
     {
+      id: 'runLimits',
+      title: 'Limit run',
+      type: 'switch',
+      description:
+        'A step is one model response whose tool calls run. Limits stop the agent from starting new steps; a call or tool already running finishes first. Spend is measured like the cost output, tools included.',
+      defaultValue: false,
+      mode: 'advanced',
+      condition: {
+        field: 'model',
+        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        not: true,
+      },
+    },
+    {
+      id: 'maxRunCost',
+      title: 'Max spend (USD)',
+      type: 'short-input',
+      placeholder: 'No limit',
+      mode: 'advanced',
+      condition: RUN_LIMIT_FIELD_CONDITION,
+    },
+    {
+      id: 'maxSteps',
+      title: 'Max steps',
+      type: 'short-input',
+      placeholder: 'No limit',
+      mode: 'advanced',
+      condition: RUN_LIMIT_FIELD_CONDITION,
+    },
+    {
+      id: 'maxRunDuration',
+      title: 'Max duration (seconds)',
+      type: 'short-input',
+      placeholder: 'No limit',
+      mode: 'advanced',
+      condition: RUN_LIMIT_FIELD_CONDITION,
+    },
+    {
+      id: 'onRunLimit',
+      title: 'When a limit is reached',
+      type: 'dropdown',
+      options: [
+        { label: 'Return best answer', id: 'finalize' },
+        { label: 'Fail block', id: 'fail' },
+      ],
+      defaultValue: 'finalize',
+      mode: 'advanced',
+      condition: RUN_LIMIT_FIELD_CONDITION,
+    },
+    {
       id: 'responseFormat',
       title: 'Response Format',
       type: 'code',
@@ -614,6 +670,24 @@ Return ONLY the JSON array.`,
       type: 'boolean',
       description: 'Cache the system prompt and tool definitions on models that support it',
     },
+    runLimits: {
+      type: 'boolean',
+      description: 'Stop the agent at the spend, step, and duration limits below',
+    },
+    maxRunCost: { type: 'number', description: 'Most this block may be billed, in USD' },
+    maxSteps: {
+      type: 'number',
+      description: 'Most model responses whose tool calls may run',
+    },
+    maxRunDuration: {
+      type: 'number',
+      description: 'Seconds after which the agent starts no new steps',
+    },
+    onRunLimit: {
+      type: 'string',
+      description:
+        'When the agent still wants tools past a limit: finalize to answer without them, or fail to fail the block',
+    },
     ...MODEL_FALLBACK_INPUTS,
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },
@@ -634,6 +708,11 @@ Return ONLY the JSON array.`,
       description: 'Provider timing information',
     },
     cost: { type: 'json', description: 'Cost of the API call' },
+    stopReason: {
+      type: 'string',
+      description: 'Why the agent stopped: completed, spend_limit, step_limit, or time_limit',
+      condition: { field: 'runLimits', value: true },
+    },
     interactionId: {
       type: 'string',
       description: 'Interaction ID for multi-turn deep research follow-ups',

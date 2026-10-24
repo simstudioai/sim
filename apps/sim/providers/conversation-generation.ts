@@ -21,6 +21,7 @@ import {
   isConversationHistoryNotice,
 } from '@/providers/conversation-metadata'
 import { getConversationModelLimits } from '@/providers/conversation-model'
+import { applyRunLimits, RunLimitError } from '@/providers/run-limits'
 import { assertRunWithinUsageLimit, RunUsageLimitError } from '@/providers/run-usage-limit'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderRequest } from '@/providers/types'
@@ -117,13 +118,15 @@ function contextError(message: string): Error {
 
 /**
  * Provider wrappers must preserve the permanent failures this module raises, context faults and
- * the run's usage-limit stop, so fallback cannot restart them and the stop keeps its billed cost.
+ * the run's usage-limit and run-limit stops, so fallback cannot restart them and a stop keeps its
+ * billed cost.
  */
-export function isConversationContextError(error: unknown): boolean {
+export function isPermanentGenerationError(error: unknown): boolean {
   return (
     error instanceof AgentContextLimitError ||
     error instanceof AgentContextProtocolError ||
-    error instanceof RunUsageLimitError
+    error instanceof RunUsageLimitError ||
+    error instanceof RunLimitError
   )
 }
 
@@ -288,10 +291,11 @@ function nativeSummaryMessage(summary: Message, protocol: ConversationProtocol):
 export async function prepareConversationGeneration<T>(
   request: ProviderRequest,
   protocol: ConversationProtocol,
-  payload: T
+  requestedPayload: T
 ): Promise<T> {
   const runtime = getConversationRequestContext(request)
   await assertRunWithinUsageLimit(runtime)
+  const payload = applyRunLimits(runtime, request, protocol, requestedPayload)
   if (!runtime?.agentConversation) return payload
   request.abortSignal?.throwIfAborted()
   if (!isRecordLike(payload))

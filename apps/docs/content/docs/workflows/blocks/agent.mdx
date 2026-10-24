@@ -121,7 +121,7 @@ Set **Response Format** to a JSON Schema when later blocks need named fields. Na
 
 Malformed JSON can fall back to plain text with `_responseFormatWarning`. Sim does not perform a general post-parse schema check on every provider result, so validate fields downstream before consequential actions.
 
-Avoid schema fields named `model`, `tokens`, `toolCalls`, `providerTiming`, or `cost`. Sim's standard metadata overwrites those fields after parsing, even when a metadata value is absent.
+Avoid schema fields named `model`, `tokens`, `toolCalls`, `providerTiming`, or `cost`. Sim's standard metadata overwrites those fields after parsing, even when a metadata value is absent. With **Limit run** on, `stopReason` is overwritten too.
 
 ```json
 {
@@ -144,6 +144,7 @@ Some settings live under advanced, or appear only for models that support them:
 
 - **Temperature.** Controls variation on models that support it. Lower values tend to reduce variation; test accuracy on representative inputs rather than treating temperature as a factuality guarantee.
 - **Max output tokens.** Caps the response length. Defaults to the model's full limit.
+- **Limit run.** Stops a long tool-using run at a **max spend** in USD, a **max number of steps**, or a **max duration** in seconds. A step is one model response whose tool calls run. Leave a field empty for no limit. A limit acts only when the agent wants to keep using tools, so a call or tool that is already running finishes first, and a run that finishes before reaching a limit is unaffected. Spend is measured the same way as `<agent.cost>`, including tool costs, so a model Sim does not bill for, such as one on your own API key, adds only its tool costs. One budget covers the selected model and its fallbacks, and each try of **Retry on fail** starts a new one. **When a limit is reached** chooses what happens: **Return best answer** (the default) asks the model for a final answer without tools, which can spend slightly past the limit, and fails the block only if the model keeps calling tools anyway; **Fail block** fails the block if the agent asks for more tools. `<agent.stopReason>` reports whether a limit stopped the run.
 - **Reasoning effort / Thinking level.** Controls supported models' reasoning budget. Higher settings can increase latency and token use; evaluate the result on your task.
 - **Prompt caching.** Reuses a stable system prompt and tool definitions on supported Claude models. Sim uses a five-minute cache. Cache-write pricing, read discounts, and minimum prefix length depend on the model; check [Anthropic's current requirements](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-limitations). Enable it for repeated runs sharing a prefix; a one-off run can pay a write premium without a later cache hit.
 - **API key.** Your key for the chosen provider. Hidden when hosted Sim supplies a key for the selected model, including Jev.
@@ -163,6 +164,7 @@ After the agent runs, later blocks read its result by name:
 | `<agent.toolCalls>` | The tools the agent called, with their inputs and results |
 | `<agent.model>` | The model that ran the step |
 | `<agent.cost>` | Estimated cost in USD, as an object with `input`, `output`, and `total`; read `<agent.cost.total>` for the total |
+| `<agent.stopReason>` | With **Limit run** on: `completed`, or the limit that stopped the run: `spend_limit`, `step_limit`, or `time_limit` |
 
 The cost object can include additional fields such as tool costs or pricing. The Logs UI and run-resource API use credits. See [Costs](/platform/costs) for units and billing behavior.
 

@@ -12,13 +12,26 @@ import type { ProviderRuntimeContext } from '@/providers/runtime-context'
 
 /**
  * A run stopped at its payer's usage limit. Providers pass it through unwrapped (see
- * `isConversationContextError`), so it keeps its billed cost and is never retried.
+ * `isPermanentGenerationError`), so it keeps its billed cost and is never retried.
  */
 export class RunUsageLimitError extends NonRetryableExecutionError {
   constructor(message: string) {
     super(message)
     this.name = 'RunUsageLimitError'
   }
+}
+
+/**
+ * Attributes a run stop to the user, so it logs at info, and attaches the request's settled cost,
+ * so the stopped block is billed for the steps and tool calls it ran.
+ */
+export function billedUserStop<T extends Error>(
+  error: T,
+  settledCost: TokenUsageCost | undefined
+): T {
+  markFailureKind(error, 'user')
+  if (settledCost?.total) attachTrustedExecutionCost(error, settledCost)
+  return error
 }
 
 export function addSettledCost(settledCost: TokenUsageCost, cost: TokenUsageCost): void {
@@ -104,7 +117,5 @@ export async function assertRunWithinUsageLimit(
     verdict.payer ?? attribution,
     verdict.scope
   )
-  const error = markFailureKind(new RunUsageLimitError(message), 'user')
-  if (runtime.settledCost?.total) attachTrustedExecutionCost(error, runtime.settledCost)
-  throw error
+  throw billedUserStop(new RunUsageLimitError(message), runtime.settledCost)
 }

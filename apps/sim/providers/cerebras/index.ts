@@ -7,7 +7,7 @@ import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -676,7 +676,7 @@ export const cerebrasProvider: ProviderConfig = {
       if (
         isAbortError(error) ||
         request.abortSignal?.aborted ||
-        isConversationContextError(error)
+        isPermanentGenerationError(error)
       ) {
         throw error
       }
