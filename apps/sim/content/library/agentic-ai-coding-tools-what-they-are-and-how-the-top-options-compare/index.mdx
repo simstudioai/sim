@@ -87,6 +87,8 @@ faq:
     a: "An agentic coding tool should be tested with malicious instructions placed in repository files, issues, documentation, logs, and dependency content. The test should confirm that untrusted text cannot cause unauthorized secret access, network calls, command execution, policy bypass, or out-of-scope changes."
   - q: "Are cloud coding agents safe for private source code?"
     a: "Cloud coding agents are appropriate for private source code only when their current first-party data terms, retention, model-training treatment, subprocessors, access controls, and deployment boundaries satisfy the organization’s requirements. Teams should not infer those protections from marketing language or from a different plan."
+  - q: "Do agentic coding tools replace code review?"
+    a: "Agentic coding tools do not replace code review because generated changes can be plausible while still containing regressions, vulnerabilities, or incorrect assumptions. Human review and independent automated checks remain necessary for consequential code changes."
   - q: "Do agentic coding tools replace continuous integration?"
     a: "Agentic coding tools do not replace continuous integration because their own claims about tests or correctness are not independent evidence. CI should run deterministic tests, security checks, and policy enforcement outside the agent’s control."
   - q: "Should engineering teams use one coding agent or multiple coding agents?"
@@ -99,6 +101,10 @@ faq:
     a: "An agentic coding tool pilot should run long enough to cover representative task categories, repeated trials, different reviewers, and realistic failure cases. Calendar duration matters less than collecting enough comparable evidence to distinguish reliable performance from isolated success."
   - q: "How do you roll back changes made by a coding agent?"
     a: "Coding agent changes should be isolated in branches or pull requests so teams can inspect, reject, or revert them with standard version-control procedures. Any external side effects created during execution need separate logs and recovery steps because reverting a commit will not undo them."
+  - q: "Is an agentic coding tool the same as an AI workflow agent?"
+    a: "An agentic coding tool is not the same as an AI workflow agent because coding tools primarily work with software repositories, while workflow agents coordinate actions across models, APIs, data, and business systems. A production team may connect the two categories without treating them as interchangeable."
+  - q: "Can Sim replace an agentic coding tool?"
+    a: "Sim does not directly replace an agentic coding tool because Sim is designed for building, deploying, and managing AI agents that automate real work across connected systems rather than serving as a dedicated coding environment. Teams can use Sim alongside coding agents when a software task needs to participate in a broader operational workflow."
   - q: "What evidence should a vendor provide before an agentic coding tool is approved?"
     a: "An agentic coding tool vendor should provide current first-party documentation for data handling, retention, model training, subprocessors, security controls, deployment, authentication, administration, auditability, pricing, support, and licensing. The engineering team should combine that documentation with results from its own controlled pilot."
   - q: "What is the best agentic coding tool?"
@@ -431,7 +437,7 @@ Agentic coding tools should fail production review if they cannot satisfy the or
 
 A production approval should state which repositories, users, commands, integrations, and data classifications are permitted. Anything outside that scope should require a separate review.
 
-## What production criteria should engineering teams use for agentic coding tools?
+## What production scorecard should engineering teams use for agentic coding tools?
 
 Agentic coding tool criteria should record comparable evidence after every candidate passes the mandatory gates, without collapsing unlike security, quality, and cost results into one number.
 
