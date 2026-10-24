@@ -3,7 +3,7 @@ slug: how-much-does-it-cost-to-build-and-run-an-ai-agent
 title: 'How Much Does It Cost to Build and Run an AI Agent?'
 description: 'Estimate the true cost to build and run an AI agent, from implementation labor and model usage to infrastructure, observability, and ongoing operations.'
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-24
 authors:
   - andrew
 readingTime: 11
@@ -27,8 +27,8 @@ faq:
     a: "BYOK can be cheaper for AI agents when it avoids hosted-key markup or uses negotiated provider rates, but teams must also account for credential administration, separate billing, rate limits, and support."
   - q: "Does Sim support BYOK on every cloud plan?"
     a: "Sim supports workspace BYOK keys on every Sim Cloud plan as of October 2026, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise."
-  - q: "Does Sim add a markup to hosted model usage?"
-    a: "Sim-hosted model keys carry a multiplier of approximately 1.1 times the provider cost as of October 2026."
+  - q: "How does Sim charge for hosted model usage?"
+    a: "Sim records hosted model usage at the applicable Sim rate and converts it to credits, while BYOK avoids Sim's model usage charge for the provider calls it covers."
   - q: "Can Sim use local models when self-hosted?"
     a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM on any self-hosted Sim deployment without requiring Sim Enterprise."
   - q: "Is Sim open source?"
@@ -145,7 +145,7 @@ BYOK can be cheaper when a platform adds a markup to hosted model usage, but the
 
 With bring your own key, or BYOK, the model provider bills the customer directly. With hosted keys, the agent platform manages the provider relationship and may pass through the model price, add a multiplier, sell credits, or bundle usage into a plan.
 
-As of October 2026, Sim workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Sim-hosted model keys carry a multiplier of approximately 1.1 times provider cost. See [BYOK Multi-Model AI Agent Builder: How Sim’s Bring-Your-Own-Key Works](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) and the [Sim cost documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) for the implementation details.
+As of October 2026, Sim workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Sim-hosted model usage is recorded at the applicable Sim rate. See [BYOK Multi-Model AI Agent Builder: How Sim’s Bring-Your-Own-Key Works](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) and the [Sim cost documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) for the implementation details.
 
 BYOK is not automatically the lowest total-cost option. Teams should compare:
 
@@ -203,7 +203,7 @@ For a deeper governance process, see [How Do You Control AI Agent Spend Across T
 
 Sim and n8n use different licensing and cost structures, so buyers should compare model charges, execution charges, hosting, and enterprise requirements rather than comparing one subscription number.
 
-- **Sim:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents; [Sim’s core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), self-hosting is available, and model usage is billed either through provider-direct BYOK or Sim-hosted keys at approximately 1.1 times provider cost as of October 2026.
+- **Sim:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents; [Sim’s core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), self-hosting is available, and model usage is billed either through provider-direct BYOK or Sim-hosted keys at the applicable Sim rate as of October 2026.
 - **n8n:** n8n is a workflow automation product that can be self-hosted under the source-available [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is not OSI-approved, while n8n Cloud plans are priced by monthly workflow executions according to the [official n8n pricing page](https://n8n.io/pricing/) as of October 2026.
 
 Execution-based billing and model-usage billing measure different things. One agent run may contain several model calls and tool steps, so teams need to calculate both the platform unit and the underlying AI usage.

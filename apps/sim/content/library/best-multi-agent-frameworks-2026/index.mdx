@@ -266,7 +266,7 @@ That shared graph also makes agent handoffs, state changes, and business rules e
 
 According to the [Sim cost documentation](https://docs.sim.ai/platform/costs), one credit equals $0.005. Each run includes a base charge of one credit, and Sim-hosted model usage is recorded at the applicable Sim rate and converted to credits. BYOK avoids Sim's model usage charge for the provider calls it covers, so customers pay the model provider directly.
 
-**Sim hosted usage is credit-metered, while BYOK is billed directly by the model provider at provider pricing with no Sim markup.** The self-hosting documentation covers Ollama, vLLM, LM Studio, and LiteLLM connections, which do not require Enterprise.
+**Sim hosted usage is credit-metered, while BYOK avoids Sim's model usage charge because the model provider bills the customer directly.** The self-hosting documentation covers Ollama, vLLM, LM Studio, and LiteLLM connections, which do not require Enterprise.
 
 ## 2. LangGraph
 
