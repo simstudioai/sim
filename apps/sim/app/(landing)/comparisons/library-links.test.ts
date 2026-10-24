@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { ContentMeta } from '@/lib/content/schema'
 import { getComparisonsForPost } from '@/app/(landing)/comparisons/library-links'
 
-function post(title: string, description: string): ContentMeta {
-  return { slug: 'post', title, description, tags: [] } as ContentMeta
+function post(title: string, description: string, tags: string[] = []): ContentMeta {
+  return { slug: 'post', title, description, tags } as ContentMeta
 }
 
 describe('getComparisonsForPost', () => {
