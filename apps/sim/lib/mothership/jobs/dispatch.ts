@@ -106,7 +106,13 @@ async function dispatchQueuedOccurrence(executionId: string): Promise<JobDispatc
     if (isHosted) {
       const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
-        await endUnstartedJobRun(executionId, 'skipped_budget', 'The usage limit was reached.')
+        // An outage, not a verdict.
+        if (usage.reason === 'usage_unavailable') return retryDispatch(run, usage.message)
+        await endUnstartedJobRun(
+          executionId,
+          'skipped_budget',
+          usage.message ?? 'The usage limit was reached.'
+        )
         return 'skipped_budget'
       }
     }
@@ -138,14 +144,19 @@ async function dispatchQueuedOccurrence(executionId: string): Promise<JobDispatc
     if (code === 'forbidden' || code === 'not_found') {
       return block(run, 'The job owner can no longer run it in this workspace.')
     }
-    const failures = await countJobDispatchFailure(executionId)
-    logger.warn('Job occurrence could not start; the reconciler retries it', {
-      executionId,
-      failures,
-      error: getErrorMessage(error),
-    })
-    if (failures < MAX_JOB_DISPATCH_ATTEMPTS) return 'retry'
-    await failUnstartedJobRun(executionId, run.scheduleId, 'The run could not be started.')
-    return 'failed'
+    return retryDispatch(run, getErrorMessage(error))
   }
+}
+
+/** Counts a failed attempt; the reconciler retries it, and the last allowed one ends the run as failed. */
+async function retryDispatch(run: JobRun, reason?: string): Promise<JobDispatchOutcome> {
+  const failures = await countJobDispatchFailure(run.executionId)
+  logger.warn('Job occurrence could not start; the reconciler retries it', {
+    executionId: run.executionId,
+    failures,
+    error: reason,
+  })
+  if (failures < MAX_JOB_DISPATCH_ATTEMPTS) return 'retry'
+  await failUnstartedJobRun(run.executionId, run.scheduleId, 'The run could not be started.')
+  return 'failed'
 }
