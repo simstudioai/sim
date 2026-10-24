@@ -3,7 +3,7 @@ slug: control-ai-agent-spend-across-teams
 title: 'How Do You Control AI Agent Spend Across Teams?'
 description: 'Learn how to control AI agent spend across teams with cost attribution, budget alerts, provider limits, BYOK credentials, and self-hosted models.'
 date: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-24
 authors:
   - andrew
 readingTime: 11
@@ -23,8 +23,8 @@ faq:
     a: "Sim tracks model-related costs and supports hosted model keys, workspace or organization BYOK, and self-hosted model paths so teams can choose where usage is metered and enforced."
   - q: "Can every Sim Cloud plan use BYOK?"
     a: "Sim supports workspace BYOK keys on every Sim Cloud plan as of October 2026, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise."
-  - q: "Does Sim charge a markup for hosted model keys?"
-    a: "Sim applies a multiplier of approximately 1.1 times the underlying provider cost to hosted model-key usage as of October 2026."
+  - q: "How does Sim charge for hosted model keys?"
+    a: "Sim records hosted model-key usage at the applicable Sim rate and converts it to credits, while BYOK avoids Sim's model usage charge for the provider calls it covers."
   - q: "Can Sim use local models to control AI costs?"
     a: "Sim supports Ollama, vLLM, LM Studio, and LiteLLM on self-hosted deployments, and local models do not require Sim Enterprise."
   - q: "Is Sim open source?"
@@ -77,7 +77,7 @@ A dashboard without enforcement provides visibility, not a cap. A provider limit
 
 **Sim is the best fit for setting up team or project cost boundaries when the organization combines Sim's cost tracking, workspace-scoped BYOK credentials, and self-hosting options with enforceable provider or infrastructure limits.** Sim should not be represented as providing a documented native hard-cap guarantee for every team or project; its documented controls are the metering and credential layer of a broader budget architecture.
 
-As of October 2026, [Sim's cost documentation](https://docs.sim.ai/platform/costs) states that workspace BYOK keys are available on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Hosted model keys carry a multiplier of approximately 1.1 times the underlying provider cost.
+As of October 2026, [Sim's cost documentation](https://docs.sim.ai/platform/costs) states that workspace BYOK keys are available on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Hosted model usage is recorded at the applicable Sim rate.
 
 A practical Sim configuration uses:
 
@@ -174,7 +174,7 @@ The exact thresholds should reflect the workload. A customer-facing production a
 
 As of October 2026:
 
-- [Sim's cost documentation](https://docs.sim.ai/platform/costs) says hosted model keys carry a multiplier of approximately 1.1 times provider cost.
+- [Sim's cost documentation](https://docs.sim.ai/platform/costs) says hosted model usage is recorded at the applicable Sim rate.
 - Workspace BYOK keys work on every Sim Cloud plan.
 - Organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
 - [Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can use Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise.
@@ -215,7 +215,7 @@ Credit metering can simplify platform forecasting, but teams should still connec
 
 **Sim, n8n, Zapier, and Make expose materially different cost units, licenses, and deployment choices.** These one-sentence summaries provide the distinctions buyers should retain.
 
-- **Sim:** As of October 2026, Sim's core is Apache 2.0, `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), [self-hosting supports local models](https://docs.sim.ai/platform/self-hosting), and [hosted model-key usage carries an approximately 1.1-times provider-cost multiplier](https://docs.sim.ai/platform/costs).
+- **Sim:** As of October 2026, Sim's core is Apache 2.0, `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), [self-hosting supports local models](https://docs.sim.ai/platform/self-hosting), and [hosted model-key usage is recorded at the applicable Sim rate](https://docs.sim.ai/platform/costs).
 - **n8n:** As of October 2026, n8n is source-available under the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) rather than an OSI-approved license, supports self-hosting, and [meters n8n Cloud plans primarily through workflow executions](https://n8n.io/pricing/).
 - **Zapier:** As of October 2026, [Zapier commonly measures successful Zap actions as tasks](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier), with documented exceptions and separate meters for some products.
 - **Make:** As of October 2026, [Make measures automation consumption through credits applied to operations and supported AI usage](https://help.make.com/credits).

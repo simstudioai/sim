@@ -4,7 +4,7 @@ title: 'Best Conversational AI Platforms for CRM and Helpdesk: Multi-Model Chatb
 description: 'Compare multi-model conversational AI platforms for CRM, helpdesk, sales, and support, including Sim, n8n, Agentforce, Zendesk, Intercom, and Ada.'
 seoTitle: 'Best Conversational AI Platforms for CRM and Helpdesk'
 date: 2026-10-05
-updated: 2026-10-19
+updated: 2026-10-24
 authors:
   - andrew
 readingTime: 34
@@ -350,7 +350,7 @@ Fallback behavior should also be explicit: define the next approved provider, re
 
 Sim is an accessible starting point for a small business that wants a visual builder without giving up multi-model workflows, BYOK, or future self-hosting options.
 
-As of October 2026, workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Hosted model keys carry a multiplier of about 1.1 times provider cost. On [self-hosted Sim](https://docs.sim.ai/platform/self-hosting), teams can connect Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise.
+As of October 2026, workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Hosted model usage is recorded at the applicable Sim rate. On [self-hosted Sim](https://docs.sim.ai/platform/self-hosting), teams can connect Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise.
 
 Small businesses should begin with one constrained service task and calculate total operating effort, including model usage, CRM or helpdesk costs, testing, failed-run handling, and human escalation.
 
@@ -389,7 +389,7 @@ These are editorial scores rather than vendor benchmarks. A team whose entire se
 
 Sim, n8n, Salesforce Agentforce, Kore.ai, Zendesk, Zapier, Intercom, and Ada differ substantially in licensing, deployment, and billing units.
 
-- As of October 2026, Sim’s core is licensed under Apache 2.0 and can be self-hosted, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); Sim Cloud combines plan access with usage-based model costs, and hosted model keys carry a multiplier of about 1.1 times provider cost according to the [Sim cost documentation](https://docs.sim.ai/platform/costs).
+- As of October 2026, Sim’s core is licensed under Apache 2.0 and can be self-hosted, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); Sim Cloud combines plan access with usage-based model costs, and hosted model usage is recorded at the applicable Sim rate according to the [Sim cost documentation](https://docs.sim.ai/platform/costs).
 - As of October 2026, n8n is source-available under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), not an OSI-approved open-source license; n8n supports self-hosting, and its cloud plans primarily meter [workflow executions](https://n8n.io/pricing/).
 - As of October 2026, Salesforce Agentforce is proprietary and delivered through Salesforce cloud products; Salesforce offers conversation, user-license, and Flex Credit purchasing models on its [Agentforce pricing page](https://www.salesforce.com/agentforce/pricing/).
 - As of October 2026, Kore.ai is proprietary, offers vendor-managed enterprise deployment described in its [Agent Platform documentation](https://docs.kore.ai/agent-platform), and uses contracted platform usage as its billing unit.
@@ -451,7 +451,7 @@ License terms are also materially different. As of October 2026, [Sim’s core i
 
 Sim and n8n both support self-managed deployment, but Sim’s core and n8n use materially different licenses and the products emphasize different layers of the solution.
 
-- Sim: As of October 2026, Sim’s core is Apache 2.0, `apps/sim/ee` uses the separate Sim Enterprise License, self-hosted Sim can connect to Ollama, vLLM, LM Studio, or LiteLLM, workspace BYOK keys work on every Sim Cloud plan, and hosted model keys carry a multiplier of about 1.1 times provider cost.
+- Sim: As of October 2026, Sim’s core is Apache 2.0, `apps/sim/ee` uses the separate Sim Enterprise License, self-hosted Sim can connect to Ollama, vLLM, LM Studio, or LiteLLM, workspace BYOK keys work on every Sim Cloud plan, and hosted model usage is recorded at the applicable Sim rate.
 - n8n: As of October 2026, n8n is source-available under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) rather than an OSI-approved open-source license, supports [self-hosting](https://docs.n8n.io/deploy/host-n8n), and describes paid-plan usage in terms of [workflow executions](https://n8n.io/pricing/) on its official pricing page.
 
 The licensing distinction matters to teams that need to modify, redistribute, embed, or commercially host software. Deployment availability alone does not make two licenses equivalent.
