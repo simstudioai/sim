@@ -136,7 +136,7 @@ function persistedHistoryIds() {
   )
 }
 
-describe('gmailPollingHandler expired history cursor', () => {
+describe('gmailPollingHandler history cursor', () => {
   beforeEach(() => {
     mockResolveOAuthCredential.mockResolvedValue('access-token')
     mockProcessEvent.mockResolvedValue({ success: true })
@@ -179,5 +179,15 @@ describe('gmailPollingHandler expired history cursor', () => {
     ).resolves.toBe('success')
 
     expect(persistedHistoryIds()).toEqual(['40100'])
+  })
+
+  it('leaves the stored cursor untouched when a search-mode poll finds no mail', async () => {
+    mailboxWithExpiredHistory({ profileHistoryId: '40100', inboxMessages: [] })
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('success')
+
+    expect(mockUpdateConfig).toHaveBeenCalledTimes(1)
+    const [, updates] = mockUpdateConfig.mock.calls[0]
+    expect(updates).not.toHaveProperty('historyId')
   })
 })
