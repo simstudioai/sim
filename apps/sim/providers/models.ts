@@ -705,7 +705,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1047576,
         releaseDate: '2025-04-14',
-        sunset: { status: 'legacy' },
+        sunset: { status: 'deprecated' },
       },
       // GPT-5.6 family
       {

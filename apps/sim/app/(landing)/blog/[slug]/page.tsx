@@ -24,7 +24,7 @@ export async function generateMetadata({
   const { slug } = await params
   const post = await getPostBySlug(slug)
   if (!post || post.draft) return {}
-  return buildPostMetadata(post)
+  return buildPostMetadata(post, BLOG_SECTION)
 }
 
 export const revalidate = 86400
@@ -33,7 +33,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const { slug } = await params
   const post = await getPostBySlug(slug)
   if (!post || post.draft) notFound()
-  const related = await getRelatedPosts(slug, 3)
+  const related = await getRelatedPosts(slug)
 
   return (
     <ContentPostPage

@@ -417,6 +417,18 @@ export interface ImportResolvedSecretTraceProvenanceOptions {
    * `source-provenance-incomplete` from a symptom into an address.
    */
   origin?: string
+  /**
+   * Takes the import's entry decrypt-failure summary in place of the registry's own error line,
+   * for a caller that reports the failure itself with the context the registry lacks.
+   */
+  onDecryptFailure?: (failure: ProvenanceDecryptFailure) => void
+}
+
+/** Entry decrypt failures of one provenance import, summarised. */
+export interface ProvenanceDecryptFailure {
+  error: string
+  failedEntryCount: number
+  totalEntryCount: number
 }
 
 export interface ExportResolvedSecretTraceProvenanceForValueOptions {
@@ -966,7 +978,7 @@ export class ResolvedSecretTraceRegistry {
    * A staged registry filters values for one operation and is then discarded. Its caller owns the
    * reporting and says it with strictly more context — the real input path for a value filter, the
    * execution for a display read — so the registry's own summary lines would only restate it.
-   * Entry-level detail still logs — the caller cannot reconstruct it.
+   * Entry decrypt failures still log unless the caller takes them through `onDecryptFailure`.
    */
   private readonly staged: boolean
   /**
@@ -1694,11 +1706,10 @@ export class ResolvedSecretTraceRegistry {
 
     const sameScope = scopesMatch(provenance.scope, this.scope)
     let importedAll = true
-    let decryptFailures = 0
-    let firstDecryptError: string | undefined
+    let decryptFailure: ProvenanceDecryptFailure | undefined
     for (const entry of provenance.entries) {
       try {
-        const { decrypted } = await decryptSecret(entry.encryptedValue)
+        const { decrypted } = await decryptSecret(entry.encryptedValue, { logFailure: false })
         this.addActiveEntry(
           {
             name: entry.name ?? '',
@@ -1710,8 +1721,12 @@ export class ResolvedSecretTraceRegistry {
         )
       } catch (error) {
         importedAll = false
-        decryptFailures += 1
-        firstDecryptError ??= getErrorMessage(error, 'Unknown error')
+        decryptFailure ??= {
+          error: getErrorMessage(error, 'Unknown error'),
+          failedEntryCount: 0,
+          totalEntryCount: provenance.entries.length,
+        }
+        decryptFailure.failedEntryCount += 1
         this.markIncomplete('entry-decrypt-failed', { origin: options.origin })
       }
     }
@@ -1720,13 +1735,15 @@ export class ResolvedSecretTraceRegistry {
      * Summarised rather than logged per entry: one rotated or corrupt key fails every entry in the
      * bundle, and a bundle may carry up to MAX_PROVENANCE_ENTRIES of them.
      */
-    if (decryptFailures > 0) {
-      logger.error('Provenance entries could not be decrypted', {
-        error: firstDecryptError,
-        failedEntryCount: decryptFailures,
-        totalEntryCount: provenance.entries.length,
-        scopeWorkspaceId: this.scope?.workspaceId,
-      })
+    if (decryptFailure) {
+      if (options.onDecryptFailure) {
+        options.onDecryptFailure(decryptFailure)
+      } else {
+        logger.error('Provenance entries could not be decrypted', {
+          ...decryptFailure,
+          scopeWorkspaceId: this.scope?.workspaceId,
+        })
+      }
     }
 
     return importedAll

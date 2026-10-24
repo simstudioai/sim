@@ -16,6 +16,8 @@ vi.mock('@/lib/library/registry', () => ({
   getPostBySlug,
   getAllPostMeta: vi.fn().mockResolvedValue([]),
   getRelatedPosts: vi.fn().mockResolvedValue([]),
+  getPostsLinkingTo: vi.fn().mockResolvedValue([]),
+  getLinkedPaths: vi.fn().mockResolvedValue(new Set()),
 }))
 vi.mock('@/lib/blog/seo', () => ({
   BLOG_SECTION: { basePath: '/blog' },

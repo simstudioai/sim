@@ -146,6 +146,12 @@ export const ENTITLEMENTS = { dashboards: "dashboards", tests: "tests", changelo
 export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
 export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
 
+/** What opened a turn when no person typed it: "task", Sim's wake for a background-task
+ * notification (21-background-tasks.md); "job", Sim's schedule for one occurrence of a scheduled
+ * job (D92), its message the job brief. Absent on a person's turn. */
+export const TurnOrigin = z.enum(["task", "job"]);
+export type TurnOrigin = z.infer<typeof TurnOrigin>;
+
 export const ChatPayloadSchema = z
   .strictObject({
     desktop: DesktopContextSchema.optional(),
@@ -192,9 +198,8 @@ export const ChatPayloadSchema = z
     /** Explicit client-executor declaration (see contracts ChatRequest.clientCapabilities);
      * the worker accepts and ignores it — dispatch semantics live on the sim side. */
     clientCapabilities: z.array(z.string()).default([]),
-    /** "task": sim opened this turn for a background-task notification, not for a typed
-     * message (21-background-tasks.md); recorded on the turn's user_message event. */
-    origin: z.enum(["task"]).optional(),
+    /** Recorded on the turn's user_message event. */
+    origin: TurnOrigin.optional(),
     /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
     effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
     modelSelection: ModelSelectionSchema.optional(),

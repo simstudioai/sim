@@ -8,6 +8,7 @@ import { createOrganizationWorkspace } from '@/lib/workspaces/application/create
 export const workspacesServerTool: BaseServerTool = {
   name: 'workspaces',
   inputSchema: mothershipWorkspacesInputSchema,
+  writes: () => true,
   async execute(raw, context) {
     try {
       const { action: _action, ...input } = mothershipWorkspacesInputSchema.parse(raw)

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
+import { DURABLE_STREAM_KINDS } from '@/lib/mothership/request/lifecycle/durable-run'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 
 export const BillingAdmissionSchema = z
@@ -39,7 +40,7 @@ export function durableResourceAuthoringVersion(
 
 export const StreamRecoveryConfigSchema = z
   .object({
-    kind: z.literal('interactive_stream'),
+    kind: z.enum(DURABLE_STREAM_KINDS),
     resourceAuthoringVersion: z.literal(RESOURCE_AUTHORING_VERSION).optional(),
     billingAdmission: BillingAdmissionSchema.optional(),
     request: DurableChatRequestSchema,
@@ -64,7 +65,13 @@ export async function streamRecoveryConfig(
   options: CopilotLifecycleOptions,
   request: Record<string, unknown>
 ) {
-  if (options.interactive !== true) return undefined
+  /**
+   * A recovered leg keeps the kind its turn was admitted with. A fresh leg is durable only for a
+   * person in the chat; an unattended turn is admitted with its recovery intent already written.
+   */
+  const kind =
+    options.recovery?.kind ?? (options.interactive === true ? 'interactive_stream' : undefined)
+  if (!kind) return undefined
   const resourceAuthoringVersion = durableResourceAuthoringVersion(
     hasCopilotResourceAdmission({
       ...options,
@@ -75,7 +82,7 @@ export async function streamRecoveryConfig(
     })
   )
   return StreamRecoveryConfigSchema.parse({
-    kind: 'interactive_stream',
+    kind,
     request,
     goRoute: options.goRoute ?? '/api/copilot',
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,

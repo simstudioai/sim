@@ -5,10 +5,10 @@ description: 'Learn how to create an AI agent from scratch using a visual worksp
 seoTitle: 'How to Create an AI Agent: Step-by-Step Guide'
 seoDescription: 'Learn how to create an AI agent step by step in a visual workspace: pick one task, connect tools, test each run, and deploy your first agent with Sim.'
 date: 2026-06-27
-updated: 2026-10-09
+updated: 2026-10-24
 authors:
   - waleed
-readingTime: 24
+readingTime: 29
 tags: [AI Agents, Tutorial, No-Code, Sim, Workflow Automation]
 ogImage: /library/how-to-create-an-ai-agent/cover.jpg
 draft: false
@@ -18,19 +18,15 @@ faq:
   - q: "Can I build an AI agent for free?"
     a: "Sim’s core can be self-hosted under Apache 2.0, and a local prototype can avoid incremental model charges by using a supported local model on existing hardware, although infrastructure, external services, and enterprise capabilities can still create costs."
   - q: "How long does it take to build an AI agent with Sim?"
-    a: "A simple agent, like the people research example in Sim's getting-started tutorial, takes about 10 minutes from account creation to a working deployment. Production-grade agents with multiple tools, conditional logic, and error handling take longer, but the visual builder's feedback loop (edit, run, read the trace, refine) is significantly faster than iterating on a code framework where every change requires redeployment."
+    a: "A simple agent, like the people research example in Sim's getting-started tutorial, takes about 10 minutes from account creation to a working deployment. Production-grade agents with multiple tools, conditional logic, and error handling take longer, and the visual builder keeps the feedback loop short: edit, run, read the trace, and refine."
   - q: "Do I need to know how to code to build an AI agent?"
-    a: "No. Sim's visual builder and Chat let you create, configure, and deploy agents entirely without code. You drag blocks, write system prompts in plain English, and connect integrations through the UI. That said, Sim also supports custom functions, a Python SDK, and full API access for developers who want deeper control or need to embed agents into existing codebases."
-  - q: "How do I build an AI agent from scratch?"
-    a: "An AI agent is built from scratch by choosing a narrow task, defining inputs and outputs, selecting a model, connecting only the necessary tools, adding decision and failure paths, testing representative cases, and deploying it with monitoring."
-  - q: "do I need to know how to code to build an ai agent"
-    a: "Sim does not require coding for many AI agents because its visual builder can connect models, tools, conditions, and outputs, although custom APIs, interfaces, and infrastructure may require code."
+    a: "No. Sim's visual builder and Chat let you create, configure, and deploy agents entirely without code. You drag blocks, write system prompts in plain English, and connect integrations through the UI. That said, Sim also supports custom functions, a Python SDK, and full API access for developers who want deeper control or need to embed agents into existing codebases. Custom APIs, interfaces, and production infrastructure may still require technical work."
   - q: "How do I create an AI agent without much technical experience?"
-    a: "Sim lets people with limited technical experience create an AI agent by breaking one task into visible steps, starting from examples, connecting existing integrations, requiring structured output, and testing each route before deployment."
-  - q: "what skills do I need to build an ai agent"
+    a: "Sim lets people with limited technical experience create an AI agent by breaking one task into visible steps, starting from examples, connecting existing integrations, requiring structured output, and testing each route before deployment. A narrow, reversible first task keeps mistakes easy to catch."
+  - q: "What skills do I need to build an AI agent?"
     a: "An AI agent builder needs task decomposition, clear instruction writing, basic data literacy, tool-permission awareness, testing discipline, and enough subject knowledge to recognize incorrect results."
-  - q: "how much does it cost to build an ai agent"
-    a: "An AI agent can have little or no incremental software and model cost as a local prototype, while production cost depends on model usage, builder or hosting fees, external APIs, storage, monitoring, development, and maintenance."
+  - q: "How much does it cost to build an AI agent?"
+    a: "An AI agent can have little or no incremental software and model cost as a local prototype, while production cost depends on model usage, tool charges, builder or hosting fees, external APIs, storage, monitoring, development, evaluation, maintenance, and the human time required to review or correct results."
   - q: "What is the best AI agent builder?"
     a: "Sim is a strong choice for teams that want an open-source AI workspace with a visual builder, multi-model support, self-hosting, and controls for production workflows, while the guide Best AI Agent Platforms and Builders in 2026 compares the broader market for different requirements."
   - q: "Is Sim free?"
@@ -42,28 +38,53 @@ faq:
   - q: "Does Sim support bring your own API key?"
     a: "Sim supports workspace bring-your-own-key connections on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of October 2026."
   - q: "Is Sim open source?"
-    a: "Sim’s core is open source under the OSI-approved Apache License 2.0, while apps/sim/ee is under the separate Sim Enterprise License and is not covered by the core license."
+    a: "Sim’s core is open source under Apache 2.0, while code in apps/sim/ee uses the separate Sim Enterprise License and requires an active Sim Enterprise subscription for production use."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license and restricts offering n8n commercially to others as a hosted service."
   - q: "Sim vs n8n: which is better for building an AI agent?"
-    a: "Sim is better aligned with teams seeking an open-source AI workspace centered on building, deploying, and managing agents, while n8n is strong for general workflow automation with a large integration-oriented ecosystem; the better choice depends on task, license, hosting, integration, and governance requirements."
+    a: "Sim fits teams seeking an open-source AI workspace centered on building, deploying, and managing agents, while n8n fits general workflow automation with a large integration-oriented ecosystem; the right choice depends on task, license, hosting, integration, and governance requirements."
   - q: "Can an AI agent use company documents?"
     a: "An AI agent can use company documents through retrieval-augmented generation or approved search tools, provided the workflow enforces access controls, retrieves relevant content, and tests whether answers stay grounded in authorized sources."
   - q: "Should an AI agent have human approval?"
-    a: "An AI agent should have human approval before high-impact, sensitive, expensive, external, or difficult-to-reverse actions when automatic execution would create unacceptable risk."
-  - q: "How long does it take to build an AI agent?"
-    a: "An AI agent’s build time depends on task scope, integrations, data quality, custom code, security review, and evaluation requirements, so a narrow prototype may be assembled quickly while a reliable production system requires sustained testing and operations work."
+    a: "An AI agent should have human approval before high-impact, sensitive, expensive, uncertain, regulated, externally visible, or difficult-to-reverse actions when automatic execution would create unacceptable risk."
   - q: "What should my first AI agent do?"
-    a: "A first AI agent should complete one narrow and measurable task such as classification, extraction, summarization, research, routing, or drafting for human review."
+    a: "A first AI agent should complete one narrow and measurable task such as classification, extraction, summarization, research, routing, or drafting for human review. Classification and drafting agents are often the easiest to start with because their inputs, expected outputs, evidence, and review rules are straightforward to define."
   - q: "How do I test whether an AI agent works?"
-    a: "An AI agent works when it consistently meets predefined success criteria across normal, ambiguous, missing-data, adversarial, and tool-failure cases without exceeding its permissions."
-  - q: "What is the difference between an AI agent and a chatbot?"
-    a: "An AI agent can reason about an objective, select tools, and take multi-step actions, while a chatbot primarily exchanges conversational messages; the guide AI Agent vs Chatbot: Understanding the Differences explains the distinction in detail."
+    a: "Test an AI agent with a fixed set of normal, ambiguous, incomplete, unsafe, contradictory, and tool-failure cases that have documented expected results. It works when it consistently meets predefined thresholds for task success, factual grounding, tool accuracy, policy compliance, escalation accuracy, latency, and cost without exceeding its permissions."
+  - q: "How do I create an AI agent?"
+    a: "An AI agent is created by defining one measurable job, selecting a model and context, connecting only the required tools, writing explicit instructions, adding controls, testing difficult cases, and deploying with monitoring."
+  - q: "What are the main components of an AI agent?"
+    a: "An AI agent usually consists of a goal, instructions, a model, context or knowledge, tools, decision logic, stopping conditions, and monitoring."
+  - q: "What is the difference between an AI agent and an AI workflow?"
+    a: "An AI agent makes context dependent decisions inside a process, while an AI workflow defines the broader sequence, routing, tools, and controls around those decisions."
+  - q: "Does an AI agent need tools?"
+    a: "An AI agent does not always need external tools, but tools are required when the agent must retrieve changing information or take action in another system."
+  - q: "Does an AI agent need retrieval augmented generation?"
+    a: "An AI agent needs retrieval augmented generation when it must answer from a large or changing knowledge source that cannot be supplied directly in each request."
+  - q: "How do I write a prompt for an AI agent?"
+    a: "An AI agent prompt should define the role, objective, permitted evidence, available actions, constraints, output format, stopping conditions, and escalation rules."
+  - q: "How do I stop an AI agent from hallucinating?"
+    a: "An AI agent can reduce unsupported output by using approved evidence, requiring citations or evidence fields, validating structured results, restricting tools, testing adversarial cases, and escalating when evidence is missing."
+  - q: "Should I build one AI agent or multiple AI agents?"
+    a: "A team should start with one agent unless separate specialist roles produce a measurable benefit that outweighs the added routing, evaluation, latency, and debugging complexity."
+  - q: "Can AI agents talk to each other?"
+    a: "AI agents can exchange structured messages, delegate tasks, and return results, but multi agent designs add coordination and evaluation complexity that a single agent may avoid."
+  - q: "What should I build after my first AI agent?"
+    a: "A team should expand its first AI agent only after measuring its failures, then add better context, carefully scoped tools, human review, and broader permissions in that order."
 ---
 
-Sim lets beginners create an AI agent by defining one useful outcome, connecting the required data and tools, adding an AI model, testing the result, and deploying the finished workflow.
+This guide is published by Sim, the open-source AI workspace for building, deploying, and managing AI agents. Sim lets beginners create an AI agent by defining one useful outcome, connecting the required data and tools, adding an AI model, testing the result, and deploying the finished workflow.
 
-An AI agent is software that uses a model to interpret an objective, choose actions, use tools, and return or record a result. Unlike a basic chatbot, an agent can complete multi-step work such as researching an account, classifying a support request, updating a CRM, or asking a person to approve a consequential action.
+An AI agent is software that uses a model, instructions, context, and tools to pursue a goal and take actions within defined limits. Unlike a basic chatbot, an agent can complete multi-step work such as researching an account, classifying a support request, updating a CRM, or asking a person to approve a consequential action. This definition follows practical concepts described by [OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [IBM](https://www.ibm.com/think/topics/ai-agents), and [Google Cloud](https://cloud.google.com/discover/what-are-ai-agents).
+
+Most useful agents contain six parts:
+
+1. A goal that defines the desired result.
+2. Instructions that describe the job and its constraints.
+3. A model that interprets context and chooses the next step.
+4. Knowledge that supplies relevant business information.
+5. Tools that let the agent read data or take action.
+6. Controls that determine when the agent should stop, retry, or ask a person for help.
 
 This guide explains how to create a first AI agent with limited technical experience and how to make it reliable enough for real work. For a deeper definition, read [What Is an AI Agent? Definition, How It Works, and Examples](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples).
 
@@ -91,6 +112,21 @@ Here is the complete process:
 8. Test normal, ambiguous, and adversarial inputs.
 9. Deploy the agent through the interface where people or systems will use it.
 10. Monitor runs and improve the instructions, tools, and evaluation criteria.
+
+The same process can be organized into an eight step delivery method:
+
+1. Define one bounded job and a measurable result.
+2. Select the context and authoritative information required for that job.
+3. Choose a model based on reasoning, latency, privacy, context, and cost.
+4. Write instructions that define evidence, actions, output, and escalation.
+5. Connect the smallest useful set of tools with limited permissions.
+6. Add human approval for sensitive, uncertain, expensive, or externally visible actions.
+7. Test representative, difficult, unsafe, incomplete, and contradictory inputs.
+8. Deploy gradually, monitor complete runs, and rerun evaluations after every material change.
+
+Before building, a team should define one bounded job, one success measure, and one escalation rule. A useful starting statement is: “When this event occurs, the agent should use this information to produce this result, unless this risk condition requires human review.” Then identify the event, exact output, required information, permitted tools, automatic actions, approval points, stopping conditions, and measures for accuracy, speed, cost, and business value.
+
+If every decision can be expressed as a fixed rule, conventional automation may be a better fit. If the job requires interpreting unstructured information, choosing among actions, or adapting to context, an agent may be appropriate. [What Is an Agentic Workflow? And How It Is Different From Automation](https://www.sim.ai/library/what-is-an-agentic-workflow) explains the distinction.
 
 A beginner should start with one workflow that can be evaluated objectively. “Classify each support request into billing, technical, or account access and return a confidence score” is easier to test than “handle customer support.”
 
@@ -180,7 +216,7 @@ A local experiment can minimize incremental cost by using self-hosted software a
 
 A production estimate should use expected runs per month, average tokens per run, tool calls per run, storage needs, and the time required to review failures.
 
-As of October 2026, Sim workspace bring-your-own-key connections work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Sim-hosted model keys carry a multiplier of about 1.1 times the model provider's cost. The current details are documented in [Sim's cost and BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
+As of October 2026, Sim workspace bring-your-own-key connections work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Sim-hosted model usage is recorded at the applicable Sim rate and converted to credits. The current details are documented in [Sim's cost and BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
 
 ## Key Takeaways
 
@@ -212,7 +248,7 @@ The gap comes down to four components that every agent needs:
 | --- | --- | --- |
 | LLM | The reasoning engine - interprets input, plans next steps, generates output | GPT-4o, Claude Sonnet, Gemini, or any supported model in the Agent block |
 | Memory | Stores context across steps (short-term) and across sessions (long-term) | Conversation history within a workflow; vector store for persistent knowledge |
-| Tools | APIs, databases, and services the agent can call to act in the world | Slack, Gmail, Google Sheets, HubSpot, Tavily search, and 1,000+ integrations |
+| Tools | APIs, databases, and services the agent can call to act in the world | Slack, Gmail, Google Sheets, HubSpot, Tavily search, and 270+ integrations |
 | Run loop | The observe-reason-act cycle that keeps the agent working until the task is done | Sim's Agent block with attached tools - the LLM decides which tool to call, reads the result, and decides what to do next |
 
 That's it. An LLM without tools is a text generator. An LLM with tools and a run loop is an agent. Keep that distinction in mind as we move into the build: it'll make every configuration choice clearer.
@@ -312,7 +348,7 @@ Production monitoring should reveal what the model received, which tools it call
 
 ## How to Build an AI Agent With Sim: Step by Step
 
-Let's get practical. Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM, including OpenAI, Anthropic Claude, Google Gemini, Mistral, and xAI Grok. You design agent workflows in the visual builder, connecting blocks for AI models, logic, APIs, and outputs. As of October 2026, the free plan requires no credit card, and getting started takes about 10 minutes.
+Let's get practical. Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 270+ integrations and every major LLM, including OpenAI, Anthropic Claude, Google Gemini, Mistral, and xAI Grok. You design agent workflows in the visual builder, connecting blocks for AI models, logic, APIs, and outputs. As of October 2026, the free plan requires no credit card, and getting started takes about 10 minutes.
 
 ### Step 1: Define what your agent will do
 
@@ -398,16 +434,70 @@ The iteration loop looks like this:
 
 Don't assume the first run will work perfectly. The difference between a useful agent and a frustrating one is usually two or three rounds of prompt refinement based on actual execution traces. Skipping the supervised testing phase before connecting the agent to real data or external systems is the most common beginner mistake, and the most expensive one to fix after the fact.
 
+## How do I build a customer support triage agent in Sim?
+
+Sim can model a customer support triage agent as a visual workflow that classifies a request, drafts a grounded response, and routes risky cases to a person.
+
+Sim is the open source AI workspace where teams build, deploy, and manage AI agents. This worked example uses the workflow builder to apply the eight step method to a practical support job.
+
+### What should the Sim support agent do?
+
+The Sim support agent should convert an incoming customer request into a category, summary, evidence based draft, confidence result, and review decision.
+
+| Element | Definition |
+|---|---|
+| Trigger | A new support request is supplied to the workflow |
+| Required context | Request text, relevant customer data, and approved knowledge |
+| Output | Category, summary, evidence, draft response, confidence, and review reason |
+| Automatic action | Produce an internal draft |
+| Human review | Billing disputes, security issues, policy exceptions, and uncertain cases |
+| Stop condition | Required context is missing or no approved evidence supports an answer |
+
+### How should you assemble the Sim workflow?
+
+The Sim workflow should separate context gathering, model reasoning, validation, human review, and the final action into visible stages.
+
+1. Accept the support request and available customer context.
+2. Retrieve approved knowledge relevant to the request.
+3. Ask the model to classify the request and produce the required structured fields.
+4. Check whether the output is complete and whether its category or confidence requires review.
+5. Route sensitive or uncertain cases to Human in the Loop.
+6. Use a downstream Condition to inspect the reviewer’s submitted decision.
+7. Continue only through the branch authorized by that decision.
+8. Return or store the approved draft and the evidence used.
+
+If a Guardrails block is included, Guardrails reports passed or failed. A downstream Condition must route on that result if the workflow should stop or take a different path.
+
+### How should you test the Sim support agent?
+
+The Sim support agent should pass a fixed evaluation set before it can create externally visible responses.
+
+Include a common question answered by approved knowledge, a request with no relevant evidence, a billing dispute, a security concern, an instruction to ignore policy, a vague request, contradictory context, an unavailable tool, a confident but unsupported draft, and a reviewer rejection. Record the expected category, required evidence, review decision, and prohibited actions for every case. A test passes only when both the result and route are correct.
+
+Evaluate task completion, factual grounding, tool selection, tool arguments, policy compliance, escalation accuracy, latency, and model and tool cost. The test framework must prove both that the agent completes valid work and that it refuses or escalates when it should not act.
+
+### When is the Sim agent ready to deploy?
+
+The Sim agent is ready to deploy when it consistently meets defined quality thresholds and sends every controlled case through the correct review path.
+
+Begin with draft only output and compare its results with human decisions. Expand its permissions only after the team understands failure patterns, has monitoring in place, and can reverse changes safely.
+
 ## What should I know about Sim and n8n before choosing a builder?
 
-Sim and n8n can both orchestrate AI-enabled workflows, but their product focus and licenses differ in ways that matter for beginners, developers, and self-hosting teams.
+Sim and n8n can both orchestrate AI-enabled workflows, but their product focus and licenses differ in ways that matter for beginners, developers, and self-hosting teams. Sim is a strong choice for teams that want a visual AI workspace, n8n suits automation centered use cases, and code frameworks suit teams that need direct programmatic control.
+
+| Approach | Best fit | Main tradeoff |
+|---|---|---|
+| Sim | Teams building and managing model driven agents in a visual workflow builder | Teams still need disciplined testing, permissions, and production controls |
+| n8n | Teams combining conventional workflow automation with AI steps | n8n is source available rather than OSI approved open source |
+| Code framework | Engineering teams that need direct control over state, orchestration, and application logic | The team owns more implementation, interface, deployment, and maintenance work |
 
 ### Key facts at a glance
 
 As of October 2026:
 
-- Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Sim's core is Apache 2.0, while code in `apps/sim/ee` uses the separate Sim Enterprise License and requires an active Enterprise subscription for production use. Self-hosted Sim supports local models, and Sim-hosted model usage is charged at about 1.1 times provider cost.
-- n8n is a workflow automation product that can build AI-enabled workflows. n8n uses its fair-code Sustainable Use License, supports self-hosting under those terms, and bases n8n Cloud pricing on monthly workflow executions.
+- Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in [`apps/sim/ee`](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) uses the separate Sim Enterprise License and requires an active Enterprise subscription for production use. Any self hosted Sim deployment supports local models without requiring Enterprise, and [Sim hosted model usage](https://docs.sim.ai/platform/costs) is charged at the applicable Sim rate.
+- n8n is a workflow automation product that can build AI enabled workflows. [n8n uses the Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source available and not OSI approved. It supports self hosting under those terms, and [n8n Cloud pricing](https://n8n.io/pricing/) is based on monthly workflow executions.
 
 Sim's authoritative license files are the [Apache 2.0 core license](https://github.com/simstudioai/sim/blob/main/LICENSE) and the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). n8n describes its license in its [Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license) and lists current cloud billing terms on its [official pricing page](https://n8n.io/pricing/).
 
@@ -453,9 +543,17 @@ Use this readiness checklist:
 - Cost and latency are measured under realistic volume.
 - A person owns incident response and future changes.
 
+## How can I choose my first AI agent project?
+
+A first AI agent project should have frequent inputs, accessible evidence, reversible actions, and a result that humans can evaluate quickly.
+
+Good first projects include request classification, document summarization, research preparation, lead enrichment drafts, internal knowledge answers, and exception reporting. Avoid beginning with decisions that move money, determine legal rights, change access controls, or make irreversible customer commitments.
+
+For more starting points, read [10 AI Agent Ideas for Real Impact: Get Started With Sim](https://www.sim.ai/library/ai-agent-ideas), [AI Agent Examples by Department and Industry: A Practical Roundup](https://www.sim.ai/library/ai-agent-examples-by-department-and-industry), and [25 Multi-Step AI Agent Examples Beyond Chatbots](https://www.sim.ai/library/multi-step-ai-agent-examples).
+
 ## What to Build First: Five AI Agent Ideas for Beginners
 
-You know how to build. Now the question is what to build. These five agents are scoped for a first project; specific enough to finish in one session, useful enough to keep running afterward.
+A first AI agent should solve a real, bounded problem. These five agents are scoped for a first project; specific enough to finish in one session, useful enough to keep running afterward.
 
 1. **Meeting prep agent:** Checks your Google Calendar every morning, researches every attendee and topic on the web, and prepares a brief for each meeting so you walk in fully prepared. Schedule it to run every weekday morning.
 

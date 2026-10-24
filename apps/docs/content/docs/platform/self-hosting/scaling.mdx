@@ -88,8 +88,10 @@ Each process can open more than one database pool. Budget the sum of active pool
 | `exec` | 10 | 4 | Execution subpool profile; current `dbFor` client opens a primary pool |
 | `cleanup` | 5 | 2 | Cleanup subpool profile; current `dbFor` client opens a primary pool |
 | `search` | 5 | 0 | File-search subpool |
+| `billing` | 4 | 0 | Usage-ledger and threshold-billing subpool |
+| `auth` | 3 | 0 | Session and API-key lookup subpool |
 
-App subpools are created lazily, so a web process using all three can open up to 30 primary connections in addition to its configured read-replica pool. Count the actual pools and URLs used by each process. CronJob pods make HTTP calls to the app; they do not open their own PostgreSQL pools.
+App subpools are created lazily, so a web process using all five can open up to 37 primary connections in addition to its configured read-replica pool. Count the actual pools and URLs used by each process. CronJob pods make HTTP calls to the app; they do not open their own PostgreSQL pools.
 
 A pooler such as **PgBouncer** can separate app replica count from database connection count. Before using transaction pooling, verify the application's session-lock requirements and give the migrator a [direct, non-pooled connection](/platform/self-hosting/upgrades#migration-environment). Point the chart at the chosen endpoint with `externalDatabase.enabled: true`, `externalDatabase.host`, and `externalDatabase.port`, alongside `postgresql.enabled: false`. Both halves are required — with `postgresql.enabled: false` and `externalDatabase.enabled` still false the chart renders an empty `DATABASE_URL`. Setting `app.env.DATABASE_URL` does nothing — the chart computes `DATABASE_URL` itself and inlines it on the container, where it overrides anything from the Secret. Set the pooler's server-connection budget for your database and verify the resulting workload before increasing replicas.
 

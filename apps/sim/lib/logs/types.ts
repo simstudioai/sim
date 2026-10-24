@@ -225,6 +225,21 @@ export function isPersistedWorkflowExecutionStatus(
 ): value is PersistedWorkflowExecutionStatus {
   return (PERSISTED_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(value)
 }
+
+/**
+ * Statuses of a finished run's log. A resume can never claim a log in one of them (the
+ * same set the resume attempt-failure `CASE` preserves).
+ */
+const TERMINAL_WORKFLOW_EXECUTION_STATUSES = [
+  'cancelled',
+  'failed',
+  'completed',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+export function isTerminalWorkflowExecutionStatus(status: string): boolean {
+  return (TERMINAL_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(status)
+}
+
 /**
  * In-flight statuses a crashed worker can strand, which the stale-execution
  * cron terminalizes. `pending` and `paused` are excluded: both are written as

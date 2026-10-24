@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { db, dbReplica } from '@sim/db'
+import { db, dbFor, dbReplica } from '@sim/db'
 import { subscription as subscriptionTable, usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toNumberOrNull } from '@sim/utils/coerce'
@@ -475,7 +475,7 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   const context = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
-  const insertedRows = await (tx ?? db)
+  const insertedRows = await (tx ?? dbFor('billing'))
     .insert(usageLog)
     .values(
       validEntries.map((entry, index) => {
@@ -842,7 +842,7 @@ export async function recordCumulativeUsage(
   }
 
   try {
-    const result = await db.transaction(async (tx) => {
+    const result = await dbFor('billing').transaction(async (tx) => {
       enterStage('configure')
       await tx.execute(sql`
         select

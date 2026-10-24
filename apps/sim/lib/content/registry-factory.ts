@@ -9,6 +9,8 @@ import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
+import type { LinkedPost, PostLinkIndex } from '@/lib/content/links'
+import { buildPostLinkIndex, extractInternalLinkPaths } from '@/lib/content/links'
 import { mdxComponents } from '@/lib/content/mdx'
 import type { Author, ContentMeta, ContentPost, TagWithCount } from '@/lib/content/schema'
 import { AuthorSchema, ContentFrontmatterSchema } from '@/lib/content/schema'
@@ -38,13 +40,29 @@ export interface ContentRegistryConfig {
   scopeHeadingIds?: boolean
 }
 
+interface RelatedPostsOptions {
+  limit?: number
+  exclude?: ReadonlySet<string>
+}
+
+/** One frontmatter scan: every post (drafts included), plus the link index over the published ones. */
+interface ContentScan {
+  posts: ContentMeta[]
+  linkIndex: PostLinkIndex
+}
+
 export interface ContentRegistry {
   getAllPostMeta: (options?: { includeDrafts?: boolean }) => Promise<ContentMeta[]>
   getPostBySlug: (slug: string) => Promise<ContentPost | null>
   /** Raw markdown body (frontmatter stripped) of a published post, or null if none. */
   getPostSource: (slug: string) => Promise<string | null>
   getAllTags: () => Promise<TagWithCount[]>
-  getRelatedPosts: (slug: string, limit?: number) => Promise<ContentMeta[]>
+  /** The `limit` most related published posts, skipping any slug in `exclude`. */
+  getRelatedPosts: (slug: string, options?: RelatedPostsOptions) => Promise<ContentMeta[]>
+  /** Published posts whose body links to the site-internal `path` (e.g. `/comparisons/n8n`), newest first. */
+  getPostsLinkingTo: (path: string) => Promise<ContentMeta[]>
+  /** Site-internal paths a published post's body links to. */
+  getLinkedPaths: (slug: string) => Promise<ReadonlySet<string>>
   getNavPosts: () => Promise<Pick<ContentMeta, 'slug' | 'title' | 'ogImage'>[]>
   invalidateCaches: () => void
 }
@@ -104,7 +122,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
   } = config
 
   const postComponentsRegistry: Record<string, Record<string, React.ComponentType>> = {}
-  let metaPromise: Promise<ContentMeta[]> | null = null
+  let scanPromise: Promise<ContentScan> | null = null
 
   async function loadAuthors(): Promise<Record<string, Author>> {
     return loadAuthorsForDir(authorsDir)
@@ -149,20 +167,28 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
   }
 
   /** Shares one in-flight scan across concurrent callers (e.g. parallel static renders). */
-  function scanFrontmatters(): Promise<ContentMeta[]> {
-    metaPromise ??= readAllFrontmatters().catch((error) => {
-      metaPromise = null
-      throw error
-    })
-    return metaPromise
+  function scanFrontmatters(): Promise<ContentScan> {
+    scanPromise ??= readAllFrontmatters()
+      .then((scanned) => ({
+        posts: scanned.map(({ meta }) => meta),
+        linkIndex: buildPostLinkIndex(
+          scanned.filter(({ meta }) => !meta.draft),
+          basePath
+        ),
+      }))
+      .catch((error) => {
+        scanPromise = null
+        throw error
+      })
+    return scanPromise
   }
 
-  async function readAllFrontmatters(): Promise<ContentMeta[]> {
+  async function readAllFrontmatters(): Promise<LinkedPost[]> {
     await ensureContentDirs(contentDir, authorsDir)
     const entries = await fs.readdir(contentDir).catch(() => [])
     const authorsMap = await loadAuthors()
     const results = await Promise.all(
-      entries.map(async (slug): Promise<ContentMeta | null> => {
+      entries.map(async (slug): Promise<LinkedPost | null> => {
         const postDir = path.join(contentDir, slug)
         const stat = await fs.stat(postDir).catch(() => null)
         if (!stat || !stat.isDirectory()) return null
@@ -185,7 +211,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
         const authors = fm.authors.map((id) => authorsMap[id]).filter(Boolean)
         if (authors.length === 0) throw new Error(`Authors not found for "${slug}"`)
         const ogImageDimensions = await readOgImageDimensions(fm.ogImage)
-        return {
+        const meta: ContentMeta = {
           slug: fm.slug,
           title: fm.title,
           description: fm.description,
@@ -211,9 +237,12 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           release: fm.release,
           technical: fm.technical,
         }
+        return { meta, linkedPaths: extractInternalLinkPaths(mdxContent) }
       })
     )
-    return results.filter((result): result is ContentMeta => result !== null).sort(byDateDesc)
+    return results
+      .filter((result): result is LinkedPost => result !== null)
+      .sort((a, b) => byDateDesc(a.meta, b.meta))
   }
 
   async function getAllPostMeta({
@@ -221,7 +250,8 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
   }: {
     includeDrafts?: boolean
   } = {}): Promise<ContentMeta[]> {
-    return (await scanFrontmatters()).filter((p) => includeDrafts || !p.draft)
+    const { posts } = await scanFrontmatters()
+    return includeDrafts ? posts : posts.filter((p) => !p.draft)
   }
 
   /**
@@ -284,8 +314,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
   }
 
   async function getPostBySlug(slug: string): Promise<ContentPost | null> {
-    const meta = await scanFrontmatters()
-    const found = meta.find((m) => m.slug === slug)
+    const found = (await scanFrontmatters()).posts.find((m) => m.slug === slug)
     if (!found) return null
     const mdxPath = path.join(contentDir, slug, 'index.mdx')
     const raw = await fs.readFile(mdxPath, 'utf-8')
@@ -327,23 +356,24 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     }
   }
 
-  async function getRelatedPosts(slug: string, limit = 3): Promise<ContentMeta[]> {
-    const posts = await getAllPostMeta()
-    const current = posts.find((p) => p.slug === slug)
-    if (!current) return []
-    const others = posts.filter((p) => p.slug !== slug)
-    return others
-      .map((p) => ({
-        post: p,
-        score: p.tags.filter((t) => current.tags.includes(t)).length,
-      }))
-      .sort((a, b) => b.score - a.score || byDateDesc(a.post, b.post))
-      .slice(0, limit)
-      .map((x) => x.post)
+  async function getRelatedPosts(
+    slug: string,
+    { limit = 3, exclude }: RelatedPostsOptions = {}
+  ): Promise<ContentMeta[]> {
+    const ranked = (await scanFrontmatters()).linkIndex.related.get(slug) ?? []
+    return ranked.filter((post) => !exclude?.has(post.slug)).slice(0, limit)
+  }
+
+  async function getPostsLinkingTo(linkPath: string): Promise<ContentMeta[]> {
+    return (await scanFrontmatters()).linkIndex.inbound.get(linkPath) ?? []
+  }
+
+  async function getLinkedPaths(slug: string): Promise<ReadonlySet<string>> {
+    return (await scanFrontmatters()).linkIndex.outbound.get(slug) ?? new Set()
   }
 
   function invalidateCaches() {
-    metaPromise = null
+    scanPromise = null
     authorsCacheByDir.delete(authorsDir)
     Object.keys(postComponentsRegistry).forEach((key) => delete postComponentsRegistry[key])
   }
@@ -354,6 +384,8 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     getPostSource,
     getAllTags,
     getRelatedPosts,
+    getPostsLinkingTo,
+    getLinkedPaths,
     getNavPosts,
     invalidateCaches,
   }

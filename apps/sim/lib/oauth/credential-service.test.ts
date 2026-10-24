@@ -86,6 +86,11 @@ const serviceLogger = getMockLogger('OAuthCredentialService')
 const transportLogger = getMockLogger('GoogleServiceAccountTransport')
 const mocks = { ...hoisted, decryptSecret: encryptionMockFns.mockDecryptSecret }
 
+beforeEach(() => {
+  // Schema mocks carry no table to seal against; credential-revocation.integration.ts covers sealing.
+  vi.stubEnv('ENCRYPTION_KEY', '')
+})
+
 /** Every call the credential service and its token transport logged at the given levels. */
 function loggedCalls(...levels: Array<'info' | 'warn' | 'error'>) {
   return levels.flatMap((level) => [

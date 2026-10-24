@@ -14,6 +14,7 @@ import { projectMembershipMigration } from '@sim/db/script-migrations/0032_proje
 import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0033_validate_file_ownership'
 import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/0034_backfill_public_share_entities'
 import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0035_validate_file_workspace_binding'
+import { archiveLegacyScheduledJobsMigration } from '@sim/db/script-migrations/0036_archive_legacy_scheduled_jobs'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -69,6 +70,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   validateFileOwnershipMigration,
   backfillPublicShareEntitiesMigration,
   validateFileWorkspaceBindingMigration,
+  /** Scheduled jobs run again from the schedule tick; none written for the retired runner may start. */
+  archiveLegacyScheduledJobsMigration,
 ]
 
 /**

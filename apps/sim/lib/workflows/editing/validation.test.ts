@@ -345,6 +345,30 @@ describe('validateInputsForBlock', () => {
     ).toBe(false)
   })
 
+  it('stores input-format rows with legacy or aliased types unchanged', () => {
+    const rows = [
+      { name: 'payload', type: 'json' },
+      { name: 'title', type: 'short-input' },
+      { name: 'message' },
+    ]
+    expect(
+      validateValueForSubBlockType(
+        { id: 'inputFormat', type: 'input-format' },
+        rows,
+        'inputFormat',
+        'start_trigger',
+        'start-1'
+      )
+    ).toEqual({
+      valid: true,
+      value: [
+        { name: 'payload', type: 'json' },
+        { name: 'title', type: 'short-input' },
+        { name: 'message' },
+      ],
+    })
+  })
+
   describe('model-fallback-list', () => {
     const config = { id: 'fallbackModels', type: 'model-fallback-list' as const }
     const validate = (value: unknown) =>

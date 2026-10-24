@@ -286,6 +286,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'contexts',
     'excludedDates',
     'endsAt',
+    'runBudgetUsd',
     'archivedAt',
     'createdAt',
     'updatedAt',
@@ -303,6 +304,10 @@ export const GENERATED_SCHEMA_TABLES = {
     'totalDurationMs',
     'executionData',
     'cost',
+    'occurrenceAt',
+    'outcome',
+    'summary',
+    'billingRequestId',
     'createdAt',
   ],
   webhook: [
@@ -2333,6 +2338,16 @@ export const GENERATED_DB_CONSTANTS = {
       primaryMax: 5,
       replicaMax: 0,
       appName: 'sim-search',
+    },
+    billing: {
+      primaryMax: 4,
+      replicaMax: 0,
+      appName: 'sim-billing',
+    },
+    auth: {
+      primaryMax: 3,
+      replicaMax: 0,
+      appName: 'sim-auth',
     },
   },
   INCREMENT_ROW_COUNT_SQL:

@@ -121,6 +121,14 @@ const FEATURE_FLAGS = {
       'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
+  'isolated-vm-local-workers': {
+    description:
+      'Kill switch: run JavaScript sandbox workers as local child processes even where ' +
+      'IVM_REMOTE_WORKER_URL names a dedicated worker host. Global on/off only; off by default, ' +
+      'so a configured host is used unless this is turned on. AppConfig-only: when AppConfig is ' +
+      'unreachable the host stays in use.',
+    fallback: null,
+  },
   'mothership-abandoned-run-takeover-disabled': {
     description:
       'Kill switch for Sim taking over Chat runs whose controller died (a deploy or a crash) and ' +

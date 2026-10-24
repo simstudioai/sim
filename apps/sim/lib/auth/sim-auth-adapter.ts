@@ -1,10 +1,9 @@
-import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import type { BetterAuthOptions } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
-import { runWithAuthDatabase } from '@/lib/auth/database-context'
+import { getAuthPool, runWithAuthDatabase } from '@/lib/auth/database-context'
 import {
   type AuthDatabase,
   guardOAuthProviderWrites,
@@ -66,7 +65,7 @@ function createTransactionAdapter(
  */
 export function createSimAuthAdapter(
   options: BetterAuthOptions,
-  database: AuthDatabase = db
+  database: AuthDatabase = getAuthPool()
 ): BetterAuthAdapter {
   const guarded = createGuardedAdapter(options, database)
   const transaction: BetterAuthAdapter['transaction'] = (callback) =>

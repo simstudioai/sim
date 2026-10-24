@@ -107,15 +107,39 @@ function operationTerms(tool: ToolSchema): string[] {
   return tokenize(`${tool.name} ${tool.service ?? ''} ${tool.description} ${parameters}`)
 }
 
+interface OperationTermStats {
+  length: number
+  frequencies: ReadonlyMap<string, number>
+}
+
+/**
+ * Integration schemas are shared, frozen objects reused across requests, so their terms
+ * are counted once per process; per-request MCP schemas fall out with their request.
+ */
+const operationTermStats = new WeakMap<ToolSchema, OperationTermStats>()
+
+function getOperationTermStats(tool: ToolSchema): OperationTermStats {
+  const cached = operationTermStats.get(tool)
+  if (cached) return cached
+  const terms = operationTerms(tool)
+  const frequencies = new Map<string, number>()
+  for (const term of terms) frequencies.set(term, (frequencies.get(term) ?? 0) + 1)
+  const stats = { length: terms.length, frequencies }
+  operationTermStats.set(tool, stats)
+  return stats
+}
+
 /** Okapi BM25 over the candidate operations; zero means no query term occurs. */
 function rankByBm25(tools: ToolSchema[], queryTerms: string[]): number[] {
   const query = new Set(queryTerms)
   const documents = tools.map((tool) => {
-    const terms = operationTerms(tool)
+    const stats = getOperationTermStats(tool)
     const frequencies = new Map<string, number>()
-    for (const term of terms)
-      if (query.has(term)) frequencies.set(term, (frequencies.get(term) ?? 0) + 1)
-    return { length: terms.length, frequencies }
+    for (const term of query) {
+      const frequency = stats.frequencies.get(term)
+      if (frequency) frequencies.set(term, frequency)
+    }
+    return { length: stats.length, frequencies }
   })
   const averageLength =
     documents.reduce((total, document) => total + document.length, 0) / (documents.length || 1)

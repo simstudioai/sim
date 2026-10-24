@@ -54,6 +54,11 @@ export const ALL_COMPETITORS: CompetitorProfile[] = [
 
 const COMPETITOR_BY_SLUG = new Map(ALL_COMPETITORS.map((c) => [c.id, c]))
 
+/** Path of the Sim vs `competitor` comparison page. */
+export function comparisonPath(competitor: CompetitorProfile): string {
+  return `/comparisons/${competitor.id}`
+}
+
 export function getCompetitorBySlug(slug: string): CompetitorProfile | null {
   return COMPETITOR_BY_SLUG.get(slug) ?? null
 }

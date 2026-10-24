@@ -24,6 +24,7 @@ function workspaceFor(input: { workspaceId?: string }, context?: ServerToolConte
 export const dashboardsServerTool: BaseServerTool = {
   name: 'dashboards',
   inputSchema: mothershipDashboardsInputSchema,
+  writes: (args) => mothershipDashboardsInputSchema.parse(args).action === 'set',
   async execute(raw, context) {
     const input = mothershipDashboardsInputSchema.parse(raw)
     const workspaceId = workspaceFor(input, context)

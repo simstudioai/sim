@@ -14,7 +14,7 @@
  */
 
 /** Bun version mirrored from the root packageManager field. */
-export const PI_BUN_VERSION = '1.4.2'
+export const PI_BUN_VERSION = '1.4.4'
 
 /** Exact Pi version mirrored from the app dependencies and lockfile. */
 export const PI_PACKAGE_VERSION = '1.0.0'

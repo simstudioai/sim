@@ -53,6 +53,7 @@ export async function executeSimCli(
       messageId: context.messageId,
       parentToolCallId: context.parentToolCallId,
       userPermission: context.userPermission,
+      secretActorUserId: context.secretActorUserId,
       resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       readOnly: context.benchmark === 'distill',
     })
