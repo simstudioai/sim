@@ -23,9 +23,9 @@ export async function executeAgentCliRequest(
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
   const execute = () => executeUncountedAgentCliRequest(request, context)
-  // Commands authorize the subject's live role; a callerless run's subject is the workspace owner.
+  // Commands authorize the subject's live role; a callerless inbox run's subject is the owner.
   const { result, withheld } = await countWithheldContent(() =>
-    context.secretActorUserId === null && !context.organizationId
+    context.secretActorUserId === null
       ? withDelegatedApiScopes([OAUTH_API_READ_SCOPE], execute)
       : execute()
   )

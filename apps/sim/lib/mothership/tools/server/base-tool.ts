@@ -68,4 +68,6 @@ export interface BaseServerTool<TArgs = unknown, TResult = unknown> {
   inputSchema?: z.ZodType<TArgs>
   /** Optional Zod schema for output validation */
   outputSchema?: z.ZodType<TResult>
+  /** Whether these validated arguments change stored data; a delegated read grant refuses them. */
+  writes?(args: TArgs): boolean
 }

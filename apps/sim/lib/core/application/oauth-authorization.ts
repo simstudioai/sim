@@ -41,6 +41,15 @@ export function requireOAuthOperationScope(
   }
 }
 
+/**
+ * Holds a change no scoped operation guards — an internal operation, or one authorized outside the
+ * operation layer — to the current {@link withDelegatedApiScopes} grant. Outside a grant it allows.
+ */
+export function requireDelegatedApiScope(scope: OAuthApiScope): void {
+  const granted = delegatedApiScopes()
+  if (granted && !oauthScopeSatisfies(granted, scope)) throw new InsufficientScopeError(scope)
+}
+
 function grantedApiScopes(principal: Principal): readonly string[] | undefined {
   switch (principal.kind) {
     case 'oauth_access_token':

@@ -350,6 +350,48 @@ check('sim_cli for a callerless run holds only the read API scopes', async () =>
   expect(await projectFiles()).toHaveLength(1)
 })
 
+check('sim_cli services for a callerless run refuse the writes they route', async () => {
+  const f = await fixture()
+  const service = (name: string, input: Record<string, unknown>, context: ToolExecutionContext) =>
+    executeSimCli({ request: { invocation: { kind: 'service', name, input } } }, context)
+  const inboxSecretScope = async () =>
+    (
+      await db
+        .select({ scope: workspace.inboxSecretScope })
+        .from(workspace)
+        .where(eq(workspace.id, f.workspaceId))
+    )[0]?.scope
+  const before = await inboxSecretScope()
+  const widen = before === 'all' ? 'selected' : 'all'
+  const writes: Array<[string, Record<string, unknown>]> = [
+    [
+      'settings',
+      { scope: 'workspace', action: 'update', section: 'inbox', changes: { secretScope: widen } },
+    ],
+  ]
+
+  const callerless: ToolExecutionContext = { ...f.context, workflowId: '', secretActorUserId: null }
+  for (const [name, input] of writes) {
+    const refused = await service(name, input, callerless)
+    expect(refused.success).toBe(false)
+    expect(refused.error).toContain('api:write')
+  }
+  expect(await inboxSecretScope()).toBe(before)
+  const read = await service(
+    'settings',
+    { scope: 'workspace', action: 'get', section: 'inbox' },
+    callerless
+  )
+  expect(read.success, read.error).toBe(true)
+
+  const attributed: ToolExecutionContext = { ...f.context, workflowId: '', userPermission: 'admin' }
+  for (const [name, input] of writes) {
+    const written = await service(name, input, attributed)
+    expect(written.success, `${name}: ${written.error}`).toBe(true)
+  }
+  expect(await inboxSecretScope()).toBe(widen)
+})
+
 check('sim_cli for a read-only member keeps what that role allows', async () => {
   const f = await fixture()
   const memberId = await insertUser('Read member')
