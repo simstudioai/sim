@@ -83,16 +83,14 @@ export const gmailPollingHandler: PollingProviderHandler = {
         requestId,
         logger
       )
+      const pollState = {
+        lastCheckedTimestamp: now.toISOString(),
+        // Omit unless this poll held a cursor, so it can't clear one an overlapping poll stored.
+        ...(config.historyId || latestHistoryId ? { historyId: latestHistoryId } : {}),
+      }
 
       if (!emails || !emails.length) {
-        await updateWebhookProviderConfig(
-          webhookId,
-          {
-            lastCheckedTimestamp: now.toISOString(),
-            historyId: latestHistoryId,
-          },
-          logger
-        )
+        await updateWebhookProviderConfig(webhookId, pollState, logger)
         await markWebhookSuccess(webhookId, logger)
         logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
         return 'success'
@@ -110,14 +108,7 @@ export const gmailPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      await updateWebhookProviderConfig(
-        webhookId,
-        {
-          lastCheckedTimestamp: now.toISOString(),
-          historyId: latestHistoryId,
-        },
-        logger
-      )
+      await updateWebhookProviderConfig(webhookId, pollState, logger)
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
