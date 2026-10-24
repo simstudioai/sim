@@ -260,7 +260,7 @@ Sim fits configurable, multi-source lead enrichment, while n8n, Zapier, Gumloop,
 
 Sim provides [native read and write actions for Salesforce and HubSpot](https://www.sim.ai/library/best-ai-agents-sales-crm-automation). Built-in Tables can hold enriched records, while Knowledge Bases can supply company-specific context for scoring and classification. You can keep source selection, schema rules, deduplication, scoring, and CRM updates inside one workflow instead of mapping them across separate tools. A Human in the Loop block can pause low-confidence records for review before write-back.
 
-Sim also supports several deployment formats, including cloud workflows, API access, chat, and embedded experiences. Bring-your-own-key support covers multiple model providers, so you can choose models according to cost, latency, or task requirements. Switching providers does not require rebuilding the surrounding enrichment logic. These capabilities make Sim one of the [AI agent platforms for connecting existing tools](https://www.sim.ai/library/best-ai-agent-platforms-for-connecting-your-existing-tools) rather than a proprietary contact database.
+Sim also supports several deployment formats, including cloud workflows, API access, chat, and embedded experiences. Bring-your-own-key support covers more than 15 model providers, so you can choose models according to cost, latency, or task requirements. Switching providers does not require rebuilding the surrounding enrichment logic. These capabilities make Sim one of the [AI agent platforms for connecting existing tools](https://www.sim.ai/library/best-ai-agent-platforms-for-connecting-your-existing-tools) rather than a proprietary contact database.
 
 Sim's core is open source under Apache 2.0, while `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Sim Enterprise subscription for production use. [Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can connect Ollama, vLLM, LM Studio, or LiteLLM without requiring Enterprise solely for local-model access. Workspace-level bring-your-own-key credentials work on any Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise, as detailed in Sim's [cost documentation](https://docs.sim.ai/platform/costs).
 
@@ -286,7 +286,7 @@ n8n is source-available under its [Sustainable Use License](https://github.com/n
 
 **Cons.** n8n has no built-in enrichment logic. Every provider call, field mapping, and error path is something you wire yourself in the node editor, and a broken step fails silently unless you build a dedicated error-handling branch for it. That [assembly effort](https://www.sim.ai/library/best-ai-agents-sales-crm-automation) means a lead-enrichment workflow that took a vendor a week to configure can take longer to build from scratch in n8n, since you're building both the logic and the plumbing.
 
-**Pricing.** As of October 2026, [n8n uses execution-based pricing tiers](https://n8n.io/pricing/), with its cloud Starter plan listed at €20 per month when billed annually. Your cost depends on how often workflows run rather than how many individual tasks each run performs.
+**Pricing.** As of October 2026, [n8n uses execution-based pricing tiers](https://n8n.io/pricing/), starting at €20 per month for 2.5K workflow executions when billed annually. Your cost depends on how often workflows run rather than how many individual tasks each run performs.
 
 ### Zapier
 
@@ -298,7 +298,7 @@ n8n is source-available under its [Sustainable Use License](https://github.com/n
 
 **Cons.** Zapier's connectors expose the fields supported by each integration, so conflict resolution or unsupported custom field updates can need a stacked second or third Zap to finish the job a single agent workflow would handle in one pass. You configure deduplication with steps such as Filters or Paths. According to [Sim's platform comparison](https://www.sim.ai/library/best-ai-agents-sales-crm-automation), model processing and CRM integration run as separate steps rather than one reasoning loop, which means every added condition is another Zap to maintain and another task consumed.
 
-**Pricing.** As of October 2026, [Zapier lists Professional plans starting at $19.99 per month](https://zapier.com/pricing). Each successful action can count as a task, so multi-step enrichment workflows consume more tasks per lead.
+**Pricing.** As of October 2026, [Zapier lists Professional plans starting at $19.99 per month for 750 tasks](https://zapier.com/pricing). Each successful action can count as a task, so multi-step enrichment workflows consume more tasks per lead.
 
 ### Gumloop
 
