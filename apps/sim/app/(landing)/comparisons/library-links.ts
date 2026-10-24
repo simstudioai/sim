@@ -18,7 +18,10 @@ const LINKS_TO_COMPARISON_SCORE = 2
 const MENTION_SCORE = 1
 
 interface MentionPatterns {
-  /** Matches a title naming the competitor's alternatives ("n8n Alternatives", "LangChain and LangGraph Alternatives"). */
+  /**
+   * Matches a title naming the competitor's alternatives ("n8n Alternatives", "LangChain and LangGraph
+   * Alternatives"). A bare common-word name ("Make") counts only directly before "Alternatives".
+   */
   alternatives: RegExp
   /** Matches Title Case titles and tags, where a bare common-word name ("Make") is ambiguous. */
   subject: RegExp
@@ -38,7 +41,9 @@ function wordPattern(phrases: string[]): RegExp {
 function buildMentionPatterns(competitor: CompetitorProfile): MentionPatterns {
   const aliases = competitor.mentions ?? [competitor.name]
   return {
-    alternatives: new RegExp(`\\b${phraseAlternation(aliases)}(?: and [^,:]+?)? Alternatives\\b`),
+    alternatives: new RegExp(
+      `\\b(?:${phraseAlternation(aliases)}(?: and [^,:]+?)?|${escapeRegExp(competitor.name)}) Alternatives\\b`
+    ),
     subject: wordPattern(aliases),
     mention: wordPattern([competitor.name, ...aliases]),
   }

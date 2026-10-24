@@ -169,6 +169,33 @@ describe('workflow MCP lifecycle orchestration', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
+  it('answers an unpublishable workflow input on a tool update as a validation failure', async () => {
+    const message = 'Workflow input name "__proto__" is reserved. Rename this input field.'
+    vi.mocked(generateParameterSchemaForWorkflow).mockRejectedValueOnce(
+      new OrchestrationError('validation', message)
+    )
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'server-1' }]).mockResolvedValueOnce([
+      {
+        id: 'tool-1',
+        workflowId: 'wf-1',
+        toolName: 'tool_a',
+        toolDescription: null,
+        parameterSchemaBytes: 10,
+      },
+    ])
+
+    const result = await performUpdateWorkflowMcpTool({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      toolId: 'tool-1',
+      parameterDescriptionOverrides: { input: 'The request to answer' },
+    })
+
+    expect(result).toEqual({ success: false, error: message, errorCode: 'validation' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('allows updating tool metadata when an unchanged stored schema exceeds the new cap', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'server-1' }]).mockResolvedValueOnce([
       {
