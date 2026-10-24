@@ -1,4 +1,6 @@
+import { OAUTH_API_READ_SCOPE } from '@/lib/auth/oauth-provider'
 import { countWithheldContent } from '@/lib/core/application'
+import { withDelegatedApiScopes } from '@/lib/core/application/delegated-api-scopes'
 import { executeFileCopyCliRequest } from '@/lib/mothership/agent-cli/file-copy'
 import { isReadOnlyCliRequest } from '@/lib/mothership/agent-cli/read-only'
 import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
@@ -10,6 +12,8 @@ import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 
 export interface AgentCliExecutionContext extends Omit<ServerToolContext, 'abortSignal'> {
   readOnly?: boolean
+  /** Null when the run has no caller of its own, as for an unattributed inbox message. */
+  secretActorUserId?: string | null
   signal?: AbortSignal
 }
 
@@ -18,8 +22,12 @@ export async function executeAgentCliRequest(
   request: AgentCliRequest,
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
+  const execute = () => executeUncountedAgentCliRequest(request, context)
+  // Commands authorize the subject's live role; a callerless run's subject is the workspace owner.
   const { result, withheld } = await countWithheldContent(() =>
-    executeUncountedAgentCliRequest(request, context)
+    context.secretActorUserId === null && !context.organizationId
+      ? withDelegatedApiScopes([OAUTH_API_READ_SCOPE], execute)
+      : execute()
   )
   const note = describeWithheldContent(withheld)
   if (!note) return result
