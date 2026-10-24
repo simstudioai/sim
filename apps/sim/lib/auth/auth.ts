@@ -244,7 +244,8 @@ if (env.NODE_ENV === 'production') {
  */
 function resolveStripeBilling() {
   if (!isBillingEnabled || !env.STRIPE_SECRET_KEY) return null
-  if (!env.STRIPE_WEBHOOK_SECRET) {
+  const webhookSecret = env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret?.trim()) {
     logger.error(
       'BILLING_ENABLED and STRIPE_SECRET_KEY are set but STRIPE_WEBHOOK_SECRET is not; the Stripe billing plugin is disabled until it is configured'
     )
@@ -252,7 +253,7 @@ function resolveStripeBilling() {
   }
   return {
     client: new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' }),
-    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+    webhookSecret,
   }
 }
 
