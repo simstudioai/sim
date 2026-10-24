@@ -341,7 +341,12 @@ check('sim_cli for a callerless run holds only the read API scopes', async () =>
   expect(await workflows()).toEqual([])
   expect(await projectFiles()).toEqual([])
 
-  const attributed: ToolExecutionContext = { ...f.context, workflowId: '', userPermission: 'admin' }
+  const attributed: ToolExecutionContext = {
+    ...f.context,
+    workflowId: '',
+    userPermission: 'admin',
+    secretActorUserId: f.userId,
+  }
   for (const [argv, owner] of writes) {
     const written = await simCli(argv, attributed, owner)
     expect(written.success, written.error).toBe(true)
@@ -384,7 +389,12 @@ check('sim_cli services for a callerless run refuse the writes they route', asyn
   )
   expect(read.success, read.error).toBe(true)
 
-  const attributed: ToolExecutionContext = { ...f.context, workflowId: '', userPermission: 'admin' }
+  const attributed: ToolExecutionContext = {
+    ...f.context,
+    workflowId: '',
+    userPermission: 'admin',
+    secretActorUserId: f.userId,
+  }
   for (const [name, input] of writes) {
     const written = await service(name, input, attributed)
     expect(written.success, `${name}: ${written.error}`).toBe(true)
