@@ -6,7 +6,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
  * and finalizing each occurrence once. A local HTTP server stands in for the worker; each POST
  * for a turn is one leg, which ends the turn, fails it, or stays open until the test acts.
  */
-import { envFlagsMock, resetEnvFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -108,6 +108,11 @@ vi.mock('@/lib/mothership/jobs/reconcile', async (importOriginal) => {
   return { ...actual, reconcileJobRuns: vi.fn(actual.reconcileJobRuns) }
 })
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+/** Spied so a test can answer the hosted usage gate without a billing ledger. */
+vi.mock('@/lib/billing/core/attribution', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/billing/core/attribution')>()
+  return { ...actual, checkAttributedUsageLimits: vi.fn(actual.checkAttributedUsageLimits) }
+})
 /** Spied so a test can tell an automatic turn-off, which emails the job's people, from none. */
 vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
   notifyScheduleAutoDisabled: vi.fn(async () => {}),
@@ -139,7 +144,10 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
-import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
+import {
+  checkAttributedUsageLimits,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/attribution'
 import {
   acquireLock,
   closeRedisConnection,
@@ -256,6 +264,9 @@ async function runsOf(scheduleId: string) {
       status: jobExecutionLogs.status,
       outcome: jobExecutionLogs.outcome,
       summary: jobExecutionLogs.summary,
+      dispatchFailures: sql<
+        number | null
+      >`(${jobExecutionLogs.executionData}->>'dispatchFailures')::int`,
     })
     .from(jobExecutionLogs)
     .where(eq(jobExecutionLogs.scheduleId, scheduleId))
@@ -290,6 +301,8 @@ async function reconcileUntilSettled(executionId: string) {
 }
 
 afterAll(async () => {
+  /** A test that failed before ending its stream must not hold the server open. */
+  worker.server.closeAllConnections()
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
   for (const [key, value] of Object.entries(inheritedEnv)) {
     if (value === undefined) delete process.env[key]
@@ -632,6 +645,33 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     }
     expect(await dispatchJobOccurrence(occurrenceId)).toBe('started')
     await reconcileUntilSettled(occurrenceId)
+  })
+
+  it('retries an occurrence whose usage could not be read, and skips one whose billing is blocked', async () => {
+    setEnvFlags({ isHosted: true })
+    const { scheduleId, occurrenceId } = await seedJob()
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValueOnce({
+      isExceeded: true,
+      message: 'Usage could not be checked.',
+      reason: 'usage_unavailable',
+    })
+    await runJobLane(new Date())
+    expect(await runsOf(scheduleId)).toEqual([
+      expect.objectContaining({ status: 'queued', outcome: null, dispatchFailures: 1 }),
+    ])
+
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValueOnce({
+      isExceeded: true,
+      message: 'Billing is blocked for this account.',
+      reason: 'billing_blocked',
+    })
+    expect(await dispatchJobOccurrence(occurrenceId)).toBe('skipped_budget')
+    expect(await runsOf(scheduleId)).toEqual([
+      expect.objectContaining({
+        outcome: 'skipped_budget',
+        summary: 'Billing is blocked for this account.',
+      }),
+    ])
   })
 
   it('runs a one-shot job once and completes it', async () => {
