@@ -467,22 +467,7 @@ The production decision should compare observed results against predefined accep
 
 ## What production tasks should teams include in an agentic coding tool benchmark?
 
-A production benchmark should test agentic coding tools on representative maintenance tasks with objective acceptance checks. One successful task does not establish dependable performance across the software lifecycle, so the benchmark should include several task classes:
-
-1. Fix a reproducible defect without changing unrelated behavior.
-2. Add tests for an existing module with known coverage gaps.
-3. Refactor duplicated or tightly coupled code while preserving behavior.
-4. Implement a small feature that crosses multiple files or packages.
-5. Upgrade a dependency and resolve the resulting compatibility problems.
-6. Diagnose a failing build, type check, linter, or continuous-integration job.
-7. Make a change in an unfamiliar part of a large repository.
-8. Follow a repository-specific architectural rule documented outside the target file.
-9. Refuse or safely handle a task that requests access beyond the granted permissions.
-10. Recover from a misleading hypothesis or a failed first attempt.
-
-Each task should begin from the same commit and run in an isolated environment. Record task completion, tests passed, regressions, changed files, commands executed, elapsed engineering time, model or tool consumption, reviewer corrections, and whether the final change was accepted.
-
-The [reproducible AI coding-agent benchmark](https://www.sim.ai/library/reproducible-ai-coding-agent-benchmark) provides a focused method for comparing debugging, test generation, and refactoring results without relying on vendor demonstrations.
+A production benchmark should test agentic coding tools on representative maintenance tasks with objective acceptance checks. One successful task does not establish dependable performance across the software lifecycle, so teams should use the consolidated task set and measurement method below.
 
 ## How should teams test code quality and correctness?
 
@@ -494,32 +479,26 @@ Diff quality also matters. Large, unrelated, or unexplained edits increase revie
 
 ## How should teams evaluate AI coding agents for code review and testing?
 
-A development team should evaluate AI coding agents with a private benchmark drawn from real defects, review comments, and test gaps in its own repositories.
+A development team should evaluate AI coding agents with a private benchmark drawn from real defects, review comments, and test gaps in its own repositories. Use tasks that represent production work rather than isolated algorithm exercises:
 
-Use tasks that represent production work rather than isolated algorithm exercises:
+1. Fix a reproducible defect with a known regression test without changing unrelated behavior.
+2. Add tests for an existing module, including meaningful edge cases, a security-sensitive input-validation defect, and a flaky test that requires diagnosis rather than deletion.
+3. Refactor duplicated or tightly coupled code across several files while preserving public behavior.
+4. Implement a small feature that crosses multiple files or packages and requires repository exploration.
+5. Upgrade a dependency or API and resolve the resulting compatibility problems.
+6. Diagnose a failing build, type check, linter, or continuous-integration job.
+7. Make a change in an unfamiliar part of a large repository.
+8. Follow a repository-specific architectural rule documented outside the target file.
+9. Review a pull request containing a subtle but intentional design decision.
+10. Complete a task spanning documentation and code.
+11. Request clarification for an underspecified issue.
+12. Refuse or safely handle a task that requests access beyond the granted permissions or available evidence.
+13. Recover from a misleading hypothesis or failed command.
+14. Summarize every change, remaining risk, and test result for a reviewer.
 
-1. Fix a reproducible defect and run the relevant tests.
-2. Refactor logic across several files without changing behavior.
-3. Generate tests for an existing component and explain the chosen cases.
-4. Add a small feature that requires repository exploration.
-5. Recover from a failed command or incorrect initial assumption.
-6. Summarize every change, remaining risk, and test result for a reviewer.
+Begin each task from the same repository snapshot in an isolated environment, keep the instructions, permissions, and pass criteria consistent, and run each task multiple times. Evaluate correctness, review precision, test quality, unnecessary diff size, reproducibility, human intervention, and time to a reviewable result.
 
-The broader task set should also include:
-
-- A localized bug with a known regression test.
-- A multi-file behavior change.
-- A missing edge case in an existing test suite.
-- A security-sensitive input-validation defect.
-- A flaky test that requires diagnosis rather than deletion.
-- A refactor that must preserve public behavior.
-- A pull request containing a subtle but intentional design decision.
-
-Evaluate each tool on correctness, review precision, test quality, unnecessary diff size, time to a reviewable result, reproducibility, and the amount of human intervention required. Keep the same repository snapshot, instructions, permissions, and pass criteria for every tool.
-
-Run each task multiple times from the same starting state. Include localized and cross-file defects, a constrained refactor, test generation with meaningful edge cases, a dependency or API migration, a task spanning documentation and code, an underspecified issue that should trigger clarification, and a task the agent should decline because it lacks permission or evidence.
-
-Record task completion, hidden-test results, regressions, security findings, wall-clock time, reviewer time, changed-file count, unnecessary churn, command failures, and total cost. The [reproducible AI coding-agent benchmark](https://www.sim.ai/library/reproducible-ai-coding-agent-benchmark) provides a complementary framework for testing debugging, test generation, and refactoring rather than relying on vendor demonstrations.
+Record task completion, hidden-test results, regressions, security findings, changed files, commands and failures, wall-clock time, reviewer time and corrections, unnecessary churn, model or tool consumption, total cost, and whether the final change was accepted. The [reproducible AI coding-agent benchmark](https://www.sim.ai/library/reproducible-ai-coding-agent-benchmark) provides a framework for testing debugging, test generation, and refactoring without relying on vendor demonstrations.
 
 ## Which metrics show whether an agentic coding tool is production-ready?
 
