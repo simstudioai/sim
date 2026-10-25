@@ -40,9 +40,17 @@ export const testStartArgsSchema = z.object({
   targets: z.array(testTargetSchema).max(MAX_TARGETS),
 })
 
+/**
+ * A mock's answer: its output, or the error it threw. The error branch is tried first, because
+ * `output: z.unknown()` also accepts an object with no `output`, which would turn a thrown mock
+ * into an empty output and lose its message.
+ */
 export const testReplyArgsSchema = z.union([
-  z.object({ runId: z.string().min(1), callId: z.string().min(1), output: z.unknown() }),
   z.object({ runId: z.string().min(1), callId: z.string().min(1), error: z.string().max(10_000) }),
+  // Strict, so a reply carrying an `error` (one past the cap included) is never read as an output.
+  z
+    .object({ runId: z.string().min(1), callId: z.string().min(1), output: z.unknown() })
+    .strict(),
 ])
 
 export const testNextArgsSchema = z.object({ runId: z.string().min(1) })

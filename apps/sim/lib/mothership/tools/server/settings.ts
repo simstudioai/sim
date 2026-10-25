@@ -356,6 +356,10 @@ function settingsRefresh(context: SettingsContext, section: string): ResourceCha
 export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
   name: 'settings',
   inputSchema: mothershipSettingsInputSchema,
+  writes: (input) =>
+    input.action === 'update' ||
+    (input.action === 'execute' &&
+      settingsOperations[`${input.scope}/${input.section}`]?.[input.operation]?.effect === 'write'),
   async execute(raw, context) {
     const input = mothershipSettingsInputSchema.parse(raw)
     const target = await resolveSettingsContext(input.scope, context, input.workspaceId)

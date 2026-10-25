@@ -49,6 +49,7 @@ import { BILLING_CALLBACK_OUTCOME } from '@/lib/mothership/generated/billing-pro
 import { BillingRouteOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { recordJobRunSpend } from '@/lib/mothership/jobs/budget'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
@@ -119,6 +120,28 @@ async function readUsageStanding(
       billingAttribution ?? verdict.payer,
       verdict.scope
     ),
+  }
+}
+
+/**
+ * Adds a scheduled job run's own spend cap to the payer's standing. A payer over its plan limit
+ * keeps the plan card; otherwise a job run at its cap pauses with the job's card. A cap that
+ * cannot be read answers as the payer's standing alone, like a standing read that fails.
+ */
+async function withJobRunBudget(
+  verdict: BillingUsageVerdict,
+  billingRequestId: string | undefined,
+  cumulativeCostUsd: number
+): Promise<BillingUsageVerdict> {
+  if (verdict.usageExceeded || !billingRequestId) return verdict
+  try {
+    const card = await recordJobRunSpend(billingRequestId, cumulativeCostUsd)
+    return card ? { usageExceeded: true, usageUpgrade: card } : verdict
+  } catch (error) {
+    logger.warn('Job run spend could not be recorded; answering the payer standing alone', {
+      error: toError(error).message,
+    })
+    return verdict
   }
 }
 
@@ -442,7 +465,11 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       await checkAndBillOverageThreshold(userId, undefined, { onError: 'throw' })
     }
 
-    const usageVerdict = await readUsageStanding(userId, billingAttribution, accountDecision)
+    const usageVerdict = await withJobRunBudget(
+      await readUsageStanding(userId, billingAttribution, accountDecision),
+      billingRequestId,
+      cost
+    )
     const duration = Date.now() - startTime
 
     // Same-or-lower cumulative than already recorded: nothing new to bill.

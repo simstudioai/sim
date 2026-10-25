@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
-FROM oven/bun:1.4.2-slim AS base
+FROM oven/bun:1.4.4-slim AS base
 
 # Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
 # Node runs the isolated-vm sandbox worker and the Oracle Database worker (the
@@ -212,6 +212,12 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@napi-rs ./node_modules
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
+
+# The same image runs as the dedicated worker host with
+# `node apps/sim/lib/execution/isolated-vm-host.cjs`. The host requires `ws`
+# directly, so copy the complete package rather than relying on the tracer.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-host.cjs ./apps/sim/lib/execution/isolated-vm-host.cjs
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/ws ./node_modules/ws
 
 # Spreadsheet parse worker bundle (build:xlsx-worker, run by `bun run build`;
 # under the build task's declared `dist/**` output so a Turbo cache hit restores it).

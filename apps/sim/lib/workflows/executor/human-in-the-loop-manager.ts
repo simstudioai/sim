@@ -40,7 +40,7 @@ import {
   terminalExecutionLogFields,
 } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
+import { isTerminalWorkflowExecutionStatus } from '@/lib/logs/types'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
@@ -92,19 +92,6 @@ const execDb = dbFor('exec')
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
-/**
- * Statuses of a finished execution's log, the same set the attempt-failure
- * `CASE` preserves; a resume can never claim a log in one of them.
- */
-const TERMINAL_EXECUTION_LOG_STATUSES = [
-  'cancelled',
-  'failed',
-  'completed',
-] as const satisfies readonly PersistedWorkflowExecutionStatus[]
-
-function isTerminalExecutionLogStatus(status: string): boolean {
-  return (TERMINAL_EXECUTION_LOG_STATUSES as readonly string[]).includes(status)
-}
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
 const PAUSED_CANCELLATION_QUEUE_FAILURE_REASON = 'Paused execution cancellation requested'
@@ -410,6 +397,19 @@ interface PausedExecutionSummary {
   triggerIds: string[]
   pausePoints: PausePointWithQueue[]
 }
+
+/** The `paused_executions` columns a summary is built from, with the snapshot's trigger ids. */
+type PausedExecutionSummaryRow = Pick<
+  typeof pausedExecutions.$inferSelect,
+  | 'id'
+  | 'workflowId'
+  | 'executionId'
+  | 'status'
+  | 'metadata'
+  | 'pausedAt'
+  | 'updatedAt'
+  | 'expiresAt'
+> & { triggerIds: string[] | null | undefined }
 
 interface PausedExecutionDetail extends PausedExecutionSummary {
   executionSnapshot: SerializedSnapshot
@@ -2523,7 +2523,7 @@ export class PauseResumeManager {
         pausedExecution !== undefined &&
         isResumablePausedStatus(pausedExecution.status) &&
         executionLog !== undefined &&
-        !isTerminalExecutionLogStatus(executionLog.status)
+        !isTerminalWorkflowExecutionStatus(executionLog.status)
       )
     })
   }
@@ -3488,8 +3488,24 @@ export class PauseResumeManager {
       }
     }
 
+    /**
+     * The summary reads only `triggerIds` from the execution snapshot, whose
+     * serialized `snapshot` string can run to megabytes per row, so that one key
+     * is projected instead of shipping and parsing the whole document.
+     */
     const rows = await execDb
-      .select()
+      .select({
+        id: pausedExecutions.id,
+        workflowId: pausedExecutions.workflowId,
+        executionId: pausedExecutions.executionId,
+        status: pausedExecutions.status,
+        pausePoints: pausedExecutions.pausePoints,
+        metadata: pausedExecutions.metadata,
+        pausedAt: pausedExecutions.pausedAt,
+        updatedAt: pausedExecutions.updatedAt,
+        expiresAt: pausedExecutions.expiresAt,
+        triggerIds: sql<string[] | null>`${pausedExecutions.executionSnapshot}->'triggerIds'`,
+      })
       .from(pausedExecutions)
       .where(whereClause)
       .orderBy(desc(pausedExecutions.pausedAt))
@@ -3558,7 +3574,10 @@ export class PauseResumeManager {
       return null
     }
 
-    const executionSummary = PauseResumeManager.normalizePausedExecution(row, pausePoints)
+    const executionSummary = PauseResumeManager.normalizePausedExecution(
+      { ...row, triggerIds: (row.executionSnapshot as SerializedSnapshot)?.triggerIds },
+      pausePoints
+    )
 
     return {
       ...executionSummary,
@@ -3753,7 +3772,7 @@ export class PauseResumeManager {
   }
 
   private static normalizePausedExecution(
-    row: typeof pausedExecutions.$inferSelect,
+    row: PausedExecutionSummaryRow,
     pausePoints: PausePointWithQueue[]
   ): PausedExecutionSummary {
     return {
@@ -3767,7 +3786,7 @@ export class PauseResumeManager {
       updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
       expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
       metadata: row.metadata as Record<string, any>,
-      triggerIds: (row.executionSnapshot as SerializedSnapshot)?.triggerIds || [],
+      triggerIds: row.triggerIds || [],
       pausePoints,
     }
   }

@@ -4,7 +4,7 @@ title: 'Slack AI Agent Security: Permissions, Data, and Audit Guide'
 description: 'Secure a Slack AI agent with least-privilege OAuth scopes, controlled data access, protected credentials, approval gates, and complete audit evidence.'
 seoTitle: 'Slack AI Agent Security: Permissions and Audit Guide'
 date: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-24
 authors:
   - andrew
 readingTime: 15
@@ -287,7 +287,7 @@ Technical buyers comparing the two should separate platform licensing from deplo
 
 Sim and n8n differ in licensing and governance packaging, but either platform must be configured around Slack's permission boundary and the organization's own action policies.
 
-- **Sim:** Sim's core is Apache 2.0 and can be self-hosted, `apps/sim/ee` uses the separate Sim Enterprise License, workspace BYOK is available on every Sim Cloud plan, and [hosted model usage carries approximately a 1.1x multiplier on provider cost](https://docs.sim.ai/platform/costs) as of October 2026.
+- **Sim:** Sim's core is Apache 2.0 and can be self-hosted, `apps/sim/ee` uses the separate Sim Enterprise License, workspace BYOK is available on every Sim Cloud plan, and [hosted model usage is recorded at the applicable Sim rate](https://docs.sim.ai/platform/costs) as of October 2026.
 - **n8n:** n8n is self-hostable under the source-available Sustainable Use License rather than an OSI-approved open-source license, and n8n Cloud describes usage in workflow executions on its [official pricing page](https://n8n.io/pricing/) as of October 2026.
 - **Slack:** Slack is the identity, conversation, installation, and OAuth boundary for the agent, while model usage and agent-platform execution are billed and governed separately from Slack workspace access.
 

@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, isPrimaryPoolClient } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
@@ -50,7 +50,7 @@ export async function getSecurityPolicyVersion(
 ): Promise<number> {
   if (!organizationId) return DEFAULT_VERSION
 
-  const cached = executor === db ? versionCache.get(organizationId) : undefined
+  const cached = isPrimaryPoolClient(executor) ? versionCache.get(organizationId) : undefined
   if (cached !== undefined) return cached
 
   try {
@@ -61,7 +61,7 @@ export async function getSecurityPolicyVersion(
       .limit(1)
 
     const version = row?.version ?? DEFAULT_VERSION
-    if (executor === db) versionCache.set(organizationId, version)
+    if (isPrimaryPoolClient(executor)) versionCache.set(organizationId, version)
     return version
   } catch (error) {
     logger.error('Failed to resolve security policy version; using default', {
@@ -133,7 +133,7 @@ export async function getMemberOrganizationId(
   if (!userId) return null
 
   /** A transaction may have just created or moved the membership; shared cache entries cannot see it. */
-  const cached = executor === db ? membershipCache.get(userId) : undefined
+  const cached = isPrimaryPoolClient(executor) ? membershipCache.get(userId) : undefined
   if (cached) return cached.organizationId
 
   try {
@@ -144,7 +144,7 @@ export async function getMemberOrganizationId(
       .limit(1)
 
     const organizationId = row?.organizationId ?? null
-    if (executor === db) {
+    if (isPrimaryPoolClient(executor)) {
       membershipCache.set(userId, { organizationId }, { ttl: membershipCacheTtlMs(organizationId) })
     }
     return organizationId

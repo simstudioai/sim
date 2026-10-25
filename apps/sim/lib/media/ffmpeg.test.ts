@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   capturedArgs,
+  capturedEnvs,
   capturedVideoFilters,
   capturedCaptions,
   killSignals,
@@ -12,6 +13,7 @@ const {
   saves,
 } = vi.hoisted(() => ({
   capturedArgs: [] as string[][],
+  capturedEnvs: [] as Array<NodeJS.ProcessEnv | undefined>,
   capturedVideoFilters: [] as string[],
   capturedCaptions: [] as string[],
   killSignals: [] as string[],
@@ -26,9 +28,16 @@ vi.mock('node:child_process', () => ({
   execFile: (
     executable: string,
     args: string[],
-    options: { cwd?: string; killSignal?: string; signal?: AbortSignal; timeout?: number },
+    options: {
+      cwd?: string
+      env?: NodeJS.ProcessEnv
+      killSignal?: string
+      signal?: AbortSignal
+      timeout?: number
+    },
     callback: (error: Error | null, stdout: string, stderr: string) => void
   ) => {
+    capturedEnvs.push(options.env)
     if (executable.includes('ffprobe')) {
       callback(null, probeReport.json, '')
       return
@@ -118,6 +127,7 @@ function nextSave(): Promise<void> {
 
 beforeEach(() => {
   capturedArgs.length = 0
+  capturedEnvs.length = 0
   capturedVideoFilters.length = 0
   capturedCaptions.length = 0
   killSignals.length = 0
@@ -312,10 +322,14 @@ describe('runFfmpegOperation argument vectors', () => {
     expect(capturedArgs[0]).toEqual([
       '-y',
       '-nostdin',
+      '-protocol_whitelist',
+      'file,pipe',
       '-i',
       expect.stringMatching(/in-0\.mp4$/),
       '-stream_loop',
       '-1',
+      '-protocol_whitelist',
+      'file,pipe',
       '-i',
       expect.stringMatching(/in-1\.mp4$/),
       '-map',
@@ -337,6 +351,8 @@ describe('runFfmpegOperation argument vectors', () => {
     expect(capturedArgs[0]).toEqual([
       '-y',
       '-nostdin',
+      '-protocol_whitelist',
+      'file,pipe',
       '-i',
       expect.stringMatching(/in-0\.mp4$/),
       '-ss',
@@ -355,12 +371,32 @@ describe('runFfmpegOperation argument vectors', () => {
       '-nostdin',
       '-ss',
       '3',
+      '-protocol_whitelist',
+      'file,pipe',
       '-i',
       expect.stringMatching(/in-0\.mp4$/),
       '-frames:v',
       '1',
       expect.stringMatching(/out\.jpg$/),
     ])
+  })
+
+  it('runs FFmpeg and FFprobe without the app environment', async () => {
+    probeReport.json =
+      '{"streams":[{"codec_type":"video","width":64,"height":64}],"format":{"duration":"1"}}'
+    vi.stubEnv('SIM_APP_ONLY_SETTING', 'app-only')
+    try {
+      await runFfmpegOperation('concat', [videoInput, videoInput])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    for (const childEnv of capturedEnvs) {
+      expect(childEnv).toBeDefined()
+      expect(childEnv?.SIM_APP_ONLY_SETTING).toBeUndefined()
+      expect(childEnv?.PATH).toBe(process.env.PATH)
+    }
   })
 })
 

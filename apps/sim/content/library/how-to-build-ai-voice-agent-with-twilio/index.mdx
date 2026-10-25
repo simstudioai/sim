@@ -5,7 +5,7 @@ description: 'Learn how to build a production AI voice agent with Twilio for cal
 seoTitle: 'How to Build an AI Voice Agent With Twilio and Sim'
 seoDescription: 'Build a production AI voice agent with Twilio for calls and live audio, a low-latency voice adapter, and Sim for tools, safeguards, and human handoff.'
 date: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-24
 authors:
   - andrew
 readingTime: 12
@@ -154,7 +154,7 @@ The workflow should return a constrained response rather than arbitrary telephon
 Twilio, Sim, and n8n solve different parts of a voice-agent system and should not be treated as interchangeable media servers.
 
 - **Twilio:** As of October 2026, Twilio is a hosted communications service rather than self-hosted software, and Programmable Voice is billed using usage-based components such as call minutes, phone numbers, destinations, and optional features documented on [Twilio's Voice pricing page](https://www.twilio.com/en-us/voice/pricing/us).
-- **Sim:** As of October 2026, [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be self-hosted, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); workspace BYOK works on any Sim Cloud plan, and hosted model-key usage carries a multiplier of about 1.1 times provider cost, as documented in [Sim's cost guide](https://docs.sim.ai/platform/costs).
+- **Sim:** As of October 2026, [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be self-hosted, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); workspace BYOK works on any Sim Cloud plan, and hosted model-key usage is recorded at the applicable Sim rate, as documented in [Sim's cost guide](https://docs.sim.ai/platform/costs).
 - **n8n:** As of October 2026, n8n is self-hostable under its source-available [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is not OSI-approved, while [n8n Cloud pricing](https://n8n.io/pricing/) uses workflow executions as a billing dimension.
 
 ## How do you choose between Twilio Gather and Twilio Media Streams?

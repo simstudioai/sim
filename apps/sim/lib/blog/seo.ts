@@ -17,6 +17,7 @@ export const BLOG_SECTION: ContentSection = {
   name: 'Blog',
   basePath: '/blog',
   feedPath: '/blog/rss.xml',
+  hasAuthorPages: true,
   description: 'Announcements, insights, and guides for building AI agents.',
 }
 

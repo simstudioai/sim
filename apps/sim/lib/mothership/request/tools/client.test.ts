@@ -607,7 +607,7 @@ describe('workflow client tool completion', () => {
       registry,
     })
 
-    expect(decryptSecret).toHaveBeenCalledWith('encrypted-child-secret')
+    expect(decryptSecret).toHaveBeenCalledWith('encrypted-child-secret', { logFailure: false })
     expect(completion?.data).toEqual({
       success: true,
       workflowId: 'workflow-1',

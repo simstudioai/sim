@@ -1,6 +1,6 @@
 {
   "name": "simstudio",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -76,6 +76,7 @@
     "check:spec-example-ids": "bun run scripts/check-spec-example-ids.ts",
     "check:script-tests": "bun run scripts/check-script-test-coverage.ts",
     "check:test-patterns": "bun run scripts/check-test-patterns.ts",
+    "check:sealed-columns": "bun run scripts/check-sealed-columns.ts",
     "check:schema-mock": "bun run scripts/generate-schema-mock.ts --check",
     "check:audits": "bun run scripts/run-audits.ts",
     "check:skills": "bun run scripts/sync-skills.ts --check",

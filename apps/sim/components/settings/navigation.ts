@@ -27,7 +27,7 @@ import {
   Users,
   Wrench,
 } from '@sim/emcn/icons'
-import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
+import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { CodeIcon, McpIcon, SlackIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/workspaces'

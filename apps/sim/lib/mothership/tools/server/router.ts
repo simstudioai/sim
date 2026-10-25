@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { getValidationErrorMessage, isZodError } from '@/lib/api/server/validation'
+import { OAUTH_API_WRITE_SCOPE } from '@/lib/auth/oauth-provider'
+import { requireDelegatedApiScope } from '@/lib/core/application/oauth-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   Ffmpeg,
@@ -156,6 +158,7 @@ export async function routeExecution(
   }
 
   assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
+  if (tool.writes?.(args)) requireDelegatedApiScope(OAUTH_API_WRITE_SCOPE)
 
   // Execute. None of the remaining tools resolve blocks or gate discovery, so the old
   // custom-block-overlay / block-visibility ALS scopes are gone with the tools that

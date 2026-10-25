@@ -4729,7 +4729,6 @@
   "apps/sim/lib/mothership/async-runs/orphaned-runs.ts#ORPHANED_RUN_GRACE_MS",
   "apps/sim/lib/mothership/auth/application-delegation.ts#InteractiveCopilotExecutionRequiredError",
   "apps/sim/lib/mothership/chat-status.ts#ChatStatusOwner",
-  "apps/sim/lib/mothership/chat/application/context.ts#resolveOwnedWorkspaceChatContext",
   "apps/sim/lib/mothership/chat/folder-context.ts#ChatFolderResolver",
   "apps/sim/lib/mothership/chat/fork-chat-files.ts#FORKABLE_CHAT_FILE_CONTEXT",
   "apps/sim/lib/mothership/chat/organization-chats.ts#organizationChatDelegationOperations",

@@ -28,6 +28,7 @@ import {
   vector,
 } from 'drizzle-orm/pg-core'
 import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
+import { sealedText } from './sealed-text'
 
 /**
  * Drizzle push compares index options as JSON, while Postgres introspection
@@ -176,8 +177,8 @@ export const account = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    accessToken: text('access_token'),
-    refreshToken: text('refresh_token'),
+    accessToken: sealedText('account', 'access_token'),
+    refreshToken: sealedText('account', 'refresh_token'),
     idToken: text('id_token'),
     accessTokenExpiresAt: timestamp('access_token_expires_at'),
     refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
@@ -1176,6 +1177,11 @@ export const workflowSchedule = pgTable(
     excludedDates: jsonb('excluded_dates').$type<string[]>(),
     /** Recurrence end boundary: the schedule completes once its next run would fall after this instant. */
     endsAt: timestamp('ends_at'),
+    /**
+     * A job's spend cap per run in USD; the run pauses once its settled cost reaches it. Null
+     * takes the default cap. Unused by workflow schedules.
+     */
+    runBudgetUsd: decimal('run_budget_usd', { precision: 12, scale: 4 }),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1226,10 +1232,30 @@ export const jobExecutionLogs = pgTable(
     totalDurationMs: integer('total_duration_ms'),
     executionData: jsonb('execution_data').notNull().default('{}'),
     cost: jsonb('cost'),
+    /**
+     * The schedule occurrence this run is for. With the schedule it names the run once:
+     * `execution_id` is derived from both and is the job turn's run id. Null on legacy rows.
+     */
+    occurrenceAt: timestamp('occurrence_at'),
+    /** 'met' | 'not_met' | 'blocked' | 'failed' | 'skipped_busy' | 'skipped_budget' | 'interrupted' */
+    outcome: text('outcome'),
+    summary: text('summary'),
+    /** The billing request the run's charges settle under, recorded when its first leg is admitted. */
+    billingRequestId: text('billing_request_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
     scheduleIdIdx: index('job_execution_logs_schedule_id_idx').on(table.scheduleId),
+    scheduleOccurrenceUnique: uniqueIndex('job_execution_logs_schedule_occurrence_unique').on(
+      table.scheduleId,
+      table.occurrenceAt
+    ),
+    billingRequestUnique: uniqueIndex('job_execution_logs_billing_request_unique')
+      .on(table.billingRequestId)
+      .where(sql`${table.billingRequestId} IS NOT NULL`),
+    openRunsIdx: index('job_execution_logs_open_idx')
+      .on(table.startedAt)
+      .where(sql`${table.status} IN ('queued', 'running')`),
     workspaceStartedAtIdx: index('job_execution_logs_workspace_started_at_idx').on(
       table.workspaceId,
       table.startedAt

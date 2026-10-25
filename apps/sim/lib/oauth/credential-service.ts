@@ -1,6 +1,7 @@
 import { createHmac, createSign } from 'crypto'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
+import { sealedTextEquals } from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
@@ -973,7 +974,7 @@ async function recordRefreshRevocation(
     .where(
       and(
         chainRowsFilter(scope.accountId, scope.slackTeamId),
-        eq(account.refreshToken, rejectedRefreshToken),
+        sealedTextEquals(account.refreshToken, rejectedRefreshToken),
         // Raw sql params skip drizzle's column mapping, so the Date is serialized explicitly;
         // truncation keeps a version read back at millisecond precision comparable. A row that
         // vanished before it could be read has no version and matches nothing anyway.
@@ -1366,7 +1367,9 @@ async function performCoalescedRefresh({
             const rotated = await db
               .update(account)
               .set(updateData)
-              .where(and(eq(account.id, accountId), eq(account.refreshToken, refreshToken)))
+              .where(
+                and(eq(account.id, accountId), sealedTextEquals(account.refreshToken, refreshToken))
+              )
               .returning({ id: account.id })
             if (rotated.length === 0) {
               const stored = await readStoredChain(accountId)
