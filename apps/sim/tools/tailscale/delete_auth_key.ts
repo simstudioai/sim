@@ -1,78 +1,61 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface TailscaleDeleteAuthKeyParams {
-  apiKey: string
-  tailnet: string
-  keyId: string
-}
-
-interface TailscaleDeleteAuthKeyResponse extends ToolResponse {
-  output: {
-    success: boolean
-    keyId: string
-  }
-}
+import type {
+  TailscaleAuthKeyParams,
+  TailscaleDeleteAuthKeyResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleDeleteAuthKeyTool: ToolConfig<
-  TailscaleDeleteAuthKeyParams,
+  TailscaleAuthKeyParams,
   TailscaleDeleteAuthKeyResponse
 > = {
   id: 'tailscale_delete_auth_key',
   name: 'Tailscale Delete Auth Key',
-  description: 'Revoke and delete an auth key',
+  description: 'Revoke an auth key, API access token, or trust credential',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     tailnet: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description: 'Tailnet ID, legacy name, or "-" for the token’s default tailnet',
     },
     keyId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Auth key ID to delete',
+      description: 'Tailscale key ID',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/keys/${encodeURIComponent(params.keyId.trim())}`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/keys/${safeUrlPathSegment(params.keyId, 'keyId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
+      'Content-Type': 'application/json',
     }),
   },
-
-  transformResponse: async (response: Response, params?: TailscaleDeleteAuthKeyParams) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { success: false, keyId: '' },
-        error: (data as Record<string, string>).message ?? 'Failed to delete auth key',
-      }
-    }
-
-    return {
-      success: true,
-      output: {
-        success: true,
-        keyId: params?.keyId ?? '',
-      },
-    }
+  transformResponse: async (response, params) => {
+    await assertTailscaleResponse(response)
+    return { success: true, output: { success: true, keyId: params?.keyId ?? '' } }
   },
-
   outputs: {
-    success: { type: 'boolean', description: 'Whether the auth key was successfully deleted' },
-    keyId: { type: 'string', description: 'ID of the deleted auth key' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the operation succeeded',
+    },
+    keyId: {
+      type: 'string',
+      description: 'ID of the revoked key',
+    },
   },
 }

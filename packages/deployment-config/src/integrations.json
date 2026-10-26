@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-22",
+  "updatedAt": "2026-10-26",
   "integrations": [
     {
       "type": "onepassword",
@@ -27868,18 +27868,22 @@
       "slug": "tailscale",
       "name": "Tailscale",
       "description": "Manage devices and network settings in your Tailscale tailnet",
-      "longDescription": "Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.",
+      "longDescription": "Manage Tailscale devices, user access, posture attributes, DNS configuration, policy files, keys, subnet routes, and tailnet settings.",
       "bgColor": "#2E2D2D",
       "iconName": "TailscaleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tailscale",
       "operations": [
         {
           "name": "List Devices",
-          "description": "List all devices in the tailnet"
+          "description": "List devices in the tailnet"
         },
         {
           "name": "Get Device",
-          "description": "Get details of a specific device by ID"
+          "description": "Get details of a specific device"
+        },
+        {
+          "name": "Set Device Name",
+          "description": "Rename a device or reset its name to the OS hostname"
         },
         {
           "name": "Delete Device",
@@ -27891,55 +27895,103 @@
         },
         {
           "name": "Set Device Tags",
-          "description": "Set tags on a device in the tailnet"
+          "description": "Replace the tags assigned to a device"
         },
         {
           "name": "Get Device Routes",
-          "description": "Get the subnet routes for a device"
+          "description": "Get the advertised and approved subnet routes for a device"
         },
         {
           "name": "Set Device Routes",
-          "description": "Set the enabled subnet routes for a device"
+          "description": "Replace the enabled subnet routes for a device"
         },
         {
           "name": "Update Device Key",
-          "description": "Enable or disable key expiry on a device"
+          "description": "Enable or disable device key expiry"
         },
         {
           "name": "Expire Device Key",
-          "description": "Immediately expire a device's node key, requiring it to re-authenticate before it can reconnect to the tailnet"
+          "description": "Immediately expire a device node key so the device must reauthenticate"
+        },
+        {
+          "name": "Get Device Attributes",
+          "description": "Get device posture attributes and their expiry times"
+        },
+        {
+          "name": "Set Device Attribute",
+          "description": "Create or update a custom device posture attribute with an optional expiry"
+        },
+        {
+          "name": "Delete Device Attribute",
+          "description": "Remove a custom posture attribute from a device"
         },
         {
           "name": "List DNS Nameservers",
-          "description": "Get the DNS nameservers configured for the tailnet"
+          "description": "Get the global DNS nameservers configured for the tailnet"
         },
         {
           "name": "Set DNS Nameservers",
-          "description": "Set the DNS nameservers for the tailnet"
+          "description": "Replace the global DNS nameservers for the tailnet"
         },
         {
           "name": "Get DNS Preferences",
-          "description": "Get the DNS preferences for the tailnet including MagicDNS status"
+          "description": "Get the MagicDNS preference for the tailnet"
         },
         {
           "name": "Set DNS Preferences",
-          "description": "Set DNS preferences for the tailnet (enable/disable MagicDNS)"
+          "description": "Enable or disable MagicDNS for the tailnet"
         },
         {
           "name": "Get DNS Search Paths",
-          "description": "Get the DNS search paths configured for the tailnet"
+          "description": "Get the DNS search domains configured for the tailnet"
         },
         {
           "name": "Set DNS Search Paths",
-          "description": "Set the DNS search paths for the tailnet"
+          "description": "Replace the DNS search domains for the tailnet"
+        },
+        {
+          "name": "Get Split DNS",
+          "description": "Get split DNS resolvers"
+        },
+        {
+          "name": "Update Split DNS",
+          "description": "Update selected split DNS resolvers"
+        },
+        {
+          "name": "Set Split DNS",
+          "description": "Replace all split DNS resolvers"
+        },
+        {
+          "name": "Get DNS Configuration",
+          "description": "Get tailnet DNS configuration"
+        },
+        {
+          "name": "Set DNS Configuration",
+          "description": "Replace the full tailnet DNS configuration"
         },
         {
           "name": "List Users",
-          "description": "List all users in the tailnet"
+          "description": "List users in the tailnet"
+        },
+        {
+          "name": "Get User",
+          "description": "Get details of a specific user"
+        },
+        {
+          "name": "Set User Role",
+          "description": "Change a tailnet user’s role"
+        },
+        {
+          "name": "Approve User",
+          "description": "Approve a pending user to join the tailnet"
         },
         {
           "name": "Suspend User",
-          "description": "Suspend a user's access to the tailnet"
+          "description": "Suspend a user’s access to the tailnet"
+        },
+        {
+          "name": "Restore User",
+          "description": "Restore a suspended user’s access to the tailnet"
         },
         {
           "name": "Delete User",
@@ -27947,37 +27999,49 @@
         },
         {
           "name": "Create Auth Key",
-          "description": "Create a new auth key for the tailnet to pre-authorize devices"
+          "description": "Create a device enrollment auth key"
         },
         {
-          "name": "List Auth Keys",
-          "description": "List all auth keys in the tailnet"
+          "name": "List Keys",
+          "description": "List active auth keys, API access tokens, and trust credentials in the tailnet"
         },
         {
           "name": "Get Auth Key",
-          "description": "Get details of a specific auth key"
+          "description": "Get a key’s type, owner, scopes, expiry, and device enrollment capabilities"
         },
         {
           "name": "Delete Auth Key",
-          "description": "Revoke and delete an auth key"
+          "description": "Revoke an auth key, API access token, or trust credential"
         },
         {
           "name": "Get ACL",
-          "description": "Get the current ACL policy for the tailnet"
+          "description": "Get the tailnet policy file"
+        },
+        {
+          "name": "Validate ACL",
+          "description": "Validate a policy file or run ACL tests without changing the tailnet policy"
         },
         {
           "name": "Set ACL",
-          "description": "Replace the ACL policy file for the tailnet"
+          "description": "Replace the tailnet policy file"
+        },
+        {
+          "name": "Get Tailnet Settings",
+          "description": "Get tailnet settings"
+        },
+        {
+          "name": "Update Tailnet Settings",
+          "description": "Update selected tailnet settings"
         }
       ],
-      "operationCount": 24,
+      "operationCount": 40,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
       "tags": ["monitoring"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-10-26"
     },
     {
       "type": "tavily",
