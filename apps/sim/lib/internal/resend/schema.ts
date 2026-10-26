@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 
 export const resendSendInputSchema = z.object({
   fromAddress: z.string().min(1, 'From address is required'),
@@ -19,7 +20,7 @@ export const resendSendInputSchema = z.object({
     .union([z.string().min(1), z.array(z.string().min(1))])
     .optional()
     .nullable(),
-  scheduledAt: z.string().datetime().optional().nullable(),
+  scheduledAt: isoDateTimeSchema().optional().nullable(),
   tags: z.string().optional().nullable(),
 })
 

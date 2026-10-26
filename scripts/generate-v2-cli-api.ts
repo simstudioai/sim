@@ -30,6 +30,7 @@ import { spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { inlineRootRef } from '@sim/utils/json-schema'
 import { z } from 'zod'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -256,6 +257,26 @@ export async function collectOperations(): Promise<Operation[]> {
 type JsonSchema = Record<string, any>
 
 /**
+ * A contract schema as JSON Schema, with a component-id'd root inlined rather
+ * than referenced, and a `.meta({ default })` kept on the input side of a
+ * transforming schema, where zod would otherwise drop it.
+ */
+function toJsonSchema(schema: z.ZodType, io: 'input' | 'output' = 'input'): JsonSchema {
+  return inlineRootRef(
+    z.toJSONSchema(schema, {
+      io,
+      unrepresentable: 'any',
+      override: ({ zodSchema, jsonSchema }) => {
+        const metaDefault = z.globalRegistry.get(zodSchema)?.default
+        if (metaDefault !== undefined && jsonSchema.default === undefined) {
+          jsonSchema.default = metaDefault
+        }
+      },
+    })
+  )
+}
+
+/**
  * Emits a TypeScript type for the subset of JSON Schema that `z.toJSONSchema`
  * produces from these contracts.
  *
@@ -291,6 +312,12 @@ function toTypeScript(schema: JsonSchema, indent = 0, refs?: Map<string, string>
 
   if (schema.allOf) {
     return schema.allOf.map((v: JsonSchema) => toTypeScript(v, indent, refs)).join(' & ')
+  }
+
+  if (Array.isArray(schema.type)) {
+    return schema.type
+      .map((type: string) => toTypeScript({ ...schema, type }, indent, refs))
+      .join(' | ')
   }
 
   switch (schema.type) {
@@ -350,7 +377,7 @@ interface GeneratedType {
 }
 
 function schemaToType(schema: z.ZodType, io: 'input' | 'output', name: string): GeneratedType {
-  const json = z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as JsonSchema
+  const json = toJsonSchema(schema, io)
   const defs = json.$defs as Record<string, JsonSchema> | undefined
   if (!defs) return { type: toTypeScript(json), declarations: [] }
 
@@ -381,7 +408,7 @@ function pathParams(routePath: string): string[] {
 function pathParamDocs(schema: z.ZodType | undefined): Record<string, string> {
   if (!schema) return {}
 
-  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+  const json = toJsonSchema(schema)
   const docs: Record<string, string> = {}
 
   for (const [key, property] of Object.entries(json.properties ?? {})) {
@@ -453,7 +480,7 @@ function fieldKind(schema: JsonSchema): FieldKind {
  * runtime still has to know the rest of the body must come in as JSON.
  */
 function isUnionSlot(schema: z.ZodType): boolean {
-  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+  const json = toJsonSchema(schema)
   return Object.keys(json.properties ?? {}).length === 0 && Boolean(json.anyOf ?? json.oneOf)
 }
 
@@ -467,17 +494,12 @@ function discriminatedSlot(schema: z.ZodType) {
     if (!(option instanceof z.ZodObject)) return null
     for (const [field, value] of Object.entries(option.shape)) {
       if (field === discriminator) continue
-      const kind = fieldKind(
-        z.toJSONSchema(value as z.ZodType, { io: 'input', unrepresentable: 'any' }) as JsonSchema
-      )
+      const kind = fieldKind(toJsonSchema(value as z.ZodType))
       const previous = fieldKinds.get(field)
       if (previous && previous !== kind) return null
       fieldKinds.set(field, kind)
     }
-    const tag = z.toJSONSchema(option.shape[discriminator], {
-      io: 'input',
-      unrepresentable: 'any',
-    }) as JsonSchema
+    const tag = toJsonSchema(option.shape[discriminator])
     const values: unknown[] = tag.enum ?? (tag.const !== undefined ? [tag.const] : [])
     if (!values.length || values.some((value) => typeof value !== 'string')) return null
     for (const value of values) variants.push({ value: value as string, schema: option })
@@ -521,7 +543,7 @@ export function renderSlotMap(
 ): string | null {
   if (!schema) return null
 
-  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+  const json = toJsonSchema(schema)
   let properties: Record<string, JsonSchema> = json.properties ?? {}
   let required = new Set<string>(json.required ?? [])
   const discriminated = discriminatedSlot(schema)

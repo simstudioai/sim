@@ -1,15 +1,15 @@
-import { z } from 'zod'
+import { ISO_DATETIME_OFFSET_REGEX, isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 
 export const TTL_FORMAT_ERROR =
   'Expiration must be an ISO timestamp with Z or an explicit UTC offset (for example, 2026-09-07T14:30:00-07:00), with at most 6 fractional second digits'
 
 /** Zod owns the ISO format; SQL also checks native timestamptz validity before casting. */
 export const TTL_TIMESTAMP_VALIDATION = {
-  pattern: z.regexes.datetime({ offset: true }).source,
+  pattern: ISO_DATETIME_OFFSET_REGEX.source,
   maxFractionDigits: 6,
 } as const
 
-const timestampSchema = z.iso.datetime({ offset: true })
+const timestampSchema = isoDateTimeSchema({ offset: true })
 
 function parseTtlTimestamp(value: unknown) {
   if (typeof value !== 'string' || value !== value.trim()) return null

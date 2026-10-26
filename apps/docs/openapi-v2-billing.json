@@ -367,7 +367,7 @@
         "schema": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "title": "Rate limit reset",
           "description": "ISO 8601 timestamp when the current rate-limit window resets."
         }
@@ -619,15 +619,8 @@
         "type": "object",
         "properties": {
           "workspaceId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workspace whose payer was resolved, or null for account billing."
+            "description": "Workspace whose payer was resolved, or null for account billing.",
+            "type": ["string", "null"]
           },
           "period": {
             "type": "object",
@@ -784,15 +777,8 @@
             "description": "Product surface that consumed credits. The legacy `mothership_block` value identifies the Agent block; `sim-chat` identifies Sim Chat."
           },
           "workspaceId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workspace attributed to the event, or null for account-level usage."
+            "description": "Workspace attributed to the event, or null for account-level usage.",
+            "type": ["string", "null"]
           },
           "workflow": {
             "anyOf": [
@@ -804,15 +790,8 @@
                     "description": "Workflow identifier."
                   },
                   "name": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Workflow display name, when available."
+                    "description": "Workflow display name, when available.",
+                    "type": ["string", "null"]
                   }
                 },
                 "required": ["id", "name"],
@@ -825,15 +804,8 @@
             "description": "Workflow attributed to the event, when applicable."
           },
           "runId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workflow run attributed to the event, when applicable."
+            "description": "Workflow run attributed to the event, when applicable.",
+            "type": ["string", "null"]
           },
           "creditCost": {
             "type": "number",
@@ -856,15 +828,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           },
           "scope": {
             "type": "string",

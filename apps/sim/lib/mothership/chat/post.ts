@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/contracts/knowledge/search'
 import { chatContextSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { mothershipResourceAttachmentSchema as ResourceAttachmentSchema } from '@/lib/api/contracts/mothership-resources'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
@@ -182,7 +183,7 @@ const ChatMessageSchema = z
                 .max(253)
                 .regex(/^[a-z0-9.-]+$/),
               evidence: z.enum(['sign-in-completed', 'cookies']),
-              lastObservedAt: z.string().datetime(),
+              lastObservedAt: isoDateTimeSchema(),
             })
           )
           .max(20)

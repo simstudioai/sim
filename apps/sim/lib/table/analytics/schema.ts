@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import { FILTER_OPS } from '@/lib/table/constants'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { validatePredicateShape } from '@/lib/table/query-builder/validate'
@@ -82,8 +83,8 @@ export const analyticsSelectionSchema = z
 
 export const analyticsQuerySchema = analyticsSelectionSchema
   .extend({
-    from: z.iso.datetime({ offset: true }),
-    to: z.iso.datetime({ offset: true }),
+    from: isoDateTimeSchema({ offset: true }),
+    to: isoDateTimeSchema({ offset: true }),
   })
   .superRefine((value, ctx) => {
     const fail = (message: string) => ctx.addIssue({ code: 'custom', message })

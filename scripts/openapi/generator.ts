@@ -1,3 +1,4 @@
+import { inlineRootRef } from '@sim/utils/json-schema'
 import { omit } from '@sim/utils/object'
 import Ajv2020 from 'ajv/dist/2020'
 import { z } from 'zod'
@@ -137,13 +138,15 @@ function comparableSchema(schema: ApiSchema, io: SchemaIo): unknown {
 
   const comparable = stripSchemaDocumentation(
     sanitizeSchema(
-      z.toJSONSchema(schema, {
-        io,
-        target: 'draft-2020-12',
-        unrepresentable: 'any',
-        cycles: 'ref',
-        reused: 'inline',
-      })
+      inlineRootRef(
+        z.toJSONSchema(schema, {
+          io,
+          target: 'draft-2020-12',
+          unrepresentable: 'any',
+          cycles: 'ref',
+          reused: 'inline',
+        })
+      )
     )
   )
   const byIo = comparableSchemaCache.get(schema) ?? new Map<SchemaIo, unknown>()
@@ -226,20 +229,26 @@ function generateSchema(
   const metadata = schemaMetadata(schema, label)
   let generatedWithDefinitions = generatedSchemaCache.get(schema)?.get(io)
   if (!generatedWithDefinitions) {
-    generatedWithDefinitions = z.toJSONSchema(schema, {
-      io,
-      target: 'draft-2020-12',
-      unrepresentable: 'any',
-      cycles: 'ref',
-      reused: 'inline',
-      override: ({ zodSchema, jsonSchema, path }) => {
-        const current = zodSchema as ApiSchema
-        const metadata = z.globalRegistry.get(current)
-        const schemaLabel = `${label} at ${path.join('.') || '<root>'}`
-        validateExamples(current, metadata?.examples, io, schemaLabel)
-        omitEnumValuesFromOpenApi(metadata, jsonSchema as JsonObject, schemaLabel)
-      },
-    }) as JsonObject
+    generatedWithDefinitions = inlineRootRef(
+      z.toJSONSchema(schema, {
+        io,
+        target: 'draft-2020-12',
+        unrepresentable: 'any',
+        cycles: 'ref',
+        reused: 'inline',
+        override: ({ zodSchema, jsonSchema, path }) => {
+          const current = zodSchema as ApiSchema
+          const metadata = z.globalRegistry.get(current)
+          const schemaLabel = `${label} at ${path.join('.') || '<root>'}`
+          validateExamples(current, metadata?.examples, io, schemaLabel)
+          omitEnumValuesFromOpenApi(metadata, jsonSchema as JsonObject, schemaLabel)
+          // zod drops `default` from a transforming schema's input side, even one authored in `.meta()`
+          if (metadata?.default !== undefined && jsonSchema.default === undefined) {
+            jsonSchema.default = metadata.default
+          }
+        },
+      })
+    )
     const byIo = generatedSchemaCache.get(schema) ?? new Map<SchemaIo, JsonObject>()
     byIo.set(io, generatedWithDefinitions)
     generatedSchemaCache.set(schema, byIo)
@@ -934,11 +943,13 @@ export function generateOpenApiDocument(definition: OpenApiDocumentDefinition): 
             {
               description: metadata.description,
               schema: sanitizeSchema(
-                z.toJSONSchema(header.schema, {
-                  io: 'output',
-                  unrepresentable: 'throw',
-                  cycles: 'throw',
-                })
+                inlineRootRef(
+                  z.toJSONSchema(header.schema, {
+                    io: 'output',
+                    unrepresentable: 'throw',
+                    cycles: 'throw',
+                  })
+                )
               ),
             },
           ]

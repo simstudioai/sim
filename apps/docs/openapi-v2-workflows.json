@@ -7127,7 +7127,7 @@
         "schema": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "title": "Rate limit reset",
           "description": "ISO 8601 timestamp when the current rate-limit window resets."
         }
@@ -7524,15 +7524,8 @@
             "examples": ["Customer support triage"]
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workflow description, or null when none is set."
+            "description": "Workflow description, or null when none is set.",
+            "type": ["string", "null"]
           },
           "folderPath": {
             "type": "string",
@@ -7550,16 +7543,9 @@
             "description": "Whether the workflow has an active deployment."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 activation timestamp, or null when not deployed.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "runCount": {
             "type": "integer",
@@ -7568,16 +7554,9 @@
             "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List workflow runs."
           },
           "lastRunAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "createdAt": {
             "type": "string",
@@ -7619,15 +7598,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -7696,15 +7668,8 @@
             "examples": ["Customer support triage"]
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workflow description, or null when none is set."
+            "description": "Workflow description, or null when none is set.",
+            "type": ["string", "null"]
           },
           "folderPath": {
             "type": "string",
@@ -7722,16 +7687,9 @@
             "description": "Whether the workflow has an active deployment."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 activation timestamp, or null when not deployed.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "runCount": {
             "type": "integer",
@@ -7740,16 +7698,9 @@
             "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List workflow runs."
           },
           "lastRunAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "createdAt": {
             "type": "string",
@@ -8078,25 +8029,11 @@
           },
           "sourceHandle": {
             "description": "Source port, or null for the block default.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "targetHandle": {
             "description": "Target port, or null for the block default.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "type": {
             "description": "Edge renderer type.",
@@ -8361,26 +8298,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 }
               },
               "required": ["blockId", "blockName", "blockType"],
@@ -8398,26 +8321,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 }
               },
               "required": ["blockId", "blockName", "blockType"],
@@ -8435,26 +8344,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 }
               },
               "required": ["blockId", "blockName", "blockType"],
@@ -8472,26 +8367,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "handle": {
                   "type": "string",
@@ -8517,26 +8398,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "sourceHandle": {
                   "type": "string",
@@ -8562,26 +8429,12 @@
                   "description": "Block the edge leaves."
                 },
                 "sourceBlockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the source block."
+                  "description": "Display name of the source block.",
+                  "type": ["string", "null"]
                 },
                 "sourceHandle": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Handle the edge leaves from."
+                  "description": "Handle the edge leaves from.",
+                  "type": ["string", "null"]
                 },
                 "targetBlockId": {
                   "type": "string",
@@ -8613,26 +8466,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "missingRequiredFields": {
                   "type": "array",
@@ -8651,15 +8490,8 @@
                         "description": "Canonical parameter the two sub-block modes share."
                       },
                       "activeMemberId": {
-                        "anyOf": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ],
-                        "description": "Sub-block the runtime reads, where the value should live."
+                        "description": "Sub-block the runtime reads, where the value should live.",
+                        "type": ["string", "null"]
                       },
                       "inactiveMemberId": {
                         "type": "string",
@@ -8698,26 +8530,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "field": {
                   "type": "string",
@@ -8769,26 +8587,12 @@
                   "description": "Block the finding is about."
                 },
                 "blockName": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Display name of the block, when it has one."
+                  "description": "Display name of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "blockType": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Registered type of the block, when it has one."
+                  "description": "Registered type of the block, when it has one.",
+                  "type": ["string", "null"]
                 },
                 "field": {
                   "type": "string",
@@ -9108,25 +8912,11 @@
           },
           "sourceHandle": {
             "description": "Source port, or null for the block default.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "targetHandle": {
             "description": "Target port, or null for the block default.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "type": {
             "description": "Edge renderer type.",
@@ -10619,15 +10409,8 @@
             "examples": ["Customer support triage"]
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workflow description, or null when none is set."
+            "description": "Workflow description, or null when none is set.",
+            "type": ["string", "null"]
           },
           "folderPath": {
             "type": "string",
@@ -10645,16 +10428,9 @@
             "description": "Whether the workflow has an active deployment."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 activation timestamp, or null when not deployed.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "runCount": {
             "type": "integer",
@@ -10663,16 +10439,9 @@
             "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List workflow runs."
           },
           "lastRunAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "createdAt": {
             "type": "string",
@@ -10876,25 +10645,11 @@
           },
           "name": {
             "description": "Optional deployment-version label.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "description": {
             "description": "Optional deployment-version release note.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "isActive": {
             "type": "boolean",
@@ -10907,14 +10662,7 @@
           },
           "deployedBy": {
             "description": "Display name of the user who created the deployment, when available.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "latestOperationStatus": {
             "description": "Latest lifecycle-operation status for this version.",
@@ -10945,15 +10693,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -11612,26 +11353,12 @@
             "description": "Monotonically increasing deployment version number."
           },
           "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Version label, or null when unset."
+            "description": "Version label, or null when unset.",
+            "type": ["string", "null"]
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Version release note, or null when unset."
+            "description": "Version release note, or null when unset.",
+            "type": ["string", "null"]
           },
           "isActive": {
             "type": "boolean",
@@ -11691,26 +11418,12 @@
             "description": "Monotonically increasing deployment version number."
           },
           "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Version label, or null when unset."
+            "description": "Version label, or null when unset.",
+            "type": ["string", "null"]
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Version release note, or null when unset."
+            "description": "Version release note, or null when unset.",
+            "type": ["string", "null"]
           }
         },
         "required": ["version", "name", "description"],
@@ -11839,14 +11552,7 @@
           "activatedAt": {
             "description": "ISO 8601 activation timestamp, or null before activation completes.",
             "format": "date-time",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "error": {
             "description": "Deployment failure details, or null when no failure occurred.",
@@ -11937,17 +11643,10 @@
             "description": "Whether a workflow version is currently live and available for API execution."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
             "format": "date-time",
-            "examples": ["2026-06-12T10:30:00.000Z"]
+            "examples": ["2026-06-12T10:30:00.000Z"],
+            "type": ["string", "null"]
           },
           "warnings": {
             "type": "array",
@@ -12014,17 +11713,10 @@
                 "description": "Whether a workflow version is currently live and available for API execution."
               },
               "deployedAt": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
                 "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
                 "format": "date-time",
-                "examples": ["2026-06-12T10:30:00.000Z"]
+                "examples": ["2026-06-12T10:30:00.000Z"],
+                "type": ["string", "null"]
               },
               "warnings": {
                 "type": "array",
@@ -12186,26 +11878,12 @@
         "type": "object",
         "properties": {
           "blockId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Trigger block the URL delivers to, or null for a legacy row that recorded none."
+            "description": "Trigger block the URL delivers to, or null for a legacy row that recorded none.",
+            "type": ["string", "null"]
           },
           "provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Webhook provider the endpoint verifies inbound requests against, e.g. `generic`, `github`, or `slack`."
+            "description": "Webhook provider the endpoint verifies inbound requests against, e.g. `generic`, `github`, or `slack`.",
+            "type": ["string", "null"]
           },
           "url": {
             "type": "string",
@@ -12232,17 +11910,10 @@
             "description": "Whether a workflow version is currently live and available for API execution."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
             "format": "date-time",
-            "examples": ["2026-06-12T10:30:00.000Z"]
+            "examples": ["2026-06-12T10:30:00.000Z"],
+            "type": ["string", "null"]
           },
           "warnings": {
             "type": "array",
@@ -12426,17 +12097,10 @@
             "description": "Whether a workflow version is currently live and available for API execution."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
             "format": "date-time",
-            "examples": ["2026-06-12T10:30:00.000Z"]
+            "examples": ["2026-06-12T10:30:00.000Z"],
+            "type": ["string", "null"]
           },
           "warnings": {
             "type": "array",
@@ -12614,17 +12278,10 @@
             "description": "Whether a workflow version is currently live and available for API execution."
           },
           "deployedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp associated with the deployment, or null when unavailable.",
             "format": "date-time",
-            "examples": ["2026-06-12T10:30:00.000Z"]
+            "examples": ["2026-06-12T10:30:00.000Z"],
+            "type": ["string", "null"]
           },
           "warnings": {
             "type": "array",
@@ -12788,26 +12445,12 @@
                 "description": "Name of the exported workflow."
               },
               "description": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Description of the exported workflow, or null when unset."
+                "description": "Description of the exported workflow, or null when unset.",
+                "type": ["string", "null"]
               },
               "workspaceId": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Identifier of the source workspace, or null for legacy exports."
+                "description": "Identifier of the source workspace, or null for legacy exports.",
+                "type": ["string", "null"]
               },
               "folderPath": {
                 "type": "string",
@@ -13009,15 +12652,8 @@
             "description": "Display name of the workflow or workspace."
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Imported workflow description."
+            "description": "Imported workflow description.",
+            "type": ["string", "null"]
           },
           "workspaceId": {
             "type": "string",
@@ -13666,15 +13302,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -14496,27 +14125,13 @@
             "format": "date-time"
           },
           "endedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp when the run ended, or null while active.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "durationMs": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Run duration in milliseconds, or null while active."
+            "description": "Run duration in milliseconds, or null while active.",
+            "type": ["number", "null"]
           },
           "cost": {
             "anyOf": [
@@ -14563,15 +14178,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -14624,15 +14232,8 @@
             "description": "Path to fetch this file's bytes from, relative to the API host."
           },
           "base64": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Base64-encoded contents when `includeFileBase64` was requested and the file fits the inline ceiling, otherwise null."
+            "description": "Base64-encoded contents when `includeFileBase64` was requested and the file fits the inline ceiling, otherwise null.",
+            "type": ["string", "null"]
           }
         },
         "required": ["id", "name", "size", "type", "downloadPath", "base64"],
@@ -14670,50 +14271,22 @@
             "description": "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting at a human or time pause, or a resume attempt did not complete. The single-run response provides the pause kind, resume time, and any automatic-resume waiting reason."
           },
           "trigger": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll."
+            "description": "Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll.",
+            "type": ["string", "null"]
           },
           "startedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 start timestamp. A queued run reports the time it was enqueued, so it is populated from the first poll.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "endedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 end timestamp, or null while nonterminal.",
-            "format": "date-time"
+            "format": "date-time",
+            "type": ["string", "null"]
           },
           "durationMs": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Run duration in milliseconds, or null while active."
+            "description": "Run duration in milliseconds, or null while active.",
+            "type": ["number", "null"]
           },
           "paused": {
             "anyOf": [
@@ -14721,20 +14294,13 @@
                 "type": "object",
                 "properties": {
                   "contextId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Resume context identifier, or null while every pause point is mid-resume."
+                    "description": "Resume context identifier, or null while every pause point is mid-resume.",
+                    "type": ["string", "null"]
                   },
                   "pausedAt": {
                     "type": "string",
                     "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                     "description": "ISO 8601 timestamp when the execution entered the paused state."
                   },
                   "resumeAt": {
@@ -14742,7 +14308,7 @@
                       {
                         "type": "string",
                         "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                       },
                       {
                         "type": "null"
@@ -14763,26 +14329,12 @@
                     "description": "Whether the pause waits for time or human input, or null when unspecified."
                   },
                   "blockedOnBlockId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Workflow block awaiting resume, or null when no block is identified."
+                    "description": "Workflow block awaiting resume, or null when no block is identified.",
+                    "type": ["string", "null"]
                   },
                   "automaticResumeWaitingReason": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Recorded automatic-resume failure, or null when no failure is recorded. Inspect `pauseKind` and `resumeAt` to distinguish a scheduled time pause from human input. Cleared after a successful resume. A non-retryable or exhausted failure starts with `Automatic resume requires manual intervention: `."
+                    "description": "Recorded automatic-resume failure, or null when no failure is recorded. Inspect `pauseKind` and `resumeAt` to distinguish a scheduled time pause from human input. Cleared after a successful resume. A non-retryable or exhausted failure starts with `Automatic resume requires manual intervention: `.",
+                    "type": ["string", "null"]
                   },
                   "pausePointCount": {
                     "type": "number",
@@ -15189,15 +14741,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -17418,15 +16963,8 @@
                 "description": "Display name of the workflow or workspace."
               },
               "organizationId": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Owning organization, or null for a personal workspace."
+                "description": "Owning organization, or null for a personal workspace.",
+                "type": ["string", "null"]
               }
             },
             "required": ["id", "name", "organizationId"],
@@ -17450,15 +16988,8 @@
                     "description": "Display name of the workflow or workspace."
                   },
                   "organizationId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Owning organization, or null for a personal workspace."
+                    "description": "Owning organization, or null for a personal workspace.",
+                    "type": ["string", "null"]
                   }
                 },
                 "required": ["id", "name", "organizationId"],
@@ -17504,20 +17035,13 @@
             "description": "Display name of the workflow or workspace."
           },
           "organizationId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Owning organization, or null for a personal workspace."
+            "description": "Owning organization, or null for a personal workspace.",
+            "type": ["string", "null"]
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 creation timestamp."
           }
         },
@@ -17537,15 +17061,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -17568,25 +17085,11 @@
           },
           "folderId": {
             "description": "Containing folder identifier, or null at the workspace root.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           },
           "folderName": {
             "description": "Containing folder name, or null at the workspace root.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": ["string", "null"]
           }
         },
         "required": ["id", "label"],
@@ -17605,15 +17108,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -17683,15 +17179,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -19035,15 +18524,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],

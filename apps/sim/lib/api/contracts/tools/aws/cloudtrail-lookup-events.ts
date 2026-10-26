@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -35,8 +36,8 @@ const LookupEventsSchema = z
       .min(1, 'Lookup attribute value cannot be empty')
       .max(2000, 'Lookup attribute value cannot exceed 2000 characters')
       .optional(),
-    startTime: z.string().datetime({ offset: true }).optional(),
-    endTime: z.string().datetime({ offset: true }).optional(),
+    startTime: isoDateTimeSchema({ offset: true }).optional(),
+    endTime: isoDateTimeSchema({ offset: true }).optional(),
     eventCategory: z.literal('insight').optional(),
     maxResults: z.preprocess(
       (v) => (v === '' || v === undefined || v === null ? undefined : v),

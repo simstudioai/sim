@@ -40,6 +40,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { inlineRootRef } from '@sim/utils/json-schema'
 import Ajv2020 from 'ajv/dist/2020'
 import { z } from 'zod'
 import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
@@ -268,12 +269,14 @@ const jsonSchemaCache = new WeakMap<z.ZodType, Map<SchemaIo, Json>>()
 function toJsonSchema(schema: z.ZodType, io: SchemaIo): Json {
   const cached = jsonSchemaCache.get(schema)?.get(io)
   if (cached) return cached
-  const converted = z.toJSONSchema(schema, {
-    io,
-    target: 'draft-2020-12',
-    unrepresentable: 'any',
-    cycles: 'ref',
-  }) as Json
+  const converted = inlineRootRef(
+    z.toJSONSchema(schema, {
+      io,
+      target: 'draft-2020-12',
+      unrepresentable: 'any',
+      cycles: 'ref',
+    })
+  )
   const byIo = jsonSchemaCache.get(schema) ?? new Map<SchemaIo, Json>()
   byIo.set(io, converted)
   jsonSchemaCache.set(schema, byIo)

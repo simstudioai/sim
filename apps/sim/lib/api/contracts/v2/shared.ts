@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { isoDateTimeSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
 import { FORBIDDEN_DETAIL_CODES } from '@/lib/core/application/forbidden'
 import {
@@ -390,7 +390,7 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  * and fail inside the driver's timestamp mapper — a caller-reachable 500.
  * Validating the format here is what keeps that a 400.
  *
- * The form is `z.datetime()`, which is UTC-only: a date with no time
+ * The form is {@link isoDateTimeSchema} without `offset`, which is UTC-only: a date with no time
  * (`2026-08-06`) and an offset-bearing timestamp (`2026-08-06T00:00:00+02:00`)
  * are both rejected. `GET /logs` and `GET /workflows/{workflowId}/runs` are sibling
  * reads over the same runs, so the same timestamp must work on both — sharing
@@ -408,9 +408,9 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  */
 export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
   const boundary = field === 'startDate' ? 'at or after' : 'at or before'
-  return z
-    .string()
-    .datetime({ error: `${field} must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z` })
+  return isoDateTimeSchema({
+    error: `${field} must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z`,
+  })
     .refine((value) => new Date(value).getUTCFullYear() >= 1, {
       error: `${field} must name a storable instant; there is no year 0000`,
     })

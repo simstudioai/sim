@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { parseBufferInput } from '@/tools/buffer/schema'
 
@@ -27,9 +28,7 @@ const assetsInput = z.unknown().transform((value, ctx) => {
 const sharedFields = {
   apiKey: z.string().min(1, 'API key is required'),
   text: z.string().max(50000, 'text is too long').optional().nullable(),
-  dueAt: z
-    .string()
-    .datetime({ offset: true, message: 'dueAt must be an ISO 8601 timestamp' })
+  dueAt: isoDateTimeSchema({ offset: true, error: 'dueAt must be an ISO 8601 timestamp' })
     .optional()
     .nullable(),
   saveToDraft: z.boolean().optional().nullable(),

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const webhooksRouteQuerySchema = z.object({
@@ -353,7 +354,7 @@ export const quickBooksWebhookEventSchema = z.object({
   source: z.string().min(1).max(2048),
   type: z.string().min(1).max(255),
   datacontenttype: z.string().min(1).max(255).optional(),
-  time: z.string().datetime({ offset: true }),
+  time: isoDateTimeSchema({ offset: true }),
   intuitentityid: z.string().min(1).max(255),
   intuitaccountid: z.string().min(1).max(255),
   data: z.unknown().optional(),

@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { booleanQueryFlagSchema, userFileSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  isoDateTimeSchema,
+  userFileSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -45,9 +49,9 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   /** Include a fingerprint of matching rows and their sort values for change detection. */
   includeRevision: booleanQueryFlagSchema.optional(),
   /** Bound run start times for pagination; mutable fields remain live on the server. */
-  snapshotAt: z.union([z.literal('now'), z.iso.datetime()]).optional(),
+  snapshotAt: z.union([z.literal('now'), isoDateTimeSchema()]).optional(),
   /** Count or list runs started after the displayed snapshot, within the other filters. */
-  startedAfter: z.iso.datetime().optional(),
+  startedAfter: isoDateTimeSchema().optional(),
 })
 
 export type ListLogsQuery = z.input<typeof listLogsQuerySchema>

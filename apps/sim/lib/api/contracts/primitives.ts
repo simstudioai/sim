@@ -641,6 +641,38 @@ export const optionalNumberQuerySchema = z.preprocess((value) => {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }, z.coerce.number().optional())
 
+const ISO_DATE_SOURCE = z.regexes.date.source.slice(1, -1)
+const ISO_TIME_SOURCE = '(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?'
+const UTC_OFFSET_SOURCE = '([+-](?:[01]\\d|2[0-3]):[0-5]\\d)'
+
+function isoDateTimeRegex(offset: boolean): RegExp {
+  const zone = offset ? `Z|${UTC_OFFSET_SOURCE}` : 'Z'
+  return new RegExp(`^${ISO_DATE_SOURCE}T(?:${ISO_TIME_SOURCE}(?:${zone}))$`)
+}
+
+const ISO_DATETIME_UTC_REGEX = isoDateTimeRegex(false)
+
+/** {@link isoDateTimeSchema}'s `offset: true` pattern, for checks outside Zod (SQL). */
+export const ISO_DATETIME_OFFSET_REGEX = isoDateTimeRegex(true)
+
+/**
+ * An ISO 8601 timestamp at an untrusted input boundary: `Z` (or, with `offset`,
+ * a `±HH:MM` offset), seconds and fractional seconds optional.
+ *
+ * Zod 4.6 made `z.iso.datetime()` strict RFC 3339 and rejects a minute-precision
+ * timestamp such as `2026-01-01T06:15Z`, which every boundary accepted under 4.3.
+ * This keeps the 4.3 grammar, issue (`invalid_format`, format `datetime`), and
+ * JSON Schema (`format: date-time` plus the pattern). Values Sim produces with
+ * `toISOString()` keep the strict `z.iso.datetime()`.
+ */
+export function isoDateTimeSchema(options: { offset?: boolean; error?: string } = {}) {
+  return z.stringFormat(
+    'datetime',
+    options.offset ? ISO_DATETIME_OFFSET_REGEX : ISO_DATETIME_UTC_REGEX,
+    options.error === undefined ? undefined : { error: options.error }
+  )
+}
+
 /** Exactly one routed owner for resources shared by Search surfaces. */
 export const resourceOwnerSchema = z
   .object({

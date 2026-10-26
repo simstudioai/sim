@@ -145,7 +145,7 @@
     "minimatch": "10.2.6",
     "marked": "18.0.11",
     "mermaid": "11.16.1",
-    "zod": "4.3.6",
+    "zod": "4.6.7",
     "e2b": "2.50.0",
     "@ai-sdk/provider-utils": "3.0.28",
     "@grpc/grpc-js": "1.14.6",
@@ -214,7 +214,7 @@
     "unified": "11.0.5",
     "unist-util-visit": "5.1.0",
     "vitest": "^5.0.4",
-    "zod": "4.3.6"
+    "zod": "4.6.7"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [

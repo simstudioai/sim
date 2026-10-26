@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import {
   lambdaConnectionFields,
   lambdaEventSourceMappingSchema,
@@ -23,9 +24,10 @@ const CreateEventSourceMappingSchema = z
     batchSize: z.number().int().min(1).max(10000).optional(),
     maximumBatchingWindowInSeconds: z.number().int().min(0).max(300).optional(),
     startingPosition: z.enum(['TRIM_HORIZON', 'LATEST', 'AT_TIMESTAMP']).optional(),
-    startingPositionTimestamp: z.iso
-      .datetime({ offset: true, message: 'startingPositionTimestamp must be an ISO 8601 datetime' })
-      .optional(),
+    startingPositionTimestamp: isoDateTimeSchema({
+      offset: true,
+      error: 'startingPositionTimestamp must be an ISO 8601 datetime',
+    }).optional(),
     parallelizationFactor: z.number().int().min(1).max(10).optional(),
     maximumRecordAgeInSeconds: z.number().int().min(-1).max(604800).optional(),
     maximumRetryAttempts: z.number().int().min(-1).max(10000).optional(),

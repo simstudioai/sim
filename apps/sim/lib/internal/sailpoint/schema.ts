@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import { isoDateTimeSchema } from '@/lib/api/contracts/primitives'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const MAX_ID_LENGTH = 1024
@@ -134,8 +135,8 @@ const requestedItemSchema = z.object({
   type: z.enum(['ACCESS_PROFILE', 'ROLE', 'ENTITLEMENT']),
   id: requiredString('Requested item ID'),
   comment: optionalString(10_000),
-  removeDate: z.string().datetime({ offset: true }).optional(),
-  startDate: z.string().datetime({ offset: true }).optional(),
+  removeDate: isoDateTimeSchema({ offset: true }).optional(),
+  startDate: isoDateTimeSchema({ offset: true }).optional(),
   assignmentId: optionalString(MAX_ID_LENGTH).nullable(),
   nativeIdentity: optionalString(10_000).nullable(),
   formInstanceId: optionalString(MAX_ID_LENGTH).nullable(),
@@ -180,13 +181,13 @@ const reviewDecisionSchema = z
   .object({
     id: requiredString('Review item ID'),
     decision: z.enum(['APPROVE', 'REVOKE']),
-    proposedEndDate: z.string().datetime({ offset: true }).optional(),
+    proposedEndDate: isoDateTimeSchema({ offset: true }).optional(),
     bulk: z.boolean(),
     recommendation: z
       .object({
         recommendation: z.string().nullable().optional(),
         reasons: z.array(z.string().max(10_000)).max(100).optional(),
-        timestamp: z.string().datetime({ offset: true }).optional(),
+        timestamp: isoDateTimeSchema({ offset: true }).optional(),
       })
       .nullable()
       .optional(),

@@ -5755,7 +5755,7 @@
         "schema": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "title": "Rate limit reset",
           "description": "ISO 8601 timestamp when the current rate-limit window resets."
         }
@@ -6087,16 +6087,9 @@
             "examples": ["Product Documentation"]
           },
           "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "Knowledge base description, or null when none is set.",
-            "examples": ["All product documentation and guides"]
+            "examples": ["All product documentation and guides"],
+            "type": ["string", "null"]
           },
           "tokenCount": {
             "type": "number",
@@ -6149,7 +6142,7 @@
           "ownerEmail": {
             "type": "string",
             "format": "email",
-            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
             "description": "Current email address of the knowledge base owner.",
             "examples": ["owner@example.com"]
           },
@@ -6165,7 +6158,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -6265,15 +6258,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -6436,15 +6422,8 @@
             "description": "Current import lifecycle state."
           },
           "knowledgeBaseId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Knowledge base the import created, or null until it exists."
+            "description": "Knowledge base the import created, or null until it exists.",
+            "type": ["string", "null"]
           },
           "documentsTotal": {
             "type": "integer",
@@ -6476,26 +6455,19 @@
             "description": "Bounded sample of the documents that could not be imported."
           },
           "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Terminal failure reason, or null."
+            "description": "Terminal failure reason, or null.",
+            "type": ["string", "null"]
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 creation timestamp."
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 last-update timestamp."
           },
           "completedAt": {
@@ -6503,7 +6475,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -6557,7 +6529,7 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 expiration time for this signed URL. This is the URL's own expiry and is normally earlier than the upload session's expiresAt: the session stays open for later part, status, completion, and abort requests, but the bytes must be uploaded before this time. Once it passes, the storage provider rejects the upload and a new upload session must be created."
           }
         },
@@ -6756,7 +6728,7 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 expiration time for the signed URL."
           }
         },
@@ -6920,15 +6892,8 @@
             "description": "Registered external source type."
           },
           "credentialId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources.",
+            "type": ["string", "null"]
           },
           "sourceConfig": {
             "type": "object",
@@ -6960,7 +6925,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -6969,15 +6934,8 @@
             "description": "Time of the most recent synchronization, or null before the first sync."
           },
           "lastSyncError": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Most recent synchronization error, or null when none is recorded."
+            "description": "Most recent synchronization error, or null when none is recorded.",
+            "type": ["string", "null"]
           },
           "lastSyncDocCount": {
             "anyOf": [
@@ -6997,7 +6955,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -7014,13 +6972,13 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "Time the connector was created."
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "Time the connector was last updated."
           }
         },
@@ -7056,15 +7014,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -7216,7 +7167,7 @@
           "startedAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "Time synchronization started."
           },
           "completedAt": {
@@ -7224,7 +7175,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -7270,15 +7221,8 @@
             "description": "Documents that failed to synchronize."
           },
           "errorMessage": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Synchronization error, or null."
+            "description": "Synchronization error, or null.",
+            "type": ["string", "null"]
           }
         },
         "required": [
@@ -7318,15 +7262,8 @@
             "description": "Registered external source type."
           },
           "credentialId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources.",
+            "type": ["string", "null"]
           },
           "sourceConfig": {
             "type": "object",
@@ -7358,7 +7295,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -7367,15 +7304,8 @@
             "description": "Time of the most recent synchronization, or null before the first sync."
           },
           "lastSyncError": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Most recent synchronization error, or null when none is recorded."
+            "description": "Most recent synchronization error, or null when none is recorded.",
+            "type": ["string", "null"]
           },
           "lastSyncDocCount": {
             "anyOf": [
@@ -7395,7 +7325,7 @@
               {
                 "type": "string",
                 "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -7412,13 +7342,13 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "Time the connector was created."
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "Time the connector was last updated."
           },
           "syncLogs": {
@@ -7700,26 +7630,12 @@
             "description": "Document filename."
           },
           "externalId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Identifier assigned by the external source."
+            "description": "Identifier assigned by the external source.",
+            "type": ["string", "null"]
           },
           "sourceUrl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Original external source URL."
+            "description": "Original external source URL.",
+            "type": ["string", "null"]
           },
           "enabled": {
             "type": "boolean",
@@ -7732,7 +7648,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "Time the document was first synchronized."
           },
           "processingStatus": {
@@ -7765,15 +7681,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -7899,27 +7808,13 @@
             "examples": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
           },
           "documentName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "Filename of the source document, or null when unavailable.",
-            "examples": ["getting-started.pdf"]
+            "examples": ["getting-started.pdf"],
+            "type": ["string", "null"]
           },
           "sourceUrl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Original source URL, or null for a directly uploaded document."
+            "description": "Original source URL, or null for a directly uploaded document.",
+            "type": ["string", "null"]
           },
           "content": {
             "type": "string",
@@ -8090,30 +7985,13 @@
             ]
           },
           "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              }
-            ],
             "description": "Tag value to compare against.",
-            "examples": ["billing"]
+            "examples": ["billing"],
+            "type": ["string", "number", "boolean"]
           },
           "valueTo": {
             "description": "Upper bound for the `between` operator, and required whenever that operator is used.",
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              }
-            ]
+            "type": ["string", "number"]
           }
         },
         "required": ["tagName", "value"],
@@ -8243,15 +8121,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -8314,17 +8185,10 @@
             "examples": [true]
           },
           "createdAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp when the document was uploaded, or null.",
             "format": "date-time",
-            "examples": ["2025-06-18T16:45:00Z"]
+            "examples": ["2025-06-18T16:45:00Z"],
+            "type": ["string", "null"]
           },
           "tags": {
             "type": "object",
@@ -8332,21 +8196,8 @@
               "type": "string"
             },
             "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
+              "description": "Tag value; dates are ISO 8601 strings and an unset tag is null.",
+              "type": ["string", "number", "boolean", "null"]
             },
             "description": "Document tag values keyed by display name. Writes use slots such as `tag1`; use List tags to map names to slots.",
             "examples": [
@@ -8386,15 +8237,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -8545,17 +8389,10 @@
             "examples": [true]
           },
           "createdAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp when the document was uploaded, or null.",
             "format": "date-time",
-            "examples": ["2025-06-18T16:45:00Z"]
+            "examples": ["2025-06-18T16:45:00Z"],
+            "type": ["string", "null"]
           }
         },
         "required": [
@@ -8648,19 +8485,12 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 upload-session expiration time."
           },
           "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Terminal upload error, or null when none occurred."
+            "description": "Terminal upload error, or null when none occurred.",
+            "type": ["string", "null"]
           },
           "document": {
             "anyOf": [
@@ -8937,17 +8767,10 @@
             "examples": [true]
           },
           "createdAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp when the document was uploaded, or null.",
             "format": "date-time",
-            "examples": ["2025-06-18T16:45:00Z"]
+            "examples": ["2025-06-18T16:45:00Z"],
+            "type": ["string", "null"]
           },
           "tags": {
             "type": "object",
@@ -8955,21 +8778,8 @@
               "type": "string"
             },
             "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
+              "description": "Tag value; dates are ISO 8601 strings and an unset tag is null.",
+              "type": ["string", "number", "boolean", "null"]
             },
             "description": "Document tag values keyed by display name. Writes use slots such as `tag1`; use List tags to map names to slots.",
             "examples": [
@@ -8980,74 +8790,32 @@
             ]
           },
           "processingError": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Processing error message, or null when processing has not failed."
+            "description": "Processing error message, or null when processing has not failed.",
+            "type": ["string", "null"]
           },
           "processingStartedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp when processing started, or null.",
             "format": "date-time",
-            "examples": ["2025-06-18T16:45:05Z"]
+            "examples": ["2025-06-18T16:45:05Z"],
+            "type": ["string", "null"]
           },
           "processingCompletedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ISO 8601 timestamp when processing completed, or null.",
             "format": "date-time",
-            "examples": ["2025-06-18T16:45:42Z"]
+            "examples": ["2025-06-18T16:45:42Z"],
+            "type": ["string", "null"]
           },
           "connectorId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Connector identifier for a synced document, or null for a direct upload."
+            "description": "Connector identifier for a synced document, or null for a direct upload.",
+            "type": ["string", "null"]
           },
           "connectorType": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Connector type for a synced document, or null for a direct upload."
+            "description": "Connector type for a synced document, or null for a direct upload.",
+            "type": ["string", "null"]
           },
           "sourceUrl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Original source URL for a synced document, or null for a direct upload."
+            "description": "Original source URL for a synced document, or null for a direct upload.",
+            "type": ["string", "null"]
           }
         },
         "required": [
@@ -9295,15 +9063,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -9594,92 +9355,43 @@
             "description": "Character offset just past the end of the chunk."
           },
           "tag1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "tag2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "tag3": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "tag4": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "tag5": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "tag6": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "tag7": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Text tag value inherited from the document, or null when the slot is unset."
+            "description": "Text tag value inherited from the document, or null when the slot is unset.",
+            "type": ["string", "null"]
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 timestamp when the chunk was created."
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "ISO 8601 timestamp when the chunk was last modified."
           }
         },
@@ -9717,15 +9429,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],
@@ -10037,16 +9742,9 @@
         "type": "object",
         "properties": {
           "nextAvailableSlot": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "The free slot a create would take, or null when the field type is exhausted.",
-            "examples": ["tag3"]
+            "examples": ["tag3"],
+            "type": ["string", "null"]
           },
           "fieldType": {
             "type": "string",
@@ -10142,15 +9840,8 @@
             "description": "Items in the current page."
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits.",
+            "type": ["string", "null"]
           }
         },
         "required": ["data", "nextCursor"],

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   customPatternSchema,
   isCanonicalBase64,
+  isoDateTimeSchema,
   MAX_ID_LENGTH,
   optionalNumberQuerySchema,
   organizationIdSchema,
@@ -367,5 +368,36 @@ describe('optionalNumberQuerySchema', () => {
 
   it('still rejects a non-numeric value', () => {
     expect(optionalNumberQuerySchema.safeParse('abc').success).toBe(false)
+  })
+})
+
+describe('isoDateTimeSchema', () => {
+  it('accepts minute precision with Z, and with an offset when offset is enabled', () => {
+    expect(isoDateTimeSchema().safeParse('2026-01-01T06:15Z').success).toBe(true)
+    expect(isoDateTimeSchema({ offset: true }).safeParse('2026-01-01T06:15+05:30').success).toBe(
+      true
+    )
+  })
+
+  it.each([
+    'garbage',
+    '2026-01-01',
+    '2026-01-01T06:15',
+    '2026-02-30T06:15Z',
+    '2026-01-01T24:00Z',
+    '2026-01-01T06:15+0530',
+  ])('rejects %s', (value) => {
+    expect(isoDateTimeSchema({ offset: true }).safeParse(value).success).toBe(false)
+  })
+
+  it('rejects an offset unless offset is enabled', () => {
+    expect(isoDateTimeSchema().safeParse('2026-01-01T06:15:00+05:30').success).toBe(false)
+  })
+
+  it('publishes date-time format', () => {
+    expect(z.toJSONSchema(isoDateTimeSchema())).toMatchObject({
+      type: 'string',
+      format: 'date-time',
+    })
   })
 })

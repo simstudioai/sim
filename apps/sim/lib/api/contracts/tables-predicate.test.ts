@@ -3,6 +3,7 @@
  * predicate tree. The contract validates structure; column-level validation
  * (unknown field, json-op) runs server-side in `validate.ts`.
  */
+import { inlineRootRef } from '@sim/utils/json-schema'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
@@ -178,7 +179,9 @@ function rowQueryStringSchemaProbe(input: Record<string, unknown>) {
  * it. These assertions are the join.
  */
 describe('the published predicate schema', () => {
-  const published = z.toJSONSchema(predicateSchema, { io: 'input', unrepresentable: 'any' })
+  const published = inlineRootRef(
+    z.toJSONSchema(predicateSchema, { io: 'input', unrepresentable: 'any' })
+  )
   const leaf = (published.oneOf as JsonSchemaNode[])[0].properties.all.items.anyOf[1]
 
   it('names the leaf keys the server actually requires', () => {

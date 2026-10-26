@@ -281,7 +281,7 @@
     "y-protocols": "1.0.7",
     "yauzl": "3.4.0",
     "yjs": "13.6.33",
-    "zod": "4.3.6",
+    "zod": "4.6.7",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

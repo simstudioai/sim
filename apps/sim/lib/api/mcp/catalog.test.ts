@@ -50,6 +50,7 @@ describe('Sim MCP catalog', () => {
           `${name} ${slot}`
         ).toBeGreaterThan(0)
         expect(description.input[slot]).not.toHaveProperty('$schema')
+        expect(description.input[slot], `${name} ${slot}`).not.toHaveProperty('$ref')
       }
     }
   }, 120_000)
@@ -58,5 +59,9 @@ describe('Sim MCP catalog', () => {
     expect(callerHeaderNames('completeFileUpload')).toEqual(['upload-token'])
     expect(callerHeaderNames('listTables')).toEqual([])
     expect((await describeOperation('listTables')).input.headers).toBeUndefined()
+  })
+
+  it('exposes the headers of a contract whose header schema carries a component id', () => {
+    expect(callerHeaderNames('executeWorkflow')).toEqual(['x-run-id', 'x-sim-via'])
   })
 })

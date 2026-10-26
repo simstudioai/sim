@@ -4,6 +4,7 @@ import {
   folderIdSchema,
   inlineFileRefQuerySchema,
   isCanonicalBase64,
+  isoDateTimeSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -60,7 +61,7 @@ export const updateWorkspaceFileContentBodySchema = z
     content: z.string().max(70_000_000, 'Content is too large'),
     encoding: z.enum(['base64', 'utf-8']).optional(),
     /** The content-version timestamp returned with the bytes this edit was based on. */
-    expectedUpdatedAt: z.iso.datetime().optional(),
+    expectedUpdatedAt: isoDateTimeSchema().optional(),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {

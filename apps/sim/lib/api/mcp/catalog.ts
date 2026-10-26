@@ -1,3 +1,4 @@
+import { inlineRootRef } from '@sim/utils/json-schema'
 import { omit, toRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import type { ApiSchema } from '@/lib/api/contracts/types'
@@ -194,7 +195,9 @@ export async function searchOperations(options: {
 }
 
 function toJsonSchema(schema: ApiSchema): JsonSchema {
-  const { $schema: _, ...json } = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })
+  const { $schema: _, ...json } = inlineRootRef(
+    z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })
+  )
   return json
 }
 
