@@ -19,6 +19,7 @@ import {
   MAX_ID_LENGTH,
   missingFieldError,
   noInputSchema,
+  omittable,
   runIdSchema,
   versionNumberSchema,
   workspaceIdSchema,
@@ -1561,7 +1562,9 @@ export const v2ExecuteWorkflowDataSchema = z
     status: z
       .enum(['completed', 'failed', 'paused', 'cancelled'])
       .describe('Terminal or paused run status.'),
-    output: z.unknown().describe('Workflow output, including partial output on failure.'),
+    output: omittable(
+      z.unknown().describe('Workflow output, including partial output on failure.')
+    ),
     blockOutputs: z
       .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
       .nullable()
@@ -1916,13 +1919,15 @@ export const v2WorkflowRunStatusSchema = z
         'Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response.'
       ),
     /** Populated only with `includeOutput=true` on completed runs. */
-    output: z
-      .unknown()
-      .describe('Final workflow output value.')
-      .nullable()
-      .describe(
-        'Final output when `includeOutput=true`, or null when not requested or hidden by organization permission groups.'
-      ),
+    output: omittable(
+      z
+        .unknown()
+        .describe('Final workflow output value.')
+        .nullable()
+        .describe(
+          'Final output when `includeOutput=true`, or null when not requested or hidden by organization permission groups.'
+        )
+    ),
     blockOutputs: z
       .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
       .nullable()
@@ -2618,7 +2623,9 @@ const v2WorkflowSubBlockSchema = z
   .object({
     id: z.string().min(1, 'subBlock id cannot be empty').describe('Sub-block identifier.'),
     type: z.string().min(1, 'subBlock type cannot be empty').describe('Sub-block input type.'),
-    value: z.unknown().describe('Configured value; shape depends on the sub-block type.'),
+    value: omittable(
+      z.unknown().describe('Configured value; shape depends on the sub-block type.')
+    ),
   })
   .describe('One configurable input on a block.')
 
@@ -2813,9 +2820,9 @@ function workflowVariableSchema(id: string, mode: 'input' | 'stored' = 'input') 
       id: z.string().min(1, 'variable id cannot be empty').describe('Variable identifier.'),
       name: name.describe('Variable name, referenced from block inputs.'),
       type: type.describe('Declared variable type.'),
-      value: z
-        .unknown()
-        .describe('Variable value; free-form and validated per `type` at use time.'),
+      value: omittable(
+        z.unknown().describe('Variable value; free-form and validated per `type` at use time.')
+      ),
     })
     .meta({ id, title: 'Workflow variable', description: 'A workflow-scoped variable.' })
 }
@@ -3646,7 +3653,7 @@ export const v2ApplyWorkflowVariablesBodySchema = z
                   .max(255, 'name is too long')
                   .describe('Variable name.'),
                 type: v2WorkflowVariableInputSchema.shape.type.describe('Declared variable type.'),
-                value: z.unknown().describe('Variable value, coerced to `type`.'),
+                value: omittable(z.unknown().describe('Variable value, coerced to `type`.')),
               })
               .strict(),
             z
@@ -3662,7 +3669,9 @@ export const v2ApplyWorkflowVariablesBodySchema = z
                 type: v2WorkflowVariableInputSchema.shape.type
                   .optional()
                   .describe('Replacement type; the stored type is kept when omitted.'),
-                value: z.unknown().describe('Replacement value, coerced to the effective type.'),
+                value: omittable(
+                  z.unknown().describe('Replacement value, coerced to the effective type.')
+                ),
               })
               .strict(),
             z

@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import type { ContractBody } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -251,7 +252,7 @@ const jsmAssetAttributeInputSchema = z.object({
     .string({ error: 'objectTypeAttributeId is required' })
     .min(1, 'objectTypeAttributeId is required'),
   objectAttributeValues: z
-    .array(z.object({ value: z.unknown() }), {
+    .array(z.object({ value: omittable(z.unknown()) }), {
       error: 'objectAttributeValues must be an array of { value } entries',
     })
     .min(1, 'Each attribute needs at least one value'),

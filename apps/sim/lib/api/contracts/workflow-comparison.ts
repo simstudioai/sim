@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { versionNumberPathSchema, versionNumberSchema } from '@/lib/api/contracts/primitives'
+import {
+  omittable,
+  versionNumberPathSchema,
+  versionNumberSchema,
+} from '@/lib/api/contracts/primitives'
 
 export const compareWorkflowVersionsQuerySchema = z
   .object({
@@ -24,7 +28,7 @@ export const workflowComparisonValueSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('value').describe('The field value is included.'),
     // untyped-response: workflow field values are user-authored JSON with a shape defined by each subblock
-    value: z.unknown().describe('The complete user-authored field value.'),
+    value: omittable(z.unknown().describe('The complete user-authored field value.')),
   }),
 ])
 export type WorkflowComparisonValue = z.output<typeof workflowComparisonValueSchema>

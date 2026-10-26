@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 
 export const adminV1DefaultLimit = 50
 export const adminV1MaxLimit = 250
@@ -82,7 +83,7 @@ export const adminV1SubscriptionSchema = z.object({
   seats: z.number().nullable(),
   trialStart: z.string().nullable(),
   trialEnd: z.string().nullable(),
-  metadata: z.unknown(),
+  metadata: omittable(z.unknown()),
 })
 
 export type AdminV1IdParamsInput = z.input<typeof adminV1IdParamsSchema>

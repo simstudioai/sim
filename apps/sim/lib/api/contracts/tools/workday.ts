@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -19,8 +20,8 @@ const workdayTotalSchema = z.union([z.number(), z.string()])
 const workdayWorkerSummarySchema = z.object({
   id: nullableStringSchema,
   descriptor: nullableStringSchema,
-  personalData: z.unknown().nullable(),
-  employmentData: z.unknown().nullable(),
+  personalData: omittable(z.unknown().nullable()),
+  employmentData: omittable(z.unknown().nullable()),
   compensationData: z.unknown().nullable().optional(),
   organizationData: z.unknown().nullable().optional(),
 })
@@ -36,7 +37,7 @@ const workdayOrganizationSchema = z.object({
 const workdayCompensationPlanSchema = z.object({
   id: nullableStringSchema,
   planName: nullableStringSchema,
-  amount: z.unknown().nullable(),
+  amount: omittable(z.unknown().nullable()),
   currency: nullableStringSchema,
   frequency: nullableStringSchema,
 })

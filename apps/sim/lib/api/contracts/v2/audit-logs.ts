@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   booleanQueryFlagSchema,
+  omittable,
   organizationIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -64,7 +65,7 @@ export const v2AuditLogEntrySchema = z
       .describe('Affected resource ID. Null for folder events, which identify folders by path.'),
     resourceName: z.string().nullable().describe('Display name of the affected resource.'),
     description: z.string().nullable().describe('Human-readable description of the action.'),
-    metadata: z.unknown().describe('Additional JSON details specific to the action.'),
+    metadata: omittable(z.unknown().describe('Additional JSON details specific to the action.')),
     createdAt: z
       .string()
       .describe('ISO 8601 timestamp when the action occurred.')

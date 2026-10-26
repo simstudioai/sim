@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import type { ContractBody, ContractQuery } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
@@ -148,7 +149,7 @@ export const confluenceListPagePropertiesQuerySchema = confluencePageScopedSchem
 
 export const confluenceCreatePagePropertyBodySchema = confluencePageScopedSchema.extend({
   key: z.string({ error: 'Property key is required' }).min(1, 'Property key is required'),
-  value: z.unknown(),
+  value: omittable(z.unknown()),
 })
 
 export const confluenceUpdatePagePropertyBodySchema = confluenceCreatePagePropertyBodySchema.extend(

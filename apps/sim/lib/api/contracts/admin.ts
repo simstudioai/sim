@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 
@@ -167,7 +168,7 @@ export const adminWorkflowVariableSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.unknown(),
+  value: omittable(z.unknown()),
 })
 
 export const adminWorkflowExportStateSchema = workflowStateSchema.extend({

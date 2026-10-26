@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  omittable,
   organizationRoleSchema,
   type PiiRedactionSettings,
   piiRedactionSettingsSchema,
@@ -494,7 +495,7 @@ export const getOrganizationResponseSchema = z.object({
     name: z.string(),
     slug: z.string(),
     logo: z.string().nullable(),
-    metadata: z.unknown().describe('Organization-defined JSON metadata.'),
+    metadata: omittable(z.unknown().describe('Organization-defined JSON metadata.')),
     createdAt: z.string(),
     updatedAt: z.string(),
     seats: organizationSeatInfoSchema.optional(),

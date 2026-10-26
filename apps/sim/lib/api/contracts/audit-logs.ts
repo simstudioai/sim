@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { omittable, organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const auditLogsQuerySchema = z.object({
@@ -53,7 +53,7 @@ export const enterpriseAuditLogEntrySchema = z.object({
   resourceId: z.string().nullable(),
   resourceName: z.string().nullable(),
   description: z.string().nullable(),
-  metadata: z.unknown(),
+  metadata: omittable(z.unknown()),
   createdAt: z.string(),
 })
 

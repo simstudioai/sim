@@ -5,6 +5,7 @@ import {
   isCanonicalBase64,
   isoDateTimeSchema,
   MAX_ID_LENGTH,
+  omittable,
   optionalNumberQuerySchema,
   organizationIdSchema,
   organizationRoleSchema,
@@ -399,5 +400,21 @@ describe('isoDateTimeSchema', () => {
       type: 'string',
       format: 'date-time',
     })
+  })
+})
+
+describe('omittable', () => {
+  const schema = z.object({ value: omittable(z.unknown()) })
+
+  it('accepts an absent key without inventing one', () => {
+    const result = schema.safeParse({})
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({})
+    expect(schema.parse({ value: null })).toEqual({ value: null })
+  })
+
+  it('keeps the key required in the published schema', () => {
+    expect(z.toJSONSchema(schema, { io: 'input' }).required).toEqual(['value'])
+    expect(z.toJSONSchema(schema, { io: 'output' }).required).toEqual(['value'])
   })
 })

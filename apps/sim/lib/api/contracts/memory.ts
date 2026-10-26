@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
+import { omittable, privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
@@ -53,7 +53,7 @@ const memorySuccessResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
 
 const memoryRecordSchema = z.object({
   conversationId: z.string(),
-  data: z.unknown(),
+  data: omittable(z.unknown()),
 })
 
 export const listMemoriesContract = defineRouteContract({

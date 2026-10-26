@@ -3,6 +3,7 @@ import {
   activeDeploymentSummarySchema,
   deploymentOperationSummarySchema,
 } from '@/lib/api/contracts/deployments'
+import { omittable } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   adminV1ExportFormatQuerySchema,
@@ -45,7 +46,7 @@ export const adminV1WorkflowVariableSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.unknown(),
+  value: omittable(z.unknown()),
 })
 
 export const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({

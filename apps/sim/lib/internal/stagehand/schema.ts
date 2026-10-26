@@ -1,11 +1,11 @@
 import { z } from 'zod'
-import { unknownRecordSchema } from '@/lib/api/contracts/primitives'
+import { omittable, unknownRecordSchema } from '@/lib/api/contracts/primitives'
 
 export const stagehandAgentInputSchema = z.object({
   task: z.string().min(1),
   startUrl: z.string().url(),
-  outputSchema: z.unknown(),
-  variables: z.unknown(),
+  outputSchema: omittable(z.unknown()),
+  variables: omittable(z.unknown()),
   provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
   apiKey: z.string(),
   mode: z.enum(['dom', 'hybrid', 'cua']).optional().default('dom'),

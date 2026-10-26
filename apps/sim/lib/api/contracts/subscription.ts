@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { omittable, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   usageLimitReadSchema,
@@ -76,7 +76,7 @@ export const subscriptionBillingDataSchema = z
     organizationId: z.string().nullable(),
     status: z.string().nullable(),
     seats: z.number().nullable(),
-    metadata: z.unknown().nullable(),
+    metadata: omittable(z.unknown().nullable()),
     stripeSubscriptionId: z.string().nullable(),
     periodEnd: z.string().nullable(),
     cancelAtPeriodEnd: z.boolean(),

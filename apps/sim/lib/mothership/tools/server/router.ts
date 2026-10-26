@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import { getValidationErrorMessage, isZodError } from '@/lib/api/server/validation'
 import { OAUTH_API_WRITE_SCOPE } from '@/lib/auth/oauth-provider'
 import { requireDelegatedApiScope } from '@/lib/core/application/oauth-authorization'
@@ -45,7 +46,7 @@ export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchem
 
 const ExecuteResponseSuccessSchema = z.object({
   success: z.literal(true),
-  result: z.unknown(),
+  result: omittable(z.unknown()),
 })
 
 const logger = createLogger('ServerToolRouter')

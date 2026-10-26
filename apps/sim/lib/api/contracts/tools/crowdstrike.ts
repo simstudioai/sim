@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -63,7 +64,7 @@ const crowdstrikeAggregateBucketSchema: z.ZodType<CrowdStrikeSensorAggregateBuck
     count: crowdstrikeNullableNumberSchema,
     from: crowdstrikeNullableNumberSchema,
     keyAsString: crowdstrikeNullableStringSchema,
-    label: z.unknown(),
+    label: omittable(z.unknown()),
     stringFrom: crowdstrikeNullableStringSchema,
     stringTo: crowdstrikeNullableStringSchema,
     subAggregates: z.array(crowdstrikeAggregateResultSchema),

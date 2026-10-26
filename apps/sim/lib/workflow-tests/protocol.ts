@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 
 /**
  * The wire between the workflow-test harness (inside the isolate) and the host brokers.
@@ -36,7 +37,7 @@ export const testStartArgsSchema = z.object({
   workflow: nameSchema,
   /** The trigger block that starts the run, by name; needed when the workflow has several. */
   trigger: nameSchema.nullable(),
-  input: z.unknown(),
+  input: omittable(z.unknown()),
   targets: z.array(testTargetSchema).max(MAX_TARGETS),
 })
 
@@ -49,7 +50,7 @@ export const testReplyArgsSchema = z.union([
   z.object({ runId: z.string().min(1), callId: z.string().min(1), error: z.string().max(10_000) }),
   // Strict, so a reply carrying an `error` (one past the cap included) is never read as an output.
   z
-    .object({ runId: z.string().min(1), callId: z.string().min(1), output: z.unknown() })
+    .object({ runId: z.string().min(1), callId: z.string().min(1), output: omittable(z.unknown()) })
     .strict(),
 ])
 

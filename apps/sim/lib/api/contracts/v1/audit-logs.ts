@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   adminV1ListResponseSchema,
@@ -67,7 +68,7 @@ const v1AuditLogEntrySchema = z.object({
   resourceId: z.string().nullable(),
   resourceName: z.string().nullable(),
   description: z.string().nullable(),
-  metadata: z.unknown(),
+  metadata: omittable(z.unknown()),
   createdAt: z.string(),
 })
 

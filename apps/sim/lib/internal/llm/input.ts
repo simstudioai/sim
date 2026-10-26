@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
+import { omittable, resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 const providerToolSchema = z
@@ -49,7 +49,7 @@ const providerMessageSchema = z
 const providerResponseFormatSchema = z
   .object({
     name: z.string(),
-    schema: z.unknown(),
+    schema: omittable(z.unknown()),
     strict: z.boolean().optional(),
   })
   .passthrough()

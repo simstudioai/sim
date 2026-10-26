@@ -641,6 +641,17 @@ export const optionalNumberQuerySchema = z.preprocess((value) => {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }, z.coerce.number().optional())
 
+/**
+ * An object key whose schema accepts `undefined` (`z.unknown()`, `z.any()`) that a sender may
+ * omit, as `JSON.stringify` does with an `undefined` value. Zod 4.6 rejects an absent key unless
+ * its schema is optional-in; `.optional()` would also make the key optional in the inferred type
+ * and drop it from JSON Schema `required`. A `.catch` that can never fire changes only the
+ * absent-key rule, so the type and the published schema stay as they were under zod 4.3.
+ */
+export function omittable<T extends z.ZodType<unknown>>(schema: T) {
+  return schema.catch(undefined)
+}
+
 const ISO_DATE_SOURCE = z.regexes.date.source.slice(1, -1)
 const ISO_TIME_SOURCE = '(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?'
 const UTC_OFFSET_SOURCE = '([+-](?:[01]\\d|2[0-3]):[0-5]\\d)'

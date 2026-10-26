@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
-import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { omittable, requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   createTableBodySchema,
   createTableColumnBodySchema,
@@ -108,7 +108,7 @@ const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
     data: dataSchema,
   })
 
-const v1TableApiResponseSchema = successResponseSchema(z.unknown()).passthrough()
+const v1TableApiResponseSchema = successResponseSchema(omittable(z.unknown())).passthrough()
 
 export const v1ListTablesContract = defineRouteContract({
   method: 'GET',

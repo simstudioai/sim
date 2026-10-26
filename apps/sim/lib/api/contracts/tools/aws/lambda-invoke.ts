@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 import { lambdaConnectionFields } from '@/lib/api/contracts/tools/aws/lambda-shared'
 import type {
   ContractBody,
@@ -31,7 +32,7 @@ const InvokeResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     statusCode: z.number().nullable(),
-    payload: z.unknown(),
+    payload: omittable(z.unknown()),
     functionError: z.string().nullable(),
     logResult: z.string().nullable(),
     executedVersion: z.string().nullable(),

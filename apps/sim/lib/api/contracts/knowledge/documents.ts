@@ -12,7 +12,7 @@ import {
   successResponseSchema,
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
+import { omittable, privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import {
@@ -29,7 +29,7 @@ export const documentTagFilterSchema = z
     tagSlot: z.string().min(1),
     fieldType: z.enum(['text', 'number', 'date', 'boolean']),
     operator: z.string().min(1),
-    value: z.unknown(),
+    value: omittable(z.unknown()),
     valueTo: z.unknown().optional(),
   })
   .superRefine((filter, ctx) => {
@@ -411,7 +411,7 @@ export const deleteKnowledgeDocumentContract = defineRouteContract({
   params: knowledgeDocumentParamsSchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.unknown()),
+    schema: successResponseSchema(omittable(z.unknown())),
   },
 })
 

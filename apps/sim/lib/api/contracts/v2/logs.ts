@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   booleanQueryFlagSchema,
+  omittable,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -309,21 +310,25 @@ export const v2LogDetailSchema = z
      * generator refuses to emit undescribed, and the outer one documents the
      * union itself. Collapsing them to one fails `generate:openapi`.
      */
-    finalOutput: z
-      .unknown()
-      .describe('Materialized final workflow output value.')
-      .nullable()
-      .describe('Materialized final workflow output, or null when none was produced.'),
+    finalOutput: omittable(
+      z
+        .unknown()
+        .describe('Materialized final workflow output value.')
+        .nullable()
+        .describe('Materialized final workflow output, or null when none was produced.')
+    ),
     cost: v2LogDetailCostSchema,
     // untyped-response: workflow input is the caller-supplied trigger payload, which has no server-side schema
     /** Doubly described for the reason `finalOutput` above is. */
-    workflowInput: z
-      .unknown()
-      .describe('Caller-supplied trigger payload for the run.')
-      .nullable()
-      .describe(
-        'Input the run was triggered with, or null when the run recorded none. Credential-bearing and PII-masked values are redacted the same way `finalOutput` is.'
-      ),
+    workflowInput: omittable(
+      z
+        .unknown()
+        .describe('Caller-supplied trigger payload for the run.')
+        .nullable()
+        .describe(
+          'Input the run was triggered with, or null when the run recorded none. Credential-bearing and PII-masked values are redacted the same way `finalOutput` is.'
+        )
+    ),
     createdAt: v2TimestampSchema.describe('ISO 8601 log creation timestamp.'),
   })
   .meta({

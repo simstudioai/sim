@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   booleanQueryFlagSchema,
   noInputSchema,
+  omittable,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -494,7 +495,9 @@ export const v2ToolExecutionSchema = z
       .enum(['succeeded', 'failed'])
       .describe('Whether the tool reported success. A failed tool call is still a 200.'),
     // untyped-response: every tool declares its own output shape, already published by GET /api/v2/tools/{toolId}
-    output: z.unknown().describe('Whatever the tool produced, shaped by its declared outputs.'),
+    output: omittable(
+      z.unknown().describe('Whatever the tool produced, shaped by its declared outputs.')
+    ),
     error: z
       .object({ message: z.string().describe('Why the tool call did not succeed.') })
       .nullable()

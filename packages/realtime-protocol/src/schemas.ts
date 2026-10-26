@@ -1,4 +1,14 @@
 import { z } from 'zod'
+
+/**
+ * A payload key the sender may omit (`JSON.stringify` drops `undefined`). Zod 4.6 rejects an
+ * absent key unless its schema is optional-in; a `.catch` that never fires restores that without
+ * changing the inferred type, which `.optional()` would.
+ */
+function omittable<T extends z.ZodType<unknown>>(schema: T) {
+  return schema.catch(undefined)
+}
+
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -125,8 +135,8 @@ const VariableOperationSchema = z.union([
     payload: z.object({
       id: z.string(),
       name: z.string(),
-      type: z.any(),
-      value: z.any(),
+      type: omittable(z.any()),
+      value: omittable(z.any()),
       workflowId: z.string(),
     }),
     timestamp: z.number(),
@@ -147,7 +157,7 @@ const WorkflowStateOperationSchema = z.object({
   operation: z.literal(WORKFLOW_OPERATIONS.REPLACE_STATE),
   target: z.literal(OPERATION_TARGETS.WORKFLOW),
   payload: z.object({
-    state: z.any(),
+    state: omittable(z.any()),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -161,7 +171,7 @@ const SubblockOperationSchema = z.object({
       z.object({
         blockId: z.string(),
         subblockId: z.string(),
-        value: z.any(),
+        value: omittable(z.any()),
         expectedValue: z.any().optional(),
       })
     ),
@@ -181,7 +191,7 @@ const SubblockCanonicalModesUpdateSchema = z.object({
   payload: z.object({
     blockId: z.string(),
     subblockId: z.string(),
-    value: z.any(),
+    value: omittable(z.any()),
     canonicalModes: z.record(z.string(), CanonicalModeSchema),
   }),
   timestamp: z.number(),

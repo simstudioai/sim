@@ -100,13 +100,16 @@ function tolerantArray<TItem extends z.ZodType, TFallback extends z.infer<TItem>
   item: TItem,
   fallback: TFallback
 ): z.ZodType<z.infer<TItem>[] | TFallback> {
-  return z.unknown().transform((raw) => {
-    if (!Array.isArray(raw)) return fallback
-    return raw.flatMap((entry) => {
-      const parsed = item.safeParse(entry)
-      return parsed.success ? [parsed.data as z.infer<TItem>] : []
+  return z
+    .unknown()
+    .optional()
+    .transform((raw) => {
+      if (!Array.isArray(raw)) return fallback
+      return raw.flatMap((entry) => {
+        const parsed = item.safeParse(entry)
+        return parsed.success ? [parsed.data as z.infer<TItem>] : []
+      })
     })
-  })
 }
 
 interface BooleanRestrictionField {

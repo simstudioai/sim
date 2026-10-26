@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   booleanQueryFlagSchema,
   isoDateTimeSchema,
+  omittable,
   userFileSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -184,8 +185,8 @@ const blockExecutionSchema = z.object({
   status: z.enum(['success', 'error', 'skipped']),
   errorMessage: z.string().optional(),
   errorStackTrace: z.string().optional(),
-  inputData: z.unknown(),
-  outputData: z.unknown(),
+  inputData: omittable(z.unknown()),
+  outputData: omittable(z.unknown()),
   cost: costSummarySchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
@@ -404,7 +405,7 @@ export const executionSnapshotDataSchema = z.object({
     startedAt: z.string(),
     endedAt: z.string().optional(),
     totalDurationMs: z.number().nullable().optional(),
-    cost: z.unknown().nullable(),
+    cost: omittable(z.unknown().nullable()),
     totalTokens: z.number().nullable().optional(),
   }),
 })

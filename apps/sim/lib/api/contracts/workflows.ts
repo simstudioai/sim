@@ -6,6 +6,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
+  omittable,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workflowIdSchema,
@@ -52,7 +53,7 @@ const workflowBlockDataSchema = z.object({
 const workflowSubBlockStateSchema = z.object({
   id: z.string(),
   type: z.string(),
-  value: z.unknown(),
+  value: omittable(z.unknown()),
 })
 
 const workflowBlockOutputSchema = z.unknown()
@@ -157,7 +158,7 @@ export const workflowVariableWriteSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.unknown(),
+  value: omittable(z.unknown()),
   validationError: z.string().optional(),
 })
 
@@ -554,7 +555,7 @@ const pausedWorkflowExecutionsResponseSchema = z.object({
 })
 
 const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema.extend({
-  executionSnapshot: z.unknown(),
+  executionSnapshot: omittable(z.unknown()),
   queue: z.array(z.record(z.string(), z.unknown())),
 })
 
@@ -615,7 +616,7 @@ const workflowExecutionStatusResponseSchema = z.object({
   paused: workflowExecutionPausedDetailSchema.nullable(),
   cost: z.object({ total: z.number() }).nullable(),
   error: z.string().nullable(),
-  finalOutput: z.unknown().nullable(),
+  finalOutput: omittable(z.unknown().nullable()),
   blockOutputs: z.record(z.string(), z.unknown()).nullable(),
 })
 

@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
+  omittable,
   versionNumberSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -36,7 +37,7 @@ export type V1ListWorkflowsQuery = z.output<typeof v1ListWorkflowsQuerySchema>
  */
 const v1WorkflowApiResponseWithLimitsSchema = z
   .object({
-    data: z.unknown(),
+    data: omittable(z.unknown()),
     limits: z.unknown().optional(),
   })
   .passthrough()
@@ -163,7 +164,7 @@ const v1WorkflowExportVariableSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.unknown(),
+  value: omittable(z.unknown()),
 })
 
 /**

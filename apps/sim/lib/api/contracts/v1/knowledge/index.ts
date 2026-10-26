@@ -5,7 +5,7 @@ import {
   knowledgeDocumentParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { omittable, requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   DEFAULT_CHUNKING_CONFIG,
@@ -205,7 +205,7 @@ export type V1UpdateKnowledgeBaseBody = z.output<typeof v1UpdateKnowledgeBaseBod
 export type V1ListKnowledgeDocumentsQuery = z.output<typeof v1ListKnowledgeDocumentsQuerySchema>
 export type V1KnowledgeSearchBody = z.output<typeof v1KnowledgeSearchBodySchema>
 
-const v1KnowledgeApiResponseSchema = successResponseSchema(z.unknown()).passthrough()
+const v1KnowledgeApiResponseSchema = successResponseSchema(omittable(z.unknown())).passthrough()
 
 export const v1ListKnowledgeBasesContract = defineRouteContract({
   method: 'GET',

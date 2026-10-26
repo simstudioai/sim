@@ -1,5 +1,6 @@
 import { isPrivateIpHost } from '@sim/security/ssrf'
 import { z } from 'zod'
+import { omittable } from '@/lib/api/contracts/primitives'
 
 export const ZOOMINFO_API_BASE = 'https://api.zoominfo.com/gtm'
 export const ZOOMINFO_TOKEN_URL = `${ZOOMINFO_API_BASE}/oauth/v1/token`
@@ -72,18 +73,18 @@ export const zoomInfoSearchContactsInputSchema = zoomInfoAuthSchema.extend({
 })
 
 export const zoomInfoEnrichCompaniesInputSchema = zoomInfoAuthSchema.extend({
-  matchCompanyInput: z.unknown(),
+  matchCompanyInput: omittable(z.unknown()),
   outputFields: optionalToolField,
 })
 
 export const zoomInfoEnrichContactsInputSchema = zoomInfoAuthSchema.extend({
-  matchPersonInput: z.unknown(),
+  matchPersonInput: omittable(z.unknown()),
   outputFields: optionalToolField,
   requiredFields: optionalToolField,
 })
 
 export const zoomInfoSearchIntentInputSchema = zoomInfoAuthSchema.extend({
-  topics: z.unknown(),
+  topics: omittable(z.unknown()),
   signalStartDate: optionalToolField,
   signalEndDate: optionalToolField,
   signalScoreMin: optionalToolField,
