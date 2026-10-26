@@ -1069,6 +1069,40 @@ List Accounts in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Accounts records, including explicitly requested portal fields |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
@@ -1107,6 +1141,40 @@ Create Account in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | object | The account |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
 
 </ReferenceDetails>
 
@@ -1144,6 +1212,40 @@ Update Account in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | object | The account |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
 
 </ReferenceDetails>
 
@@ -1182,6 +1284,40 @@ Search Accounts in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Search Accounts results |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
 | `totalCount` | number | Total search matches reported by Zoho, when provided |
@@ -1207,6 +1343,40 @@ Get Account in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | object | The account |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
 
 </ReferenceDetails>
 
@@ -1232,6 +1402,20 @@ List Departments in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `departments` | array | List Departments results |
+|   ↳ `isAssignToTeamEnabled` | boolean | Whether assignment to teams is enabled |
+|   ↳ `chatStatus` | string | Chat status of the department Allowed values: AVAILABLE, DISABLED, NOT_CREATED |
+|   ↳ `hasLogo` | boolean | Whether the department has a logo |
+|   ↳ `sanitizedName` | string | Sanitized Name of the department |
+|   ↳ `isVisibleInCustomerPortal` | boolean | Whether the department is visible in the help center |
+|   ↳ `creatorId` | string | Unique ID of the user who created the department |
+|   ↳ `description` | string | Short description of the department |
+|   ↳ `isDefault` | boolean | Whether this is the default department in the help desk portal |
+|   ↳ `isEnabled` | boolean | Whether the department is enabled |
+|   ↳ `name` | string | Name of the department |
+|   ↳ `createdTime` | string | Time at which the department was created |
+|   ↳ `id` | string | Unique ID of the department |
+|   ↳ `nameInCustomerPortal` | string | Display name of the department in the help center |
+|   ↳ `associatedAgentIds` | array | ID\(s\) of the agents associated with the department |
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
@@ -1255,6 +1439,20 @@ Get Department in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `department` | object | The department |
+|   ↳ `isAssignToTeamEnabled` | boolean | Whether assignment to teams is enabled |
+|   ↳ `chatStatus` | string | Chat status of the department Allowed values: AVAILABLE, DISABLED, NOT_CREATED |
+|   ↳ `hasLogo` | boolean | Whether the department has a logo |
+|   ↳ `sanitizedName` | string | Sanitized Name of the department |
+|   ↳ `isVisibleInCustomerPortal` | boolean | Whether the department is visible in the help center |
+|   ↳ `creatorId` | string | Unique ID of the user who created the department |
+|   ↳ `description` | string | Short description of the department |
+|   ↳ `isDefault` | boolean | Whether this is the default department in the help desk portal |
+|   ↳ `isEnabled` | boolean | Whether the department is enabled |
+|   ↳ `name` | string | Name of the department |
+|   ↳ `createdTime` | string | Time at which the department was created |
+|   ↳ `id` | string | Unique ID of the department |
+|   ↳ `nameInCustomerPortal` | string | Display name of the department in the help center |
+|   ↳ `associatedAgentIds` | array | ID\(s\) of the agents associated with the department |
 
 </ReferenceDetails>
 
@@ -1290,6 +1488,87 @@ List Agents in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `agents` | array | List Agents results |
+|   ↳ `lastName` | string | Last name of the agent |
+|   ↳ `extn` | string | Extension number of the agent |
+|   ↳ `roleId` | string | Role ID of the agent |
+|   ↳ `langCode` | string | Language code of the agent |
+|   ↳ `mobile` | string | Mobile number of the agent |
+|   ↳ `emailId` | string | Email ID of the agent |
+|   ↳ `associatedChatDepartmentIds` | array | Associated chat department IDs |
+|   ↳ `associatedDepartmentIds` | array | Associated department IDs |
+|   ↳ `firstName` | string | First name of the agent |
+|   ↳ `phone` | string | Phone number of the agent |
+|   ↳ `countryCode` | string | Country code of the agent |
+|   ↳ `profileId` | string | Profile ID of the agent |
+|   ↳ `rolePermissionType` | string | Role permission type of the agent. Allowed values: AgentPublic, AgentPersonal, AgentTeamPersonal, Admin, Light, Custom |
+|   ↳ `aboutInfo` | string | About information of the agent |
+|   ↳ `status` | string | Activation status of the agent. Allowed values: ACTIVE, DISABLED |
+|   ↳ `channelExpert` | array | Channel expert |
+|   ↳ `timeZone` | string | Time zone of the agent |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `photoURL` | string | URL of the image file displaying the agent's photo |
+|   ↳ `name` | string | Full name of the agent |
+|   ↳ `isConfirmed` | boolean | Indicates whether the agent is a confirmed user in the portal. Allowed values: true = confirmed, false = unconfirmed |
+|   ↳ `id` | string | Unique ID of the agent |
+|   ↳ `zuid` | string | Zoho User ID of the agent |
+|   ↳ `isZiaAgent` | boolean | Indicates whether the agent is a Zia agent or a human agent |
+|   ↳ `associatedChatDepartments` | array | Associated chat departments |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `name` | string | Full name of the department |
+|     ↳ `id` | string | Unique ID of the department |
+|   ↳ `role` | object | Role |
+|     ↳ `isDefault` | boolean | Whether this is the default role |
+|     ↳ `shareDataWithPeers` | boolean | Whether share data with peers |
+|     ↳ `immediateSubRoles` | array | Immediate sub roles |
+|     ↳ `encId` | string | Encrypted ID |
+|     ↳ `name` | string | Name of the role |
+|     ↳ `description` | string | Description |
+|     ↳ `adminRole` | boolean | Whether admin role |
+|     ↳ `reportsTo` | string | ID of the role this role reports to |
+|     ↳ `id` | string | Unique ID of the role |
+|     ↳ `isVisible` | boolean | Whether visible |
+|   ↳ `verifiedEmails` | array | Verified emails |
+|   ↳ `profile` | object | Profile |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `visible` | boolean | Whether visible |
+|     ↳ `allowedTabs` | array | Allowed tabs |
+|     ↳ `defaultProfile` | boolean | Whether default profile |
+|     ↳ `allowedPermissionNames` | array | Allowed permission names |
+|     ↳ `type` | string | Accepted values: ADMIN, STANDARD, LIGHT, CUSTOM, PORTAL |
+|     ↳ `invisibleTabs` | array | Invisible tabs |
+|     ↳ `portalProfile` | boolean | Whether portal profile |
+|     ↳ `prohibitedPermissionNames` | array | Prohibited permission names |
+|     ↳ `allowedPermissions` | array | Allowed permissions |
+|     ↳ `profileDesc` | string | Description of the profile |
+|     ↳ `createdBy` | string | ID of the user who created this record |
+|     ↳ `lightAgentProfile` | boolean | Whether light agent profile |
+|     ↳ `name` | string | Full name of the profile |
+|     ↳ `visibleTabs` | array | Visible tabs |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `modifiedBy` | string | ID of the user who last modified this record |
+|     ↳ `id` | string | Unique ID of the profile |
+|     ↳ `category` | boolean | Category |
+|     ↳ `prohibitedPermisisons` | array | Prohibited permisisons |
+|     ↳ `adminProfile` | boolean | Whether admin profile |
+|   ↳ `associatedDepartments` | array | Associated departments |
+|     ↳ `chatStatusId` | string | ID of the chat status |
+|     ↳ `chatStatus` | string | Status of chat department. Accepted values: AVAILABLE, DISABLED, NOT_CREATED |
+|     ↳ `isAssignToTeamEnabled` | boolean | Whether is assign to team enabled |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `hasLogo` | boolean | Whether has logo |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `sanitizedDeptHash` | string | Sanitized dept hash |
+|     ↳ `isVisibleInCustomerPortal` | boolean | Whether visible in the customer portal |
+|     ↳ `creatorId` | string | ID of the creator |
+|     ↳ `description` | string | Description |
+|     ↳ `associatedAgentIds` | array | Associated agent IDs |
+|     ↳ `isDefault` | boolean | Whether this is the default |
+|     ↳ `isEnabled` | boolean | Whether enabled |
+|     ↳ `name` | string | Full name of the agent |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `id` | string | Unique ID of the department |
+|     ↳ `nameInCustomerPortal` | string | Name shown in the customer portal |
+|     ↳ `status` | string | Accepted values: 0, 1, 2 |
 | `count` | number | Number of results in this page |
 | `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
 
@@ -1314,6 +1593,87 @@ Get Agent in Zoho Desk.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `agent` | object | The agent |
+|   ↳ `lastName` | string | Last name of the agent |
+|   ↳ `extn` | string | Extension number of the agent |
+|   ↳ `roleId` | string | Role ID of the agent |
+|   ↳ `langCode` | string | Language code of the agent |
+|   ↳ `mobile` | string | Mobile number of the agent |
+|   ↳ `emailId` | string | Email ID of the agent |
+|   ↳ `associatedChatDepartmentIds` | array | Associated chat department IDs |
+|   ↳ `associatedDepartmentIds` | array | Associated department IDs |
+|   ↳ `firstName` | string | First name of the agent |
+|   ↳ `phone` | string | Phone number of the agent |
+|   ↳ `countryCode` | string | Country code of the agent |
+|   ↳ `profileId` | string | Profile ID of the agent |
+|   ↳ `rolePermissionType` | string | Role permission type of the agent. Allowed values: AgentPublic, AgentPersonal, AgentTeamPersonal, Admin, Light, Custom |
+|   ↳ `aboutInfo` | string | About information of the agent |
+|   ↳ `status` | string | Activation status of the agent. Allowed values: ACTIVE, DISABLED |
+|   ↳ `channelExpert` | array | Channel expert |
+|   ↳ `timeZone` | string | Time zone of the agent |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `photoURL` | string | URL of the image file displaying the agent's photo |
+|   ↳ `name` | string | Full name of the agent |
+|   ↳ `isConfirmed` | boolean | Indicates whether the agent is a confirmed user in the portal. Allowed values: true = confirmed, false = unconfirmed |
+|   ↳ `id` | string | Unique ID of the agent |
+|   ↳ `zuid` | string | Zoho User ID of the agent |
+|   ↳ `isZiaAgent` | boolean | Indicates whether the agent is a Zia agent or a human agent |
+|   ↳ `associatedChatDepartments` | array | Associated chat departments |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `name` | string | Full name of the department |
+|     ↳ `id` | string | Unique ID of the department |
+|   ↳ `role` | object | Role |
+|     ↳ `isDefault` | boolean | Whether this is the default role |
+|     ↳ `shareDataWithPeers` | boolean | Whether share data with peers |
+|     ↳ `immediateSubRoles` | array | Immediate sub roles |
+|     ↳ `encId` | string | Encrypted ID |
+|     ↳ `name` | string | Name of the role |
+|     ↳ `description` | string | Description |
+|     ↳ `adminRole` | boolean | Whether admin role |
+|     ↳ `reportsTo` | string | ID of the role this role reports to |
+|     ↳ `id` | string | Unique ID of the role |
+|     ↳ `isVisible` | boolean | Whether visible |
+|   ↳ `verifiedEmails` | array | Verified emails |
+|   ↳ `profile` | object | Profile |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `visible` | boolean | Whether visible |
+|     ↳ `allowedTabs` | array | Allowed tabs |
+|     ↳ `defaultProfile` | boolean | Whether default profile |
+|     ↳ `allowedPermissionNames` | array | Allowed permission names |
+|     ↳ `type` | string | Accepted values: ADMIN, STANDARD, LIGHT, CUSTOM, PORTAL |
+|     ↳ `invisibleTabs` | array | Invisible tabs |
+|     ↳ `portalProfile` | boolean | Whether portal profile |
+|     ↳ `prohibitedPermissionNames` | array | Prohibited permission names |
+|     ↳ `allowedPermissions` | array | Allowed permissions |
+|     ↳ `profileDesc` | string | Description of the profile |
+|     ↳ `createdBy` | string | ID of the user who created this record |
+|     ↳ `lightAgentProfile` | boolean | Whether light agent profile |
+|     ↳ `name` | string | Full name of the profile |
+|     ↳ `visibleTabs` | array | Visible tabs |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `modifiedBy` | string | ID of the user who last modified this record |
+|     ↳ `id` | string | Unique ID of the profile |
+|     ↳ `category` | boolean | Category |
+|     ↳ `prohibitedPermisisons` | array | Prohibited permisisons |
+|     ↳ `adminProfile` | boolean | Whether admin profile |
+|   ↳ `associatedDepartments` | array | Associated departments |
+|     ↳ `chatStatusId` | string | ID of the chat status |
+|     ↳ `chatStatus` | string | Status of chat department. Accepted values: AVAILABLE, DISABLED, NOT_CREATED |
+|     ↳ `isAssignToTeamEnabled` | boolean | Whether is assign to team enabled |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `hasLogo` | boolean | Whether has logo |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `sanitizedDeptHash` | string | Sanitized dept hash |
+|     ↳ `isVisibleInCustomerPortal` | boolean | Whether visible in the customer portal |
+|     ↳ `creatorId` | string | ID of the creator |
+|     ↳ `description` | string | Description |
+|     ↳ `associatedAgentIds` | array | Associated agent IDs |
+|     ↳ `isDefault` | boolean | Whether this is the default |
+|     ↳ `isEnabled` | boolean | Whether enabled |
+|     ↳ `name` | string | Full name of the agent |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `id` | string | Unique ID of the department |
+|     ↳ `nameInCustomerPortal` | string | Name shown in the customer portal |
+|     ↳ `status` | string | Accepted values: 0, 1, 2 |
 
 </ReferenceDetails>
 

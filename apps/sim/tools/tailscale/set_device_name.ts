@@ -49,7 +49,7 @@ export const tailscaleSetDeviceNameTool: ToolConfig<
     await assertTailscaleResponse(response)
     return {
       success: true,
-      output: { success: true, deviceId: params?.deviceId ?? '', name: params?.name ?? '' },
+      output: { success: true, deviceId: params?.deviceId ?? '', name: params?.name?.trim() ?? '' },
     }
   },
   outputs: {

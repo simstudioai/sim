@@ -42,8 +42,8 @@ export const tailscaleGetAclTool: ToolConfig<TailscaleGetAclParams, TailscaleGet
     await assertTailscaleResponse(response)
     const data: Record<string, unknown> & {
       acl?: string
-      warnings?: string[]
-      errors?: string[]
+      warnings?: string[] | null
+      errors?: string[] | null
     } = await response.json()
     return {
       success: true,
@@ -62,7 +62,7 @@ export const tailscaleGetAclTool: ToolConfig<TailscaleGetAclParams, TailscaleGet
     errors: { type: 'array', description: 'Policy parsing errors', items: { type: 'string' } },
     acl: {
       type: 'string',
-      description: 'Tailnet policy file as a JSON string',
+      description: 'Tailnet policy as JSON, or the original HuJSON when diagnostics are enabled',
     },
     etag: {
       type: 'string',

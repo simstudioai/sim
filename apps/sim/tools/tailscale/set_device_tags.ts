@@ -52,7 +52,7 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
       output: {
         success: true,
         deviceId: params?.deviceId ?? '',
-        tags: parseTailscaleList(params?.tags),
+        tags: params?.tags ? parseTailscaleList(params.tags) : [],
       },
     }
   },

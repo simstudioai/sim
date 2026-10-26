@@ -86,12 +86,12 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
             reusable: params.reusable ?? false,
             ephemeral: params.ephemeral ?? false,
             preauthorized: params.preauthorized ?? true,
-            ...(params.tags ? { tags: parseTailscaleList(params.tags) } : {}),
+            ...(params.tags?.trim() ? { tags: parseTailscaleList(params.tags) } : {}),
           },
         },
       },
       ...(params.description ? { description: params.description } : {}),
-      ...(params.expirySeconds !== undefined ? { expirySeconds: params.expirySeconds } : {}),
+      ...(params.expirySeconds != null ? { expirySeconds: params.expirySeconds } : {}),
     }),
   },
   transformResponse: async (response) => {
@@ -101,6 +101,10 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
   },
   outputs: {
     ...KEY_OUTPUT_PROPERTIES,
-    key: { type: 'string', description: 'Auth key secret, returned only at creation' },
+    key: {
+      type: 'string',
+      description: 'Auth key secret, returned only at creation',
+      nullable: true,
+    },
   },
 }

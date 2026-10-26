@@ -5,9 +5,9 @@ interface SwitchProps {
   blockId: string
   subBlockId: string
   title: string
-  value?: boolean
+  value?: boolean | string
   isPreview?: boolean
-  previewValue?: boolean | null
+  previewValue?: boolean | string | null
   disabled?: boolean
 }
 
@@ -20,7 +20,7 @@ export function Switch({
   previewValue,
   disabled = false,
 }: SwitchProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue<boolean | string>(blockId, subBlockId)
 
   const value = isPreview ? previewValue : (storeValue ?? propValue)
 
@@ -34,7 +34,7 @@ export function Switch({
     <div className='flex items-center gap-x-3'>
       <UISwitch
         id={`${blockId}-${subBlockId}`}
-        checked={Boolean(value)}
+        checked={value === true || value === 'true'}
         onCheckedChange={handleChange}
         disabled={isPreview || disabled}
       />

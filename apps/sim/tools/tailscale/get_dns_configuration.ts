@@ -55,12 +55,10 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
     dnsConfiguration: {
       type: 'json',
       description: 'Dns configuration',
-      optional: true,
       properties: {
         nameservers: {
           type: 'array',
           description: 'Global DNS resolvers to use',
-          optional: true,
           items: {
             type: 'json',
             properties: {
@@ -82,12 +80,11 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
           type: 'json',
           description:
             'Map of DNS name suffixes (domains) to lists of resolvers for Split DNS and advanced routing overlays',
-          optional: true,
+          nullable: true,
         },
         searchPaths: {
           type: 'array',
           description: 'Search domain paths to apply',
-          optional: true,
           items: {
             type: 'string',
           },
@@ -95,7 +92,6 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
         preferences: {
           type: 'json',
           description: 'Preferences',
-          optional: true,
           properties: {
             overrideLocalDNS: {
               type: 'boolean',
@@ -109,6 +105,7 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
               optional: true,
             },
           },
+          nullable: true,
         },
       },
     },

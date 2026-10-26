@@ -387,19 +387,19 @@ export interface TailscaleTailnetSettings {
 export interface TailscaleGetTailnetSettingsResponse extends ToolResponse {
   output: {
     settings: {
-      aclsExternallyManagedOn: boolean | null | null
+      aclsExternallyManagedOn: boolean | null
       aclsExternalLink: string | null
       adminConsoleSessionTimeoutMinutes: number | null
-      devicesApprovalOn: boolean | null | null
-      devicesAutoUpdatesOn: boolean | null | null
+      devicesApprovalOn: boolean | null
+      devicesAutoUpdatesOn: boolean | null
       devicesKeyDurationDays: number | null
-      usersApprovalOn: boolean | null | null
+      usersApprovalOn: boolean | null
       usersRoleAllowedToJoinExternalTailnets: string | null
-      networkFlowLoggingOn: boolean | null | null
-      regionalRoutingOn: boolean | null | null
+      networkFlowLoggingOn: boolean | null
+      regionalRoutingOn: boolean | null
       routeSelection: string | null
-      postureIdentityCollectionOn: boolean | null | null
-      httpsEnabled: boolean | null | null
+      postureIdentityCollectionOn: boolean | null
+      httpsEnabled: boolean | null
     }
   }
 }
@@ -409,19 +409,19 @@ export interface TailscaleUpdateTailnetSettingsParams extends TailscaleBaseParam
 export interface TailscaleUpdateTailnetSettingsResponse extends ToolResponse {
   output: {
     settings: {
-      aclsExternallyManagedOn: boolean | null | null
+      aclsExternallyManagedOn: boolean | null
       aclsExternalLink: string | null
       adminConsoleSessionTimeoutMinutes: number | null
-      devicesApprovalOn: boolean | null | null
-      devicesAutoUpdatesOn: boolean | null | null
+      devicesApprovalOn: boolean | null
+      devicesAutoUpdatesOn: boolean | null
       devicesKeyDurationDays: number | null
-      usersApprovalOn: boolean | null | null
+      usersApprovalOn: boolean | null
       usersRoleAllowedToJoinExternalTailnets: string | null
-      networkFlowLoggingOn: boolean | null | null
-      regionalRoutingOn: boolean | null | null
+      networkFlowLoggingOn: boolean | null
+      regionalRoutingOn: boolean | null
       routeSelection: string | null
-      postureIdentityCollectionOn: boolean | null | null
-      httpsEnabled: boolean | null | null
+      postureIdentityCollectionOn: boolean | null
+      httpsEnabled: boolean | null
     }
   }
 }

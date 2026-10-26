@@ -82,92 +82,83 @@ export const tailscaleUpdateTailnetSettingsTool: ToolConfig<
     settings: {
       type: 'json',
       description: 'Settings for a tailnet',
-      optional: true,
       properties: {
         aclsExternallyManagedOn: {
           type: 'boolean',
           description:
             'Prevents users from editing policies in the admin console to avoid conflicts with external management workflows like GitOps or Terraform',
-          optional: true,
           nullable: true,
         },
         aclsExternalLink: {
           type: 'string',
           description:
             'Link to the external tailnet policy definition or management solution for this tailnet',
-          optional: true,
+          nullable: true,
         },
         adminConsoleSessionTimeoutMinutes: {
           type: 'number',
           description:
             'The [admin console session timeout](/docs/account/admin-console-session-timeout) for members of this tailnet',
-          optional: true,
+          nullable: true,
         },
         devicesApprovalOn: {
           type: 'boolean',
           description:
             'Whether [device approval](/docs/features/access-control/device-management/device-approval) is enabled for the tailnet',
-          optional: true,
           nullable: true,
         },
         devicesAutoUpdatesOn: {
           type: 'boolean',
           description:
             'Whether [auto updates](/docs/features/client/update#auto-updates) are enabled for devices that belong to this tailnet',
-          optional: true,
           nullable: true,
         },
         devicesKeyDurationDays: {
           type: 'number',
           description:
             'The [key expiry](/docs/features/access-control/key-expiry) duration for devices on this tailnet',
-          optional: true,
+          nullable: true,
         },
         usersApprovalOn: {
           type: 'boolean',
           description:
             'Whether [user approval](/docs/features/access-control/user-approval) is enabled for this tailnet',
-          optional: true,
           nullable: true,
         },
         usersRoleAllowedToJoinExternalTailnets: {
           type: 'string',
           description:
             'Which user roles are allowed to [join external tailnets](/docs/features/sharing/how-to/invite-any-user)',
-          optional: true,
+          nullable: true,
         },
         networkFlowLoggingOn: {
           type: 'boolean',
           description:
             'Whether [network flog logs](/docs/features/logging/network-flow-logs) are enabled for the tailnet',
-          optional: true,
           nullable: true,
         },
         regionalRoutingOn: {
           type: 'boolean',
           description:
             'Whether [regional routing](/docs/features/route-selection#regional-routing) is enabled for the tailnet',
-          optional: true,
           nullable: true,
         },
         routeSelection: {
           type: 'string',
           description:
             'The [route selection](/docs/features/route-selection) algorithm used by the tailnet: * `active-passive-failover` - Active-passive failover (formerly known as "Failover") * `regional-routing` - Regional routing * `regional-routing-failover` - Regional routing with in-region failover * `magicroute` - MagicRoute A PATCH request must not specify both the `regionalRoutingOn` and `routeSelection` fields',
-          optional: true,
+          nullable: true,
         },
         postureIdentityCollectionOn: {
           type: 'boolean',
           description:
             'Whether [identity collection](/docs/features/access-control/device-management/how-to/manage-identity) is enabled for [device posture](/docs/features/device-posture) integrations for the tailnet',
-          optional: true,
           nullable: true,
         },
         httpsEnabled: {
           type: 'boolean',
           description:
             'Whether provisioning of [HTTPS certificates](/docs/how-to/set-up-https-certificates) is enabled for this tailnet',
-          optional: true,
           nullable: true,
         },
       },

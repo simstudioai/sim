@@ -252,7 +252,7 @@ export const TailscaleBlock: BlockConfig = {
       required: true,
       title: 'Authorized',
       type: 'switch',
-      value: () => 'true',
+      defaultValue: true,
       condition: { field: 'operation', value: 'authorize_device' },
     },
     {
@@ -260,7 +260,7 @@ export const TailscaleBlock: BlockConfig = {
       required: true,
       title: 'Key Expiry Disabled',
       type: 'switch',
-      value: () => 'true',
+      defaultValue: true,
       condition: { field: 'operation', value: 'update_device_key' },
     },
     {
@@ -310,7 +310,7 @@ export const TailscaleBlock: BlockConfig = {
       required: true,
       title: 'MagicDNS',
       type: 'switch',
-      value: () => 'true',
+      defaultValue: true,
       condition: { field: 'operation', value: 'set_dns_preferences' },
     },
     {
@@ -339,7 +339,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'reusable',
       title: 'Reusable',
       type: 'switch',
-      value: () => 'false',
+      defaultValue: false,
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
@@ -347,7 +347,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'ephemeral',
       title: 'Ephemeral',
       type: 'switch',
-      value: () => 'false',
+      defaultValue: false,
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
@@ -355,7 +355,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'preauthorized',
       title: 'Preauthorized',
       type: 'switch',
-      value: () => 'true',
+      defaultValue: true,
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
@@ -424,7 +424,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'details',
       title: 'Policy Diagnostics',
       type: 'switch',
-      value: () => 'false',
+      defaultValue: false,
       condition: { field: 'operation', value: 'get_acl' },
       mode: 'advanced',
     },
@@ -519,7 +519,7 @@ export const TailscaleBlock: BlockConfig = {
         value: 'list_auth_keys',
       },
       mode: 'advanced',
-      value: () => 'true',
+      defaultValue: true,
     },
     {
       id: 'userType',
@@ -760,7 +760,7 @@ export const TailscaleBlock: BlockConfig = {
           if (value !== undefined && value !== '')
             mapped[field] = value === true || value === 'true'
         }
-        if (params.expirySeconds !== undefined && params.expirySeconds !== '') {
+        if (params.expirySeconds != null && params.expirySeconds !== '') {
           const expirySeconds = Number(params.expirySeconds)
           if (!Number.isFinite(expirySeconds)) throw new Error('Expiry must be a finite number')
           mapped.expirySeconds = expirySeconds
@@ -924,7 +924,7 @@ export const TailscaleBlock: BlockConfig = {
       type: 'json',
       description: 'Device enrollment capabilities (reusable, ephemeral, preauthorized, tags)',
     },
-    acl: { type: 'string', description: 'ACL policy as JSON string' },
+    acl: { type: 'string', description: 'Policy as JSON or original HuJSON for detailed Get ACL' },
     etag: { type: 'string', description: 'ACL ETag for conditional updates' },
     userId: { type: 'string', description: 'User ID' },
   },

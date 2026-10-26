@@ -17,20 +17,23 @@ export async function assertTailscaleResponse(response: Response): Promise<void>
   )
 }
 
-export function parseTailscaleList(value?: string): string[] {
-  if (value?.trim().startsWith('[')) {
-    const items: unknown = JSON.parse(value)
+export function parseTailscaleList(value: string): string[] {
+  const trimmed = value.trim()
+  if (trimmed.startsWith('[')) {
+    const items: unknown = JSON.parse(trimmed)
     if (!Array.isArray(items) || !items.every((item) => typeof item === 'string')) {
       throw new Error('Expected a JSON array of strings or a comma-separated list')
     }
-    return items.map((item) => item.trim()).filter(Boolean)
+    const values = items.map((item) => item.trim()).filter(Boolean)
+    if (items.length && !values.length) throw new Error('Use [] to explicitly clear a list')
+    return values
   }
-  return (
-    value
-      ?.split(',')
-      .map((item) => item.trim())
-      .filter(Boolean) ?? []
-  )
+  const values = trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  if (!values.length) throw new Error('Use [] to explicitly clear a list')
+  return values
 }
 
 export function mapTailscaleDevice(data: TailscaleDevice): TailscaleDeviceOutput {

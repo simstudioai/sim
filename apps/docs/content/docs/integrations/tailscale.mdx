@@ -65,6 +65,55 @@ List devices in the tailnet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `devices` | array | Devices in the tailnet |
+|   ↳ `addresses` | array | Tailscale IP addresses |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `nodeId` | string | Preferred device ID |
+|   ↳ `user` | string | User who registered the device |
+|   ↳ `name` | string | Device MagicDNS name |
+|   ↳ `hostname` | string | Device machine name |
+|   ↳ `clientVersion` | string | Tailscale client version |
+|   ↳ `updateAvailable` | boolean | Whether a client update is available |
+|   ↳ `os` | string | Operating system |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `connectedToControl` | boolean | Whether the device is connected to the control server |
+|   ↳ `lastSeen` | string | Last seen timestamp; a connected device may omit it |
+|   ↳ `keyExpiryDisabled` | boolean | Whether device key expiry is disabled |
+|   ↳ `expires` | string | Key expiration timestamp |
+|   ↳ `authorized` | boolean | Whether the device is authorized |
+|   ↳ `isExternal` | boolean | Whether the device is shared from another tailnet |
+|   ↳ `multipleConnections` | boolean | Whether multiple devices are using the same node key |
+|   ↳ `machineKey` | string | Machine public key |
+|   ↳ `nodeKey` | string | Node public key |
+|   ↳ `blocksIncomingConnections` | boolean | Whether incoming connections are blocked |
+|   ↳ `enabledRoutes` | array | Approved subnet routes |
+|   ↳ `advertisedRoutes` | array | Advertised subnet routes |
+|   ↳ `clientConnectivity` | json | Connectivity report |
+|     ↳ `endpoints` | array | Client's magicsock UDP IP:port endpoints \(IPv4 or IPv6\) |
+|     ↳ `mappingVariesByDestIP` | boolean | 'true' if the host's NAT mappings vary based on the destination IP |
+|     ↳ `latency` | json | Map of DERP server locations and their current latency |
+|     ↳ `clientSupports` | json | Identifies features supported by the client |
+|       ↳ `hairPinning` | boolean | This information is no longer tracked and will always be null |
+|       ↳ `ipv6` | boolean | 'true' if the device OS supports IPv6, regardless of whether IPv6 internet connectivity is available |
+|       ↳ `pcp` | boolean | 'true' if PCP port-mapping service exists on your router |
+|       ↳ `pmp` | boolean | 'true' if NAT-PMP port-mapping service exists on your router |
+|       ↳ `udp` | boolean | 'true' if UDP traffic is enabled on the current network; if 'false', Tailscale may be unable to make direct connections, and will rely on our DERP servers |
+|       ↳ `upnp` | boolean | 'true' if UPnP port-mapping service exists on your router |
+|   ↳ `tags` | array | Assigned tags |
+|   ↳ `tailnetLockError` | string | Tailnet lock signature error |
+|   ↳ `tailnetLockKey` | string | Tailnet lock public key |
+|   ↳ `sshEnabled` | boolean | Whether Tailscale SSH is enabled |
+|   ↳ `postureIdentity` | json | Device posture identity |
+|     ↳ `serialNumbers` | array | Serial numbers |
+|     ↳ `disabled` | boolean | Disabled |
+|   ↳ `postureStatus` | json | Device posture status |
+|     ↳ `passing` | boolean | Reports whether the device is passing this posture |
+|     ↳ `impacting` | boolean | Whether the status of this posture affects the connectivity of the device |
+|     ↳ `failingAssertions` | array | List of posture assertions the device is failing |
+|   ↳ `isEphemeral` | boolean | Whether the device is ephemeral |
+|   ↳ `distro` | json | Operating system distribution |
+|     ↳ `name` | string | Operating system distribution name |
+|     ↳ `version` | string | The operating system distribution version that the device is running |
+|     ↳ `codeName` | string | The operating system distribution code name that the device is running |
 | `count` | number | Number of returned items |
 
 </ReferenceDetails>
@@ -87,83 +136,55 @@ Get details of a specific device
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `warnings` | json | Policy warning strings from detailed Get ACL |
-| `errors` | json | Policy parsing error strings from detailed Get ACL |
-| `connectedToControl` | boolean | connectedToControl |
-| `multipleConnections` | boolean | multipleConnections |
-| `clientConnectivity` | json | Device connectivity \(endpoints, mappingVariesByDestIP, latency, clientSupports\) |
-| `tailnetLockError` | string | tailnetLockError |
-| `tailnetLockKey` | string | tailnetLockKey |
-| `sshEnabled` | boolean | sshEnabled |
-| `postureIdentity` | json | Posture identity \(serialNumbers, disabled\) |
-| `postureStatus` | json | Posture status \(passing, impacting, failingAssertions\) |
-| `isEphemeral` | boolean | isEphemeral |
-| `distro` | json | OS distribution \(name, version, codeName\) |
-| `keyType` | string | keyType |
-| `expirySeconds` | number | expirySeconds |
-| `updated` | string | updated |
-| `scopes` | json | scopes |
-| `invalid` | boolean | invalid |
-| `audience` | string | audience |
-| `issuer` | string | issuer |
-| `subject` | string | subject |
-| `customClaimRules` | json | customClaimRules |
-| `tailnetId` | string | Tailnet ID for a user |
-| `displayName` | string | User display name |
-| `loginName` | string | User login name |
-| `profilePicURL` | string | User profile picture URL |
-| `role` | string | User role |
-| `status` | string | User status |
-| `type` | string | User relationship to the tailnet |
-| `deviceCount` | number | Number of devices owned by a user |
-| `currentlyConnected` | boolean | Whether a user has a device connected to the control server |
-| `attributeKey` | string | Deleted custom posture attribute key |
-| `attributes` | json | Map of posture attribute names to string, number, or boolean values |
-| `expiries` | json | Map of posture attribute names to expiry timestamps |
-| `splitDns` | json | Map of domain names to DNS resolver arrays or null |
-| `valid` | boolean | Whether ACL validation and tests passed without warnings |
-| `message` | string | ACL validation summary |
-| `results` | json | ACL test diagnostics \[\{user, errors, warnings\}\] |
-| `settings` | json | Tailnet settings \(device and user approval, key expiry, updates, policy management, logging, routing, HTTPS\) |
-| `dnsConfiguration` | json | Full DNS configuration \(nameservers, splitDNS, searchPaths, preferences\) |
-| `devices` | json | Devices \[\{id, nodeId, hostname, user, os, tags, authorized, lastSeen, connectedToControl, updateAvailable\}\] |
-| `count` | number | Total count of items returned |
-| `id` | string | Device or auth key ID |
+| `addresses` | array | Tailscale IP addresses |
+| `id` | string | Resource ID |
 | `nodeId` | string | Preferred device ID |
-| `name` | string | Device name |
-| `hostname` | string | Device hostname |
-| `user` | string | Associated user |
-| `os` | string | Operating system |
+| `user` | string | User who registered the device |
+| `name` | string | Device MagicDNS name |
+| `hostname` | string | Device machine name |
 | `clientVersion` | string | Tailscale client version |
-| `addresses` | json | Tailscale IP addresses |
-| `tags` | json | Device or auth key tags |
-| `authorized` | boolean | Whether the device is authorized |
-| `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
-| `lastSeen` | string | Last seen timestamp |
+| `updateAvailable` | boolean | Whether a client update is available |
+| `os` | string | Operating system |
 | `created` | string | Creation timestamp |
-| `enabledRoutes` | json | Enabled subnet routes |
-| `advertisedRoutes` | json | Advertised subnet routes |
-| `isExternal` | boolean | Whether the device is external |
-| `updateAvailable` | boolean | Whether an update is available |
-| `machineKey` | string | Machine key |
-| `nodeKey` | string | Node key |
-| `success` | boolean | Whether the operation succeeded |
-| `deviceId` | string | Device ID |
-| `keyExpiryDisabled` | boolean | Whether key expiry is disabled |
-| `dns` | json | DNS nameserver addresses |
-| `magicDNS` | boolean | Whether MagicDNS is enabled |
-| `searchPaths` | json | DNS search paths |
-| `users` | json | Users \[\{id, displayName, loginName, role, status, type, tailnetId, deviceCount, currentlyConnected\}\] |
-| `keys` | json | Active keys \[\{id, keyType, userId, description, created, expires, scopes, tags, capabilities\}\] |
-| `key` | string | Auth key value \(only at creation\) |
-| `keyId` | string | Auth key ID |
-| `description` | string | Auth key description |
-| `expires` | string | Device key or auth key expiration timestamp |
-| `revoked` | string | Revocation timestamp |
-| `capabilities` | json | Device enrollment capabilities \(reusable, ephemeral, preauthorized, tags\) |
-| `acl` | string | ACL policy as JSON string |
-| `etag` | string | ACL ETag for conditional updates |
-| `userId` | string | User ID |
+| `connectedToControl` | boolean | Whether the device is connected to the control server |
+| `lastSeen` | string | Last seen timestamp; a connected device may omit it |
+| `keyExpiryDisabled` | boolean | Whether device key expiry is disabled |
+| `expires` | string | Key expiration timestamp |
+| `authorized` | boolean | Whether the device is authorized |
+| `isExternal` | boolean | Whether the device is shared from another tailnet |
+| `multipleConnections` | boolean | Whether multiple devices are using the same node key |
+| `machineKey` | string | Machine public key |
+| `nodeKey` | string | Node public key |
+| `blocksIncomingConnections` | boolean | Whether incoming connections are blocked |
+| `enabledRoutes` | array | Approved subnet routes |
+| `advertisedRoutes` | array | Advertised subnet routes |
+| `clientConnectivity` | json | Connectivity report |
+|   ↳ `endpoints` | array | Client's magicsock UDP IP:port endpoints \(IPv4 or IPv6\) |
+|   ↳ `mappingVariesByDestIP` | boolean | 'true' if the host's NAT mappings vary based on the destination IP |
+|   ↳ `latency` | json | Map of DERP server locations and their current latency |
+|   ↳ `clientSupports` | json | Identifies features supported by the client |
+|     ↳ `hairPinning` | boolean | This information is no longer tracked and will always be null |
+|     ↳ `ipv6` | boolean | 'true' if the device OS supports IPv6, regardless of whether IPv6 internet connectivity is available |
+|     ↳ `pcp` | boolean | 'true' if PCP port-mapping service exists on your router |
+|     ↳ `pmp` | boolean | 'true' if NAT-PMP port-mapping service exists on your router |
+|     ↳ `udp` | boolean | 'true' if UDP traffic is enabled on the current network; if 'false', Tailscale may be unable to make direct connections, and will rely on our DERP servers |
+|     ↳ `upnp` | boolean | 'true' if UPnP port-mapping service exists on your router |
+| `tags` | array | Assigned tags |
+| `tailnetLockError` | string | Tailnet lock signature error |
+| `tailnetLockKey` | string | Tailnet lock public key |
+| `sshEnabled` | boolean | Whether Tailscale SSH is enabled |
+| `postureIdentity` | json | Device posture identity |
+|   ↳ `serialNumbers` | array | Serial numbers |
+|   ↳ `disabled` | boolean | Disabled |
+| `postureStatus` | json | Device posture status |
+|   ↳ `passing` | boolean | Reports whether the device is passing this posture |
+|   ↳ `impacting` | boolean | Whether the status of this posture affects the connectivity of the device |
+|   ↳ `failingAssertions` | array | List of posture assertions the device is failing |
+| `isEphemeral` | boolean | Whether the device is ephemeral |
+| `distro` | json | Operating system distribution |
+|   ↳ `name` | string | Operating system distribution name |
+|   ↳ `version` | string | The operating system distribution version that the device is running |
+|   ↳ `codeName` | string | The operating system distribution code name that the device is running |
 
 </ReferenceDetails>
 
@@ -698,6 +719,18 @@ List users in the tailnet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | Users in the tailnet |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `displayName` | string | User display name |
+|   ↳ `loginName` | string | User login name |
+|   ↳ `tailnetId` | string | Owning tailnet ID |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `type` | string | User relationship: member or shared |
+|   ↳ `role` | string | User role |
+|   ↳ `status` | string | User status |
+|   ↳ `deviceCount` | number | Number of devices owned by the user |
+|   ↳ `lastSeen` | string | Last time a user device connected or the user authenticated |
+|   ↳ `currentlyConnected` | boolean | Whether the user has a device connected to the control server |
+|   ↳ `profilePicURL` | string | User profile picture URL |
 | `count` | number | Number of returned items |
 
 </ReferenceDetails>
@@ -719,83 +752,18 @@ Get details of a specific user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `warnings` | json | Policy warning strings from detailed Get ACL |
-| `errors` | json | Policy parsing error strings from detailed Get ACL |
-| `connectedToControl` | boolean | connectedToControl |
-| `multipleConnections` | boolean | multipleConnections |
-| `clientConnectivity` | json | Device connectivity \(endpoints, mappingVariesByDestIP, latency, clientSupports\) |
-| `tailnetLockError` | string | tailnetLockError |
-| `tailnetLockKey` | string | tailnetLockKey |
-| `sshEnabled` | boolean | sshEnabled |
-| `postureIdentity` | json | Posture identity \(serialNumbers, disabled\) |
-| `postureStatus` | json | Posture status \(passing, impacting, failingAssertions\) |
-| `isEphemeral` | boolean | isEphemeral |
-| `distro` | json | OS distribution \(name, version, codeName\) |
-| `keyType` | string | keyType |
-| `expirySeconds` | number | expirySeconds |
-| `updated` | string | updated |
-| `scopes` | json | scopes |
-| `invalid` | boolean | invalid |
-| `audience` | string | audience |
-| `issuer` | string | issuer |
-| `subject` | string | subject |
-| `customClaimRules` | json | customClaimRules |
-| `tailnetId` | string | Tailnet ID for a user |
+| `id` | string | Resource ID |
 | `displayName` | string | User display name |
 | `loginName` | string | User login name |
-| `profilePicURL` | string | User profile picture URL |
+| `tailnetId` | string | Owning tailnet ID |
+| `created` | string | Creation timestamp |
+| `type` | string | User relationship: member or shared |
 | `role` | string | User role |
 | `status` | string | User status |
-| `type` | string | User relationship to the tailnet |
-| `deviceCount` | number | Number of devices owned by a user |
-| `currentlyConnected` | boolean | Whether a user has a device connected to the control server |
-| `attributeKey` | string | Deleted custom posture attribute key |
-| `attributes` | json | Map of posture attribute names to string, number, or boolean values |
-| `expiries` | json | Map of posture attribute names to expiry timestamps |
-| `splitDns` | json | Map of domain names to DNS resolver arrays or null |
-| `valid` | boolean | Whether ACL validation and tests passed without warnings |
-| `message` | string | ACL validation summary |
-| `results` | json | ACL test diagnostics \[\{user, errors, warnings\}\] |
-| `settings` | json | Tailnet settings \(device and user approval, key expiry, updates, policy management, logging, routing, HTTPS\) |
-| `dnsConfiguration` | json | Full DNS configuration \(nameservers, splitDNS, searchPaths, preferences\) |
-| `devices` | json | Devices \[\{id, nodeId, hostname, user, os, tags, authorized, lastSeen, connectedToControl, updateAvailable\}\] |
-| `count` | number | Total count of items returned |
-| `id` | string | Device or auth key ID |
-| `nodeId` | string | Preferred device ID |
-| `name` | string | Device name |
-| `hostname` | string | Device hostname |
-| `user` | string | Associated user |
-| `os` | string | Operating system |
-| `clientVersion` | string | Tailscale client version |
-| `addresses` | json | Tailscale IP addresses |
-| `tags` | json | Device or auth key tags |
-| `authorized` | boolean | Whether the device is authorized |
-| `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
-| `lastSeen` | string | Last seen timestamp |
-| `created` | string | Creation timestamp |
-| `enabledRoutes` | json | Enabled subnet routes |
-| `advertisedRoutes` | json | Advertised subnet routes |
-| `isExternal` | boolean | Whether the device is external |
-| `updateAvailable` | boolean | Whether an update is available |
-| `machineKey` | string | Machine key |
-| `nodeKey` | string | Node key |
-| `success` | boolean | Whether the operation succeeded |
-| `deviceId` | string | Device ID |
-| `keyExpiryDisabled` | boolean | Whether key expiry is disabled |
-| `dns` | json | DNS nameserver addresses |
-| `magicDNS` | boolean | Whether MagicDNS is enabled |
-| `searchPaths` | json | DNS search paths |
-| `users` | json | Users \[\{id, displayName, loginName, role, status, type, tailnetId, deviceCount, currentlyConnected\}\] |
-| `keys` | json | Active keys \[\{id, keyType, userId, description, created, expires, scopes, tags, capabilities\}\] |
-| `key` | string | Auth key value \(only at creation\) |
-| `keyId` | string | Auth key ID |
-| `description` | string | Auth key description |
-| `expires` | string | Device key or auth key expiration timestamp |
-| `revoked` | string | Revocation timestamp |
-| `capabilities` | json | Device enrollment capabilities \(reusable, ephemeral, preauthorized, tags\) |
-| `acl` | string | ACL policy as JSON string |
-| `etag` | string | ACL ETag for conditional updates |
-| `userId` | string | User ID |
+| `deviceCount` | number | Number of devices owned by the user |
+| `lastSeen` | string | Last time a user device connected or the user authenticated |
+| `currentlyConnected` | boolean | Whether the user has a device connected to the control server |
+| `profilePicURL` | string | User profile picture URL |
 
 </ReferenceDetails>
 
@@ -978,6 +946,27 @@ List active auth keys, API access tokens, and trust credentials in the tailnet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keys` | array | Keys in the tailnet |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `keyType` | string | Credential type: auth, api, client, or federated |
+|   ↳ `expirySeconds` | number | Auth key lifetime in seconds |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `expires` | string | Key expiration timestamp |
+|   ↳ `revoked` | string | Revocation timestamp |
+|   ↳ `capabilities` | json | Device enrollment capabilities |
+|     ↳ `reusable` | boolean | reusable for auth keys only; reusable auth keys can be used multiple times to register different devices |
+|     ↳ `ephemeral` | boolean | ephemeral for auth keys only; ephemeral keys are used to connect and then clean up short-lived devices |
+|     ↳ `preauthorized` | boolean | preauthorized for auth keys only; these are also referred to as "pre-approved" keys |
+|     ↳ `tags` | array | Assigned tags |
+|   ↳ `scopes` | array | Granted API scopes |
+|   ↳ `tags` | array | Assigned tags |
+|   ↳ `description` | string | Key description |
+|   ↳ `invalid` | boolean | Whether the key is expired or revoked |
+|   ↳ `userId` | string | Creating user ID; empty for a tailnet-owned key |
+|   ↳ `audience` | string | Federated identity audience |
+|   ↳ `issuer` | string | Federated identity issuer |
+|   ↳ `subject` | string | Federated identity subject pattern |
+|   ↳ `customClaimRules` | json | Map of custom OIDC claims to matching patterns |
 | `count` | number | Number of returned items |
 
 </ReferenceDetails>
@@ -1000,83 +989,27 @@ Get a key’s type, owner, scopes, expiry, and device enrollment capabilities
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `warnings` | json | Policy warning strings from detailed Get ACL |
-| `errors` | json | Policy parsing error strings from detailed Get ACL |
-| `connectedToControl` | boolean | connectedToControl |
-| `multipleConnections` | boolean | multipleConnections |
-| `clientConnectivity` | json | Device connectivity \(endpoints, mappingVariesByDestIP, latency, clientSupports\) |
-| `tailnetLockError` | string | tailnetLockError |
-| `tailnetLockKey` | string | tailnetLockKey |
-| `sshEnabled` | boolean | sshEnabled |
-| `postureIdentity` | json | Posture identity \(serialNumbers, disabled\) |
-| `postureStatus` | json | Posture status \(passing, impacting, failingAssertions\) |
-| `isEphemeral` | boolean | isEphemeral |
-| `distro` | json | OS distribution \(name, version, codeName\) |
-| `keyType` | string | keyType |
-| `expirySeconds` | number | expirySeconds |
-| `updated` | string | updated |
-| `scopes` | json | scopes |
-| `invalid` | boolean | invalid |
-| `audience` | string | audience |
-| `issuer` | string | issuer |
-| `subject` | string | subject |
-| `customClaimRules` | json | customClaimRules |
-| `tailnetId` | string | Tailnet ID for a user |
-| `displayName` | string | User display name |
-| `loginName` | string | User login name |
-| `profilePicURL` | string | User profile picture URL |
-| `role` | string | User role |
-| `status` | string | User status |
-| `type` | string | User relationship to the tailnet |
-| `deviceCount` | number | Number of devices owned by a user |
-| `currentlyConnected` | boolean | Whether a user has a device connected to the control server |
-| `attributeKey` | string | Deleted custom posture attribute key |
-| `attributes` | json | Map of posture attribute names to string, number, or boolean values |
-| `expiries` | json | Map of posture attribute names to expiry timestamps |
-| `splitDns` | json | Map of domain names to DNS resolver arrays or null |
-| `valid` | boolean | Whether ACL validation and tests passed without warnings |
-| `message` | string | ACL validation summary |
-| `results` | json | ACL test diagnostics \[\{user, errors, warnings\}\] |
-| `settings` | json | Tailnet settings \(device and user approval, key expiry, updates, policy management, logging, routing, HTTPS\) |
-| `dnsConfiguration` | json | Full DNS configuration \(nameservers, splitDNS, searchPaths, preferences\) |
-| `devices` | json | Devices \[\{id, nodeId, hostname, user, os, tags, authorized, lastSeen, connectedToControl, updateAvailable\}\] |
-| `count` | number | Total count of items returned |
-| `id` | string | Device or auth key ID |
-| `nodeId` | string | Preferred device ID |
-| `name` | string | Device name |
-| `hostname` | string | Device hostname |
-| `user` | string | Associated user |
-| `os` | string | Operating system |
-| `clientVersion` | string | Tailscale client version |
-| `addresses` | json | Tailscale IP addresses |
-| `tags` | json | Device or auth key tags |
-| `authorized` | boolean | Whether the device is authorized |
-| `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
-| `lastSeen` | string | Last seen timestamp |
+| `id` | string | Resource ID |
+| `keyType` | string | Credential type: auth, api, client, or federated |
+| `expirySeconds` | number | Auth key lifetime in seconds |
 | `created` | string | Creation timestamp |
-| `enabledRoutes` | json | Enabled subnet routes |
-| `advertisedRoutes` | json | Advertised subnet routes |
-| `isExternal` | boolean | Whether the device is external |
-| `updateAvailable` | boolean | Whether an update is available |
-| `machineKey` | string | Machine key |
-| `nodeKey` | string | Node key |
-| `success` | boolean | Whether the operation succeeded |
-| `deviceId` | string | Device ID |
-| `keyExpiryDisabled` | boolean | Whether key expiry is disabled |
-| `dns` | json | DNS nameserver addresses |
-| `magicDNS` | boolean | Whether MagicDNS is enabled |
-| `searchPaths` | json | DNS search paths |
-| `users` | json | Users \[\{id, displayName, loginName, role, status, type, tailnetId, deviceCount, currentlyConnected\}\] |
-| `keys` | json | Active keys \[\{id, keyType, userId, description, created, expires, scopes, tags, capabilities\}\] |
-| `key` | string | Auth key value \(only at creation\) |
-| `keyId` | string | Auth key ID |
-| `description` | string | Auth key description |
-| `expires` | string | Device key or auth key expiration timestamp |
+| `updated` | string | Last update timestamp |
+| `expires` | string | Key expiration timestamp |
 | `revoked` | string | Revocation timestamp |
-| `capabilities` | json | Device enrollment capabilities \(reusable, ephemeral, preauthorized, tags\) |
-| `acl` | string | ACL policy as JSON string |
-| `etag` | string | ACL ETag for conditional updates |
-| `userId` | string | User ID |
+| `capabilities` | json | Device enrollment capabilities |
+|   ↳ `reusable` | boolean | reusable for auth keys only; reusable auth keys can be used multiple times to register different devices |
+|   ↳ `ephemeral` | boolean | ephemeral for auth keys only; ephemeral keys are used to connect and then clean up short-lived devices |
+|   ↳ `preauthorized` | boolean | preauthorized for auth keys only; these are also referred to as "pre-approved" keys |
+|   ↳ `tags` | array | Assigned tags |
+| `scopes` | array | Granted API scopes |
+| `tags` | array | Assigned tags |
+| `description` | string | Key description |
+| `invalid` | boolean | Whether the key is expired or revoked |
+| `userId` | string | Creating user ID; empty for a tailnet-owned key |
+| `audience` | string | Federated identity audience |
+| `issuer` | string | Federated identity issuer |
+| `subject` | string | Federated identity subject pattern |
+| `customClaimRules` | json | Map of custom OIDC claims to matching patterns |
 
 </ReferenceDetails>
 
@@ -1123,7 +1056,7 @@ Get the tailnet policy file
 | --------- | ---- | ----------- |
 | `warnings` | array | Policy warnings |
 | `errors` | array | Policy parsing errors |
-| `acl` | string | Tailnet policy file as a JSON string |
+| `acl` | string | Tailnet policy as JSON, or the original HuJSON when diagnostics are enabled |
 | `etag` | string | Policy ETag for conditional updates |
 
 </ReferenceDetails>

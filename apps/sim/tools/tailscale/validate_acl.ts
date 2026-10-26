@@ -56,7 +56,9 @@ export const tailscaleValidateAclTool: ToolConfig<
     return {
       success: true,
       output: {
-        valid: !data.message && !data.data?.some((result) => result.errors?.length),
+        valid:
+          !data.message &&
+          !data.data?.some((result) => result.errors?.length || result.warnings?.length),
         message: data.message ?? null,
         results: (data.data ?? []).map((result) => ({
           user: result.user ?? null,
@@ -74,7 +76,7 @@ export const tailscaleValidateAclTool: ToolConfig<
     message: {
       type: 'string',
       description: 'Validation summary',
-      optional: true,
+      nullable: true,
     },
     results: {
       type: 'array',
@@ -85,7 +87,7 @@ export const tailscaleValidateAclTool: ToolConfig<
           user: {
             type: 'string',
             description: 'Test identity',
-            optional: true,
+            nullable: true,
           },
           errors: {
             type: 'array',
