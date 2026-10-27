@@ -1,6 +1,10 @@
 {
   "title": "Search",
   "pages": [
+    "---User guides---",
+    "find-content",
+    "ask-questions",
+    "---Connect sources---",
     "connect-your-account",
     "coda",
     "confluence",
