@@ -41,6 +41,8 @@ function assertIntegerInRange(name: string, value: number | undefined, min: numb
 export async function runSealAccountTokens(payload: SealAccountTokensPayload) {
   const { mode, dryRun, expectedKeyId, batchSize, pauseMs } = payload
   if (mode !== 'seal' && mode !== 'unseal') throw new Error(`Unknown mode ${String(mode)}`)
+  if (typeof dryRun !== 'boolean') throw new Error('dryRun must be a boolean')
+  if (typeof expectedKeyId !== 'string') throw new Error('expectedKeyId must be a string')
   assertIntegerInRange('batchSize', batchSize, 1, MAX_BATCH_SIZE)
   assertIntegerInRange('pauseMs', pauseMs, 0, MAX_PAUSE_MS)
 

@@ -3,8 +3,8 @@
  */
 
 import { sealingKeyId } from '@sim/security/encryption'
-import { databaseMockFns } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { databaseMockFns } from '@sim/testing/mocks/database.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPostgres } = vi.hoisted(() => ({ mockPostgres: vi.fn() }))
 
@@ -12,7 +12,10 @@ vi.mock('postgres', () => ({ default: mockPostgres }))
 /** The pass derives each column's sealing context from the real column definitions. */
 vi.unmock('@sim/db/schema')
 
-import { runSealAccountTokens } from '@/background/seal-account-tokens'
+import {
+  runSealAccountTokens,
+  type SealAccountTokensPayload,
+} from '@/background/seal-account-tokens'
 
 const ENCRYPTION_KEY = 'ab'.repeat(32)
 const WORKER_KEY_ID = sealingKeyId(Buffer.from(ENCRYPTION_KEY, 'hex'))
@@ -31,14 +34,17 @@ describe('runSealAccountTokens', () => {
     mockPostgres.mockImplementation(emptyAccountTable)
   })
 
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   it('refuses a real seal under a key id other than the worker’s, before connecting', async () => {
     await expect(
       runSealAccountTokens({ mode: 'seal', dryRun: false, expectedKeyId: 'deadbeef' })
     ).rejects.toThrow(`ENCRYPTION_KEY has key id ${WORKER_KEY_ID}, not the expected deadbeef`)
+    expect(mockPostgres).not.toHaveBeenCalled()
+  })
+
+  it('refuses a payload without dryRun instead of treating it as a real run', async () => {
+    const payload = { mode: 'seal', expectedKeyId: WORKER_KEY_ID } as SealAccountTokensPayload
+
+    await expect(runSealAccountTokens(payload)).rejects.toThrow('dryRun must be a boolean')
     expect(mockPostgres).not.toHaveBeenCalled()
   })
 
