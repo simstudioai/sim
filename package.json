@@ -231,6 +231,7 @@
     "postgres@3.4.9": "patches/postgres@3.4.9.patch",
     "oracledb@7.0.1": "patches/oracledb@7.0.1.patch",
     "echarts@6.1.0": "patches/echarts@6.1.0.patch",
-    "next@16.4.1": "patches/next@16.4.1.patch"
+    "next@16.4.1": "patches/next@16.4.1.patch",
+    "zod@4.3.6": "patches/zod@4.3.6.patch"
   }
 }
