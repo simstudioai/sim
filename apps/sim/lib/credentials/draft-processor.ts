@@ -15,6 +15,7 @@ import {
   handleReconnectCredential,
 } from '@/lib/credentials/draft-hooks'
 import { completeOrganizationCredentialDraft } from '@/lib/credentials/organization-draft'
+import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { clearOAuthRefreshFailure } from '@/lib/oauth/credential-service'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
@@ -125,7 +126,6 @@ interface CredentialReconnectConflictParams {
     idToken?: string | null
     accessTokenExpiresAt?: Date | null
     refreshTokenExpiresAt?: Date | null
-    scope?: string | null
   }
   oauthState: OAuthStateWithCallbackUrl | null | undefined
 }
@@ -144,9 +144,10 @@ interface CredentialReconnectConflictParams {
  *
  * Returning before the insert leaves every credential bound to the account it
  * had. The grant itself is still real, so its tokens replace the ones on the
- * identity's existing rows, the same tokens those credentials would have
- * inherited from the new row, and a provider that rotates on reauthorization
- * cannot strand them on a dead chain.
+ * identity's existing rows and their connectors resume, as they would have on
+ * the new row, and a provider that rotates on reauthorization cannot strand
+ * them on a dead chain. Each row keeps its stored scope, which can carry state
+ * a fresh grant does not repeat (a Salesforce instance host).
  */
 export async function refuseConflictingCredentialReconnect(
   params: CredentialReconnectConflictParams
@@ -197,6 +198,7 @@ export async function refuseConflictingCredentialReconnect(
   })
   if (!conflicting) return null
 
+  const now = new Date()
   await db
     .update(schema.account)
     .set({
@@ -206,12 +208,14 @@ export async function refuseConflictingCredentialReconnect(
         idToken: account.idToken ?? undefined,
         accessTokenExpiresAt: account.accessTokenExpiresAt ?? undefined,
         refreshTokenExpiresAt: account.refreshTokenExpiresAt ?? undefined,
-        scope: account.scope ?? undefined,
       }),
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(inArray(schema.account.id, identityAccountIds))
-  await Promise.all(identityAccountIds.map((id) => clearOAuthRefreshFailure(id)))
+  for (const id of identityAccountIds) {
+    await clearOAuthRefreshFailure(id)
+    await resumeConnectorsAfterCredentialReconnect(id, now)
+  }
 
   await db
     .delete(schema.pendingCredentialDraft)
