@@ -2,17 +2,28 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
+  OAUTH_CREDENTIAL_ACCOUNT_CONFLICT_ERROR,
+  OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM,
+} from '@/lib/credentials/draft-constants'
+import {
+  findConflictingWorkspaceCredential,
   handleCreateCredentialFromDraft,
   handleReconnectCredential,
 } from '@/lib/credentials/draft-hooks'
 import { completeOrganizationCredentialDraft } from '@/lib/credentials/organization-draft'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
+import type { OAuthProvider } from '@/lib/oauth/types'
+import { parseProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('CredentialDraftProcessor')
 
 interface OAuthStateWithCallbackUrl {
   callbackURL?: unknown
+  errorURL?: unknown
 }
 
 export type OAuthCredentialDraftBinding =
@@ -77,14 +88,18 @@ export async function loadOAuthCredentialDraftBinding(
   }
 }
 
-/** Captures request-scoped OAuth state before Better Auth defers its account after-hook. */
+/**
+ * Captures request-scoped OAuth state before Better Auth defers its account
+ * after-hook, returning the draft id the state carries.
+ */
 export async function captureOAuthCredentialDraftBinding(
   context: object,
   loadOAuthState: () => Promise<OAuthStateWithCallbackUrl | null | undefined>
-): Promise<void> {
+): Promise<string | undefined> {
   const binding = await loadOAuthCredentialDraftBinding(loadOAuthState)
   if (binding.status === 'unavailable') throw binding.error
   oauthCredentialDraftBindings.set(context, binding)
+  return binding.draftId
 }
 
 /** Consumes the binding captured for the same Better Auth account-hook context. */
@@ -94,6 +109,106 @@ export function consumeOAuthCredentialDraftBinding(
   const binding = oauthCredentialDraftBindings.get(context)
   oauthCredentialDraftBindings.delete(context)
   return binding
+}
+
+interface CredentialReconnectConflictParams {
+  draftId: string
+  userId: string
+  providerId: string
+  /** The provider identity Better Auth is about to store, still carrying its random suffix. */
+  externalAccountId: string
+  oauthState: OAuthStateWithCallbackUrl | null | undefined
+}
+
+/**
+ * Decides, before Better Auth inserts the account row, whether completing this
+ * reconnect draft would collide with another credential in its workspace.
+ *
+ * A new row for an external identity inherits every credential on that
+ * identity's older rows (the stale-sibling migration in `account.create.after`),
+ * so a reconnect onto an identity that already backs another credential in the
+ * workspace would leave two credentials on one account. When it would, the
+ * draft is discarded and this returns where to send the user: the page the
+ * reconnect started from, carrying the reason as the `error` and
+ * `error_description` the OAuth return handlers already read. Returning before
+ * the insert leaves every credential and account exactly as it was.
+ */
+export async function findCredentialReconnectConflictRedirect(
+  params: CredentialReconnectConflictParams
+): Promise<string | null> {
+  const { draftId, userId, providerId, externalAccountId, oauthState } = params
+  const stableIdentity = stableExternalAccountId(externalAccountId)
+  if (!stableIdentity) return null
+
+  const [draft] = await db
+    .select({
+      credentialId: schema.pendingCredentialDraft.credentialId,
+      workspaceId: schema.pendingCredentialDraft.workspaceId,
+    })
+    .from(schema.pendingCredentialDraft)
+    .where(
+      and(
+        eq(schema.pendingCredentialDraft.id, draftId),
+        eq(schema.pendingCredentialDraft.userId, userId),
+        eq(schema.pendingCredentialDraft.providerId, providerId),
+        sql`${schema.pendingCredentialDraft.expiresAt} > NOW()`
+      )
+    )
+    .limit(1)
+  if (!draft?.credentialId || !draft.workspaceId) return null
+
+  const [reconnecting] = await db
+    .select({ accountId: schema.credential.accountId })
+    .from(schema.credential)
+    .where(eq(schema.credential.id, draft.credentialId))
+    .limit(1)
+  if (!reconnecting) return null
+
+  const identityAccountIds = (
+    await db
+      .select({ id: schema.account.id, accountId: schema.account.accountId })
+      .from(schema.account)
+      .where(and(eq(schema.account.userId, userId), eq(schema.account.providerId, providerId)))
+  )
+    .filter((row) => stableExternalAccountId(row.accountId) === stableIdentity)
+    .map((row) => row.id)
+  if (reconnecting.accountId && identityAccountIds.includes(reconnecting.accountId)) return null
+
+  const conflicting = await findConflictingWorkspaceCredential({
+    credentialId: draft.credentialId,
+    workspaceId: draft.workspaceId,
+    accountIds: identityAccountIds,
+  })
+  if (!conflicting) return null
+
+  await db
+    .delete(schema.pendingCredentialDraft)
+    .where(eq(schema.pendingCredentialDraft.id, draftId))
+
+  logger.warn('Refused a credential reconnect onto an account another credential uses', {
+    draftId,
+    userId,
+    providerId,
+    credentialId: draft.credentialId,
+    conflictingCredentialId: conflicting.id,
+  })
+
+  const returnUrl = [oauthState?.callbackURL, oauthState?.errorURL].find(
+    (url): url is string => typeof url === 'string' && url.length > 0
+  )
+  const redirectUrl = new URL(returnUrl ?? APP_ENTRY_PATH, getBaseUrl())
+  redirectUrl.searchParams.delete(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM)
+  redirectUrl.searchParams.set('error', OAUTH_CREDENTIAL_ACCOUNT_CONFLICT_ERROR)
+  redirectUrl.searchParams.set(
+    'error_description',
+    `That ${providerDisplayName(providerId)} account is already connected in this workspace as "${conflicting.displayName}". Use that connection, or reconnect with the account that belongs to this one.`
+  )
+  return redirectUrl.toString()
+}
+
+function providerDisplayName(providerId: string): string {
+  const { baseProvider } = parseProvider(providerId as OAuthProvider)
+  return OAUTH_PROVIDERS[baseProvider]?.name ?? 'provider'
 }
 
 interface ProcessCredentialDraftParams {

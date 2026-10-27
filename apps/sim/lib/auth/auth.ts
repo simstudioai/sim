@@ -40,6 +40,7 @@ import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
   applyRegistrationGate,
@@ -142,9 +143,11 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { trustedProxies } from '@/lib/core/utils/request'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
+import { CredentialAccountConflictError } from '@/lib/credentials/draft-hooks'
 import {
   captureOAuthCredentialDraftBinding,
   consumeOAuthCredentialDraftBinding,
+  findCredentialReconnectConflictRedirect,
   processCredentialDraft,
 } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -502,8 +505,9 @@ export const auth = betterAuth({
           const modifiedAccount = { ...account }
 
           if (context?.path.startsWith('/oauth2/callback/')) {
+            let draftId: string | undefined
             try {
-              await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
+              draftId = await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
             } catch (error) {
               logger.error('[account.create.before] Failed to read OAuth credential draft state', {
                 userId: account.userId,
@@ -511,6 +515,26 @@ export const auth = betterAuth({
                 error,
               })
               throw error
+            }
+
+            /**
+             * The after-hook runs once the callback has already answered, so a
+             * reconnect onto an account another credential in the workspace
+             * uses has to be refused here, before the row exists, to send the
+             * user back with a reason instead of a 500.
+             */
+            if (draftId) {
+              const conflictRedirectUrl = await findCredentialReconnectConflictRedirect({
+                draftId,
+                userId: account.userId,
+                providerId: account.providerId,
+                externalAccountId: account.accountId,
+                oauthState: await getOAuthState(),
+              })
+              if (conflictRedirectUrl) {
+                consumeOAuthCredentialDraftBinding(context)
+                throw new APIError('FOUND', undefined, { location: conflictRedirectUrl })
+              }
             }
           }
 
@@ -544,19 +568,15 @@ export const auth = betterAuth({
           /**
            * Migrate credentials from stale account rows to the newly created one.
            *
-           * Each `getUserInfo` in `lib/auth/connectors/providers.ts` appends a
-           * random UUID to the stable external ID so that Better Auth never
-           * blocks cross-user connections — keep the two in step. This means
-           * re-connecting the same external identity creates a new row. We detect
-           * the stale siblings here by comparing the stable prefix (everything
-           * before the trailing UUID), migrate any credential FKs to the new row,
-           * then delete the stale rows.
+           * Re-connecting the same external identity creates a new row (see
+           * `stableExternalAccountId`). We detect the stale siblings here by
+           * comparing the stable prefix, migrate any credential FKs to the new
+           * row, then delete the stale rows.
            */
           try {
-            const UUID_SUFFIX_RE = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-            const stablePrefix = account.accountId.replace(UUID_SUFFIX_RE, '')
+            const stablePrefix = stableExternalAccountId(account.accountId)
 
-            if (stablePrefix && stablePrefix !== account.accountId) {
+            if (stablePrefix) {
               const siblings = await db
                 .select({ id: schema.account.id, accountId: schema.account.accountId })
                 .from(schema.account)
@@ -569,7 +589,7 @@ export const auth = betterAuth({
                 )
 
               const staleRows = siblings.filter(
-                (row) => row.accountId.replace(UUID_SUFFIX_RE, '') === stablePrefix
+                (row) => stableExternalAccountId(row.accountId) === stablePrefix
               )
 
               if (staleRows.length > 0) {
@@ -653,12 +673,21 @@ export const auth = betterAuth({
                 accountId: account.id,
               })
             } catch (error) {
-              logger.error('[account.create.after] Failed to process credential draft', {
-                userId: account.userId,
-                providerId: account.providerId,
-                error,
-              })
-              if (credentialDraftBinding.draftId) throw error
+              if (error instanceof CredentialAccountConflictError) {
+                logger.warn('[account.create.after] Refused a conflicting credential reconnect', {
+                  userId: account.userId,
+                  providerId: account.providerId,
+                  credentialId: error.credentialId,
+                  conflictingCredentialId: error.conflictingCredentialId,
+                })
+              } else {
+                logger.error('[account.create.after] Failed to process credential draft', {
+                  userId: account.userId,
+                  providerId: account.providerId,
+                  error,
+                })
+                if (credentialDraftBinding.draftId) throw error
+              }
             }
           }
 
