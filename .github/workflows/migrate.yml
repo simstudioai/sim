@@ -38,6 +38,14 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
     timeout-minutes: 300
+    # One migrate job per environment at a time, so a manual dispatch queues
+    # behind a CI run instead of racing it for migrate.ts's advisory lock, which
+    # gives up after 30 minutes. Job-level because a called workflow evaluates
+    # workflow-level concurrency with the caller's github context; the group
+    # must also never equal ci.yml's ci-<ref> group or the two deadlock.
+    concurrency:
+      group: migrate-${{ inputs.environment }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
