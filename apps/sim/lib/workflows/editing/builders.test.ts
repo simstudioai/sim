@@ -20,7 +20,7 @@ import { TailscaleBlock } from '@/blocks/blocks/tailscale'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { tailscaleAuthorizeDeviceTool } from '@/tools/tailscale'
+import { tailscaleAuthorizeDeviceTool, tailscaleCreateAuthKeyTool } from '@/tools/tailscale'
 
 const mockIsIntegrationDeploymentAvailable =
   integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
@@ -213,6 +213,20 @@ describe('createBlockFromParams', () => {
       })
     ).toMatchObject({ authorized: false })
   })
+
+  it.each(['', '   ', null, undefined])(
+    'omits cleared auth-key expiry %j so the provider default applies',
+    (expirySeconds) => {
+      const transform = TailscaleBlock.tools?.config?.params
+      if (!transform) throw new Error('Tailscale has no parameter transform')
+      const body = tailscaleCreateAuthKeyTool.request.body?.({
+        apiKey: 'test-token',
+        tailnet: '-',
+        ...transform({ operation: 'create_auth_key', expirySeconds }),
+      })
+      expect(JSON.stringify(body)).not.toContain('"expirySeconds"')
+    }
+  )
 
   it('exposes the output ports of the seeded Agent default', () => {
     const block = createBlockFromParams(

@@ -3,8 +3,12 @@ import { toRecord } from '@sim/utils/object'
 import type {
   TailscaleDevice,
   TailscaleDeviceOutput,
+  TailscaleDnsConfiguration,
+  TailscaleGetDnsConfigurationResponse,
+  TailscaleGetTailnetSettingsResponse,
   TailscaleKey,
   TailscaleKeyOutput,
+  TailscaleTailnetSettings,
   TailscaleUser,
   TailscaleUserOutput,
 } from '@/tools/tailscale/types'
@@ -114,5 +118,36 @@ export function mapTailscaleKey(data: TailscaleKey): TailscaleKeyOutput {
     issuer: data.issuer ?? null,
     subject: data.subject ?? null,
     customClaimRules: data.customClaimRules ?? null,
+  }
+}
+
+export function mapTailscaleDnsConfiguration(
+  data: TailscaleDnsConfiguration
+): TailscaleGetDnsConfigurationResponse['output']['dnsConfiguration'] {
+  return {
+    nameservers: data.nameservers ?? [],
+    splitDNS: data.splitDNS ?? null,
+    searchPaths: data.searchPaths ?? [],
+    preferences: data.preferences ?? null,
+  }
+}
+
+export function mapTailscaleTailnetSettings(
+  data: TailscaleTailnetSettings
+): TailscaleGetTailnetSettingsResponse['output']['settings'] {
+  return {
+    aclsExternallyManagedOn: data.aclsExternallyManagedOn ?? null,
+    aclsExternalLink: data.aclsExternalLink ?? null,
+    adminConsoleSessionTimeoutMinutes: data.adminConsoleSessionTimeoutMinutes ?? null,
+    devicesApprovalOn: data.devicesApprovalOn ?? null,
+    devicesAutoUpdatesOn: data.devicesAutoUpdatesOn ?? null,
+    devicesKeyDurationDays: data.devicesKeyDurationDays ?? null,
+    usersApprovalOn: data.usersApprovalOn ?? null,
+    usersRoleAllowedToJoinExternalTailnets: data.usersRoleAllowedToJoinExternalTailnets ?? null,
+    networkFlowLoggingOn: data.networkFlowLoggingOn ?? null,
+    regionalRoutingOn: data.regionalRoutingOn ?? null,
+    routeSelection: data.routeSelection ?? null,
+    postureIdentityCollectionOn: data.postureIdentityCollectionOn ?? null,
+    httpsEnabled: data.httpsEnabled ?? null,
   }
 }
