@@ -459,7 +459,7 @@ export const env = createEnv({
     IVM_MAX_BROKERS_PER_EXECUTION:         z.string().optional().default('1000'),    // Max broker calls per sandbox task execution
     IVM_REMOTE_WORKER_URL:                 z.string().optional(),                    // ws(s)://<host>/v1/worker of a dedicated worker host; workers run there unless the isolated-vm-local-workers kill switch is on
     IVM_REMOTE_WORKER_TOKEN:               z.string().optional(),                    // Token the worker host expects (its IVM_HOST_TOKEN, >= 32 chars); required with IVM_REMOTE_WORKER_URL
-    IVM_REMOTE_WORKER_MAX_AGE_MS:          z.string().optional().default('120000'), // Age at which a worker host connection stops taking executions, so host deploys drain; keep below the host's deregistration delay
+    IVM_REMOTE_WORKER_MAX_AGE_MS:          z.coerce.number().int().positive().optional(), // (default 120000) Age at which a worker host connection stops taking executions, so host deploys drain; keep below the host's deregistration delay
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)

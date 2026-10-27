@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
@@ -154,7 +154,10 @@ const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WOR
  * delay and never tells the host, so this bound is what drains a host deploy or scale-in: infra
  * sets that delay to at least this age plus the longest execution a release keeps alive.
  */
-const REMOTE_WORKER_MAX_AGE_MS = Number.parseInt(env.IVM_REMOTE_WORKER_MAX_AGE_MS) || 120_000
+const REMOTE_WORKER_MAX_AGE_MS = envNumber(env.IVM_REMOTE_WORKER_MAX_AGE_MS, 120_000, {
+  min: 1000,
+  integer: true,
+})
 /** Spreads retirements so a pool's connections don't all reopen at once; only ever shortens the age. */
 const REMOTE_WORKER_MAX_AGE_JITTER = 0.2
 /** Times one execution moves to another worker because its connection closed before it was sent. */
@@ -1380,7 +1383,9 @@ function dispatchToWorker(
       workerInfo.retiring = true
       if (workerInfo.activeExecutions === 0) cleanupWorker(workerInfo.id)
       // The owner's state may have been released above; look it up again rather than queue on it.
-      queueMicrotask(() =>
+      queueMicrotask(() => {
+        // An abort in between already settled the caller and has no queue entry to remove.
+        if (state.cancelled) return
         enqueueExecution(
           getOrCreateOwnerState(ownerState.ownerKey, ownerState.weight),
           req,
@@ -1388,7 +1393,7 @@ function dispatchToWorker(
           state,
           brokers
         )
-      )
+      })
       return
     }
     resolve({
@@ -1549,7 +1554,6 @@ export async function executeInIsolatedVM(
 ): Promise<IsolatedVMExecutionResult> {
   const ownerKey = normalizeOwnerKey(req.ownerKey)
   const ownerWeight = normalizeOwnerWeight(req.ownerWeight)
-  const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)
   const brokers = options?.brokers
   const signal = options?.signal
 
@@ -1642,6 +1646,9 @@ export async function executeInIsolatedVM(
   // An undetermined lease cannot reject the execution: the per-process pool and
   // the per-owner active/queued limits above still bound this work.
 
+  // Looked up only after the waits above: another execution finishing meanwhile can release
+  // this owner's state, and work queued on a released state is never dispatched.
+  const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)
   const state: ExecutionState = {
     cancelled: false,
     runInOutboundScope: captureOutboundScope(),

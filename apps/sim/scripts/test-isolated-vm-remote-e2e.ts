@@ -199,6 +199,60 @@ function upgradeStatus(host: Host, options: { path?: string } = {}): Promise<num
   })
 }
 
+/** A client-to-server text frame header, masked with a zero key so the payload goes as is. */
+function maskedTextFrameHeader(payloadBytes: number): Buffer {
+  if (payloadBytes < 126) return Buffer.from([0x81, 0x80 | payloadBytes, 0, 0, 0, 0])
+  const header = Buffer.alloc(14)
+  header[0] = 0x81
+  header[1] = 0x80 | 127
+  header.writeBigUInt64BE(BigInt(payloadBytes), 2)
+  return header
+}
+
+/**
+ * Upgrades a raw socket, optionally sends `firstFrame`, then declares a 32 MiB frame (under the
+ * host's message limit) and streams 1 MiB of it without ever authenticating. Resolves with
+ * whether the host closed the connection within a second.
+ */
+async function streamUnauthenticated(host: Host, firstFrame?: string): Promise<'closed' | 'open'> {
+  const socket = connect(host.port, '127.0.0.1')
+  socket.on('error', () => {})
+  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()))
+  await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+  const handshake = new Promise<string>((resolve) =>
+    socket.once('data', (data: Buffer) => resolve(data.toString()))
+  )
+  socket.write(
+    [
+      'GET /v1/worker HTTP/1.1',
+      `Host: 127.0.0.1:${host.port}`,
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      'Sec-WebSocket-Version: 13',
+      `Sec-WebSocket-Key: ${Buffer.from(generateRandomBytes(16)).toString('base64')}`,
+      '',
+      '',
+    ].join('\r\n')
+  )
+  const response = await handshake
+  assert.match(response, /^HTTP\/1\.1 101/, `Expected the upgrade to be accepted: ${response}`)
+  if (firstFrame) {
+    const payload = Buffer.from(firstFrame)
+    socket.write(Buffer.concat([maskedTextFrameHeader(payload.length), payload]))
+  }
+  socket.write(maskedTextFrameHeader(32 * 1024 * 1024))
+  const chunk = Buffer.alloc(64 * 1024)
+  for (let sent = 0; sent < 1024 * 1024 && !socket.destroyed; sent += chunk.length) {
+    socket.write(chunk)
+  }
+  const outcome = await Promise.race([
+    closed.then(() => 'closed' as const),
+    sleep(1000).then(() => 'open' as const),
+  ])
+  socket.destroy()
+  return outcome
+}
+
 /** Opens a connection and sends `firstFrame`; resolves with the socket once it opens. */
 function openSocket(host: Host, firstFrame: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
@@ -312,9 +366,15 @@ async function run() {
   const { executeInIsolatedVM } = await import('@/lib/execution/isolated-vm')
 
   // The isolate has no timers; a slow upstream holds an execution open the way real ones run long.
+  // `/hold` answers only when the check releases it, so an inspection never races the execution.
+  let onHeld: (release: () => void) => void = () => {}
   const slowServer = createHttpServer((req, res) => {
-    const delay = Number(new URL(req.url ?? '/', 'http://slow').searchParams.get('ms'))
-    setTimeout(() => res.end('done'), delay)
+    const url = new URL(req.url ?? '/', 'http://slow')
+    if (url.pathname === '/hold') {
+      onHeld(() => res.end('done'))
+      return
+    }
+    setTimeout(() => res.end('done'), Number(url.searchParams.get('ms')))
   })
   await new Promise<void>((resolve) => slowServer.listen(0, '127.0.0.1', resolve))
   const slowAddress = slowServer.address()
@@ -345,12 +405,19 @@ async function run() {
 
   /** Inspects workers while an execution holds one open, since an idle worker can retire at any time. */
   const whileAWorkerRuns = async (inspect: () => void) => {
-    const running = execute(slowFetch(500))
-    await sleep(200)
+    const held = new Promise<() => void>((resolve) => {
+      onHeld = resolve
+    })
+    const running = execute(
+      `const r = await fetch('http://127.0.0.1:${slowAddress.port}/hold'); return await r.text()`
+    )
+    const release = await held
     try {
       inspect()
     } finally {
-      await running
+      release()
+      const result = await running
+      assert.equal(result.result, 'done', result.error?.message)
     }
   }
 
@@ -437,46 +504,14 @@ async function run() {
   })
 
   await check('drops a connection that streams a large frame before authenticating', async () => {
-    const socket = connect(probeHost.port, '127.0.0.1')
-    socket.on('error', () => {})
-    const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()))
-    await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
-    const handshake = new Promise<string>((resolve) =>
-      socket.once('data', (data: Buffer) => resolve(data.toString()))
-    )
-    socket.write(
-      [
-        'GET /v1/worker HTTP/1.1',
-        `Host: 127.0.0.1:${probeHost.port}`,
-        'Upgrade: websocket',
-        'Connection: Upgrade',
-        'Sec-WebSocket-Version: 13',
-        `Sec-WebSocket-Key: ${Buffer.from(generateRandomBytes(16)).toString('base64')}`,
-        '',
-        '',
-      ].join('\r\n')
-    )
-    const response = await handshake
-    assert.match(response, /^HTTP\/1\.1 101/, `Expected the upgrade to be accepted: ${response}`)
-
-    // A masked text frame that declares 32 MiB, under the host's message limit, and never authenticates.
-    const header = Buffer.alloc(14)
-    header[0] = 0x81
-    header[1] = 0x80 | 127
-    header.writeBigUInt64BE(BigInt(32 * 1024 * 1024), 2)
-    socket.write(header)
-    const chunk = Buffer.alloc(64 * 1024)
-    for (let sent = 0; sent < 1024 * 1024 && !socket.destroyed; sent += chunk.length) {
-      socket.write(chunk)
-    }
-    const outcome = await Promise.race([
-      closed.then(() => 'closed' as const),
-      sleep(1000).then(() => 'open' as const),
-    ])
-    socket.destroy()
-    assert.equal(outcome, 'closed', 'The host kept buffering an unauthenticated frame')
+    assert.equal(await streamUnauthenticated(probeHost), 'closed', 'The host kept buffering')
     const health = await fetch(`http://127.0.0.1:${probeHost.port}/health`)
     assert.equal(health.status, 200)
+  })
+
+  await check('drops a refused connection that ignores the close and keeps sending', async () => {
+    const refusedAuth = authFrame(generateRandomHex(32))
+    assert.equal(await streamUnauthenticated(probeHost, refusedAuth), 'closed')
   })
 
   await check('rejects an unparseable request target and keeps serving', async () => {

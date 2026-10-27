@@ -195,16 +195,19 @@ server.on('upgrade', (req, socket, head) => {
 function authenticate(ws, socket) {
   pendingConnections++
   let settled = false
+  let authenticated = false
   let preAuthBytes = 0
   // Counts what arrives on the TCP socket, so an oversized frame is cut off as it streams in
   // rather than after ws has buffered all of it.
   const onPreAuthData = (chunk) => {
     // ws parses each chunk before this listener runs, so the chunk that authenticated still arrives.
-    if (settled) return
+    // A refused connection stays counted: its peer may ignore the close and keep sending.
+    if (authenticated) return
     preAuthBytes += chunk.length
     if (preAuthBytes <= MAX_PRE_AUTH_BYTES) return
-    settle()
-    log('warn', 'Rejected worker connection', { reason: 'too much data before authentication' })
+    if (settle()) {
+      log('warn', 'Rejected worker connection', { reason: 'too much data before authentication' })
+    }
     socket.destroy()
   }
   const settle = () => {
@@ -212,7 +215,6 @@ function authenticate(ws, socket) {
     settled = true
     pendingConnections--
     clearTimeout(authTimeout)
-    socket.off('data', onPreAuthData)
     return true
   }
   const refuse = (reason) => {
@@ -237,6 +239,8 @@ function authenticate(ws, socket) {
       return
     }
     if (!settle()) return
+    authenticated = true
+    socket.off('data', onPreAuthData)
     if (draining) {
       ws.close(1012, 'draining')
       return
