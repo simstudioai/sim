@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
+import toolOutputs from '../apps/sim/tools/generated/tool-outputs'
 import {
   escapeMdxCell,
   extractAllBlockConfigs,
@@ -51,6 +52,31 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it.each(['tailscale_get_device', 'tailscale_list_devices'])(
+    'preserves the runtime output field paths when %s imports a sibling schema',
+    async (toolId) => {
+      interface OutputNode {
+        properties?: Record<string, OutputNode>
+        items?: { properties?: Record<string, OutputNode> }
+      }
+      const fieldPaths = (outputs: Record<string, OutputNode>, prefix = ''): string[] =>
+        Object.entries(outputs)
+          .flatMap(([key, output]) => {
+            const field = prefix ? `${prefix}.${key}` : key
+            return [
+              field,
+              ...fieldPaths(output.properties ?? output.items?.properties ?? {}, field),
+            ]
+          })
+          .sort()
+
+      const info = await getToolInfo(toolId)
+      expect(fieldPaths(info?.outputs ?? {})).toEqual(
+        fieldPaths(toolOutputs[toolId] as Record<string, OutputNode>)
+      )
+    }
+  )
+
   it('does not publish unrelated block fields for operations with no response body', () => {
     const page = fs.readFileSync(
       path.resolve(import.meta.dirname, '../apps/docs/content/docs/integrations/greenhouse.mdx'),

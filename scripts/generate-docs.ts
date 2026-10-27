@@ -2882,20 +2882,20 @@ function resolveConstReference(
     return constResolutionCache.get(cacheKey)!
   }
 
-  const typesFilePath = path.join(rootDir, `apps/sim/tools/${toolPrefix}/types.ts`)
-  if (!fs.existsSync(typesFilePath)) {
-    return null
+  const constRegex = new RegExp(`export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`)
+  let typesContent = ''
+  let constMatch: RegExpExecArray | null = null
+  for (const fileName of ['types.ts', 'outputs.ts']) {
+    const sourcePath = path.join(rootDir, `apps/sim/tools/${toolPrefix}/${fileName}`)
+    if (!fs.existsSync(sourcePath)) continue
+    const content = readSourceFile(sourcePath)
+    const match = constRegex.exec(content)
+    if (match) {
+      typesContent = content
+      constMatch = match
+      break
+    }
   }
-
-  const typesContent = readSourceFile(typesFilePath)
-
-  // Find the const definition
-  // Pattern: export const CONST_NAME = { ... } as const
-  const constRegex = new RegExp(
-    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
-    'g'
-  )
-  const constMatch = constRegex.exec(typesContent)
 
   if (!constMatch) {
     return null
