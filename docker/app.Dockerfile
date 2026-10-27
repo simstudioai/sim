@@ -9,6 +9,14 @@ FROM oven/bun:1.4.4-slim AS base
 # `isolated-vm` pin in apps/sim/package.json — Node 24 (ABI 137) requires
 # isolated-vm 6.x.
 #
+# NODE_VERSION pins the exact NodeSource build: this layer is cached, so an
+# unpinned `nodejs` changed only when an unrelated edit forced a rebuild. The
+# `-1nodesource1` suffix selects the `nodejs` package, never `nsolid`, which
+# Provides `nodejs` at the same version numbers. build-base and deps inherit
+# this stage, so isolated-vm's node-gyp build targets the same Node (and ABI)
+# the runner executes it with.
+ARG NODE_VERSION=24.22.1
+#
 # Only what the running container needs belongs here. ffmpeg backs the media
 # subprocess adapter; python3 is the node-gyp interpreter and is kept because
 # build-base inherits from this stage. The compiler toolchain lives in build-base
@@ -24,7 +32,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     python3 curl ca-certificates bash ffmpeg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs \
+    && apt-get install -y --no-install-recommends "nodejs=${NODE_VERSION}-1nodesource1" \
+    && [ "$(node --version)" = "v${NODE_VERSION}" ] \
     && sed -i -E 's#^mozilla/(emSign_ECC_Root_CA_-_G3|Comodo_AAA_Services_root)\.crt$#!&#' /etc/ca-certificates.conf \
     && update-ca-certificates \
     && ! grep -qF -e 'l2D4kF501KKaU73yqWjgom7C12yxow+ev+to51byrvLjKzg6CYG1a4XXvi3tPxq3' -e 'CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD' /etc/ssl/certs/ca-certificates.crt
@@ -234,9 +243,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bu
 # anonymizer, docker/pii.Dockerfile), reached over the network via PII_URL —
 # no Python/Presidio in this image.
 
-# Create .next/cache directory with correct ownership
+# Writable paths for a read-only root filesystem. Declaring them as volumes
+# keeps writes working when the root is mounted read-only: ECS copies the
+# image's contents and ownership into a bind volume mounted at a VOLUME path.
+# - /tmp (mode 1777): os.tmpdir() scratch for ffmpeg and audio processing,
+#   knowledge base imports, the Pi agent, and libvips (sharp) spill files.
+# - apps/sim/.next/cache: the Next image optimizer's disk cache
+#   (.next/cache/images) and the data cache for `fetch` calls with
+#   `next.revalidate`.
+# Keep the VOLUME line after every step that writes to these paths: the
+# classic builder discards later build-time changes to a declared volume.
 RUN mkdir -p apps/sim/.next/cache && \
-    chown -R nextjs:nodejs apps/sim/.next/cache
+    chown -R nextjs:nodejs apps/sim/.next/cache && \
+    chmod 1777 /tmp
+VOLUME ["/tmp", "/app/apps/sim/.next/cache"]
 
 # Switch to non-root user
 USER nextjs
