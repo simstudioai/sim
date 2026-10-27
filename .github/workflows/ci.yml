@@ -673,9 +673,8 @@ jobs:
       # stays small and counts every attempt of a re-run; a lookup that errors counts as no
       # success. With no success in view, the base is the first parent of the oldest run in view,
       # so URLs that no submission ever covered, that run's own included, are sent now. The diff
-      # needs only the two trees, so that one
-      # commit is fetched alone; an all-zero `before` (the branch's first push) has no base,
-      # which the script skips.
+      # needs only the two trees, so that one commit is fetched alone; an all-zero `before` (the
+      # branch's first push) has no base, which the script skips.
       - name: Submit changed URLs to IndexNow
         env:
           GH_TOKEN: ${{ github.token }}
