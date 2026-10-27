@@ -179,6 +179,7 @@ describe('proxy indexing policy', () => {
     expect(robotsTag('/llms.txt')).toBe('noindex, nofollow')
     expect(robotsTag('/llms-full.txt')).toBe('noindex, nofollow')
     expect(robotsTag('/changelog.xml')).toBe('noindex, nofollow')
+    expect(robotsTag('/library.md/some-article')).toBe('noindex, nofollow')
   })
 
   it('leaves the marketing pages and documents of the hosted deployment indexable', () => {
@@ -189,6 +190,7 @@ describe('proxy indexing policy', () => {
     expect(robotsTag('/llms.txt')).toBeNull()
     expect(robotsTag('/llms-full.txt')).toBeNull()
     expect(robotsTag('/changelog.xml')).toBeNull()
+    expect(robotsTag('/library.md/some-article')).toBeNull()
   })
 
   it('leaves a self-hosted non-landing public page indexable', () => {
@@ -216,6 +218,7 @@ describe('proxy matcher', () => {
     expect(matches('/llms.txt')).toBe(true)
     expect(matches('/llms-full.txt')).toBe(true)
     expect(matches('/changelog.xml')).toBe(true)
+    expect(matches('/library.md/some-article')).toBe(true)
   })
 
   it('still runs for every other API route', () => {

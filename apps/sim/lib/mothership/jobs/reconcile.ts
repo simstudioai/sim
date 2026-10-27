@@ -46,8 +46,8 @@ const admittedBillingRequestId = sql<
 
 /**
  * Open records that need this pass, oldest first. Every queued record does; a running one only
- * once its turn ended or its run row is gone, its time limit passed without a Stop, or its
- * spend-cap link is missing, so a backlog of healthy long runs never hides the ones that finished.
+ * once its turn ended or its run row is gone, its time limit passed without a Stop, its Stop's
+ * delivery never finished, or its spend-cap link is missing, so a backlog of healthy long runs never hides the ones that finished.
  */
 function openJobRuns(status: OpenJobRunStatus, now: Date) {
   const needsAction =
@@ -60,6 +60,7 @@ function openJobRuns(status: OpenJobRunStatus, now: Date) {
             lte(jobExecutionLogs.startedAt, new Date(now.getTime() - JOB_RUN_TIME_LIMIT_MS)),
             sql`${jobExecutionLogs.executionData}->>'deadlineStopRequestedAt' IS NULL`
           ),
+          sql`${jobExecutionLogs.executionData}->>'deadlineStopRequestedAt' IS NOT NULL AND ${jobExecutionLogs.executionData}->>'deadlineStopDeliveredAt' IS NULL`,
           and(isNull(jobExecutionLogs.billingRequestId), isNotNull(admittedBillingRequestId))
         )
   return db
@@ -70,6 +71,9 @@ function openJobRuns(status: OpenJobRunStatus, now: Date) {
       deadlineStopRequestedAt: sql<
         string | null
       >`${jobExecutionLogs.executionData}->>'deadlineStopRequestedAt'`,
+      deadlineStopDeliveredAt: sql<
+        string | null
+      >`${jobExecutionLogs.executionData}->>'deadlineStopDeliveredAt'`,
       billingRequestId: jobExecutionLogs.billingRequestId,
       admittedBillingRequestId,
       scheduleId: jobExecutionLogs.scheduleId,
@@ -89,8 +93,9 @@ function openJobRuns(status: OpenJobRunStatus, now: Date) {
  * Drives every open occurrence to an end, so no crash leaves one queued or running forever:
  * a queued record whose dispatch was lost is dispatched again under the same id (the turn is
  * admitted at most once, so a retry of one that did start only finds it); a record whose turn
- * ended is finalized; one past the time limit is stopped and finalized once it settles; one
- * whose job was deleted before it started is ended. A run whose spend-cap link was lost (its
+ * ended is finalized; one past the time limit is stopped and finalized once it settles, its
+ * Stop delivered again first if an earlier pass died delivering it; one whose job was deleted
+ * before it started is ended. A run whose spend-cap link was lost (its
  * process died between recording the billing admission and the link) gets it back.
  */
 export async function reconcileJobRuns(now: Date): Promise<void> {
@@ -121,15 +126,15 @@ export async function reconcileJobRuns(now: Date): Promise<void> {
       if (!row.billingRequestId && row.admittedBillingRequestId) {
         await recordJobRunBillingRequest(row.executionId, row.admittedBillingRequestId)
       }
-      if (TERMINAL_RUN_STATUSES.includes(row.runStatus)) {
-        await finalizeJobRun(row.executionId)
-      } else if (
+      const ended = TERMINAL_RUN_STATUSES.includes(row.runStatus)
+      /** A Stop whose delivery never finished is delivered before the run is finalized. */
+      const undelivered =
+        row.deadlineStopRequestedAt !== null && row.deadlineStopDeliveredAt === null
+      const overdue =
+        !ended &&
         !row.deadlineStopRequestedAt &&
-        row.userId &&
-        row.workspaceId &&
-        row.chatId &&
         now.getTime() - row.startedAt.getTime() >= JOB_RUN_TIME_LIMIT_MS
-      ) {
+      if ((undelivered || overdue) && row.userId && row.workspaceId && row.chatId) {
         await stopAtTimeLimit({
           executionId: row.executionId,
           userId: row.userId,
@@ -137,6 +142,7 @@ export async function reconcileJobRuns(now: Date): Promise<void> {
           chatId: row.chatId,
         })
       }
+      if (ended) await finalizeJobRun(row.executionId)
     } catch (error) {
       logger.warn('Job run could not be reconciled; the next pass retries', {
         executionId: row.executionId,
@@ -161,13 +167,12 @@ async function stopAtTimeLimit(run: {
   })
   /** A run outside the job's scope records no Stop, so nothing is delivered to it. */
   if (!stopped || stopped.workspaceId !== run.workspaceId || stopped.chatId !== run.chatId) return
-  /** Marked once the Stop is durable, so a pass that fails before it stops the run again. */
-  await db
-    .update(jobExecutionLogs)
-    .set({
-      executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, '{deadlineStopRequestedAt}', to_jsonb(now()))`,
-    })
-    .where(eq(jobExecutionLogs.executionId, run.executionId))
+  /**
+   * Why the run stopped is recorded before delivery, so its summary survives a crash; delivery
+   * is marked separately once done, and a pass that finds it unmarked delivers again (requesting
+   * and delivering a Stop are idempotent), so the run's client workflows and sandbox work end.
+   */
+  await markDeadlineStop(run.executionId, 'deadlineStopRequestedAt')
   await deliverRunStop(
     {
       id: stopped.id,
@@ -178,5 +183,19 @@ async function stopAtTimeLimit(run: {
     },
     readStoppedRunWork(run.executionId, run.userId)
   )
+  await markDeadlineStop(run.executionId, 'deadlineStopDeliveredAt')
   logger.info('Stopped a job run at its time limit', { executionId: run.executionId })
+}
+
+/** Records a step of the time-limit Stop once; a repeated pass keeps the first time. */
+async function markDeadlineStop(
+  executionId: string,
+  step: 'deadlineStopRequestedAt' | 'deadlineStopDeliveredAt'
+): Promise<void> {
+  await db
+    .update(jobExecutionLogs)
+    .set({
+      executionData: sql`jsonb_set(${jobExecutionLogs.executionData}, ${`{${step}}`}::text[], COALESCE(${jobExecutionLogs.executionData}->${step}, to_jsonb(now())))`,
+    })
+    .where(eq(jobExecutionLogs.executionId, executionId))
 }

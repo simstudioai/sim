@@ -79,6 +79,8 @@ export async function GET() {
         ),
       ]),
       section('Library', [
+        'Each article is also served as Markdown at its URL with `.md` appended.',
+        '',
         linkLine('Library', '/library', 'Comparisons, how-tos, and roundups on building AI agents'),
         ...libraryPosts.map((p) => linkLine(p.title, p.canonical, p.description)),
       ]),

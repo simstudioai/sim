@@ -3,6 +3,7 @@ import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { getAuthPool } from '@/lib/auth/database-context'
 import { createDetachedTouch } from '@/lib/core/utils/background'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
@@ -55,14 +56,14 @@ export async function authenticateApiKeyFromHeader(
     let workspaceSettings: WorkspaceBillingSettings | null = null
 
     if (options.workspaceId) {
-      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId)
+      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId, getAuthPool())
       if (!workspaceSettings) {
         return { success: false, error: 'Workspace not found' }
       }
     }
 
     const keyHash = hashApiKey(apiKeyHeader)
-    const rows: HashCandidate[] = await db
+    const rows: HashCandidate[] = await getAuthPool()
       .select({
         id: apiKeyTable.id,
         userId: apiKeyTable.userId,

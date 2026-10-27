@@ -48,6 +48,7 @@ interface Integration {
   updatedAt?: string
 }
 const integrations = integrationsJson.integrations as Integration[]
+const LIBRARY_ARTICLE_PATH = /^\/library\/(?!authors\/|tags)[^/]+$/
 /** `?home` serves the landing page without the self-hosted `/` → `/login` redirect. */
 const HOME_PATH = '/?home'
 
@@ -196,7 +197,7 @@ async function run() {
       '/blog',
       '/library',
       firstPath(/^\/blog\/(?!authors\/|tags)[^/]+$/),
-      firstPath(/^\/library\/(?!authors\/|tags)[^/]+$/),
+      firstPath(LIBRARY_ARTICLE_PATH),
       firstPath(/^\/integrations\/[^/]+$/),
       firstPath(/^\/models\/anthropic\/[^/]+$/),
       '/models/context-windows',
@@ -481,6 +482,72 @@ async function run() {
     assert.equal(direct.body, markdown.body)
     assert.match(direct.headers.get('link') ?? '', /rel="canonical"/)
   })
+
+  await check('a library article is served as Markdown at .md and by Accept', async () => {
+    const path = firstPath(LIBRARY_ARTICLE_PATH)
+    const html = await get(path, 'text/html,application/xhtml+xml,*/*;q=0.8')
+    assert.match(html.headers.get('content-type') ?? '', /^text\/html/)
+    assert.match(html.headers.get('vary') ?? '', /\bAccept\b/)
+    const alternate = /<link rel="alternate" type="text\/markdown" href="([^"]+)"/.exec(html.body)
+    assert.ok(alternate, `${path} does not advertise its Markdown alternate`)
+    assert.equal(new URL(alternate[1]).pathname, `${path}.md`)
+    const feed = /<link rel="alternate" type="application\/rss\+xml" href="([^"]+)"/.exec(html.body)
+    assert.equal(feed && new URL(feed[1]).pathname, '/library/rss.xml')
+
+    const direct = await get(`${path}.md`)
+    assert.equal(direct.status, 200)
+    assert.match(direct.headers.get('content-type') ?? '', /^text\/markdown/)
+    assert.equal(direct.headers.get('cache-control'), 'no-store')
+    assert.match(direct.headers.get('link') ?? '', /rel="canonical"/)
+    const heading = decodeHtml(/<h1[^>]*>([^<]*)<\/h1>/.exec(html.body)?.[1] ?? '')
+    assert.equal(direct.body.split('\n')[0], `# ${heading}`)
+
+    const negotiated = await get(path, 'text/markdown')
+    assert.match(negotiated.headers.get('content-type') ?? '', /^text\/markdown/)
+    assert.equal(negotiated.body, direct.body)
+
+    const tags = await get('/library/tags', 'text/markdown, text/html;q=0.5')
+    assert.equal(tags.status, 200, 'the Markdown rewrite shadows /library/tags')
+    assert.match(tags.headers.get('content-type') ?? '', /^text\/html/)
+
+    const unknown = await get('/library/not-a-real-post.md')
+    assert.equal(unknown.status, 404)
+    assert.match(unknown.headers.get('content-type') ?? '', /^text\/markdown/)
+  })
+
+  await check(
+    'a library article has one structured-data source, linked to the site graph',
+    async () => {
+      const path = firstPath(LIBRARY_ARTICLE_PATH)
+      const { body } = await get(path)
+      assert.doesNotMatch(body, /itemType="https:\/\/schema\.org\/(BlogPosting|FAQPage)"/i)
+      const nodes = jsonLdNodes(body)
+      const website = nodes.find((node) => node['@type'] === 'WebSite')
+      const article = nodes.find((node) => [node['@type']].flat().includes('BlogPosting'))
+      assert(website && article, `${path} lacks a WebSite or BlogPosting node`)
+      assert.equal(article['@id'], `${article.url}#article`)
+      for (const selector of (article.speakable as { cssSelector: string[] }).cssSelector) {
+        const [, name, value] = /^\[([\w-]+)="([^"]+)"\]$/.exec(selector) ?? []
+        assert(
+          body.includes(`${name}="${value}"`),
+          `speakable selector ${selector} matches nothing`
+        )
+      }
+      assert.equal(
+        (article.isPartOf as Record<string, unknown> | undefined)?.['@id'],
+        website['@id']
+      )
+      for (const author of article.author as Record<string, unknown>[]) {
+        const page = new URL(String(author.url)).pathname
+        assert.match(page, /^\/library\/authors\/[^/]+$/)
+        assert.equal(author['@id'], `${author.url}#person`)
+        const profile = jsonLdNodes((await get(page)).body).find(
+          (node) => node['@type'] === 'Person'
+        )
+        assert.equal(profile?.['@id'], author['@id'], `${page} names a different Person @id`)
+      }
+    }
+  )
 }
 
 try {

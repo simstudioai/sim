@@ -22,7 +22,7 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import { ChatPayloadSchema, TOOL_DEADLINE_CAPABILITY } from '@/lib/mothership/generated/protocol'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
@@ -128,7 +128,6 @@ vi.mock('@/lib/mothership/block-visibility', () => ({
     disabled: new Set<string>(),
     previewTagged: new Set<string>(),
   })),
-  visibilitySignature: vi.fn(() => 'vis:none'),
 }))
 
 vi.mock('@/lib/integrations/tool-catalog', () => ({
@@ -273,36 +272,83 @@ describe('buildIntegrationToolSchemas', () => {
     expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
   })
 
-  it('briefly reuses built schemas for the same user and surface', async () => {
+  it('builds each tool schema once per process, not once per viewer', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig.mockResolvedValueOnce({ allowedIntegrations: ['gmail'] })
 
-    const first = await buildIntegrationToolSchemas('user-cache')
-    first[0].input_schema.mutated = true
-    if (first[0].outputs) first[0].outputs.mutated = true
-    const second = await buildIntegrationToolSchemas('user-cache')
+    await buildIntegrationToolSchemas('user-a', { schemaSurface: 'copilot' }, 'workspace-a')
+    await buildIntegrationToolSchemas('user-b', { schemaSurface: 'copilot' }, 'workspace-b')
+    await buildIntegrationToolSchemas('user-b', { schemaSurface: 'copilot' }, 'workspace-b')
 
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
     expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
-    expect(second[0].input_schema).not.toHaveProperty('mutated')
-    expect(second[0].outputs).not.toHaveProperty('mutated')
   })
 
-  it('isolates nested schemas and required fields between requests', async () => {
-    mockCreateUserToolSchema.mockReturnValueOnce({
+  it('keeps one caller from changing what any other viewer receives', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockCreateUserToolSchema.mockReturnValue({
       type: 'object',
       properties: { recipients: { type: 'array', items: { type: 'string' } } },
       required: ['recipients'],
     })
-    const first = await buildIntegrationToolSchemas('user-nested-schema')
-    const properties = first[0].input_schema.properties as Record<string, unknown>
-    properties.recipients = { type: 'number' }
-    ;(first[0].input_schema.required as string[]).push('forged')
+    const first = await buildIntegrationToolSchemas('user-mutating')
+    first.push({ name: 'mcp-private-tool', description: '', input_schema: {} })
+    expect(() => {
+      ;(first[0].input_schema.properties as Record<string, unknown>).recipients = { type: 'number' }
+    }).toThrow(TypeError)
+    expect(() => (first[0].input_schema.required as string[]).push('forged')).toThrow(TypeError)
+    expect(() => {
+      first[0].description = 'forged'
+    }).toThrow(TypeError)
 
-    const second = await buildIntegrationToolSchemas('user-nested-schema')
+    const second = await buildIntegrationToolSchemas('user-reading')
+    expect(second.map((tool) => tool.name)).toEqual([
+      'gmail_send',
+      'brandfetch_search',
+      'run_workflow',
+    ])
+    expect(second[0].description).not.toBe('forged')
     expect(second[0].input_schema.properties).toEqual({
       recipients: { type: 'array', items: { type: 'string' } },
     })
     expect(second[0].input_schema.required).toEqual(['recipients'])
+  })
+
+  it('appends the free-plan email tagline only for the viewer whose plan earns it', async () => {
+    mockGetHighestPrioritySubscription
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ plan: 'pro', status: 'active' })
+    const tagline = 'sent with sim ai'
+    const describeGmail = (tools: Array<{ name: string; description: string }>) =>
+      tools.find((tool) => tool.name === 'gmail_send')?.description ?? ''
+
+    const free = await buildIntegrationToolSchemas('free-user')
+    const paid = await buildIntegrationToolSchemas('paid-user')
+    const freeAgain = await buildIntegrationToolSchemas('free-user')
+
+    expect(describeGmail(free)).toContain(tagline)
+    expect(describeGmail(paid)).not.toContain(tagline)
+    expect(describeGmail(freeAgain)).toContain(tagline)
+  })
+
+  it("gates the shared schemas by each viewer's own permission policy", async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig
+      .mockResolvedValueOnce({ allowedIntegrations: null, deniedTools: ['gmail_send'] })
+      .mockResolvedValueOnce(null)
+
+    const restricted = await buildIntegrationToolSchemas(
+      'restricted-user',
+      { schemaSurface: 'copilot' },
+      'workspace-shared'
+    )
+    const unrestricted = await buildIntegrationToolSchemas(
+      'open-user',
+      { schemaSurface: 'copilot' },
+      'workspace-shared'
+    )
+
+    expect(restricted.map((tool) => tool.name)).not.toContain('gmail_send')
+    expect(unrestricted.map((tool) => tool.name)).toContain('gmail_send')
   })
 
   it('coalesces simultaneous catalog builds', async () => {
@@ -323,7 +369,6 @@ describe('buildIntegrationToolSchemas', () => {
     )
     const recovered = await buildIntegrationToolSchemas('schema-failure')
     expect(recovered).toHaveLength(3)
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(2)
   })
 
   it('propagates subscription failures without caching a guessed catalog', async () => {
@@ -333,18 +378,6 @@ describe('buildIntegrationToolSchemas', () => {
     )
     expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
     expect(await buildIntegrationToolSchemas('subscription-failure')).toHaveLength(3)
-  })
-
-  it('evicts catalogs by their byte size before reaching the entry cap', async () => {
-    mockCreateUserToolSchema.mockImplementation(() => ({
-      type: 'object',
-      properties: { large: { type: 'string', description: 'x'.repeat(1024 * 1024) } },
-    }))
-    for (let i = 0; i < 12; i++) await buildIntegrationToolSchemas(`sized-user-${i}`)
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(12)
-    await buildIntegrationToolSchemas('sized-user-0')
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(13)
-    mockCreateUserToolSchema.mockImplementation(() => ({ type: 'object', properties: {} }))
   })
 
   it('rebuilds instead of serving a cache entry from the previous policy', async () => {
@@ -660,6 +693,7 @@ describe('buildCopilotRequestPayload', () => {
 })
 
 describe('Assistant payload', () => {
+  afterEach(() => vi.mocked(getExposedIntegrationTools).mockReset())
   beforeEach(() => {
     resetEnvFlagsMock()
     mockGetUserPermissionConfig.mockResolvedValue(null)
@@ -671,7 +705,7 @@ describe('Assistant payload', () => {
   it('discovers the existing GitHub user lookup tool with a personal credential in live Search', async () => {
     clearIntegrationToolSchemaCacheForTests()
     mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
-    vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
+    vi.mocked(getExposedIntegrationTools).mockReturnValue([
       {
         toolId: searchUsersV2Tool.id,
         config: searchUsersV2Tool,
@@ -706,7 +740,7 @@ describe('Assistant payload', () => {
   })
   it('advertises approved personal organization integrations and rechecks revocation', async () => {
     clearIntegrationToolSchemaCacheForTests()
-    vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
+    vi.mocked(getExposedIntegrationTools).mockReturnValue([
       {
         toolId: gmailListLabelsV2Tool.id,
         config: gmailListLabelsV2Tool,

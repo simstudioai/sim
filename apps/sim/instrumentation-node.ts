@@ -378,6 +378,9 @@ export async function register() {
 
   await initializeOpenTelemetry()
 
+  const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')
+  reportAccountTokenSealing()
+
   const shutdownPostHog = async () => {
     try {
       const { getPostHogClient } = await import('@/lib/posthog/server')

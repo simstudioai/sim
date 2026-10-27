@@ -84,6 +84,8 @@ export async function claimDueJobOccurrences(
           status: 'queued',
           trigger: JOB_RUN_TRIGGER,
           startedAt: now,
+          /** Fixed at claim: the schedule's count moves on as later occurrences are claimed. */
+          executionData: { runNumber: runCount },
         })
         .onConflictDoNothing()
       await tx

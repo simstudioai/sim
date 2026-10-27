@@ -1,11 +1,11 @@
 ---
 slug: byok-multi-model-ai-agent-builder
 title: "BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works"
-description: 'Learn how Sim BYOK separates customer-owned provider keys from hosted model access and self-hosted local models, including the 1.1x hosted rate, supported providers, billing, and security.'
+description: 'Learn how Sim BYOK separates customer-owned provider keys from hosted model access and self-hosted local models, including hosted model rates, supported providers, billing, and security.'
 seoTitle: 'BYOK AI Agent Builder: How Bring Your Own Key Works'
 seoDescription: 'How bring-your-own-key works in Sim: hosted model access vs BYOK vs local models, supported providers, who pays for usage, and how keys are secured.'
 date: 2026-07-18
-updated: 2026-10-20
+updated: 2026-10-24
 authors:
   - andrew
 readingTime: 18
@@ -18,7 +18,7 @@ faq:
   - q: "Which providers are BYOK-eligible in Sim?"
     a: "Sim accepts your own keys for the LLM providers OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud; for Cohere (embeddings and Knowledge Base reranking) and Fal.ai (image and video generation); plus search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, and Hunter. Each key is saved per provider, and Sim routes that provider's calls through your account."
   - q: "How is billing separated between hosted keys and BYOK?"
-    a: "With Sim's hosted keys, model usage bills through Sim credits with a 1.1x multiplier on the provider's base price. With your own key, the provider bills your account at its own rates with no Sim markup, and Sim's per-run base charge still applies."
+    a: "With Sim's hosted keys, model usage is recorded at the applicable Sim rate and billed through Sim credits. With your own key, the provider bills your account at its own rates and BYOK avoids Sim's model usage charge, while Sim's per-run base charge still applies."
   - q: "Does Sim BYOK make model usage free?"
     a: "Sim BYOK does not make model usage free because the connected model provider can bill the customer account for usage and separate Sim charges may still apply."
   - q: "Does Sim BYOK mean my data never leaves my machine?"
@@ -82,7 +82,7 @@ faq:
   - q: "Will switching models produce the same output?"
     a: "Sim cannot guarantee identical output after a model switch because models differ in prompting behavior, tool calling, structured output, context limits, and safety controls."
   - q: "Does BYOK make AI model usage cheaper?"
-    a: "Sim BYOK can avoid the approximately 1.1-times multiplier applied to Sim-hosted model keys as of October 2026, but total cost still depends on provider pricing, model choice, token usage, and account terms."
+    a: "Sim BYOK avoids Sim's model usage charge for the provider calls it covers, but total cost still depends on provider pricing, model choice, token usage, and account terms."
   - q: "What should I test before changing an AI agent's model?"
     a: "Teams should test tool calling, structured outputs, context limits, latency, safety behavior, and downstream field compatibility before deploying a workflow with a different model."
   - q: "Can teams centrally manage model-provider keys in Sim?"
@@ -95,10 +95,10 @@ faq:
     a: "Sim BYOK is not an Enterprise only feature because workspace keys work on every Sim Cloud plan."
   - q: "Who pays model charges when Sim uses BYOK?"
     a: "The model provider bills the account associated with the customer supplied key when Sim uses BYOK."
-  - q: "Does Sim add a model usage multiplier to BYOK calls?"
+  - q: "Does Sim charge model usage on BYOK calls?"
     a: "Sim does not route BYOK calls through its hosted model billing because the model provider charges the customer's account directly."
   - q: "How much do Sim hosted model keys cost?"
-    a: "Sim hosted model keys carry a multiplier of about 1.1 times the underlying provider cost as of October 2026."
+    a: "Sim records hosted model usage at the applicable Sim rate and converts it to credits, as described in its cost documentation."
   - q: "Can Sim use more than one model provider in the same workflow?"
     a: "Sim can configure separate model steps to use different supported providers in the same workflow."
   - q: "Can Sim use OpenAI and Anthropic in the same workflow?"
@@ -141,8 +141,8 @@ Sim BYOK lets teams connect their own model-provider API credentials to eligible
 
 This guide separates three options that buyers often conflate: hosted model access, bring-your-own-key access, and local models on a self-hosted Sim deployment.
 
-- **Hosted keys:** zero setup. Sim bills model usage in credits with a 1.1x multiplier on the provider's base price.
-- **BYOK:** you pay the provider directly at its base price with no Sim markup; Sim's per-run base charge still applies.
+- **Hosted keys:** zero setup. Sim records model usage at the applicable Sim rate and bills it in credits.
+- **BYOK:** you pay the provider directly at its own price, and BYOK avoids Sim's model usage charge; Sim's per-run base charge still applies.
 - **Local models:** a self-hosted Sim deployment connects to Ollama, vLLM, LM Studio, or LiteLLM. Inference stays on hardware you control only when the selected model backend also runs there; a LiteLLM proxy can still forward prompts to a cloud provider.
 
 ## Which AI agent platforms support BYOK?
@@ -182,7 +182,7 @@ As of October 2026, Sim's current model registry includes cloud routes for OpenA
 
 Sim BYOK means that a team supplies an API key from a supported model provider and uses that provider account when an eligible Sim workflow calls the model. On Sim Cloud, a workspace admin can store workspace keys on any plan, and organization admins on Pro for Teams, Max for Teams, or Enterprise can store organization keys that every workspace inherits, as described in Sim's [BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
 
-Sim's BYOK settings accept keys for these LLM providers: OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud. Cohere keys cover embeddings and Knowledge Base reranking, and Fal.ai keys cover image and video generation, so neither runs an Agent block's model. The same page accepts keys for search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, Jina AI, Hunter, and People Data Labs. Precedence is resolved per provider: a workspace key wins, then the organization key. Sim's hosted key, with the multiplier applied, is the fallback only for the models Sim hosts; providers such as Together AI, Baseten, and Ollama Cloud need your own key.
+Sim's BYOK settings accept keys for these LLM providers: OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud. Cohere keys cover embeddings and Knowledge Base reranking, and Fal.ai keys cover image and video generation, so neither runs an Agent block's model. The same page accepts keys for search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, Jina AI, Hunter, and People Data Labs. Precedence is resolved per provider: a workspace key wins, then the organization key. Sim's hosted key, billed at the applicable Sim rate, is the fallback only for the models Sim hosts; providers such as Together AI, Baseten, and Ollama Cloud need your own key.
 
 BYOK stands for “bring your own key.” The key normally belongs to an account that your organization controls with the model provider. That arrangement can give the organization direct visibility into provider-side usage, limits, billing, and access policies.
 
@@ -196,8 +196,8 @@ Sim separates hosted access, BYOK, and self-hosted local models because each opt
 
 | Model-access option | Who supplies the model credential? | Who handles model-provider billing? | Where does inference happen? | Important limitation |
 |---|---|---|---|---|
-| Hosted access | Sim manages the applicable provider access | Sim bills model usage in credits with a 1.1x multiplier on the provider's base price | At the hosted provider selected through Sim | Availability, included usage, and limits depend on the current plan |
-| BYOK | The customer supplies a supported provider API key | The model provider bills the customer at its base price with no Sim markup; Sim's per-run base charge still applies | At the external provider connected with the key | BYOK is not local inference and does not eliminate provider token charges |
+| Hosted access | Sim manages the applicable provider access | Sim records model usage at the applicable Sim rate and bills it in credits | At the hosted provider selected through Sim | Availability, included usage, and limits depend on the current plan |
+| BYOK | The customer supplies a supported provider API key | The model provider bills the customer at its own price, and BYOK avoids Sim's model usage charge; Sim's per-run base charge still applies | At the external provider connected with the key | BYOK is not local inference and does not eliminate provider token charges |
 | Local models (Ollama or vLLM) | No provider key; a self-hosted Sim deployment points `OLLAMA_URL` or `VLLM_BASE_URL` at the model server | No model API charge; the team pays for the hardware that runs the model | On infrastructure the team controls | Configured at the deployment level, so it applies to self-hosted Sim rather than Sim Cloud |
 
 As of October 2026, buyers should confirm current hosted-provider availability, BYOK provider support, and plan limits with Sim before making an architecture decision. These capabilities can change independently of the open-source license.
@@ -226,7 +226,7 @@ Sim BYOK normally makes the customer responsible for model-provider usage billed
 
 BYOK should not be described as “free tokens” or “zero token cost.” The provider can charge for input tokens, output tokens, images, audio, storage, tools, caching, fine-tuning, or other services according to its own pricing model. Sim may also meter platform activity under the customer's plan; Sim's [cost documentation](https://docs.sim.ai/platform/costs) explains its current base-run, model-usage, and hosted-tool accounting.
 
-Hosted access bills model usage through Sim credits with a 1.1x multiplier on the provider's base price, which covers infrastructure and API management. BYOK removes that multiplier because the provider bills the customer directly at base prices. Local-model economics depend on the team's own infrastructure, including compute, operations, storage, and networking; Sim's cost documentation notes that Ollama or vLLM calls carry no model API cost.
+Hosted access records model usage at the applicable Sim rate and bills it through Sim credits. BYOK avoids Sim's model usage charge because the provider bills the customer directly. Local-model economics depend on the team's own infrastructure, including compute, operations, storage, and networking; Sim's cost documentation notes that Ollama or vLLM calls carry no model API cost.
 
 Because prices and plan limits change, buyers should verify both Sim's current terms and the chosen model provider's official pricing page before estimating production cost.
 

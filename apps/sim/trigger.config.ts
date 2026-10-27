@@ -133,6 +133,8 @@ export default defineConfig({
       createLogger('TriggerInit').error('Could not distrust compromised CA roots', tlsTrust)
     }
     markInsideTriggerRun()
+    const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')
+    reportAccountTokenSealing()
     const { warmRedisConnection } = await import('./lib/core/config/redis')
     await warmRedisConnection()
   },

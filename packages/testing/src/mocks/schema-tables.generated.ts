@@ -2339,6 +2339,16 @@ export const GENERATED_DB_CONSTANTS = {
       replicaMax: 0,
       appName: 'sim-search',
     },
+    billing: {
+      primaryMax: 4,
+      replicaMax: 0,
+      appName: 'sim-billing',
+    },
+    auth: {
+      primaryMax: 3,
+      replicaMax: 0,
+      appName: 'sim-auth',
+    },
   },
   INCREMENT_ROW_COUNT_SQL:
     '\nCREATE OR REPLACE FUNCTION increment_table_row_count()\nRETURNS TRIGGER AS $$\nBEGIN\n  UPDATE user_table_definitions\n  SET row_count = row_count + 1\n  WHERE id = NEW.table_id;\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\nDROP TRIGGER IF EXISTS trg_increment_row_count ON user_table_rows;\nCREATE TRIGGER trg_increment_row_count\nAFTER INSERT ON user_table_rows\nFOR EACH ROW\nEXECUTE FUNCTION increment_table_row_count();\n',

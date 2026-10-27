@@ -3478,8 +3478,12 @@ function JobRunBudgetDisplay({ message }: JobRunBudgetDisplayProps) {
   )
 }
 
+interface PlanUsageLimitDisplayProps {
+  data: UsageUpgradeTagData
+}
+
 /** The payer's plan limit: the card links to where the plan or the limit can change. */
-function PlanUsageLimitDisplay({ data }: { data: UsageUpgradeTagData }) {
+function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()

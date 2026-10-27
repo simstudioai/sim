@@ -41,6 +41,15 @@ RUN groupadd -g 1001 pii && \
 COPY --chown=pii:pii apps/pii/server.py ./
 COPY --chown=pii:pii --chmod=755 docker/pii-entrypoint.sh ./
 
+# Read-only root filesystem prep. Python skips writing __pycache__ next to
+# server.py (site-packages is already byte-compiled by pip at install time),
+# and /tmp (mode 1777), Python's tempfile scratch, stays writable because ECS
+# copies the image's /tmp into a bind volume mounted at a VOLUME path. The
+# VOLUME line stays below the model download, which stages wheels in /tmp.
+ENV PYTHONDONTWRITEBYTECODE=1
+RUN chmod 1777 /tmp
+VOLUME ["/tmp"]
+
 USER pii
 
 # Listen on 5001. Runs as its own ECS service (separate task), reached via PII_URL;

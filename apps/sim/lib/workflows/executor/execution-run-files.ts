@@ -6,14 +6,12 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { collectUserFilesById } from '@/lib/core/utils/user-file'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { isTerminalWorkflowExecutionStatus } from '@/lib/logs/types'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { formatFileSize, inferContextFromKey } from '@/lib/uploads/utils/file'
 import { isRunOutputFileKey } from '@/lib/workflows/executor/run-file-scope'
 import { classifyRunFileStorageError } from '@/lib/workflows/executor/run-file-storage-error'
 import type { UserFile } from '@/executor/types'
-
-/** Run states whose recorded output is final and therefore safe to address. */
-const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled'])
 
 export interface WorkflowRunFilesInput {
   workflowId: string
@@ -68,7 +66,7 @@ export async function getWorkflowRunFiles(
 
   if (!logRow) return null
 
-  const terminal = TERMINAL_RUN_STATUSES.has(logRow.status)
+  const terminal = isTerminalWorkflowExecutionStatus(logRow.status)
   if (!terminal) {
     return { terminal: false, workspaceId: logRow.workspaceId, filesById: new Map() }
   }

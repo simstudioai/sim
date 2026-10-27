@@ -7,6 +7,7 @@ import {
   permissions,
   user,
   userStats,
+  workflow,
   workspace,
   workspaceFileSearchBuild,
   workspaceFileSearchChunk,
@@ -21,7 +22,7 @@ import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { Document, Packer, Paragraph } from 'docx'
-import { eq, inArray, or } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,8 +43,13 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { type AgentCliExecutionContext, executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
-import type { AgentCliAugmentationInvocation } from '@/lib/mothership/generated/agent-cli'
+import {
+  type AgentCliAugmentationInvocation,
+  AgentCliRawResult,
+} from '@/lib/mothership/generated/agent-cli'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
+import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { createProjectFile } from '@/lib/projects/files/application'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
@@ -54,6 +60,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 const storageRoot = mkdtempSync(join(tmpdir(), 'sim-project-cli-reads-'))
 setUploadDirServer(storageRoot)
 const fixtures: { userId: string; workspaceId: string; projectId: string }[] = []
+const memberIds: string[] = []
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 
@@ -81,39 +88,32 @@ function check(name: string, run: () => Promise<void>, requiresRedis = false) {
   })
 }
 
-async function fixture() {
+async function insertUser(name: string) {
   const userId = generateId()
-  const workspaceId = generateId()
   await db.insert(user).values({
     id: userId,
     email: `${userId}@project-read.invalid`,
-    name: 'File reader',
+    name,
     emailVerified: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   })
   await db.insert(userStats).values({ id: generateId(), userId })
-  await insertWorkspaceFixture(db, {
-    id: workspaceId,
-    ownerId: userId,
-    billedAccountUserId: userId,
-    name: 'Read environment',
-  })
-  await db.insert(permissions).values({
+  return userId
+}
+
+function grantWorkspace(userId: string, workspaceId: string, permissionType: 'admin' | 'read') {
+  return db.insert(permissions).values({
     id: generateId(),
     userId,
     entityType: 'workspace',
     entityId: workspaceId,
-    permissionType: 'admin',
+    permissionType,
   })
-  const [binding] = await db
-    .select({ projectId: workspace.projectId })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-  if (!binding?.projectId) throw new Error('Project fixture missing')
-  const ids = { userId, workspaceId, projectId: binding.projectId }
-  fixtures.push(ids)
-  const context: AgentCliExecutionContext = {
+}
+
+function cliContext(userId: string, workspaceId: string): AgentCliExecutionContext {
+  return {
     userId,
     workspaceId,
     requestMode: 'agent',
@@ -125,6 +125,26 @@ async function fixture() {
     }),
     resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], { userId, workspaceId }),
   }
+}
+
+async function fixture() {
+  const userId = await insertUser('File reader')
+  const workspaceId = generateId()
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    ownerId: userId,
+    billedAccountUserId: userId,
+    name: 'Read environment',
+  })
+  await grantWorkspace(userId, workspaceId, 'admin')
+  const [binding] = await db
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  if (!binding?.projectId) throw new Error('Project fixture missing')
+  const ids = { userId, workspaceId, projectId: binding.projectId }
+  fixtures.push(ids)
+  const context = cliContext(userId, workspaceId)
   const principal = createSessionPrincipal({ userId })
   return { ...ids, context, principal }
 }
@@ -270,6 +290,137 @@ check('benchmark reference generation cannot create Project files', async () => 
   )
   expect(created.exitCode, created.stderr).toBe(0)
   expect(await stored()).toHaveLength(1)
+})
+
+function simCli(
+  argv: string[],
+  context: ToolExecutionContext,
+  fileOwner?: { entityType: 'project'; entityId: string }
+) {
+  return executeSimCli(
+    { request: { ...(fileOwner ? { fileOwner } : {}), invocation: { kind: 'cli', argv } } },
+    context
+  )
+}
+
+check('sim_cli for a callerless run holds only the read API scopes', async () => {
+  const f = await fixture()
+  const name = `capped-${generateId()}`
+  const ownerFallback = { ...f.context, workflowId: '', secretActorUserId: null }
+  // In-band calls carry no `userPermission`, only the run's recorded callerless authority.
+  const contexts: ToolExecutionContext[] = [
+    { ...ownerFallback, userPermission: 'read' },
+    ownerFallback,
+  ]
+  const project = { entityType: 'project', entityId: f.projectId } as const
+  const writes: Array<[string[], typeof project | undefined]> = [
+    [['workflows', 'create', '--name', name], undefined],
+    [['projects', 'files', 'create', f.projectId, '--name', name, '--content', 'x'], project],
+    [['secrets', 'set', 'CAPPED', '--scope', 'personal', '--value', 'v'], undefined],
+  ]
+  const workflows = () =>
+    db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(and(eq(workflow.workspaceId, f.workspaceId), eq(workflow.name, name)))
+  const projectFiles = () =>
+    db
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.originalName, name))
+
+  for (const context of contexts) {
+    for (const [argv, owner] of writes) {
+      const refused = await simCli(argv, context, owner)
+      expect(refused.success).toBe(false)
+      expect(AgentCliRawResult.parse(refused.output).stderr).toContain('api:write')
+    }
+    const read = await simCli(['workflows', 'list', '--output', 'json'], context)
+    expect(read.success, read.error).toBe(true)
+  }
+  expect(await workflows()).toEqual([])
+  expect(await projectFiles()).toEqual([])
+
+  const attributed: ToolExecutionContext = {
+    ...f.context,
+    workflowId: '',
+    userPermission: 'admin',
+    secretActorUserId: f.userId,
+  }
+  for (const [argv, owner] of writes) {
+    const written = await simCli(argv, attributed, owner)
+    expect(written.success, written.error).toBe(true)
+  }
+  expect(await workflows()).toHaveLength(1)
+  expect(await projectFiles()).toHaveLength(1)
+})
+
+check('sim_cli services for a callerless run refuse the writes they route', async () => {
+  const f = await fixture()
+  const service = (name: string, input: Record<string, unknown>, context: ToolExecutionContext) =>
+    executeSimCli({ request: { invocation: { kind: 'service', name, input } } }, context)
+  const inboxSecretScope = async () =>
+    (
+      await db
+        .select({ scope: workspace.inboxSecretScope })
+        .from(workspace)
+        .where(eq(workspace.id, f.workspaceId))
+    )[0]?.scope
+  const before = await inboxSecretScope()
+  const widen = before === 'all' ? 'selected' : 'all'
+  const writes: Array<[string, Record<string, unknown>]> = [
+    [
+      'settings',
+      { scope: 'workspace', action: 'update', section: 'inbox', changes: { secretScope: widen } },
+    ],
+  ]
+
+  const callerless: ToolExecutionContext = { ...f.context, workflowId: '', secretActorUserId: null }
+  for (const [name, input] of writes) {
+    const refused = await service(name, input, callerless)
+    expect(refused.success).toBe(false)
+    expect(refused.error).toContain('api:write')
+  }
+  expect(await inboxSecretScope()).toBe(before)
+  const read = await service(
+    'settings',
+    { scope: 'workspace', action: 'get', section: 'inbox' },
+    callerless
+  )
+  expect(read.success, read.error).toBe(true)
+
+  const attributed: ToolExecutionContext = {
+    ...f.context,
+    workflowId: '',
+    userPermission: 'admin',
+    secretActorUserId: f.userId,
+  }
+  for (const [name, input] of writes) {
+    const written = await service(name, input, attributed)
+    expect(written.success, `${name}: ${written.error}`).toBe(true)
+  }
+  expect(await inboxSecretScope()).toBe(widen)
+})
+
+check('sim_cli for a read-only member keeps what that role allows', async () => {
+  const f = await fixture()
+  const memberId = await insertUser('Read member')
+  memberIds.push(memberId)
+  await grantWorkspace(memberId, f.workspaceId, 'read')
+  const member: ToolExecutionContext = {
+    ...cliContext(memberId, f.workspaceId),
+    workflowId: '',
+    userPermission: 'read',
+  }
+
+  const personalSecret = await simCli(
+    ['secrets', 'set', 'MEMBER', '--scope', 'personal', '--value', 'v'],
+    member
+  )
+  expect(personalSecret.success, personalSecret.error).toBe(true)
+  const workflowCreate = await simCli(['workflows', 'create', '--name', 'x'], member)
+  expect(workflowCreate.success).toBe(false)
+  expect(AgentCliRawResult.parse(workflowCreate.output).stderr).not.toContain('api:write')
 })
 
 check('Project grep matches public bytes while excluding classified secret text', async () => {
@@ -771,6 +922,7 @@ afterAll(async () => {
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(user).where(eq(user.id, f.userId))
   }
+  if (memberIds.length) await db.delete(user).where(inArray(user.id, memberIds))
   await rm(storageRoot, { recursive: true, force: true })
   const report = process.env.PROJECT_FILE_READ_REPORT_PATH ?? 'test-results/project-file-read.json'
   await mkdir(dirname(report), { recursive: true })

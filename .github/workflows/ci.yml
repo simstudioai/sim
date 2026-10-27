@@ -569,6 +569,9 @@ jobs:
       needs.promote.result == 'success' &&
       needs.trigger-upload.result == 'success' &&
       needs.promote.outputs.promoted == 'true'
+    outputs:
+      # The new app serves traffic; indexnow keys off this, not the later Trigger.dev promotion.
+      cutover: ${{ steps.cutover.outcome }}
     # Mostly waiting on the ECS cutover after a dependency install: the smallest runner is enough.
     runs-on: *runner-2vcpu
     # Leave setup/promotion headroom above the 70-minute cutover poll.
@@ -596,6 +599,7 @@ jobs:
       # An unchanged tag may belong to a failed or still-running earlier deploy.
       # Verify its latest cutover rather than treating tag equality as success.
       - name: Wait for ECS traffic cutover
+        id: cutover
         env:
           OVERALL_TIMEOUT: 4200
           APP_IMAGE_CHANGED: ${{ needs.promote.outputs.app_image_changed }}
@@ -635,6 +639,64 @@ jobs:
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
           bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
+
+  # Production only, once the new app serves traffic: submit the library and comparison URLs this
+  # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
+  indexnow:
+    name: indexnow
+    needs: [promote, trigger-promote]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.promote.outputs.promoted == 'true' &&
+      needs.trigger-promote.outputs.cutover == 'success'
+    runs-on: *runner-2vcpu
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+
+      # Diff from the last earlier main commit whose `indexnow` check succeeded, not the previous
+      # push: a push that never deployed, or whose submission failed, would otherwise drop its
+      # changed URLs for good. The check-runs lookup asks for this one check per commit, so it
+      # stays small and counts every attempt of a re-run; a lookup that errors counts as no
+      # success. With no success in view, the base is the oldest run in view, so URLs that no
+      # submission ever covered are sent now. The diff needs only the two trees, so that one
+      # commit is fetched alone; an all-zero `before` (the branch's first push) has no base,
+      # which the script skips.
+      - name: Submit changed URLs to IndexNow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          BASE_SHA=""
+          OLDEST_SHA=""
+          while read -r head_sha; do
+            OLDEST_SHA="$head_sha"
+            if succeeded="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?check_name=indexnow&filter=all" \
+              --jq '[.check_runs[] | select(.conclusion == "success")] | length')" && [[ "$succeeded" -gt 0 ]]; then
+              BASE_SHA="$head_sha"
+              break
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=30" \
+            --jq ".workflow_runs[] | select(.id < $GITHUB_RUN_ID) | .head_sha")
+          BASE_SHA="${BASE_SHA:-${OLDEST_SHA:-$PUSH_BEFORE}}"
+          echo "Submitting URLs changed in $BASE_SHA..$GITHUB_SHA"
+          if [[ ! "$BASE_SHA" =~ ^0+$ ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          fi
+          bun scripts/ping-indexnow.ts "$BASE_SHA" "$GITHUB_SHA"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64

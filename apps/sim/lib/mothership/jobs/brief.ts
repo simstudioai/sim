@@ -9,7 +9,7 @@ const BRIEF_SUMMARY_CHARS = 400
 
 type JobBriefSchedule = Pick<
   JobRun,
-  'scheduleId' | 'jobTitle' | 'prompt' | 'successCondition' | 'lifecycle' | 'maxRuns' | 'runCount'
+  'scheduleId' | 'jobTitle' | 'prompt' | 'successCondition' | 'lifecycle' | 'maxRuns' | 'runNumber'
 >
 
 /**
@@ -20,7 +20,7 @@ type JobBriefSchedule = Pick<
 export async function buildJobBrief(
   schedule: JobBriefSchedule,
   occurrenceAt: Date,
-  runBudgetUsd: number
+  runBudgetUsd: number | null
 ): Promise<string> {
   const recent = await db
     .select({
@@ -40,8 +40,8 @@ export async function buildJobBrief(
     .limit(BRIEF_RECENT_RUNS)
 
   const run = schedule.maxRuns
-    ? `Run ${schedule.runCount} of ${schedule.maxRuns}`
-    : `Run ${schedule.runCount}`
+    ? `Run ${schedule.runNumber} of ${schedule.maxRuns}`
+    : `Run ${schedule.runNumber}`
   return [
     `Job: ${schedule.jobTitle ?? 'Untitled job'} (${run}, scheduled for ${occurrenceAt.toISOString()})`,
     `Task:\n${schedule.prompt ?? ''}`,
@@ -59,7 +59,7 @@ export async function buildJobBrief(
           )
           .join('\n')}`
       : 'This is the first run.',
-    `This run may spend up to $${runBudgetUsd.toFixed(2)}.`,
+    runBudgetUsd === null ? '' : `This run may spend up to $${runBudgetUsd.toFixed(2)}.`,
   ]
     .filter((part) => part.length > 0)
     .join('\n\n')

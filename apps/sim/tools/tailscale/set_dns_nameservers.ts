@@ -1,17 +1,10 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface TailscaleSetDnsNameserversParams {
-  apiKey: string
-  tailnet: string
-  dns: string
-}
-
-interface TailscaleSetDnsNameserversResponse extends ToolResponse {
-  output: {
-    dns: string[]
-    magicDNS: boolean
-  }
-}
+import type {
+  TailscaleSetDnsNameserversParams,
+  TailscaleSetDnsNameserversResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse, parseTailscaleList } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleSetDnsNameserversTool: ToolConfig<
   TailscaleSetDnsNameserversParams,
@@ -19,68 +12,55 @@ export const tailscaleSetDnsNameserversTool: ToolConfig<
 > = {
   id: 'tailscale_set_dns_nameservers',
   name: 'Tailscale Set DNS Nameservers',
-  description: 'Set the DNS nameservers for the tailnet',
+  description: 'Replace the global DNS nameservers for the tailnet',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     tailnet: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description: 'Tailnet ID, legacy name, or "-" for the token’s default tailnet',
     },
     dns: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of DNS nameserver IP addresses (e.g., "8.8.8.8,8.8.4.4")',
+      description: 'Comma-separated DNS nameserver IP addresses; [] clears the nameservers',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/nameservers`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/dns/nameservers`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      dns: params.dns
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-    }),
+    body: (params) => ({ dns: parseTailscaleList(params.dns) }),
   },
-
   transformResponse: async (response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { dns: [], magicDNS: false },
-        error: (data as Record<string, string>).message ?? 'Failed to set DNS nameservers',
-      }
-    }
-
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        dns: data.dns ?? [],
-        magicDNS: data.magicDNS ?? false,
-      },
-    }
+    await assertTailscaleResponse(response)
+    const data: { dns: string[]; magicDNS: boolean } = await response.json()
+    return { success: true, output: { dns: data.dns ?? [], magicDNS: data.magicDNS ?? false } }
   },
-
   outputs: {
-    dns: { type: 'array', description: 'Updated list of DNS nameserver addresses' },
-    magicDNS: { type: 'boolean', description: 'Whether MagicDNS is enabled' },
+    dns: {
+      type: 'array',
+      description: 'DNS nameserver IP addresses',
+      items: {
+        type: 'string',
+      },
+    },
+    magicDNS: {
+      type: 'boolean',
+      description: 'Whether MagicDNS is enabled',
+    },
   },
 }

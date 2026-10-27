@@ -237,14 +237,27 @@ if (env.NODE_ENV === 'production') {
   }
 }
 
-const validStripeKey = env.STRIPE_SECRET_KEY
-
-let stripeClient = null
-if (validStripeKey) {
-  stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-08-27.basil',
-  })
+/**
+ * Resolves the Stripe billing plugin's client and webhook signing secret, or `null` when the plugin
+ * must not register. Stripe's verifier accepts a signature computed with an empty key, so a missing
+ * `STRIPE_WEBHOOK_SECRET` disables the plugin rather than exposing a forgeable webhook receiver.
+ */
+function resolveStripeBilling() {
+  if (!isBillingEnabled || !env.STRIPE_SECRET_KEY) return null
+  const webhookSecret = env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret?.trim()) {
+    logger.error(
+      'BILLING_ENABLED and STRIPE_SECRET_KEY are set but STRIPE_WEBHOOK_SECRET is not; the Stripe billing plugin is disabled until it is configured'
+    )
+    return null
+  }
+  return {
+    client: new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' }),
+    webhookSecret,
+  }
 }
+
+const stripeBilling = resolveStripeBilling()
 
 /**
  * Resolves the org's API instance URL for a freshly linked Salesforce account.
@@ -967,7 +980,7 @@ export const auth = betterAuth({
       banned: false,
       banReason: null,
       banExpires: null,
-      ...(isBillingEnabled && stripeClient ? { stripeCustomerId: null } : {}),
+      ...(stripeBilling ? { stripeCustomerId: null } : {}),
       ...additionalFields,
       id,
     }),
@@ -1547,11 +1560,11 @@ export const auth = betterAuth({
      * SSO provider behind it.
      */
     ...(isSsoEnabled ? [configuredSsoPlugin] : []),
-    ...(isBillingEnabled && stripeClient
+    ...(stripeBilling
       ? [
           stripe({
-            stripeClient,
-            stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
+            stripeClient: stripeBilling.client,
+            stripeWebhookSecret: stripeBilling.webhookSecret,
             createCustomerOnSignUp: true,
             onCustomerCreate: async ({ stripeCustomer, user }) => {
               logger.info('[onCustomerCreate] Stripe customer created', {

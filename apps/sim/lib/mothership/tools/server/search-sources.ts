@@ -33,6 +33,7 @@ export const organizationSearchSourcesServerTool: BaseServerTool<
   name: 'search_sources',
   inputSchema: organizationSearchSourcesInputSchema,
   outputSchema: organizationSearchSourcesOutputSchema,
+  writes: (args) => args.action === 'approve',
   async execute(args, context) {
     if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
       throw new OrchestrationError('forbidden', 'Search source controls require Mothership')

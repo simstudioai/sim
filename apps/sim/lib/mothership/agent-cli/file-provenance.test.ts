@@ -458,7 +458,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     const output = await response.text()
     expect(output).toContain(content)
     expect(trace.isPermanentlyIncomplete()).toBe(false)
-    expect(mocks.decrypt).toHaveBeenCalledWith('fixture-ciphertext')
+    expect(mocks.decrypt).toHaveBeenCalledWith('fixture-ciphertext', { logFailure: false })
     expect(
       JSON.stringify(
         inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli').result
