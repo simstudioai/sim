@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { filterUndefined } from '@sim/utils/object'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/lib/credentials/draft-hooks'
 import { completeOrganizationCredentialDraft } from '@/lib/credentials/organization-draft'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { clearOAuthRefreshFailure } from '@/lib/oauth/credential-service'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider } from '@/lib/oauth/utils'
@@ -113,10 +115,18 @@ export function consumeOAuthCredentialDraftBinding(
 
 interface CredentialReconnectConflictParams {
   draftId: string
-  userId: string
-  providerId: string
-  /** The provider identity Better Auth is about to store, still carrying its random suffix. */
-  externalAccountId: string
+  /** The account row Better Auth is about to insert, its `accountId` still carrying the random suffix. */
+  account: {
+    userId: string
+    providerId: string
+    accountId: string
+    accessToken?: string | null
+    refreshToken?: string | null
+    idToken?: string | null
+    accessTokenExpiresAt?: Date | null
+    refreshTokenExpiresAt?: Date | null
+    scope?: string | null
+  }
   oauthState: OAuthStateWithCallbackUrl | null | undefined
 }
 
@@ -130,14 +140,20 @@ interface CredentialReconnectConflictParams {
  * workspace would leave two credentials on one account. When it would, the
  * draft is discarded and this returns where to send the user: the page the
  * reconnect started from, carrying the reason as the `error` and
- * `error_description` the OAuth return handlers already read. Returning before
- * the insert leaves every credential and account exactly as it was.
+ * `error_description` the OAuth return handlers already read.
+ *
+ * Returning before the insert leaves every credential bound to the account it
+ * had. The grant itself is still real, so its tokens replace the ones on the
+ * identity's existing rows, the same tokens those credentials would have
+ * inherited from the new row, and a provider that rotates on reauthorization
+ * cannot strand them on a dead chain.
  */
-export async function findCredentialReconnectConflictRedirect(
+export async function refuseConflictingCredentialReconnect(
   params: CredentialReconnectConflictParams
 ): Promise<string | null> {
-  const { draftId, userId, providerId, externalAccountId, oauthState } = params
-  const stableIdentity = stableExternalAccountId(externalAccountId)
+  const { draftId, account, oauthState } = params
+  const { userId, providerId } = account
+  const stableIdentity = stableExternalAccountId(account.accountId)
   if (!stableIdentity) return null
 
   const [draft] = await db
@@ -180,6 +196,22 @@ export async function findCredentialReconnectConflictRedirect(
     accountIds: identityAccountIds,
   })
   if (!conflicting) return null
+
+  await db
+    .update(schema.account)
+    .set({
+      ...filterUndefined({
+        accessToken: account.accessToken ?? undefined,
+        refreshToken: account.refreshToken ?? undefined,
+        idToken: account.idToken ?? undefined,
+        accessTokenExpiresAt: account.accessTokenExpiresAt ?? undefined,
+        refreshTokenExpiresAt: account.refreshTokenExpiresAt ?? undefined,
+        scope: account.scope ?? undefined,
+      }),
+      updatedAt: new Date(),
+    })
+    .where(inArray(schema.account.id, identityAccountIds))
+  await Promise.all(identityAccountIds.map((id) => clearOAuthRefreshFailure(id)))
 
   await db
     .delete(schema.pendingCredentialDraft)

@@ -6,6 +6,7 @@
 import { db } from '@sim/db'
 import { account, credential, pendingCredentialDraft, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
 import { emailTemplatesMock } from '@sim/testing/mocks/email-templates.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
@@ -52,13 +53,6 @@ function cookieHeader(response: Response, previous = '') {
     if (separator > 0) cookies.set(pair.slice(0, separator), pair.slice(separator + 1))
   }
   return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ')
-}
-
-function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
 }
 
 describe('reconnecting a credential onto an account another credential uses', () => {
@@ -240,7 +234,7 @@ describe('reconnecting a credential onto an account another credential uses', ()
       .where(and(eq(account.userId, userId), eq(account.providerId, PROVIDER_ID)))
   }
 
-  it('sends the user back to the reconnect page with the reason and changes nothing', async () => {
+  it('sends the user back with the reason, keeping each credential on its account', async () => {
     const { callback, draftId, startedFrom } = await reconnectWorkCredentialAs(personalSubject)
 
     expect(callback.status).toBe(302)
@@ -258,7 +252,10 @@ describe('reconnecting a credential onto an account another credential uses', ()
     expect(rows.map((row) => row.id).sort()).toEqual(
       [workAccountRowId, personalAccountRowId].sort()
     )
-    expect(rows.find((row) => row.id === personalAccountRowId)?.accessToken).toBe('personal-access')
+    expect(rows.find((row) => row.id === personalAccountRowId)?.accessToken).toBe(
+      `fresh-access-${personalSubject}`
+    )
+    expect(rows.find((row) => row.id === workAccountRowId)?.accessToken).toBe('work-access')
     const drafts = await db
       .select({ id: pendingCredentialDraft.id })
       .from(pendingCredentialDraft)

@@ -147,8 +147,8 @@ import { CredentialAccountConflictError } from '@/lib/credentials/draft-hooks'
 import {
   captureOAuthCredentialDraftBinding,
   consumeOAuthCredentialDraftBinding,
-  findCredentialReconnectConflictRedirect,
   processCredentialDraft,
+  refuseConflictingCredentialReconnect,
 } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -294,6 +294,40 @@ async function fetchSalesforceInstanceUrl(
   } catch (error) {
     logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
     return undefined
+  }
+}
+
+/**
+ * A fresh Slack connect re-issues the installation's rotating token chain,
+ * invalidating the copies held by sibling account rows for the same team (Slack
+ * bot tokens are per-installation, not per-grant). Propagates the new chain so
+ * every sibling is valid again, and clears the installation's dead flag. A
+ * failure is logged, never thrown: the connect itself already succeeded.
+ */
+async function propagateFreshSlackConnect(account: {
+  userId: string
+  providerId: string
+  accountId: string
+  accessToken?: string | null
+  refreshToken?: string | null
+  accessTokenExpiresAt?: Date | null
+}): Promise<void> {
+  if (account.providerId !== 'slack' || !account.accessToken) return
+  try {
+    const teamId = extractSlackTeamId(account.accountId)
+    if (!teamId) return
+    // Clear the dead flag before fanning out: the connect itself proves the
+    // installation has live tokens, and a fan-out failure must not leave the
+    // hour-long flag blocking refreshes.
+    await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
+    await fanOutSlackTokenChain(teamId, {
+      accessToken: account.accessToken,
+      refreshToken: account.refreshToken ?? null,
+      accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
+    })
+    logger.info('Propagated Slack installation token chain', { userId: account.userId, teamId })
+  } catch (error) {
+    logger.error('Failed to propagate Slack token chain', { userId: account.userId, error })
   }
 }
 
@@ -503,6 +537,7 @@ export const auth = betterAuth({
       create: {
         before: async (account, context) => {
           const modifiedAccount = { ...account }
+          let reconnectDraftId: string | undefined
 
           if (context?.path.startsWith('/oauth2/callback/')) {
             let draftId: string | undefined
@@ -516,26 +551,7 @@ export const auth = betterAuth({
               })
               throw error
             }
-
-            /**
-             * The after-hook runs once the callback has already answered, so a
-             * reconnect onto an account another credential in the workspace
-             * uses has to be refused here, before the row exists, to send the
-             * user back with a reason instead of a 500.
-             */
-            if (draftId) {
-              const conflictRedirectUrl = await findCredentialReconnectConflictRedirect({
-                draftId,
-                userId: account.userId,
-                providerId: account.providerId,
-                externalAccountId: account.accountId,
-                oauthState: await getOAuthState(),
-              })
-              if (conflictRedirectUrl) {
-                consumeOAuthCredentialDraftBinding(context)
-                throw new APIError('FOUND', undefined, { location: conflictRedirectUrl })
-              }
-            }
+            reconnectDraftId = draftId
           }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
@@ -559,6 +575,27 @@ export const auth = betterAuth({
             const requestedScopes = getCanonicalScopesForProvider('box')
             if (requestedScopes.length > 0) {
               modifiedAccount.scope = requestedScopes.join(' ')
+            }
+          }
+
+          /**
+           * The after-hook runs once the callback has already answered, so a
+           * reconnect onto an account another credential in the workspace uses
+           * has to be refused here, before the row exists, to send the user
+           * back with a reason instead of a 500. The fresh grant still lands
+           * on the identity's existing rows: the provider may already have
+           * rotated their tokens away (Slack installations do).
+           */
+          if (context && reconnectDraftId) {
+            const conflictRedirectUrl = await refuseConflictingCredentialReconnect({
+              draftId: reconnectDraftId,
+              account: modifiedAccount,
+              oauthState: await getOAuthState(),
+            })
+            if (conflictRedirectUrl) {
+              consumeOAuthCredentialDraftBinding(context)
+              await propagateFreshSlackConnect(modifiedAccount)
+              throw new APIError('FOUND', undefined, { location: conflictRedirectUrl })
             }
           }
 
@@ -618,40 +655,7 @@ export const auth = betterAuth({
             })
           }
 
-          /**
-           * A fresh Slack connect re-issues the installation's rotating token
-           * chain, invalidating the copies held by sibling account rows for the
-           * same team (Slack bot tokens are per-installation, not per-grant).
-           * Propagate the new chain so every sibling is valid again, and clear
-           * the installation's dead flag.
-           */
-          if (account.providerId === 'slack' && account.accessToken) {
-            try {
-              const teamId = extractSlackTeamId(account.accountId)
-              if (teamId) {
-                // Clear the dead flag before fanning out: the connect itself
-                // proves the installation has live tokens, and a fan-out
-                // failure must not leave the hour-long flag blocking refreshes.
-                await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
-                await fanOutSlackTokenChain(teamId, {
-                  accessToken: account.accessToken,
-                  refreshToken: account.refreshToken ?? null,
-                  accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
-                })
-                logger.info('[account.create.after] Propagated Slack installation token chain', {
-                  userId: account.userId,
-                  teamId,
-                  newAccountId: account.id,
-                })
-              }
-            } catch (error) {
-              logger.error('[account.create.after] Failed to propagate Slack token chain', {
-                userId: account.userId,
-                accountId: account.id,
-                error,
-              })
-            }
-          }
+          await propagateFreshSlackConnect(account)
 
           const isOAuth2Callback = context?.path.startsWith('/oauth2/callback/') === true
           const credentialDraftBinding = context
