@@ -1,3 +1,4 @@
+import { flushAuditRollups } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   auditLog,
@@ -8,14 +9,17 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
 import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import { tableTriggerMock } from '@sim/testing/mocks/table-trigger.mock'
 import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-columns.mock'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/table/billing', () => tableBillingMock)
@@ -172,5 +176,98 @@ describe('table mutation audit history in PostgreSQL', () => {
       metadata: { operation: testCase.operation, [testCase.countField]: testCase.count },
     })
     expect(JSON.stringify(entry)).not.toContain(privateValue)
+  })
+
+  function executorPrincipal(executionId: string) {
+    return createExecutorPrincipal({
+      subjectUserId: userId,
+      workspaceId,
+      delegationId: generateId(),
+      audience: 'sim:tables',
+      resourceScope: { tableId },
+      delegationContext: { kind: 'workflow_execution', workflowId: 'wf-audit', executionId },
+    })
+  }
+
+  async function insertAsExecution(executionId: string, value: string) {
+    const result = await createTableRows.execute({
+      principal: executorPrincipal(executionId),
+      input: {
+        tableId,
+        assertedWorkspaceId: workspaceId,
+        strictWrite: true,
+        dataKeying: 'ids',
+        kind: 'single',
+        data: { value },
+      },
+    })
+    if (result.kind !== 'single') throw new Error('Expected a single-row insert')
+    return result.row.id
+  }
+
+  async function auditRows() {
+    await flushAuditRollups()
+    return db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.workspaceId, workspaceId))
+      .orderBy(asc(auditLog.createdAt))
+  }
+
+  it("merges one execution's repeated row inserts into one row that keeps every row id and count", async () => {
+    const rowIds: string[] = []
+    for (const value of ['a', 'b', 'c']) rowIds.push(await insertAsExecution('exec-1', value))
+
+    const entries = await auditRows()
+    expect(entries).toHaveLength(1)
+    const [entry] = entries
+    expect(entry).toMatchObject({
+      actorId: userId,
+      action: 'table.updated',
+      resourceId: tableId,
+      metadata: {
+        op: 'insert',
+        operation: 'tables.rows.create',
+        rowsInserted: 3,
+        rowIds,
+        actor: { kind: 'delegated', workflowId: 'wf-audit', executionId: 'exec-1' },
+        rollup: { entries: 3 },
+      },
+    })
+    const metadata = entry.metadata as Record<string, unknown>
+    expect(metadata.delegationIds).toHaveLength(3)
+    expect(new Set(metadata.delegationIds as string[]).size).toBe(3)
+    expect(metadata).not.toHaveProperty('rowId')
+    expect(entry.description).toContain('3 inserted')
+  })
+
+  it('never merges row changes from two executions', async () => {
+    await insertAsExecution('exec-1', 'a')
+    await insertAsExecution('exec-2', 'b')
+    await insertAsExecution('exec-1', 'c')
+
+    const entries = await auditRows()
+    expect(entries).toHaveLength(2)
+    const byExecution = new Map(
+      entries.map((entry) => {
+        const metadata = entry.metadata as { actor: { executionId: string }; rowsInserted: number }
+        return [metadata.actor.executionId, metadata.rowsInserted]
+      })
+    )
+    expect(Object.fromEntries(byExecution)).toEqual({ 'exec-1': 2, 'exec-2': 1 })
+  })
+
+  it('writes a lone execution change exactly as an unmerged entry', async () => {
+    const insertedRowId = await insertAsExecution('exec-1', 'a')
+
+    const [entry] = await auditRows()
+    expect(entry.metadata).toMatchObject({
+      op: 'insert',
+      rowId: insertedRowId,
+      rowsInserted: 1,
+      actor: { kind: 'delegated', workflowId: 'wf-audit', executionId: 'exec-1' },
+    })
+    expect(entry.metadata).not.toHaveProperty('rollup')
+    expect(entry.description).toBe('Inserted 1 row(s) into table "Audited table"')
   })
 })

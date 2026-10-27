@@ -3,6 +3,7 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { flushAuditRollups } from '@sim/audit'
 import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
@@ -607,9 +608,18 @@ function prefetchExecutionReads(options: ExecuteWorkflowCoreOptions): ExecutionR
  * volume, from opening a connection they would never use.
  *
  * Runs under `runWorkflowOutsideContentDelivery`, so a run Chat started reads what any run reads.
+ *
+ * Writes pending audit rollups before returning, since a background run's process
+ * may be frozen or ended once it does.
  */
-export function executeWorkflowCore(options: ExecuteWorkflowCoreOptions): Promise<ExecutionResult> {
-  return runWorkflowOutsideContentDelivery(() => executeWorkflowCoreInRun(options))
+export async function executeWorkflowCore(
+  options: ExecuteWorkflowCoreOptions
+): Promise<ExecutionResult> {
+  try {
+    return await runWorkflowOutsideContentDelivery(() => executeWorkflowCoreInRun(options))
+  } finally {
+    await flushAuditRollups()
+  }
 }
 
 async function executeWorkflowCoreInRun(
