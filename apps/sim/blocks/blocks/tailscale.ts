@@ -775,7 +775,7 @@ export const TailscaleBlock: BlockConfig = {
         if (
           params.operation === 'create_auth_key' &&
           params.expirySeconds != null &&
-          params.expirySeconds !== ''
+          !(typeof params.expirySeconds === 'string' && params.expirySeconds.trim() === '')
         ) {
           const expirySeconds = Number(params.expirySeconds)
           if (!Number.isFinite(expirySeconds)) throw new Error('Expiry must be a finite number')
