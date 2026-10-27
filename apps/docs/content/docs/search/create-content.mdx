@@ -1,0 +1,84 @@
+---
+title: Create content from company knowledge
+description: Turn sourced answers into briefs, updates, emails, and other drafts in the conversation.
+---
+
+import { Image } from '@/components/ui/image'
+
+On **Home**, use **Search** conversation mode. Once you've found the right information, ask Sim to turn it into something you can use. Draft a customer response, a meeting brief, an internal announcement, or an FAQ in the conversation.
+
+<Image
+  src="/static/search/launch-update-draft.webp"
+  alt="A refined Atlas launch update with links to the Google Drive launch brief and readiness update beside the supporting claims"
+  width={1470}
+  height={1000}
+  variant="result"
+  background="architecture"
+/>
+
+## Start with the evidence
+
+For work that depends on company facts, first identify the sources:
+
+> Find the Atlas launch brief and the latest rollout decision. Summarize the approved scope, intended audience, and confirmed dates with sources.
+
+Review the answer, then ask for a draft:
+
+> Using those findings, draft an internal launch announcement for customer success. Keep it under 200 words. Include what is changing, who it affects, and what the team needs to do. Mark any unconfirmed details as questions.
+
+You can combine both requests in one prompt when the scope is clear.
+
+## Specify the output
+
+Include four details: **source material, audience, format, and constraints**.
+
+| Detail | Example |
+| --- | --- |
+| Source material | “Use the approved onboarding guide and these account notes.” |
+| Audience | “Write for a new customer who hasn't used the product.” |
+| Format | “A welcome email with three next steps.” |
+| Constraints | “Under 150 words, friendly and direct. Don't invent dates or commitments.” |
+
+The draft appears in the conversation. You can copy it into the document or communication tool where you want to use it.
+
+## Choose a useful format
+
+### Briefs and updates
+
+> Turn the Atlas findings into a one-page project brief: goal, current status, decisions, risks, and unanswered questions. Keep source references next to factual claims.
+
+### Emails and customer responses
+
+> Using our implementation guide, draft a response explaining the customer's next onboarding steps. Keep internal discussion out of the customer-facing text and list supporting sources separately for my review.
+
+### FAQs and onboarding material
+
+> Create a new-hire FAQ from the onboarding guide. Include questions about access, equipment, and getting help. Flag questions the guide doesn't answer.
+
+### Meeting preparation
+
+> Use the available Acme account notes to draft a meeting brief with context, open questions, and a proposed agenda. Distinguish documented customer requests from suggested discussion topics.
+
+### Presentation outlines
+
+> Turn these findings into a six-slide outline for a team update. For each slide, give a title, three key points, and the sources supporting them.
+
+## Refine the draft
+
+Continue with specific changes:
+
+- “Cut this to half the length without losing the action items.”
+- “Use the tone of this example: [paste an approved example].”
+- “Move the recommendation to the opening paragraph.”
+- “Make the terminology consistent with the product guide.”
+- “Separate confirmed facts from proposed next steps.”
+
+Provide a style example or brand guidance when consistency matters. Don't assume Sim already knows a team's preferred tone.
+
+## Review and use it
+
+Check names, numbers, dates, links, and commitments against the sources. For an external audience, also check that the draft includes only information intended for that audience.
+
+Copy the reviewed draft into the app where you want to use it. Sim Search creates the text in your conversation; you choose when and where to share it.
+
+[Explore more example prompts](/search/use-cases).

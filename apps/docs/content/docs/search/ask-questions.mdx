@@ -12,7 +12,7 @@ Your organization must enable Search and make a source available to you. [Connec
 ## Ask your first question
 
 1. Open **Home** in the organization sidebar. From a workspace, open the workspace menu and select **Back to organization** first.
-2. If the conversation mode picker is shown, choose **Search** before sending your first message.
+2. Choose **Search** in the conversation-mode menu before sending your first message.
 3. Ask a specific question and press **Enter**.
 
 For example:
@@ -32,7 +32,7 @@ Include the project, topic, or timeframe that matters. If you know where the ans
 
 > Find our launch plan in Confluence. Summarize the scope and the launch date, with sources.
 
-Search mode finds and reads information. Use **Build** in a new conversation when you want Sim to take actions or change resources.
+Search mode finds and reads information. You can also ask it to [draft content from the findings](/search/create-content); the draft stays in the conversation until you choose where to use it.
 
 ## Check the sources
 
@@ -56,14 +56,50 @@ You don't need to repeat the original question. Ask for the next useful detail:
 
 Review the cited material for each answer. A summary can miss context, and an unavailable source can leave a gap. Sim can only retrieve content allowed by your account and the organization's source settings.
 
+## Summarize and compare
+
+Specify what you want extracted, rather than just “summarize this.”
+
+| Task | Example prompt |
+| --- | --- |
+| Compare options | “Compare the two onboarding proposals in a table: scope, effort, risks, and dependencies. Cite each source.” |
+| Catch up on a project | “What decisions were recorded for Atlas this month? Separate agreed decisions from suggestions.” |
+| Find an owner | “Who owns the launch checklist? Cite the document that assigns responsibility.” |
+| Resolve a disagreement | “These documents give different dates. Compare their context and identify what is confirmed.” |
+
+If the sources don't assign an owner or confirm a date, ask Sim to say so. Include the timeframe you care about, and distinguish a document's update date from the event it describes. A live search is still subject to provider freshness and retrieval limits.
+
+## Prepare for a meeting
+
+Connect Google Calendar and the apps that hold your team's documents, such as Confluence and Google Drive. Then ask Sim to bring the meeting details and relevant project context together:
+
+> Find the Atlas readiness review on November 16, 2026 in my calendar. Use the Atlas project pages in Confluence and the readiness update and pilot feedback in Google Drive to prepare a brief: meeting time, decisions needed, open questions, and what I should read beforehand. Cite the sources.
+
+Use your own meeting name and date. Naming the meeting and its related documents helps Sim find the right context. If you need a particular time zone, include it in the request.
+
+Follow up with “Turn the open questions into a proposed agenda” or “Which items need an update from each owner?” Check the event citation for scheduling details and the document citations for project facts. The proposed agenda is a draft; it doesn't change the calendar event.
+
+<Image
+  src="/static/search/atlas-readiness-brief.webp"
+  alt="Atlas readiness brief showing the November 16 meeting at 10:00–10:30 AM Pacific with a Google Calendar citation"
+  width={1470}
+  height={470}
+  variant="result"
+  background="ridges"
+/>
+
 ## Start from a document
 
 If you already found the right document in **Search**, open its **…** menu and select **Summarize**. Sim starts a conversation focused on that result. Continue with questions about its decisions, dates, or next steps.
+
+You can also paste a relevant excerpt or attach an image to add context. Search conversations accept images; retrieve PDF or spreadsheet content through connected sources.
 
 Your conversations remain private to you. Copying a source link does not give someone else access to the original document.
 
 ## Related docs
 
+- [Create content](/search/create-content): Draft and refine useful text from your findings.
+- [Use cases and example prompts](/search/use-cases): Apply Search to everyday work.
 - [Find content](/search/find-content): Search directly, filter results, and reopen recent sources.
 - [Connect your account](/search/connect-your-account): Check source connections and recover access.
 - [Use Sim Search in Slack](/search/slack#use-sim-search-in-slack): Ask questions from Slack when your organization has enabled it.
