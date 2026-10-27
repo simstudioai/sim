@@ -2,6 +2,15 @@ import { TailscaleIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+const SWITCH_DEFAULTS = {
+  authorize_device: { authorized: true },
+  update_device_key: { keyExpiryDisabled: true },
+  set_dns_preferences: { magicDNS: true },
+  create_auth_key: { reusable: false, ephemeral: false, preauthorized: true },
+  list_auth_keys: { all: true },
+  get_acl: { details: false },
+} as const
+
 export const TailscaleBlock: BlockConfig = {
   type: 'tailscale',
   name: 'Tailscale',
@@ -252,7 +261,7 @@ export const TailscaleBlock: BlockConfig = {
       required: true,
       title: 'Authorized',
       type: 'switch',
-      defaultValue: true,
+      value: () => String(SWITCH_DEFAULTS.authorize_device.authorized),
       condition: { field: 'operation', value: 'authorize_device' },
     },
     {
@@ -260,7 +269,7 @@ export const TailscaleBlock: BlockConfig = {
       required: true,
       title: 'Key Expiry Disabled',
       type: 'switch',
-      defaultValue: true,
+      value: () => String(SWITCH_DEFAULTS.update_device_key.keyExpiryDisabled),
       condition: { field: 'operation', value: 'update_device_key' },
     },
     {
@@ -310,7 +319,7 @@ export const TailscaleBlock: BlockConfig = {
       required: true,
       title: 'MagicDNS',
       type: 'switch',
-      defaultValue: true,
+      value: () => String(SWITCH_DEFAULTS.set_dns_preferences.magicDNS),
       condition: { field: 'operation', value: 'set_dns_preferences' },
     },
     {
@@ -339,7 +348,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'reusable',
       title: 'Reusable',
       type: 'switch',
-      defaultValue: false,
+      value: () => String(SWITCH_DEFAULTS.create_auth_key.reusable),
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
@@ -347,7 +356,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'ephemeral',
       title: 'Ephemeral',
       type: 'switch',
-      defaultValue: false,
+      value: () => String(SWITCH_DEFAULTS.create_auth_key.ephemeral),
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
@@ -355,7 +364,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'preauthorized',
       title: 'Preauthorized',
       type: 'switch',
-      defaultValue: true,
+      value: () => String(SWITCH_DEFAULTS.create_auth_key.preauthorized),
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
@@ -424,7 +433,7 @@ export const TailscaleBlock: BlockConfig = {
       id: 'details',
       title: 'Policy Diagnostics',
       type: 'switch',
-      defaultValue: false,
+      value: () => String(SWITCH_DEFAULTS.get_acl.details),
       condition: { field: 'operation', value: 'get_acl' },
       mode: 'advanced',
     },
@@ -519,7 +528,7 @@ export const TailscaleBlock: BlockConfig = {
         value: 'list_auth_keys',
       },
       mode: 'advanced',
-      defaultValue: true,
+      value: () => String(SWITCH_DEFAULTS.list_auth_keys.all),
     },
     {
       id: 'userType',
@@ -746,21 +755,27 @@ export const TailscaleBlock: BlockConfig = {
           name: params.name ?? '',
           role: params.operation === 'list_users' ? params.roleFilter || undefined : params.role,
         }
-        for (const field of [
-          'authorized',
-          'keyExpiryDisabled',
-          'magicDNS',
-          'reusable',
-          'ephemeral',
-          'preauthorized',
-          'all',
-          'details',
-        ] as const) {
+        const defaults =
+          Object.entries(SWITCH_DEFAULTS).find(
+            ([operation]) => operation === params.operation
+          )?.[1] ?? {}
+        for (const [field, defaultValue] of Object.entries(defaults)) {
           const value = params[field]
-          if (value !== undefined && value !== '')
-            mapped[field] = value === true || value === 'true'
+          if (value == null || value === '') {
+            mapped[field] = defaultValue
+          } else if (typeof value === 'boolean') {
+            mapped[field] = value
+          } else if (value === 'true' || value === 'false') {
+            mapped[field] = value === 'true'
+          } else {
+            throw new Error(`${field} must be true or false`)
+          }
         }
-        if (params.expirySeconds != null && params.expirySeconds !== '') {
+        if (
+          params.operation === 'create_auth_key' &&
+          params.expirySeconds != null &&
+          params.expirySeconds !== ''
+        ) {
           const expirySeconds = Number(params.expirySeconds)
           if (!Number.isFinite(expirySeconds)) throw new Error('Expiry must be a finite number')
           mapped.expirySeconds = expirySeconds
