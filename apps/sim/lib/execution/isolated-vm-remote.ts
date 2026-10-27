@@ -10,6 +10,17 @@ const REMOTE_WORKER_URL_PATTERN = /^wss?:\/\/[^/]+\/v1\/worker$/
 const MIN_REMOTE_WORKER_TOKEN_LENGTH = 32
 
 /**
+ * Thrown by a remote worker's `send` once its connection is closing: nothing was
+ * delivered, so the message never reached the host.
+ */
+export class WorkerConnectionClosedError extends Error {
+  constructor() {
+    super('Remote isolated-vm worker connection is closed')
+    this.name = 'WorkerConnectionClosedError'
+  }
+}
+
+/**
  * The slice of `ChildProcess` the isolated-vm pool uses, so a local child and a
  * connection to a remote worker host are interchangeable.
  */
@@ -113,9 +124,12 @@ export function connectRemoteWorker(options: RemoteWorkerOptions): IsolatedVMWor
   })
 
   return {
-    /** Returns false once the connection is closing; the pending `exit` settles this worker's executions. */
+    /**
+     * Throws {@link WorkerConnectionClosedError} once the connection is closing, so the pool can
+     * tell a message that never left this process from one the host may have acted on.
+     */
     send(message) {
-      if (socket.readyState !== WebSocket.OPEN) return false
+      if (socket.readyState !== WebSocket.OPEN) throw new WorkerConnectionClosedError()
       socket.send(JSON.stringify(message))
       return true
     },
