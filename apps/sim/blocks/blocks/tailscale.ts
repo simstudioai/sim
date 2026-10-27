@@ -752,6 +752,7 @@ export const TailscaleBlock: BlockConfig = {
           ...params,
           dns: params.dnsServers,
           description: params.authKeyDescription,
+          expirySeconds: undefined,
           name: params.name ?? '',
           role: params.operation === 'list_users' ? params.roleFilter || undefined : params.role,
         }
