@@ -62,10 +62,16 @@ Specify what you want extracted, rather than just “summarize this.”
 
 | Task | Example prompt |
 | --- | --- |
-| Compare options | “Compare the two onboarding proposals in a table: scope, effort, risks, and dependencies. Cite each source.” |
-| Catch up on a project | “What decisions were recorded for Atlas this month? Separate agreed decisions from suggestions.” |
+| Compare options | “Compare these two vendor proposals against our evaluation requirements. Cite the evidence and distinguish missing information from requirements a vendor does not meet.” |
+| Catch up on a project | “Summarize Atlas updates from the past two weeks. Separate decisions, blockers, and next steps. Include owners only where the sources name them, and cite each item.” |
 | Find an owner | “Who owns the launch checklist? Cite the document that assigns responsibility.” |
 | Resolve a disagreement | “These documents give different dates. Compare their context and identify what is confirmed.” |
+| Understand a decision | “Find the decision about Atlas authentication. Summarize the options, chosen approach, and trade-offs. Distinguish final decisions from proposals and cite the decision record.” |
+| Find troubleshooting steps | “Find our SSO sign-in troubleshooting guide. Summarize the checks in order, cite the source, and identify when to escalate.” |
+| Understand a policy | “What does our travel policy say about hotels and meals? Cite the policy sections, identify regional differences, and flag cases it doesn't address.” |
+| Compare feedback with a proposal | “Compare onboarding feedback with the new proposal. Show each need, whether the proposal addresses it, and the supporting source. Mark gaps explicitly.” |
+
+Follow up with “Which decisions changed an earlier plan?” or “Turn the gaps into questions for our review.”
 
 If the sources don't assign an owner or confirm a date, ask Sim to say so. Include the timeframe you care about, and distinguish a document's update date from the event it describes. A live search is still subject to provider freshness and retrieval limits.
 
@@ -110,11 +116,12 @@ Continue with specific revisions:
 - “Cut this to half the length without losing the action items or source links.”
 - “Separate confirmed facts from proposed next steps.”
 - “Use the tone of this approved example: [paste an example].”
+- “Turn this product overview into an FAQ for customer-facing teams. Cite each answer and list questions the overview doesn't resolve.”
 - “Turn this into a six-slide outline with a title, three key points, and supporting sources for each slide.”
 
 Provide a style example or brand guidance when consistency matters. Check names, numbers, dates, links, and commitments against the sources. For an external audience, include only information intended for that audience and keep internal supporting material separate for your review.
 
-Copy the reviewed draft into the app where you want to use it. Search creates text in your conversation; it doesn't send or publish the draft or change source records. See [use cases and example prompts](/search/use-cases) for more formats and tasks.
+Copy the reviewed draft into the app where you want to use it. Search creates text in your conversation; it doesn't send or publish the draft or change source records.
 
 ## Start from a document
 
@@ -126,7 +133,6 @@ Your conversations remain private to you. Copying a source link does not give so
 
 ## Related docs
 
-- [Use cases and example prompts](/search/use-cases): Apply Search to everyday work.
 - [Find content](/search/find-content): Search directly, filter results, and reopen recent sources.
 - [Connect your account](/search/connect-your-account): Check source connections and recover access.
 - [Use Sim Search in Slack](/search/slack#use-sim-search-in-slack): Ask questions from Slack when your organization has enabled it.

@@ -460,7 +460,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'search/quickstart.mdx',
   'search/slack.mdx',
   'search/troubleshooting.mdx',
-  'search/use-cases.mdx',
   'search/zoom.mdx',
   'tables.mdx',
   'tables/using-in-workflows.mdx',
