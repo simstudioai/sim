@@ -411,7 +411,13 @@ async function run() {
     const running = execute(
       `const r = await fetch('http://127.0.0.1:${slowAddress.port}/hold'); return await r.text()`
     )
-    const release = await held
+    // An execution that fails before its fetch arrives reports its own error, not the deadline.
+    const release = await Promise.race([
+      held,
+      running.then((result) => {
+        throw new Error(`Execution ended before it was held: ${result.error?.message}`)
+      }),
+    ])
     try {
       inspect()
     } finally {
