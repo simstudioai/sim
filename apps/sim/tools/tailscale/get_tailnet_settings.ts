@@ -117,7 +117,7 @@ export const tailscaleGetTailnetSettingsTool: ToolConfig<
         networkFlowLoggingOn: {
           type: 'boolean',
           description:
-            'Whether [network flog logs](/docs/features/logging/network-flow-logs) are enabled for the tailnet',
+            'Whether [network flow logs](/docs/features/logging/network-flow-logs) are enabled for the tailnet',
           nullable: true,
         },
         regionalRoutingOn: {
