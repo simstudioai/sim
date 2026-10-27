@@ -2,18 +2,19 @@ import assert from 'node:assert/strict'
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 import { createServer as createHttpServer, request } from 'node:http'
-import { createServer } from 'node:net'
+import { connect, createServer, type Server, type Socket } from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateRandomHex } from '@sim/utils/random'
+import { generateRandomBytes, generateRandomHex } from '@sim/utils/random'
 
 /**
  * Runs the isolated-vm pool against a real `isolated-vm-host.cjs` over real
  * WebSockets, the topology used when `IVM_REMOTE_WORKER_URL` is set. This process plays the app; the
- * hosts are separate Node processes.
+ * hosts are separate Node processes, reached through a TCP balancer that behaves like the internal
+ * ALB in front of them.
  *
  * Usage: bun run apps/sim/scripts/test-isolated-vm-remote-e2e.ts
  * Writes a JSON report to IVM_REMOTE_E2E_REPORT_PATH when set.
@@ -30,11 +31,19 @@ const HOST_SCRIPT = path.join(
 const HOST_ONLY_VALUE = `host-only-${generateRandomHex(8)}`
 /** Set on the app only; a remote worker that honors it got its limits from the app. */
 const STDOUT_LIMIT_CHARS = 1000
+/** The app's remote worker max age (`IVM_REMOTE_WORKER_MAX_AGE_MS`), short so a drain fits a check. */
+const WORKER_MAX_AGE_MS = 1000
+/** The longest execution the drain check protects. */
+const LONG_EXECUTION_MS = 1500
+/** Sized the way infra sizes the host's target group: max age + longest execution + margin. */
+const DEREGISTRATION_DELAY_MS = WORKER_MAX_AGE_MS + LONG_EXECUTION_MS + 1500
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 const startedAt = new Date().toISOString()
 
 const hosts: Host[] = []
+let closeBalancer = () => {}
+let closeSlowServer = () => {}
 
 interface Host {
   process: ChildProcess
@@ -76,9 +85,8 @@ function resolveNodeBinary(): string {
 
 const NODE_BINARY = resolveNodeBinary()
 
-async function startHost(maxWorkers: number): Promise<Host> {
+async function startHost(maxWorkers: number, token = generateRandomHex(32)): Promise<Host> {
   const port = await freePort()
-  const token = generateRandomHex(32)
   const child = spawn(NODE_BINARY, [HOST_SCRIPT], {
     env: {
       PATH: process.env.PATH,
@@ -110,6 +118,58 @@ async function startHost(maxWorkers: number): Promise<Host> {
   }
   child.kill('SIGKILL')
   throw new Error('Worker host did not become healthy')
+}
+
+/**
+ * Stands in for the ALB: each new connection goes to the current target, and repointing the target
+ * is deregistration, which leaves open connections where they are. Destroying what is still open
+ * on a host is the deregistration delay expiring.
+ */
+interface Balancer {
+  port: number
+  target: Host
+  open(host: Host): number
+  routed(host: Host): number
+  cut(host: Host): void
+  close(): void
+}
+
+async function startBalancer(target: Host): Promise<Balancer> {
+  const connections = new Map<Host, Set<Socket>>()
+  const routedCounts = new Map<Host, number>()
+  const server: Server = createServer((client) => {
+    const host = balancer.target
+    routedCounts.set(host, (routedCounts.get(host) ?? 0) + 1)
+    const upstream = connect(host.port, '127.0.0.1')
+    const open = connections.get(host) ?? new Set<Socket>()
+    connections.set(host, open)
+    open.add(upstream)
+    const teardown = () => {
+      open.delete(upstream)
+      client.destroy()
+      upstream.destroy()
+    }
+    client.on('error', teardown)
+    client.on('close', teardown)
+    upstream.on('error', teardown)
+    upstream.on('close', teardown)
+    client.pipe(upstream)
+    upstream.pipe(client)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  assert(address && typeof address === 'object')
+  const balancer: Balancer = {
+    port: address.port,
+    target,
+    open: (host) => connections.get(host)?.size ?? 0,
+    routed: (host) => routedCounts.get(host) ?? 0,
+    cut: (host) => {
+      for (const socket of connections.get(host) ?? []) socket.destroy()
+    },
+    close: () => server.close(),
+  }
+  return balancer
 }
 
 /** Sends a bare WebSocket upgrade and returns the HTTP status the host answers with. */
@@ -238,14 +298,30 @@ async function check(name: string, run: () => Promise<void>) {
 
 async function run() {
   const host = await startHost(8)
+  const replacement = await startHost(8, host.token)
   const probeHost = await startHost(1)
+  const balancer = await startBalancer(host)
+  closeBalancer = balancer.close
 
-  process.env.IVM_REMOTE_WORKER_URL = `ws://127.0.0.1:${host.port}/v1/worker`
+  process.env.IVM_REMOTE_WORKER_URL = `ws://127.0.0.1:${balancer.port}/v1/worker`
   process.env.IVM_REMOTE_WORKER_TOKEN = host.token
+  process.env.IVM_REMOTE_WORKER_MAX_AGE_MS = String(WORKER_MAX_AGE_MS)
   process.env.IVM_MAX_STDOUT_CHARS = String(STDOUT_LIMIT_CHARS)
   process.env.IVM_QUEUE_TIMEOUT_MS = '5000'
   process.env.IVM_POOL_SIZE = '2'
   const { executeInIsolatedVM } = await import('@/lib/execution/isolated-vm')
+
+  // The isolate has no timers; a slow upstream holds an execution open the way real ones run long.
+  const slowServer = createHttpServer((req, res) => {
+    const delay = Number(new URL(req.url ?? '/', 'http://slow').searchParams.get('ms'))
+    setTimeout(() => res.end('done'), delay)
+  })
+  await new Promise<void>((resolve) => slowServer.listen(0, '127.0.0.1', resolve))
+  const slowAddress = slowServer.address()
+  assert(slowAddress && typeof slowAddress === 'object')
+  closeSlowServer = () => slowServer.close()
+  const slowFetch = (ms: number) =>
+    `const r = await fetch('http://127.0.0.1:${slowAddress.port}/?ms=${ms}'); return await r.text()`
 
   const execute = (code: string, extra: { timeoutMs?: number; signal?: AbortSignal } = {}) =>
     executeInIsolatedVM(
@@ -267,9 +343,22 @@ async function run() {
     assert.equal(result.result, 42)
   })
 
+  /** Inspects workers while an execution holds one open, since an idle worker can retire at any time. */
+  const whileAWorkerRuns = async (inspect: () => void) => {
+    const running = execute(slowFetch(500))
+    await sleep(200)
+    try {
+      inspect()
+    } finally {
+      await running
+    }
+  }
+
   await check('runs the worker as a child of the host, never of the app', async () => {
-    assert(workerPidsOf(host.process.pid ?? -1).length > 0, 'Expected a worker under the host')
-    assert.deepEqual(workerPidsOf(process.pid), [], 'The app spawned a local worker')
+    await whileAWorkerRuns(() => {
+      assert(workerPidsOf(host.process.pid ?? -1).length > 0, 'Expected a worker under the host')
+      assert.deepEqual(workerPidsOf(process.pid), [], 'The app spawned a local worker')
+    })
   })
 
   await check("enforces the app's limits on the remote worker", async () => {
@@ -283,17 +372,19 @@ async function run() {
   })
 
   await check("gives the worker neither the host token nor the host's environment", async () => {
-    const hostWorkers = workerPidsOf(host.process.pid ?? -1)
-    assert(hostWorkers.length > 0, 'Expected a worker process under the host')
-    for (const pid of hostWorkers) {
-      const environment = environmentOf(pid)
-      assert(!environment.includes(host.token), 'Worker environment contains the host token')
-      assert(!environment.includes('IVM_HOST_TOKEN'), 'Worker environment names the host token')
-      assert(
-        !environment.includes(HOST_ONLY_VALUE),
-        "Worker environment contains the host's variables"
-      )
-    }
+    await whileAWorkerRuns(() => {
+      const hostWorkers = workerPidsOf(host.process.pid ?? -1)
+      assert(hostWorkers.length > 0, 'Expected a worker process under the host')
+      for (const pid of hostWorkers) {
+        const environment = environmentOf(pid)
+        assert(!environment.includes(host.token), 'Worker environment contains the host token')
+        assert(!environment.includes('IVM_HOST_TOKEN'), 'Worker environment names the host token')
+        assert(
+          !environment.includes(HOST_ONLY_VALUE),
+          "Worker environment contains the host's variables"
+        )
+      }
+    })
   })
 
   await check('brokers fetch through the app, the only side with a network client', async () => {
@@ -345,6 +436,49 @@ async function run() {
     assert.equal(await closeCode(ws), 4401)
   })
 
+  await check('drops a connection that streams a large frame before authenticating', async () => {
+    const socket = connect(probeHost.port, '127.0.0.1')
+    socket.on('error', () => {})
+    const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()))
+    await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+    const handshake = new Promise<string>((resolve) =>
+      socket.once('data', (data: Buffer) => resolve(data.toString()))
+    )
+    socket.write(
+      [
+        'GET /v1/worker HTTP/1.1',
+        `Host: 127.0.0.1:${probeHost.port}`,
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        'Sec-WebSocket-Version: 13',
+        `Sec-WebSocket-Key: ${Buffer.from(generateRandomBytes(16)).toString('base64')}`,
+        '',
+        '',
+      ].join('\r\n')
+    )
+    const response = await handshake
+    assert.match(response, /^HTTP\/1\.1 101/, `Expected the upgrade to be accepted: ${response}`)
+
+    // A masked text frame that declares 32 MiB, under the host's message limit, and never authenticates.
+    const header = Buffer.alloc(14)
+    header[0] = 0x81
+    header[1] = 0x80 | 127
+    header.writeBigUInt64BE(BigInt(32 * 1024 * 1024), 2)
+    socket.write(header)
+    const chunk = Buffer.alloc(64 * 1024)
+    for (let sent = 0; sent < 1024 * 1024 && !socket.destroyed; sent += chunk.length) {
+      socket.write(chunk)
+    }
+    const outcome = await Promise.race([
+      closed.then(() => 'closed' as const),
+      sleep(1000).then(() => 'open' as const),
+    ])
+    socket.destroy()
+    assert.equal(outcome, 'closed', 'The host kept buffering an unauthenticated frame')
+    const health = await fetch(`http://127.0.0.1:${probeHost.port}/health`)
+    assert.equal(health.status, 200)
+  })
+
   await check('rejects an unparseable request target and keeps serving', async () => {
     assert.equal(await upgradeStatus(probeHost, { path: '//[' }), 400)
     const health = await fetch(`http://127.0.0.1:${probeHost.port}/health`)
@@ -377,26 +511,63 @@ async function run() {
     assert.equal(result.error?.isSystemError, true, JSON.stringify(result.error))
   })
 
+  // A deploy or scale-in: the balancer stops routing new connections to the host, keeps open ones
+  // for the deregistration delay, cuts what is left, and only then is the host sent SIGTERM.
+  await check('drains a deregistered host without failing an execution', async () => {
+    const longExecution = slowFetch(LONG_EXECUTION_MS)
+    const warm = await execute('return 1')
+    assert.equal(warm.result, 1, warm.error?.message)
+    const runs = [execute(longExecution)]
+    await sleep(100)
+
+    balancer.target = replacement
+    const deregisteredAt = Date.now()
+    // New executions keep arriving until the delay is nearly over, as they do on a busy app.
+    while (Date.now() - deregisteredAt < DEREGISTRATION_DELAY_MS - 300) {
+      runs.push(execute(longExecution))
+      await sleep(200)
+    }
+    await sleep(Math.max(0, DEREGISTRATION_DELAY_MS - (Date.now() - deregisteredAt)))
+    const openAtExpiry = balancer.open(host)
+    balancer.cut(host)
+    host.process.kill('SIGTERM')
+
+    const results = await Promise.all(runs)
+    const failures = results.filter((result) => result.result !== 'done')
+    assert.deepEqual(
+      failures.map((result) => result.error?.message),
+      [],
+      `${failures.length} of ${results.length} executions failed across the drain`
+    )
+    assert.equal(openAtExpiry, 0, 'Connections to the deregistered host outlived its delay')
+    assert(balancer.routed(replacement) > 0, 'No execution moved to the replacement host')
+    const code = await Promise.race([host.exited, sleep(10000).then(() => 'timeout' as const)])
+    assert.notEqual(code, 'timeout', 'The drained host did not exit after SIGTERM')
+  })
+
   await check('finishes in-flight work while draining, then exits', async () => {
     const pending = execute(
       'const end = Date.now() + 1500; while (Date.now() < end) {} return "drained"',
       { timeoutMs: 10000 }
     )
     await sleep(300)
-    host.process.kill('SIGTERM')
+    replacement.process.kill('SIGTERM')
     await sleep(100)
-    const readiness = await fetch(`http://127.0.0.1:${host.port}/health`)
+    const readiness = await fetch(`http://127.0.0.1:${replacement.port}/health`)
     assert.equal(readiness.status, 503, 'Readiness must fail while draining')
-    const liveness = await fetch(`http://127.0.0.1:${host.port}/livez`)
+    const liveness = await fetch(`http://127.0.0.1:${replacement.port}/livez`)
     assert.equal(liveness.status, 200, 'Liveness must hold while draining')
     const result = await pending
     assert.equal(result.result, 'drained', result.error?.message)
-    const code = await Promise.race([host.exited, sleep(10000).then(() => 'timeout' as const)])
+    const code = await Promise.race([
+      replacement.exited,
+      sleep(10000).then(() => 'timeout' as const),
+    ])
     assert.notEqual(code, 'timeout', 'Host did not exit after draining')
   })
 
   await check('fails closed within the queue timeout once the host is gone', async () => {
-    assert.notEqual(host.process.exitCode, null, 'Precondition: the host has exited')
+    assert.notEqual(replacement.process.exitCode, null, 'Precondition: the host has exited')
     const started = Date.now()
     const result = await execute('return 1')
     assert.notEqual(result.result, 1, 'Execution ran without a host — it fell back locally')
@@ -412,6 +583,8 @@ run()
     process.exitCode = 1
   })
   .finally(async () => {
+    closeBalancer()
+    closeSlowServer()
     for (const host of hosts) {
       try {
         if (host.process.pid) process.kill(-host.process.pid, 'SIGKILL')

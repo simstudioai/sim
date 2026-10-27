@@ -14,7 +14,10 @@
  * are the objects the worker
  * exchanges over IPC. Host-originated frames are `{ type: 'host:heartbeat' }`
  * every 30s and `{ type: 'host:draining' }` on SIGTERM, after which the app
- * retires the connection once its executions finish. A breaking change to the
+ * retires the connection once its executions finish. A load balancer that
+ * deregisters this host sends nothing until SIGTERM, so the app also retires
+ * each connection at a maximum age, and a deregistered host drains as its
+ * connections age out. A breaking change to the
  * contract gets a new path served alongside this one until every client has
  * rolled.
  *
@@ -36,6 +39,12 @@ const { WebSocketServer } = require('ws')
 const WORKER_PATH = '/v1/worker'
 const HEARTBEAT_INTERVAL_MS = 30000
 const AUTH_TIMEOUT_MS = 5000
+/**
+ * Raw bytes a connection may send before it authenticates: the auth frame is
+ * well under 1 KiB. Without this, `maxPayload` lets every unauthenticated
+ * connection make the host buffer a full-size frame.
+ */
+const MAX_PRE_AUTH_BYTES = 16 * 1024
 const WORKER_START_TIMEOUT_MS = 10000
 const MAX_STARTUP_STDERR_CHARS = 64 * 1024
 const MIN_TOKEN_LENGTH = 32
@@ -179,18 +188,31 @@ server.on('upgrade', (req, socket, head) => {
     rejectUpgrade(socket, 503, 'Service Unavailable')
     return
   }
-  wss.handleUpgrade(req, socket, head, (ws) => authenticate(ws))
+  wss.handleUpgrade(req, socket, head, (ws) => authenticate(ws, socket))
 })
 
 /** Admits the connection to a worker slot only once its first frame proves it holds the token. */
-function authenticate(ws) {
+function authenticate(ws, socket) {
   pendingConnections++
   let settled = false
+  let preAuthBytes = 0
+  // Counts what arrives on the TCP socket, so an oversized frame is cut off as it streams in
+  // rather than after ws has buffered all of it.
+  const onPreAuthData = (chunk) => {
+    // ws parses each chunk before this listener runs, so the chunk that authenticated still arrives.
+    if (settled) return
+    preAuthBytes += chunk.length
+    if (preAuthBytes <= MAX_PRE_AUTH_BYTES) return
+    settle()
+    log('warn', 'Rejected worker connection', { reason: 'too much data before authentication' })
+    socket.destroy()
+  }
   const settle = () => {
     if (settled) return false
     settled = true
     pendingConnections--
     clearTimeout(authTimeout)
+    socket.off('data', onPreAuthData)
     return true
   }
   const refuse = (reason) => {
@@ -199,6 +221,7 @@ function authenticate(ws) {
     ws.close(UNAUTHORIZED_CLOSE_CODE, 'unauthorized')
   }
   const authTimeout = setTimeout(() => refuse('authentication timed out'), AUTH_TIMEOUT_MS)
+  socket.on('data', onPreAuthData)
   const onPreAuthError = (error) => {
     log('warn', 'Worker connection error before authentication', { error: error.message })
   }

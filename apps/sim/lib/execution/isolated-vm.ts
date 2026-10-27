@@ -21,6 +21,7 @@ import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolat
 import {
   connectRemoteWorker,
   type IsolatedVMWorkerProcess,
+  WorkerConnectionClosedError,
 } from '@/lib/execution/isolated-vm-remote'
 
 const logger = createLogger('IsolatedVMExecution')
@@ -147,6 +148,17 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 200
+/**
+ * How long a remote worker connection takes new executions before it retires, finishing what it
+ * runs. A load balancer keeps a deregistered host's open connections only for its deregistration
+ * delay and never tells the host, so this bound is what drains a host deploy or scale-in: infra
+ * sets that delay to at least this age plus the longest execution a release keeps alive.
+ */
+const REMOTE_WORKER_MAX_AGE_MS = Number.parseInt(env.IVM_REMOTE_WORKER_MAX_AGE_MS) || 120_000
+/** Spreads retirements so a pool's connections don't all reopen at once; only ever shortens the age. */
+const REMOTE_WORKER_MAX_AGE_JITTER = 0.2
+/** Times one execution moves to another worker because its connection closed before it was sent. */
+const MAX_UNSENT_REDISPATCHES = 3
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
 const MAX_BROKERS_PER_EXECUTION = Number.parseInt(env.IVM_MAX_BROKERS_PER_EXECUTION) || 1000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
@@ -190,6 +202,8 @@ interface WorkerInfo {
   activeExecutions: number
   pendingExecutions: Map<number, PendingExecution>
   idleTimeout: ReturnType<typeof setTimeout> | null
+  /** Retires a remote worker at {@link REMOTE_WORKER_MAX_AGE_MS}. */
+  maxAgeTimeout: ReturnType<typeof setTimeout> | null
   id: number
   lifetimeExecutions: number
   retiring: boolean
@@ -217,6 +231,8 @@ interface ExecutionState {
   queueId?: number
   workerId?: number
   execId?: number
+  /** Dispatches that found the worker connection already closed, so nothing ran. */
+  unsentRedispatches: number
 }
 
 interface QueueNode {
@@ -861,49 +877,42 @@ function handleWorkerMessage(workerId: number, message: unknown) {
   }
 
   if (msg.type === 'host:draining') {
-    if (!workerInfo || workerInfo.retiring) return
-    workerInfo.retiring = true
-    logger.info('Remote worker host draining; retiring worker', { workerId })
-    if (workerInfo.activeExecutions === 0) cleanupWorker(workerId)
-    drainQueue()
+    retireWorker(workerId, 'host_draining')
     return
   }
 
   if (msg.type === 'fetch') {
+    const fetchId = msg.fetchId
+    const sendFetchResponse = (response: string) => {
+      try {
+        workerInfo?.process.send({ type: 'fetchResponse', fetchId, response })
+      } catch (err) {
+        logger.error('Failed to send fetch response to worker', { err, fetchId, workerId })
+      }
+    }
     const pending =
       typeof msg.executionId === 'number'
         ? workerInfo?.pendingExecutions.get(msg.executionId)
         : undefined
     if (!pending || pending.cancelled) {
-      workerInfo?.process.send({
-        type: 'fetchResponse',
-        fetchId: msg.fetchId,
-        response: JSON.stringify({ error: 'Execution no longer active' }),
-      })
+      sendFetchResponse(JSON.stringify({ error: 'Execution no longer active' }))
       return
     }
-    const { fetchId, requestId, url, optionsJson } = msg as {
-      fetchId: number
+    const { requestId, url, optionsJson } = msg as {
       requestId: string
       url: string
       optionsJson?: string
     }
     if (typeof url !== 'string' || url.length === 0) {
-      workerInfo?.process.send({
-        type: 'fetchResponse',
-        fetchId,
-        response: JSON.stringify({ error: 'Invalid fetch URL' }),
-      })
+      sendFetchResponse(JSON.stringify({ error: 'Invalid fetch URL' }))
       return
     }
     if (optionsJson && optionsJson.length > MAX_FETCH_OPTIONS_JSON_CHARS) {
-      workerInfo?.process.send({
-        type: 'fetchResponse',
-        fetchId,
-        response: JSON.stringify({
+      sendFetchResponse(
+        JSON.stringify({
           error: `Fetch options exceed maximum payload size (${MAX_FETCH_OPTIONS_JSON_CHARS} chars)`,
-        }),
-      })
+        })
+      )
       return
     }
 
@@ -912,45 +921,49 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       try {
         options = JSON.parse(optionsJson)
       } catch {
-        workerInfo?.process.send({
-          type: 'fetchResponse',
-          fetchId,
-          response: JSON.stringify({ error: 'Invalid fetch options JSON' }),
-        })
+        sendFetchResponse(JSON.stringify({ error: 'Invalid fetch options JSON' }))
         return
       }
     }
     pending
       .runInOutboundScope(() => secureFetch(requestId, url, options))
-      .then((response) => {
-        try {
-          workerInfo?.process.send({ type: 'fetchResponse', fetchId, response })
-        } catch (err) {
-          logger.error('Failed to send fetch response to worker', { err, fetchId, workerId })
-        }
-      })
+      .then(sendFetchResponse)
       .catch((err) => {
-        try {
-          workerInfo?.process.send({
-            type: 'fetchResponse',
-            fetchId,
-            response: JSON.stringify({
-              error: getErrorMessage(err, 'Fetch failed'),
-            }),
-          })
-        } catch (sendErr) {
-          logger.error('Failed to send fetch error to worker', { sendErr, fetchId, workerId })
-        }
+        sendFetchResponse(JSON.stringify({ error: getErrorMessage(err, 'Fetch failed') }))
       })
   }
 }
 
-function cleanupWorker(workerId: number) {
+/**
+ * Stops a worker taking new executions; it closes once those it is running finish, and queued
+ * work moves to a fresh worker.
+ */
+function retireWorker(workerId: number, reason: 'host_draining' | 'max_age') {
+  const workerInfo = workers.get(workerId)
+  if (!workerInfo || workerInfo.retiring) return
+  workerInfo.retiring = true
+  logger.info('Retiring isolated-vm worker', {
+    workerId,
+    reason,
+    activeExecutions: workerInfo.activeExecutions,
+  })
+  if (workerInfo.activeExecutions === 0) cleanupWorker(workerId)
+  drainQueue()
+}
+
+/**
+ * Closes a worker and fails what it was still running. `interruptedMessage` replaces the generic
+ * failure when the cause is known.
+ */
+function cleanupWorker(workerId: number, interruptedMessage?: string) {
   const workerInfo = workers.get(workerId)
   if (!workerInfo) return
 
   if (workerInfo.idleTimeout) {
     clearTimeout(workerInfo.idleTimeout)
+  }
+  if (workerInfo.maxAgeTimeout) {
+    clearTimeout(workerInfo.maxAgeTimeout)
   }
 
   workerInfo.process.kill()
@@ -967,7 +980,7 @@ function cleanupWorker(workerId: number) {
       result: null,
       stdout: '',
       error: {
-        message: 'Code execution failed unexpectedly. Please try again.',
+        message: interruptedMessage ?? 'Code execution failed unexpectedly. Please try again.',
         name: 'Error',
         isSystemError: true,
       },
@@ -1113,6 +1126,7 @@ function spawnWorker(): Promise<WorkerInfo> {
     activeExecutions: 0,
     pendingExecutions: new Map(),
     idleTimeout: null,
+    maxAgeTimeout: null,
     id: workerId,
     targetKey: workerTargetKey(target),
     lifetimeExecutions: 0,
@@ -1161,6 +1175,12 @@ function spawnWorker(): Promise<WorkerInfo> {
             proc.off('message', readyHandler)
             workers.set(workerId, workerInfo)
             resetWorkerIdleTimeout(workerId)
+            if (target.kind === 'remote' && !workerInfo.retiring) {
+              workerInfo.maxAgeTimeout = setTimeout(
+                () => retireWorker(workerId, 'max_age'),
+                REMOTE_WORKER_MAX_AGE_MS * (1 - randomFloat() * REMOTE_WORKER_MAX_AGE_JITTER)
+              )
+            }
             logger.info('Worker spawned and ready', { workerId, poolSize: workers.size })
             resolve()
           }
@@ -1190,7 +1210,12 @@ function spawnWorker(): Promise<WorkerInfo> {
             return
           }
 
-          cleanupWorker(workerId)
+          cleanupWorker(
+            workerId,
+            target.kind === 'remote'
+              ? 'Code execution was interrupted because the connection to its sandbox host closed. Please try again.'
+              : undefined
+          )
           drainQueue()
         })
       })
@@ -1332,13 +1357,40 @@ function dispatchToWorker(
         runtimeBindingSource: buildJavaScriptRuntimeBindingsSource(runtimeBindings ?? []),
       },
     })
-  } catch {
+  } catch (error) {
     clearTimeout(timeout)
     workerInfo.pendingExecutions.delete(execId)
     workerInfo.activeExecutions--
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
     maybeCleanupOwner(ownerState.ownerKey)
+    // The connection closed before the request left this process, so nothing ran: the execution
+    // can safely move to another worker. One that may have reached the host is never re-run.
+    if (
+      error instanceof WorkerConnectionClosedError &&
+      state.unsentRedispatches < MAX_UNSENT_REDISPATCHES
+    ) {
+      state.unsentRedispatches++
+      state.workerId = undefined
+      state.execId = undefined
+      logger.warn('Worker connection closed before an execution was sent; dispatching it again', {
+        workerId: workerInfo.id,
+        attempt: state.unsentRedispatches,
+      })
+      workerInfo.retiring = true
+      if (workerInfo.activeExecutions === 0) cleanupWorker(workerInfo.id)
+      // The owner's state may have been released above; look it up again rather than queue on it.
+      queueMicrotask(() =>
+        enqueueExecution(
+          getOrCreateOwnerState(ownerState.ownerKey, ownerState.weight),
+          req,
+          resolve,
+          state,
+          brokers
+        )
+      )
+      return
+    }
     resolve({
       result: null,
       stdout: '',
@@ -1495,7 +1547,6 @@ export async function executeInIsolatedVM(
   req: IsolatedVMExecutionRequest,
   options?: IsolatedVMExecutionOptions
 ): Promise<IsolatedVMExecutionResult> {
-  activateWorkerTarget(await resolveWorkerTarget())
   const ownerKey = normalizeOwnerKey(req.ownerKey)
   const ownerWeight = normalizeOwnerWeight(req.ownerWeight)
   const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)
@@ -1528,6 +1579,10 @@ export async function executeInIsolatedVM(
       }
     }
   }
+
+  // After the checks above, so a cancelled or misconfigured call returns without waiting on the
+  // flag read behind the target.
+  activateWorkerTarget(await resolveWorkerTarget())
 
   const distributedLeaseId = `${req.requestId}:${Date.now()}:${randomFloat().toString(36).slice(2, 10)}`
   const leaseAcquireResult = await tryAcquireDistributedLease(
@@ -1587,7 +1642,11 @@ export async function executeInIsolatedVM(
   // An undetermined lease cannot reject the execution: the per-process pool and
   // the per-owner active/queued limits above still bound this work.
 
-  const state: ExecutionState = { cancelled: false, runInOutboundScope: captureOutboundScope() }
+  const state: ExecutionState = {
+    cancelled: false,
+    runInOutboundScope: captureOutboundScope(),
+    unsentRedispatches: 0,
+  }
 
   return new Promise<IsolatedVMExecutionResult>((resolve) => {
     let abortListener: (() => void) | null = null
