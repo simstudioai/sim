@@ -129,3 +129,23 @@ bun run --cwd apps/docs test:negotiation:e2e
 
 Remove the patch when upgrading to a release with equivalent Vary preservation,
 and retain the HTTP regression check.
+
+# Zod collection size bounds
+
+`zod@4.3.6` runs an array's `.max()`/`.length()` (and a set's or map's `.max()`/`.size()`)
+only after it has parsed every element, so a small body against a bounded schema builds an
+issue per malformed element before the bound is reported. An unauthenticated request to the
+public chat endpoint can turn under a megabyte of JSON into gigabytes of issues
+(GHSA-mrhx-c7xc-m3w5).
+
+The version-pinned patch backports the leading size gate from
+[upstream PR #6652](https://github.com/colinhacks/zod/pull/6652), released in 4.6.6, to the
+ESM and CommonJS builds. A container larger than its leading upper bound skips its elements
+and returns unchanged; its own size check then reports the single `too_big` issue. Any input
+within its bounds parses exactly as before. The bound check is skipped, as upstream, for
+`skipChecks` and backward (encode) parses.
+
+Zod 4.6 is not a drop-in upgrade: it rejects absent `unknown`/`any` object keys, requires
+seconds in ISO datetimes, and emits root `$ref` JSON Schema for schemas with an `id`.
+`@trigger.dev/core`, which the root override puts on this zod, relies on the first.
+Remove this patch when upgrading zod to 4.6.6 or later.
