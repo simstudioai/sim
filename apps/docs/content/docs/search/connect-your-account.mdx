@@ -3,6 +3,8 @@ title: Connect your account
 description: Authorize your provider accounts and manage their Search connections
 ---
 
+import { Image } from '@/components/ui/image'
+
 After your admin adds a source in **Settings → Sources**, connect your own account in **Integrations**. This applies to admins too. A service source usually still requires your personal connection.
 
 ## Connect and verify
@@ -11,6 +13,17 @@ After your admin adds a source in **Settings → Sources**, connect your own acc
 2. Open **Integrations**, find the provider, and select **Connect**.
 3. Complete authorization in the new tab. If the popup is blocked, allow it and select **Connect** again.
 4. Return to **Search** or **Home** and search for content your account can open. Read a result and follow its source link.
+
+<Image
+  src="/static/search/connect-confluence.webp"
+  alt="Confluence in Integrations with the Connect button before an account has been authorized"
+  width={1340}
+  height={180}
+  variant="detail"
+  background="architecture"
+/>
+
+Once an account is connected, **Add account** lets you authorize another account for that provider.
 
 The connection is usable when authorization completes; no initial indexing run is required. If a provider is missing, ask an admin to add it in **Sources**. `Not configured` means its app or deployment setup needs an admin's attention.
 

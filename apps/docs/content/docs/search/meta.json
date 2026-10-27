@@ -1,9 +1,11 @@
 {
-  "title": "Search",
+  "title": "Sim Search",
   "pages": [
     "---User guides---",
+    "quickstart",
     "find-content",
     "ask-questions",
+    "troubleshooting",
     "---Connect sources---",
     "connect-your-account",
     "coda",
