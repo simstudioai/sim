@@ -3060,6 +3060,13 @@
       "when": 1792723218755,
       "tag": "0437_scheduled_job_occurrences",
       "breakpoints": true
+    },
+    {
+      "idx": 438,
+      "version": "7",
+      "when": 1793085618242,
+      "tag": "0438_drop_redundant_job_log_schedule_index",
+      "breakpoints": true
     }
   ]
 }
