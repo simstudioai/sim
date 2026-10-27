@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditRollup } from '@sim/audit'
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -102,7 +102,9 @@ export function validateOAuthCredentialContext(
 
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
- * Both the audit row and the analytics event are fire-and-forget.
+ * Both the audit row and the analytics event are fire-and-forget. A server-side
+ * access with no client request, such as a workflow run refreshing the token
+ * for every tool call, merges with its repeats into one row that counts them.
  */
 export function recordCredentialAccess(params: {
   actorId: string
@@ -113,19 +115,31 @@ export function recordCredentialAccess(params: {
   auditRequest?: CredentialAuditRequest
 }): void {
   const { actorId, workspaceId, resourceId, providerId, credentialType } = params
-  recordAudit({
+  const credentialLabel = `${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`
+  const audit = {
     workspaceId,
     actorId,
     action: AuditAction.CREDENTIAL_ACCESSED,
     resourceType: AuditResourceType.CREDENTIAL,
     resourceId,
-    description: `Accessed ${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`,
+    description: `Accessed ${credentialLabel}`,
     metadata: {
       provider: providerId,
       credentialType,
     },
-    request: params.auditRequest,
-  })
+  }
+  if (params.auditRequest) {
+    recordAudit({ ...audit, request: params.auditRequest })
+  } else {
+    recordAuditRollup({
+      key: JSON.stringify(audit.metadata),
+      params: audit,
+      rollupMetadata: audit.metadata,
+      counters: {},
+      identifiers: {},
+      describe: ({ entries }) => `Accessed ${credentialLabel} ${entries} times`,
+    })
+  }
   captureServerEvent(
     actorId,
     'credential_used',

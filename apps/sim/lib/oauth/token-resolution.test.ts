@@ -75,6 +75,7 @@ describe('resolveCredentialToken', () => {
     expect(mockGetCredential).not.toHaveBeenCalled()
     expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAuditRollup).not.toHaveBeenCalled()
   })
 
   it('refreshes the token, records the access trail, and returns the payload', async () => {
@@ -104,12 +105,14 @@ describe('resolveCredentialToken', () => {
       token: { accessToken: 'fresh', credentialType: 'oauth', idToken: 'id-token' },
     })
     expect(mockGetCredential).toHaveBeenCalledWith('req-1', 'account-1', 'owner-1')
-    expect(mockRecordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAuditRollup).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorId: 'user-1',
-        workspaceId: 'ws-1',
-        resourceId: 'account-1',
-        action: 'credential.accessed',
+        params: expect.objectContaining({
+          actorId: 'user-1',
+          workspaceId: 'ws-1',
+          resourceId: 'account-1',
+          action: 'credential.accessed',
+        }),
       })
     )
   })
@@ -164,6 +167,7 @@ describe('resolveCredentialToken', () => {
 
     expect(result).toEqual({ ok: false, status: 401, error: 'Failed to refresh access token' })
     expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAuditRollup).not.toHaveBeenCalled()
   })
 
   it('authorizes service-account credentials before minting a token', async () => {
@@ -467,6 +471,7 @@ describe('ordinary tool credential binding', () => {
       expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
       expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
       expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAuditRollup).not.toHaveBeenCalled()
     }
   )
 

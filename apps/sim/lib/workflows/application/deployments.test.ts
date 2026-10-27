@@ -234,6 +234,8 @@ describe('workflow deployment application use cases', () => {
           serviceId: 'executor',
           subjectUserId: 'user-1',
           delegationId: 'executor-1',
+          workflowId: 'origin-workflow',
+          executionId: 'execution-1',
         },
         captureAnalytics: false,
         requestId: 'request-1',

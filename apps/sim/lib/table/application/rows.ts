@@ -12,6 +12,7 @@ import {
   capabilityGovernedPrincipalUserId,
   isCopilotPrincipal,
   mustClassifyContent,
+  type WorkspaceUseCaseAuditRollup,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
@@ -96,6 +97,27 @@ import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const ROW_CHANGE_COUNTERS = ['rowsInserted', 'rowsUpdated', 'rowsDeleted'] as const
+
+/**
+ * Merges one workflow execution's repeats of a row change to a table into a
+ * single audit row that keeps every row id and count.
+ */
+function rowChangeRollup(tableName: string): WorkspaceUseCaseAuditRollup {
+  return {
+    counterKeys: ROW_CHANGE_COUNTERS,
+    identifierKeys: ['rowId'],
+    describe: ({ entries, counters }) => {
+      const changes = [
+        counters.rowsInserted ? `${counters.rowsInserted} inserted` : undefined,
+        counters.rowsUpdated ? `${counters.rowsUpdated} updated` : undefined,
+        counters.rowsDeleted ? `${counters.rowsDeleted} deleted` : undefined,
+      ].filter((change) => change !== undefined)
+      return `Workflow execution changed rows in table "${tableName}" ${entries} times (${changes.join(', ') || 'no rows'})`
+    },
+  }
+}
 
 export class TableRowsValidationError extends OrchestrationError {
   constructor(
@@ -984,6 +1006,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Inserted ${inserted} row(s) into table "${context.table.name}"`,
       metadata: {
         op: result.kind === 'single' ? 'insert' : 'batch_insert',
@@ -1053,6 +1076,7 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Replaced rows in table "${context.table.name}"`,
       metadata: {
         op: 'replace_rows',
@@ -1225,6 +1249,7 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: result.table.id,
       resourceName: result.table.name,
+      executionRollup: rowChangeRollup(result.table.name),
       description: `Replaced rows in table "${result.table.name}"`,
       metadata: {
         op: 'replace_projected_rows',
@@ -1323,6 +1348,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Updated a row in table "${context.table.name}"`,
       metadata: { op: 'update', rowId: result.row.id, rowsUpdated: 1 },
     }
@@ -1393,6 +1419,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
       metadata: { op: 'update_by_filter', rowsUpdated: result.affectedCount },
     }
@@ -1499,6 +1526,7 @@ export const batchUpdateTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
       metadata: { op: 'batch_update', rowsUpdated: result.affectedCount },
     }
@@ -1530,6 +1558,7 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     resourceType: AuditResourceType.TABLE,
     resourceId: context.tableId,
     resourceName: context.table.name,
+    executionRollup: rowChangeRollup(context.table.name),
     description: `Deleted a row from table "${context.table.name}"`,
     metadata: { op: 'delete', rowId: result.deletedRowId, rowsDeleted: 1 },
   }),
@@ -1602,6 +1631,7 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: result.table.id,
       resourceName: result.table.name,
+      executionRollup: rowChangeRollup(result.table.name),
       description: `Deleted ${affected} row(s) from table "${result.table.name}"`,
       metadata: {
         op: 'bulk_delete',
@@ -1688,6 +1718,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
     resourceType: AuditResourceType.TABLE,
     resourceId: context.tableId,
     resourceName: context.table.name,
+    executionRollup: rowChangeRollup(context.table.name),
     description: `${result.operation === 'insert' ? 'Inserted' : 'Updated'} a row in table "${context.table.name}"`,
     metadata: {
       op: 'upsert',

@@ -273,6 +273,7 @@ const AuditResourceType = {
  * Controllable mock functions for `@sim/audit`.
  *
  * `mockRecordAuditOnce` resolves `undefined` by default, like the real awaited insert.
+ * `mockWithAuditRollupScope` runs the work it is given, like the real scope.
  *
  * @example
  * ```ts
@@ -290,6 +291,8 @@ export const auditMockFns = {
   mockRecordAudit: vi.fn(),
   mockRecordAuditBatch: vi.fn(),
   mockRecordAuditOnce: vi.fn(async (_id: string, _params: unknown): Promise<void> => undefined),
+  mockRecordAuditRollup: vi.fn(),
+  mockWithAuditRollupScope: vi.fn(<T>(work: () => Promise<T>): Promise<T> => work()),
 }
 
 /**
@@ -305,6 +308,8 @@ export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
   recordAuditBatch: auditMockFns.mockRecordAuditBatch,
   recordAuditOnce: auditMockFns.mockRecordAuditOnce,
+  recordAuditRollup: auditMockFns.mockRecordAuditRollup,
+  withAuditRollupScope: auditMockFns.mockWithAuditRollupScope,
   /**
    * Real implementation, not a stub: callers under test derive their audit
    * metadata through it, so stubbing it would erase what the test asserts.
