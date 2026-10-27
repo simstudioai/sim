@@ -4,13 +4,54 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { clearOAuthRefreshFailure } from '@/lib/oauth/credential-service'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialDraftHooks')
+
+/**
+ * A reconnect chose an account that already backs another credential in the
+ * same workspace. Two credentials in one workspace never share an account, so
+ * the reconnect is refused and the credential keeps the account it had.
+ */
+export class CredentialAccountConflictError extends Error {
+  constructor(
+    readonly credentialId: string,
+    readonly conflictingCredentialId: string
+  ) {
+    super(
+      `Cannot reconnect credential ${credentialId}: its new account is already used by credential ${conflictingCredentialId}`
+    )
+    this.name = 'CredentialAccountConflictError'
+  }
+}
+
+/**
+ * Finds a credential other than `credentialId` in the workspace that uses one
+ * of `accountIds`, the credential a reconnect onto those accounts would collide with.
+ */
+export async function findConflictingWorkspaceCredential(params: {
+  credentialId: string
+  workspaceId: string
+  accountIds: string[]
+}): Promise<{ id: string; displayName: string } | null> {
+  if (params.accountIds.length === 0) return null
+  const [conflicting] = await db
+    .select({ id: schema.credential.id, displayName: schema.credential.displayName })
+    .from(schema.credential)
+    .where(
+      and(
+        eq(schema.credential.workspaceId, params.workspaceId),
+        inArray(schema.credential.accountId, params.accountIds),
+        ne(schema.credential.id, params.credentialId)
+      )
+    )
+    .limit(1)
+  return conflicting ?? null
+}
 
 /**
  * Creates a new credential from a pending draft (normal OAuth connect flow).
@@ -175,22 +216,13 @@ export async function handleReconnectCredential(params: {
   const accountChanged = oldAccountId !== newAccountId
 
   if (accountChanged) {
-    const [conflicting] = await db
-      .select({ id: schema.credential.id })
-      .from(schema.credential)
-      .where(
-        and(
-          eq(schema.credential.workspaceId, workspaceId),
-          eq(schema.credential.accountId, newAccountId),
-          sql`${schema.credential.id} != ${draft.credentialId}`
-        )
-      )
-      .limit(1)
-
+    const conflicting = await findConflictingWorkspaceCredential({
+      credentialId: draft.credentialId,
+      workspaceId,
+      accountIds: [newAccountId],
+    })
     if (conflicting) {
-      throw new Error(
-        `Cannot reconnect credential ${draft.credentialId}: account ${newAccountId} is already used by credential ${conflicting.id}`
-      )
+      throw new CredentialAccountConflictError(draft.credentialId, conflicting.id)
     }
   }
 

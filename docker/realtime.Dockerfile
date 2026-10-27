@@ -44,6 +44,11 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=deps --chown=nextjs:nodejs /app ./
 COPY --from=pruner --chown=nextjs:nodejs /app/out/full/ ./
 
+# /tmp stays writable under a read-only root filesystem: ECS copies the image's
+# /tmp (mode 1777) into a bind volume mounted at a VOLUME path.
+RUN chmod 1777 /tmp
+VOLUME ["/tmp"]
+
 USER nextjs
 
 EXPOSE 3002

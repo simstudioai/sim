@@ -38,8 +38,41 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
     timeout-minutes: 300
+    # One migrate job per environment at a time, so a manual dispatch queues
+    # behind a CI run instead of racing it for migrate.ts's advisory lock, which
+    # gives up after 30 minutes. Job-level because a called workflow evaluates
+    # workflow-level concurrency with the caller's github context; the group
+    # must also never equal ci.yml's ci-<ref> group or the two deadlock.
+    concurrency:
+      group: migrate-${{ inputs.environment }}
+      cancel-in-progress: false
 
     steps:
+      # An environment only migrates from its own branch, so a manual dispatch
+      # from a feature branch cannot apply that branch's migrations to a shared
+      # database. Under workflow_call github.ref is the caller's ref (ci.yml's
+      # push to main/staging/dev). This fails rather than skips: ci.yml's
+      # promote gates on migrate succeeding, and a skipped run must never read
+      # as a migration that happened. It runs before any secret is read.
+      - name: Require the environment's own branch
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          REF: ${{ github.ref }}
+        run: |
+          case "${ENVIRONMENT}" in
+            production) expected=refs/heads/main ;;
+            staging) expected=refs/heads/staging ;;
+            dev) expected=refs/heads/dev ;;
+            *)
+              echo "::error::Unknown migrate environment '${ENVIRONMENT}'"
+              exit 1
+              ;;
+          esac
+          if [ "${REF}" != "${expected}" ]; then
+            echo "::error::Refusing to migrate ${ENVIRONMENT} from ${REF}; ${ENVIRONMENT} migrates only from ${expected}"
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:

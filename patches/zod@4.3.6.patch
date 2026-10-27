@@ -1,0 +1,157 @@
+diff --git a/node_modules/zod/.bun-tag-82bf292cf1bc8e88 b/.bun-tag-82bf292cf1bc8e88
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/v4/core/schemas.cjs b/v4/core/schemas.cjs
+index 8444c1fa122b0502f56b141ffa2939906b49baf9..b1dc056dfe24e7e17927b5b61cbf528fc3830eb8 100644
+--- a/v4/core/schemas.cjs
++++ b/v4/core/schemas.cjs
+@@ -685,6 +685,48 @@ function handleArrayResult(result, final, index) {
+     }
+     final.value[index] = result.value;
+ }
++// Backport of colinhacks/zod#6652 (zod 4.6.6, GHSA-mrhx-c7xc-m3w5): a container larger than
++// its leading upper size bound fails on that bound before any element is parsed, instead of
++// collecting an issue per element first.
++function sizeCaps(defChecks) {
++    const caps = [];
++    for (const ch of defChecks ?? []) {
++        const d = ch._zod.def;
++        // a later check may rewrite the value
++        if (!/_(length|size)$|_equals$/.test(d.check))
++            break;
++        const max = d.maximum ?? d.length ?? d.size;
++        if (max >= 0)
++            caps.push([max, ch]);
++    }
++    return caps;
++}
++function capSize(inst, size) {
++    const caps = sizeCaps(inst._zod.def.checks);
++    if (!caps.length)
++        return;
++    const cap = Math.min(...caps.map((c) => c[0]));
++    const run = inst._zod.run;
++    // gates `run`, not `parse`: 4.3.6 runs `when`-guarded checks even after an abort, so the
++    // failing bound reports once here and no later check reads the unparsed elements
++    inst._zod.run = (payload, ctx) => {
++        const n = size(payload.value);
++        if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
++            for (const [max, ch] of caps) {
++                if (n > max && ch._zod.def.when(payload)) {
++                    const start = payload.issues.length;
++                    ch._zod.check(payload);
++                    payload.issues[start].continue = false;
++                    return payload;
++                }
++            }
++        }
++        return run(payload, ctx);
++    };
++}
++const arraySize = (input) => (Array.isArray(input) ? input.length : -1);
++const mapSize = (input) => (input instanceof Map ? input.size : -1);
++const setSize = (input) => (input instanceof Set ? input.size : -1);
+ exports.$ZodArray = core.$constructor("$ZodArray", (inst, def) => {
+     exports.$ZodType.init(inst, def);
+     inst._zod.parse = (payload, ctx) => {
+@@ -718,6 +760,7 @@ exports.$ZodArray = core.$constructor("$ZodArray", (inst, def) => {
+         }
+         return payload; //handleArrayResultsAsync(parseResults, final);
+     };
++    capSize(inst, arraySize);
+ });
+ function handlePropertyResult(result, final, key, input, isOptionalOut) {
+     if (result.issues.length) {
+@@ -1480,6 +1523,7 @@ exports.$ZodMap = core.$constructor("$ZodMap", (inst, def) => {
+             return Promise.all(proms).then(() => payload);
+         return payload;
+     };
++    capSize(inst, mapSize);
+ });
+ function handleMapResult(keyResult, valueResult, final, key, input, inst, ctx) {
+     if (keyResult.issues.length) {
+@@ -1540,6 +1584,7 @@ exports.$ZodSet = core.$constructor("$ZodSet", (inst, def) => {
+             return Promise.all(proms).then(() => payload);
+         return payload;
+     };
++    capSize(inst, setSize);
+ });
+ function handleSetResult(result, final) {
+     if (result.issues.length) {
+diff --git a/v4/core/schemas.js b/v4/core/schemas.js
+index 29c61bc5fcf2ca90c2bb0121b7f02e16fdf19f11..1123f503df65ff9993a0e04a4c78dfb3e216b961 100644
+--- a/v4/core/schemas.js
++++ b/v4/core/schemas.js
+@@ -654,6 +654,48 @@ function handleArrayResult(result, final, index) {
+     }
+     final.value[index] = result.value;
+ }
++// Backport of colinhacks/zod#6652 (zod 4.6.6, GHSA-mrhx-c7xc-m3w5): a container larger than
++// its leading upper size bound fails on that bound before any element is parsed, instead of
++// collecting an issue per element first.
++function sizeCaps(defChecks) {
++    const caps = [];
++    for (const ch of defChecks ?? []) {
++        const d = ch._zod.def;
++        // a later check may rewrite the value
++        if (!/_(length|size)$|_equals$/.test(d.check))
++            break;
++        const max = d.maximum ?? d.length ?? d.size;
++        if (max >= 0)
++            caps.push([max, ch]);
++    }
++    return caps;
++}
++function capSize(inst, size) {
++    const caps = sizeCaps(inst._zod.def.checks);
++    if (!caps.length)
++        return;
++    const cap = Math.min(...caps.map((c) => c[0]));
++    const run = inst._zod.run;
++    // gates `run`, not `parse`: 4.3.6 runs `when`-guarded checks even after an abort, so the
++    // failing bound reports once here and no later check reads the unparsed elements
++    inst._zod.run = (payload, ctx) => {
++        const n = size(payload.value);
++        if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
++            for (const [max, ch] of caps) {
++                if (n > max && ch._zod.def.when(payload)) {
++                    const start = payload.issues.length;
++                    ch._zod.check(payload);
++                    payload.issues[start].continue = false;
++                    return payload;
++                }
++            }
++        }
++        return run(payload, ctx);
++    };
++}
++const arraySize = (input) => (Array.isArray(input) ? input.length : -1);
++const mapSize = (input) => (input instanceof Map ? input.size : -1);
++const setSize = (input) => (input instanceof Set ? input.size : -1);
+ export const $ZodArray = /*@__PURE__*/ core.$constructor("$ZodArray", (inst, def) => {
+     $ZodType.init(inst, def);
+     inst._zod.parse = (payload, ctx) => {
+@@ -687,6 +729,7 @@ export const $ZodArray = /*@__PURE__*/ core.$constructor("$ZodArray", (inst, def
+         }
+         return payload; //handleArrayResultsAsync(parseResults, final);
+     };
++    capSize(inst, arraySize);
+ });
+ function handlePropertyResult(result, final, key, input, isOptionalOut) {
+     if (result.issues.length) {
+@@ -1449,6 +1492,7 @@ export const $ZodMap = /*@__PURE__*/ core.$constructor("$ZodMap", (inst, def) =>
+             return Promise.all(proms).then(() => payload);
+         return payload;
+     };
++    capSize(inst, mapSize);
+ });
+ function handleMapResult(keyResult, valueResult, final, key, input, inst, ctx) {
+     if (keyResult.issues.length) {
+@@ -1509,6 +1553,7 @@ export const $ZodSet = /*@__PURE__*/ core.$constructor("$ZodSet", (inst, def) =>
+             return Promise.all(proms).then(() => payload);
+         return payload;
+     };
++    capSize(inst, setSize);
+ });
+ function handleSetResult(result, final) {
+     if (result.issues.length) {
