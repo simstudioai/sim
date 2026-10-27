@@ -3,6 +3,7 @@ import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { outboxEvent, workspaceOperationReceipt } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -1528,9 +1529,23 @@ function parseOptionalPrincipalActor(value: unknown): PrincipalActor | undefined
       serviceId,
       subjectUserId: parseRequiredString(record.subjectUserId, 'actor.subjectUserId'),
       delegationId: parseRequiredString(record.delegationId, 'actor.delegationId'),
+      ...parseOptionalActorRun(record),
     }
   }
   throw new Error(`Invalid deployment outbox actor kind: ${kind}`)
+}
+
+/** The workflow run an executor delegation acted for, kept so its audit stays traceable. */
+function parseOptionalActorRun(record: Record<string, unknown>): {
+  workflowId?: string
+  executionId?: string
+} {
+  const workflowId = toStringOrNull(record.workflowId)
+  const executionId = toStringOrNull(record.executionId)
+  return {
+    ...(workflowId ? { workflowId } : {}),
+    ...(executionId ? { executionId } : {}),
+  }
 }
 
 function parseDeploymentPreparationCheckpoints(value: unknown): DeploymentPreparationCheckpoints {

@@ -1,4 +1,4 @@
-import { flushAuditRollups } from '@sim/audit'
+import { withAuditRollupScope } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   auditLog,
@@ -206,7 +206,6 @@ describe('table mutation audit history in PostgreSQL', () => {
   }
 
   async function auditRows() {
-    await flushAuditRollups()
     return db
       .select()
       .from(auditLog)
@@ -216,7 +215,9 @@ describe('table mutation audit history in PostgreSQL', () => {
 
   it("merges one execution's repeated row inserts into one row that keeps every row id and count", async () => {
     const rowIds: string[] = []
-    for (const value of ['a', 'b', 'c']) rowIds.push(await insertAsExecution('exec-1', value))
+    await withAuditRollupScope(async () => {
+      for (const value of ['a', 'b', 'c']) rowIds.push(await insertAsExecution('exec-1', value))
+    })
 
     const entries = await auditRows()
     expect(entries).toHaveLength(1)
@@ -242,9 +243,11 @@ describe('table mutation audit history in PostgreSQL', () => {
   })
 
   it('never merges row changes from two executions', async () => {
-    await insertAsExecution('exec-1', 'a')
-    await insertAsExecution('exec-2', 'b')
-    await insertAsExecution('exec-1', 'c')
+    await withAuditRollupScope(async () => {
+      await insertAsExecution('exec-1', 'a')
+      await insertAsExecution('exec-2', 'b')
+      await insertAsExecution('exec-1', 'c')
+    })
 
     const entries = await auditRows()
     expect(entries).toHaveLength(2)
@@ -258,7 +261,7 @@ describe('table mutation audit history in PostgreSQL', () => {
   })
 
   it('writes a lone execution change exactly as an unmerged entry', async () => {
-    const insertedRowId = await insertAsExecution('exec-1', 'a')
+    const insertedRowId = await withAuditRollupScope(() => insertAsExecution('exec-1', 'a'))
 
     const [entry] = await auditRows()
     expect(entry.metadata).toMatchObject({
