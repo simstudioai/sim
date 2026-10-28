@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { gmailMailbox, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -18,12 +18,14 @@ import type { DbOrTx } from '@/lib/db/types'
 const logger = createLogger('GmailAlias')
 
 /**
- * Whether another account, banned or not, already holds the Gmail inbox this
- * user's address delivers to. Pass the caller's transaction as `executor` to
- * read on it; the read then runs in a savepoint, so a failed lookup never
- * aborts that transaction. Fails open: a lookup error returns `false` and is
- * logged, because refusing a legitimate person's allowance is worse than one
- * missed match.
+ * Whether an earlier account, banned or not, already holds the Gmail inbox this
+ * user's address delivers to. Only an account created before this one counts
+ * (the id breaks a creation-time tie), so the inbox's first account keeps the
+ * allowance however late its own stats row is created. Pass the caller's
+ * transaction as `executor` to read on it; the read then runs in a savepoint,
+ * so a failed lookup never aborts that transaction. Fails open: a lookup error
+ * returns `false` and is logged, because refusing a legitimate person's
+ * allowance is worse than one missed match.
  */
 export async function userHasGmailAliasAccount(
   userId: string,
@@ -32,7 +34,7 @@ export async function userHasGmailAliasAccount(
   if (!isBillingEnabled) return false
   const read = async (reader: DbOrTx) => {
     const [self] = await reader
-      .select({ mailbox: gmailMailbox(user.email) })
+      .select({ mailbox: gmailMailbox(user.email), createdAt: user.createdAt })
       .from(user)
       .where(eq(user.id, userId))
       .limit(1)
@@ -40,7 +42,15 @@ export async function userHasGmailAliasAccount(
     const [other] = await reader
       .select({ id: user.id })
       .from(user)
-      .where(and(sql`${gmailMailbox(user.email)} = ${self.mailbox}`, ne(user.id, userId)))
+      .where(
+        and(
+          sql`${gmailMailbox(user.email)} = ${self.mailbox}`,
+          or(
+            lt(user.createdAt, self.createdAt),
+            and(eq(user.createdAt, self.createdAt), lt(user.id, userId))
+          )
+        )
+      )
       .limit(1)
     return Boolean(other)
   }

@@ -22,18 +22,20 @@ vi.mock('@/lib/auth', () => authMock)
 
 const userIds: string[] = []
 
-async function insertUser(email: string, { banned = false } = {}): Promise<string> {
+async function insertUser(
+  email: string,
+  { banned = false, createdAt = new Date() } = {}
+): Promise<string> {
   const id = generateId()
   userIds.push(id)
-  const now = new Date()
   await db.insert(user).values({
     id,
     name: 'Gmail alias fixture',
     email,
     emailVerified: true,
     banned,
-    createdAt: now,
-    updatedAt: now,
+    createdAt,
+    updatedAt: createdAt,
   })
   return id
 }
@@ -111,6 +113,36 @@ describe('Gmail inboxes and the free allowance', () => {
     await ensureUserStatsExists(alias)
 
     expect(await statsOf(alias)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('keeps the allowance with the inbox’s first account when its stats row comes after an alias’s', async () => {
+    const local = uniqueLocalPart()
+    const original = await insertUser(`${local}@gmail.com`, {
+      createdAt: new Date(Date.now() - 60_000),
+    })
+    const alias = await signUp(`${local}+later@gmail.com`)
+
+    await ensureUserStatsExists(original)
+
+    expect(await statsOf(original)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect(await statsOf(alias)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('withholds from exactly one of two accounts created at the same instant', async () => {
+    const local = uniqueLocalPart()
+    const createdAt = new Date()
+    const first = await insertUser(`${local}@gmail.com`, { createdAt })
+    const second = await insertUser(`${local.slice(0, 2)}.${local.slice(2)}@gmail.com`, {
+      createdAt,
+    })
+
+    await ensureUserStatsExists(first)
+    await ensureUserStatsExists(second)
+
+    const eligible = [await statsOf(first), await statsOf(second)].map(
+      (stats) => stats.freeTierEligible
+    )
+    expect(eligible.sort()).toEqual([false, true])
   })
 
   it('finds the inbox through user_gmail_mailbox_idx rather than a scan of user', async () => {
