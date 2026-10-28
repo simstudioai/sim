@@ -7,13 +7,6 @@ const logger = createLogger('AuditRollup')
 /** How long the first entry of a rollup waits for repeats before it is written. */
 const ROLLUP_WINDOW_MS = 2_000
 
-/**
- * The window inside a {@link withAuditRollupScope}, whose end writes the row
- * anyway: long enough that a run's repeats share one row however far apart
- * they fall, short enough that a run whose process dies loses at most this much.
- */
-const SCOPED_ROLLUP_WINDOW_MS = 60_000
-
 /** Entries merged into one row; bounds the identifier arrays its metadata collects. */
 const ROLLUP_MAX_ENTRIES = 100
 
@@ -33,8 +26,7 @@ export interface AuditRollupSummary {
 
 /**
  * One occurrence of a repetitive audit event. Occurrences sharing a rollup key
- * within {@link ROLLUP_WINDOW_MS} ({@link SCOPED_ROLLUP_WINDOW_MS} inside a
- * scope) become one row, and nothing an occurrence
+ * within {@link ROLLUP_WINDOW_MS} become one row, and nothing an occurrence
  * carried is dropped: a lone occurrence is written exactly as `params`, and a
  * merged row sums every counter, collects every identifier, and records how
  * many occurrences it stands for and when the first and last happened.
@@ -127,10 +119,7 @@ export function recordAuditRollup(entry: AuditRollupEntry): void {
     entries: 1,
     counters: { ...entry.counters },
     identifiers: new Map(),
-    timer: setTimeout(
-      () => startWrite([take(key)]),
-      scope ? SCOPED_ROLLUP_WINDOW_MS : ROLLUP_WINDOW_MS
-    ),
+    timer: setTimeout(() => startWrite([take(key)]), ROLLUP_WINDOW_MS),
   }
   collectIdentifiers(rollup, entry)
   pending.set(key, rollup)
