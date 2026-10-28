@@ -65,7 +65,7 @@ export async function fireTableTrigger(
     // Eager imports would force every `lib/table/service` consumer (e.g. the
     // dispatcher) to pay that cold-start even when no trigger fires.
     const { fetchActiveWebhooks } = await import('@/lib/webhooks/polling/utils')
-    const webhooks = await fetchActiveWebhooks('table')
+    const webhooks = await fetchActiveWebhooks('table', { workspaceId })
     if (webhooks.length === 0) return
 
     const headers = schema.columns.map((c) => c.name)
