@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-const BUILD_PLACEHOLDER = {
+const PLACEHOLDER = {
   prefix: 'Ask Sim to ',
   suffixes: [
     'respond to my emails...',
@@ -9,23 +9,13 @@ const BUILD_PLACEHOLDER = {
     'track GitHub commits...',
   ],
 } as const
-const SEARCH_PLACEHOLDER = {
-  prefix: 'Ask about ',
-  suffixes: [
-    'project updates...',
-    'answers across your sources...',
-    'meeting notes...',
-    'decisions and documents...',
-  ],
-} as const
-
 const TYPE_SPEED_MS = 60
 const DELETE_SPEED_MS = 35
 const PAUSE_AFTER_TYPING_MS = 2000
 const PAUSE_AFTER_DELETING_MS = 400
 
-export function useAnimatedPlaceholder(enabled = true, mode: 'build' | 'search' = 'build'): string {
-  const { prefix, suffixes } = mode === 'search' ? SEARCH_PLACEHOLDER : BUILD_PLACEHOLDER
+export function useAnimatedPlaceholder(enabled = true): string {
+  const { prefix, suffixes } = PLACEHOLDER
   const [text, setText] = useState<string>(prefix)
   const stateRef = useRef({
     suffixIndex: 0,

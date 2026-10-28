@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { ComposerActionButton, toast } from '@sim/emcn'
-import { ArrowUp, StopFilled } from '@sim/emcn/icons'
+import { lazy, Suspense, useEffect, useRef } from 'react'
+import { Chip, ChipSwitch, ComposerActionButton } from '@sim/emcn'
+import { ArrowUp, Plus, Search, Sparkles, StopFilled } from '@sim/emcn/icons'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -21,12 +22,25 @@ import { SearchResultsView } from '@/app/o/[organizationId]/search/search-result
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
+const OrganizationConversation = lazy(() =>
+  import('@/app/o/[organizationId]/components/organization-conversation').then((module) => ({
+    default: module.OrganizationConversation,
+  }))
+)
+
+const SEARCH_MODES = [
+  { value: 'search', label: 'Search', icon: Search },
+  { value: 'assistant', label: 'Assistant', icon: Sparkles },
+] as const
+
 interface OrganizationSearchProps {
   userId: string
+  chatId?: string
 }
 
 interface SearchFieldProps {
@@ -133,29 +147,43 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   )
 }
 
-/** Raw organization search remains independent of assistant conversations. */
-export function OrganizationSearch({ userId }: OrganizationSearchProps) {
+/** Organization Search owns both document results and assistant conversations. */
+export function OrganizationSearch(props: OrganizationSearchProps) {
   const { searchAccess } = useOrganizationContext()
   if (!searchAccess.memberScoped) return null
-  return <OrganizationSearchContent userId={userId} />
+  return <OrganizationSearchContent {...props} />
 }
 
-function OrganizationSearchContent({ userId }: OrganizationSearchProps) {
+function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) {
   const { organization, mothershipAvailable } = useOrganizationContext()
   const { recordQuery } = useSearchHistoryActions()
   const router = useRouter()
+  const pathname = usePathname()
+  const routes = organizationRoutes(organization.id)
+  const hasConversation = Boolean(chatId) || pathname.startsWith(`${routes.search}/chat/`)
   const queryClient = useQueryClient()
-  const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)
-  const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
-    if (!mothershipAvailable) {
-      toast.info('The assistant is unavailable for this organization.')
-      return
+  const [{ q, mode }, setParams] = useQueryStates(
+    organizationSearchParsers,
+    organizationSearchUrlKeys
+  )
+  const activeMode =
+    mothershipAvailable && (hasConversation || mode === 'assistant') ? 'assistant' : 'search'
+  const changeMode = (next: 'search' | 'assistant') => {
+    if (hasConversation) {
+      const params = new URLSearchParams()
+      if (next === 'assistant') params.set('mode', 'assistant')
+      if (q) params.set('q', q)
+      router.push(`${routes.search}${params.size ? `?${params}` : ''}`)
+    } else {
+      void setParams({ mode: next })
     }
+  }
+  const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
     const stored = MothershipHandoffStorage.store(
       { message, requestMode: 'assistant', assistantSearch },
       { organizationId: organization.id }
     )
-    if (stored) router.push(`${organizationRoutes(organization.id).home}?searchLevel=adaptive`)
+    if (stored) void setParams({ mode: 'assistant' })
   }
   const submit = (draft: string) => {
     const next = draft.trim()
@@ -174,10 +202,39 @@ function OrganizationSearchContent({ userId }: OrganizationSearchProps) {
     }
   }
   return (
-    <SearchResultsView
-      composer={<SearchField key={q} userId={userId} initialValue={q} onSubmit={submit} />}
-      query={q.trim()}
-      onSummarize={summarize}
-    />
+    <div className='flex h-full min-h-0 min-w-0 flex-col bg-[var(--bg)]'>
+      <div className={PAGE_HEADER_BAR}>
+        <div className={HEADER_ACTION_CLUSTER}>
+          {mothershipAvailable ? (
+            <ChipSwitch
+              aria-label='Search mode'
+              options={SEARCH_MODES}
+              value={activeMode}
+              onChange={changeMode}
+            />
+          ) : (
+            <span className='text-[var(--text-body)] text-sm'>Search</span>
+          )}
+        </div>
+        {hasConversation && (
+          <Chip leftIcon={Plus} onClick={() => changeMode('search')}>
+            New search
+          </Chip>
+        )}
+      </div>
+      <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
+        {activeMode === 'assistant' ? (
+          <Suspense fallback={<HomeFallback />}>
+            <OrganizationConversation requestMode='assistant' chatId={chatId} />
+          </Suspense>
+        ) : (
+          <SearchResultsView
+            composer={<SearchField key={q} userId={userId} initialValue={q} onSubmit={submit} />}
+            query={q.trim()}
+            onSummarize={mothershipAvailable ? summarize : undefined}
+          />
+        )}
+      </div>
+    </div>
   )
 }

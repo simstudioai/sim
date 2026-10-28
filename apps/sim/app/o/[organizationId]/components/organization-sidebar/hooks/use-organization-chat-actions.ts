@@ -126,10 +126,12 @@ export function useOrganizationChatActions({
   const confirmDelete = useCallback(() => {
     if (chatsToDelete.length === 0 || isDeleting) return
     const redirectIfDeleted = (ids: string[]) => {
-      if (
-        ids.some((id) => window.location.pathname === organizationRoutes(organizationId).chat(id))
-      ) {
-        router.push(organizationRoutes(organizationId).home)
+      const current = chats.find(
+        (chat) => ids.includes(chat.id) && window.location.pathname === chat.href
+      )
+      if (current) {
+        const routes = organizationRoutes(organizationId)
+        router.push(current.href.startsWith(`${routes.search}/`) ? routes.search : routes.home)
       }
     }
     const options = {

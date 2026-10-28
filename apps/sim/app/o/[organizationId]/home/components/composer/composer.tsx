@@ -5,16 +5,12 @@ import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
-import {
-  ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
-  isAssistantImageType,
-} from '@/lib/uploads/shared/assistant-images'
+import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
-import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
@@ -24,7 +20,6 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
-import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
@@ -36,10 +31,8 @@ import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
 interface ComposerProps {
-  searchEnabled?: boolean
   requestMode?: ChatRequestMode
-  onModeChange?: (mode: ChatRequestMode) => void
-  showModeSelector?: boolean
+  onPlanChange?: () => void
   value: string
   files: ReturnType<typeof useFileAttachments>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
@@ -54,16 +47,10 @@ interface ComposerProps {
   onStop: () => void
 }
 
-/**
- * The organization home composer: a question to the Assistant. Wears the
- * workspace chat input's chrome — the framed field and the send control — and
- * carries only the controls that are wired for the organization.
- */
+/** Organization composer with scoped resources, attachments, voice, and draft restoration. */
 export function Composer({
-  searchEnabled = true,
   requestMode = 'assistant',
-  onModeChange,
-  showModeSelector = false,
+  onPlanChange,
   value,
   files,
   isInitialView,
@@ -111,25 +98,6 @@ export function Composer({
     getMessages: () => messages ?? [],
   })
   const { textareaRef } = editor
-  const searchBlocked =
-    editor.getActiveContexts().length > 0 ||
-    files.attachedFiles.some((file) => !isAssistantImageType(file.type))
-  const handleModeChange = (mode: ChatRequestMode) => {
-    if (mode === 'assistant' && searchBlocked) {
-      toast.info(
-        'Remove resource and skill mentions and non-image attachments before switching to Search.'
-      )
-      return
-    }
-    onModeChange?.(mode)
-  }
-  const handleModeShortcut = useConversationModeShortcut({
-    value: requestMode,
-    searchEnabled: searchEnabled && !searchBlocked,
-    onChange: showModeSelector && onModeChange ? handleModeChange : undefined,
-    textareaRef,
-    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
-  })
   const editorRef = useRef(editor)
   editorRef.current = editor
   const lastPublished = useRef(value)
@@ -169,10 +137,7 @@ export function Composer({
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
     (value.trim().length > 0 || files.attachedFiles.some((file) => file.key))
-  const animatedPlaceholder = useAnimatedPlaceholder(
-    isInitialView && !value,
-    imagesOnly ? 'search' : 'build'
-  )
+  const animatedPlaceholder = useAnimatedPlaceholder(!imagesOnly && isInitialView && !value)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
 
   const submit = () => {
@@ -233,9 +198,7 @@ export function Composer({
 
   const leadingControls = (
     <>
-      {imagesOnly && !showModeSelector && (
-        <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-      )}
+      {imagesOnly && <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
       {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
 
       {!imagesOnly && (
@@ -252,12 +215,15 @@ export function Composer({
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
-      {showModeSelector && (
-        <ConversationModeSelector
-          value={requestMode}
-          searchEnabled={searchEnabled}
-          onChange={onModeChange ? handleModeChange : undefined}
-        />
+      {onPlanChange && (
+        <Chip
+          shape='round'
+          active={requestMode === 'plan'}
+          aria-pressed={requestMode === 'plan'}
+          onClick={onPlanChange}
+        >
+          Plan
+        </Chip>
       )}
     </>
   )
@@ -294,7 +260,6 @@ export function Composer({
 
   return (
     <div
-      onKeyDown={handleModeShortcut}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
       onDragOver={files.handleDragOver}
@@ -325,7 +290,7 @@ export function Composer({
               onArrowUpOnEmpty: recallQueuedTail,
             })
           }
-          placeholder={placeholder}
+          placeholder={isInitialView ? 'Ask about your sources' : 'Ask a follow-up'}
           aria-label='Ask Sim'
           leadingControls={leadingControls}
           voiceControl={voiceControl}

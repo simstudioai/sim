@@ -799,7 +799,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         body.contexts?.length)
     ) {
       return createBadRequestResponse(
-        'Assistant uses the Enterprise Search index. Switch to Build to use workspace resources or workflows.'
+        'Assistant uses the Enterprise Search index. Start a chat from Home to use workspace resources or workflows.'
       )
     }
 

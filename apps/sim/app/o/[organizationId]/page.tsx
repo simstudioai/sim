@@ -18,7 +18,7 @@ export default async function OrganizationPage({
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
   redirect(
-    context.mothershipAvailable
+    context.mothershipAvailable && context.canBuild
       ? routes.home
       : context.searchAccess.memberScoped
         ? routes.search

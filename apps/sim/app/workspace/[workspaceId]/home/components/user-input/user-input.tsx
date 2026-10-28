@@ -31,14 +31,11 @@ import {
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
-import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
-import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
   ChatMessage,
-  ChatRequestMode,
   FileAttachmentForApi,
   MothershipResource,
   QueuedMessage,
@@ -60,7 +57,7 @@ const logger = createLogger('UserInput')
 
 interface UserInputProps {
   requestMode?: 'agent' | 'plan'
-  onModeChange?: (mode: 'agent' | 'plan') => void
+  onPlanChange?: () => void
   defaultValue?: string
   draftScopeKey?: string
   onSubmit: (
@@ -94,7 +91,7 @@ export interface UserInputHandle {
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
     requestMode = 'agent',
-    onModeChange,
+    onPlanChange,
     defaultValue = '',
     draftScopeKey,
     onSubmit,
@@ -150,15 +147,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const editorRef = useRef(editor)
   editorRef.current = editor
   const textareaRef = editor.textareaRef
-  const handleModeChange = (mode: ChatRequestMode) => {
-    if (mode === 'agent' || mode === 'plan') onModeChange?.(mode)
-  }
-  const handleModeShortcut = useConversationModeShortcut({
-    value: requestMode,
-    onChange: onModeChange ? handleModeChange : undefined,
-    textareaRef,
-    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
-  })
   useChatInputFocus({ textareaRef })
 
   /**
@@ -581,7 +569,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   return (
     <div
       onClick={handleContainerClick}
-      onKeyDown={handleModeShortcut}
       onFocusCapture={() => {
         composerOwnsFocusRef.current = true
       }}
@@ -658,8 +645,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Skills</Tooltip.Content>
             </Tooltip.Root>
-            {onModeChange && (
-              <ConversationModeSelector value={requestMode} onChange={handleModeChange} />
+            {onPlanChange && (
+              <Chip
+                shape='round'
+                active={requestMode === 'plan'}
+                aria-pressed={requestMode === 'plan'}
+                onClick={onPlanChange}
+              >
+                Plan
+              </Chip>
             )}
           </>
         }

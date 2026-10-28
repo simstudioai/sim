@@ -226,7 +226,6 @@
   "apps/sim/app/o/[organizationId]/components/organization-page/index.ts#useOrganizationPageFilters",
   "apps/sim/app/o/[organizationId]/components/organization-page/organization-page.tsx#OrganizationPageTab",
   "apps/sim/app/o/[organizationId]/components/organization-sidebar/hooks/index.ts#useOrganizationWorkspaces",
-  "apps/sim/app/o/[organizationId]/home/search-params.ts#SEARCH_LEVEL_VALUES",
   "apps/sim/app/o/[organizationId]/integrations/search-params.ts#integrationConnectionParams",
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-params.ts#organizationIntegrationsTabParam",
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-params.ts#organizationPeopleIntegrationParam",

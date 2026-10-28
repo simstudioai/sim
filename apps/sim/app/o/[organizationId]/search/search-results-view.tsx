@@ -6,7 +6,6 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
@@ -21,7 +20,7 @@ import {
 interface SearchResultsViewProps {
   composer: ReactNode
   query: string
-  onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
+  onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
   onSearchChange?: (search: SearchResource) => void
 }
 
@@ -45,9 +44,6 @@ export function SearchResultsView({
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
       {searching ? (
         <>
-          <div className={PAGE_HEADER_BAR}>
-            <div className={HEADER_ACTION_CLUSTER} />
-          </div>
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
             {composer}
           </div>

@@ -1367,7 +1367,11 @@ export function useChat(
         window.history.replaceState(
           null,
           '',
-          chatUrl(organizationId ? { organizationId } : workspaceId!, chatId)
+          chatUrl(
+            organizationId ? { organizationId } : workspaceId!,
+            chatId,
+            requestModeRef.current
+          )
         )
       }
       if (options?.invalidateList) {
