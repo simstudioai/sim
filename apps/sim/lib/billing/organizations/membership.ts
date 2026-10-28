@@ -1454,12 +1454,6 @@ export async function removeUserFromOrganization(
          * same commit, so the directory and the organization can never disagree
          * about who is a member.
          */
-        await revokeUserSessionsTx(tx, {
-          userId,
-          organizationId,
-          ...(spareSessionToken ? { spareSessionToken } : {}),
-          ...(spareSessionId ? { spareSessionId } : {}),
-        })
         if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
         await endDirectoryMembershipTx(tx, { userId, organizationId })
         /** The member's organization Assistant runs and their runs in its workspaces end with access. */
@@ -1467,6 +1461,32 @@ export async function removeUserFromOrganization(
           ...(await stopLiveRunsTx(tx, { userId, organizationId })),
           ...(await stopLiveRunsTx(tx, { userId, workspaceIds })),
         ]
+
+        if (workspaceIds.length > 0) {
+          const resourceOwnershipReassignment =
+            await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
+              tx,
+              workspaceIds,
+              departingUserId: userId,
+            })
+          if (resourceOwnershipReassignment.unresolved.length > 0) {
+            throw new WorkspaceBillingAccountRemovalError()
+          }
+        }
+
+        /**
+         * Session revocation writes the organization row, so it waits until the
+         * handoff above holds the workspace rows. Storage writers lock a
+         * workspace row and then its organization payer row; writing the
+         * organization first and then waiting on the workspace rows inverts that
+         * order and deadlocks against a concurrent upload or delete.
+         */
+        await revokeUserSessionsTx(tx, {
+          userId,
+          organizationId,
+          ...(spareSessionToken ? { spareSessionToken } : {}),
+          ...(spareSessionId ? { spareSessionId } : {}),
+        })
 
         if (workspaceIds.length === 0) {
           return {
@@ -1479,16 +1499,6 @@ export async function removeUserFromOrganization(
             pendingInvitationsCancelled: cancelledInvitations.length,
             stoppedRuns,
           }
-        }
-
-        const resourceOwnershipReassignment =
-          await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
-            tx,
-            workspaceIds,
-            departingUserId: userId,
-          })
-        if (resourceOwnershipReassignment.unresolved.length > 0) {
-          throw new WorkspaceBillingAccountRemovalError()
         }
 
         const deletedPerms = await tx
