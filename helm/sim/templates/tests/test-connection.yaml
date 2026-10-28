@@ -42,16 +42,15 @@ spec:
           set -eu
           # A pod turns Ready before every node routes its Service to it, so a
           # probe sent the moment `helm install --wait` returns can be refused.
-          # Each URL gets a minute to answer before the test fails.
+          # Each URL is retried until a minute has passed, then the test fails.
           probe() {
-            attempt=1
+            deadline=$(($(date +%s) + 60))
             while ! wget -q -T {{ .Values.tests.timeoutSeconds }} --spider "$1"; do
-              if [ "$attempt" -ge 12 ]; then
-                echo "FAILED: $1 did not answer after $attempt attempts"
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "FAILED: $1 did not answer within 60s"
                 return 1
               fi
-              echo "Attempt $attempt: $1 did not answer; retrying in 5s"
-              attempt=$((attempt + 1))
+              echo "$1 did not answer; retrying in 5s"
               sleep 5
             done
             echo "OK: $1"
