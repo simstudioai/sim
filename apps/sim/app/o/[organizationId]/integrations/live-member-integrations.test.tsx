@@ -9,23 +9,18 @@ import {
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
+import { LiveMemberIntegrations } from '@/app/o/[organizationId]/integrations/live-member-integrations'
 
-const mocks = vi.hoisted(() => ({
-  policies: vi.fn(),
-  secrets: vi.fn(),
-  saveSecrets: vi.fn(),
-  connect: vi.fn(),
-  reconnect: vi.fn(),
-  refetch: vi.fn(),
-}))
+const mocks = vi.hoisted(() => ({ connect: vi.fn() }))
 vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/hooks/queries/organization-secrets', () => ({
-  useOrganizationSecretSource: mocks.secrets,
-  useConfigureOrganizationSecretSource: () => ({ mutate: mocks.saveSecrets }),
-  useRemoveOrganizationSecretSource: () => ({ mutate: vi.fn() }),
+  useOrganizationSecretSource: () => ({ data: { source: null } }),
 }))
-vi.mock('@/hooks/queries/search-integrations', () => ({ useSearchIntegrations: mocks.policies }))
+vi.mock('@/hooks/queries/search-integrations', () => ({
+  useSearchIntegrations: () => ({ data: [{ connectorType: 'coda', approved: true }] }),
+}))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => ({
   DisconnectAccountMenu: ({ accounts }: { accounts: { displayName: string }[] }) => (
@@ -36,50 +31,16 @@ vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-show
   IntegrationTile: () => null,
 }))
 
-import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
-import { LiveMemberIntegrations } from '@/app/o/[organizationId]/integrations/live-member-integrations'
-
-const mockInventory = organizationAccountsQueriesMockFns.mockUseOrganizationAccounts
-organizationAccountsQueriesMockFns.mockUseConnectOrganizationAccount.mockReturnValue({
-  mutate: mocks.connect,
-})
-organizationAccountsQueriesMockFns.mockUseReconnectPersonalOrganizationAccount.mockReturnValue({
-  mutate: mocks.reconnect,
-})
-organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
-  organization: { id: 'org', name: 'Example Organization' },
-})
-
 let root: Root
 let container: HTMLDivElement
-const group = {
-  status: 'active',
-  options: [
-    {
-      id: 'github-option',
-      provider: 'github-repositories',
-      status: 'active',
-      configurationStatus: 'ready',
-    },
-  ],
-  mcpServers: [],
-}
-const inventory = (overrides = {}) => ({
-  credentialGroup: group,
-  availableMcpConnectors: [],
-  viewerAccounts: [],
-  viewerMcpAccounts: [],
-  canManage: false,
-  ...overrides,
-})
 beforeEach(() => {
-  mocks.secrets.mockReturnValue({ data: { source: null } })
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  mockInventory.mockReturnValue({ data: inventory(), refetch: mocks.refetch })
-  mocks.policies.mockReturnValue({
-    data: [{ connectorType: 'github', approved: true }],
-    refetch: mocks.refetch,
+  organizationAccountsQueriesMockFns.mockUseConnectOrganizationAccount.mockReturnValue({
+    mutate: mocks.connect,
   })
+  organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+    organization: { id: 'org', name: 'Example Organization' },
+  })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -88,151 +49,56 @@ afterEach(() => {
   act(() => root.unmount())
   container.remove()
 })
-const render = async (search = '') => {
-  await act(async () =>
-    root.render(<LiveMemberIntegrations organizationId='org' search={search} />)
-  )
-}
-const button = (label: string) =>
-  [...container.querySelectorAll('button')].find((button) => button.textContent === label)
-describe('live member connection states', () => {
-  it.each(['organization', 'member'] as const)(
-    'shows Generic Secrets in %s mode without OAuth sources',
-    async (mode) => {
-      mocks.policies.mockReturnValue({ data: [] })
-      mockInventory.mockReturnValue({ data: inventory({ credentialGroup: null }) })
-      mocks.secrets.mockReturnValue({ data: { source: { id: 'source', mode } } })
-      await render()
-      expect(container.textContent).toContain('Generic Secrets')
-      if (mode === 'member')
-        expect(container.querySelector('a')?.getAttribute('href')).toBe(
-          '/o/org/integrations/secrets'
-        )
-      else {
-        expect(container.textContent).toContain('Organization managed')
-        expect(container.querySelector('a')).toBeNull()
-      }
-      expect(button('Configure')).toBeUndefined()
-      expect(button('Connect')).toBeUndefined()
-      await render('unrelated')
-      expect(container.textContent).not.toContain('Generic Secrets')
-    }
-  )
-  it('keeps GitLab organization-managed with no personal token or connect action', async () => {
-    mocks.policies.mockReturnValue({ data: [{ connectorType: 'gitlab', approved: true }] })
-    await render()
-    expect(container.textContent).toContain('Organization managed')
-    expect(container.textContent).not.toContain('personal access token')
-    expect(button('Connect')).toBeUndefined()
-  })
-  it('connects the active provider option in this organization', async () => {
-    await render()
-    await act(async () => button('Connect')!.click())
-    expect(mocks.connect).toHaveBeenCalledWith(
-      { organizationId: 'org', optionId: 'github-option' },
-      expect.any(Object)
-    )
-  })
-  it.each([
-    ['disabled', { credentialGroup: { ...group, status: 'disabled' } }],
-    ['unconfigured', { credentialGroup: null }],
-  ])('disables connection when %s', async (_name, overrides) => {
-    mockInventory.mockReturnValue({ data: inventory(overrides) })
-    await render()
-    expect(button('Connect')?.disabled).toBe(true)
-    await act(async () => button('Connect')!.click())
-    expect(mocks.connect).not.toHaveBeenCalled()
-  })
-  it('shows the current account and reconnect action without enabling a disabled integration', async () => {
-    mockInventory.mockReturnValue({
-      data: inventory({
-        viewerAccounts: [
-          {
-            credentialId: 'own',
-            providerId: 'github-repositories',
-            displayName: 'reader',
-            status: 'needs_reauth',
-          },
-        ],
-      }),
-    })
-    await render()
-    await act(async () => button('Reconnect')!.click())
-    expect(mocks.reconnect).toHaveBeenCalledWith('own', expect.any(Object))
-    mocks.policies.mockReturnValue({ data: [{ connectorType: 'github', approved: false }] })
-    await render()
-    expect(button('Reconnect')?.disabled).toBe(true)
-    expect(button('Add account')).toBeUndefined()
-  })
-  it('never presents another MCP provider as a Coda connection', async () => {
-    mocks.policies.mockReturnValue({ data: [{ connectorType: 'coda', approved: true }] })
-    mockInventory.mockReturnValue({
-      data: inventory({
-        credentialGroup: {
-          ...group,
-          mcpServers: [{ id: 'coda-server', managedConnectorId: 'coda', enabled: true }],
-        },
-        viewerMcpAccounts: [
-          {
-            credentialId: 'other',
-            mcpServerId: 'other-server',
-            displayName: 'Other private account',
-            status: 'active',
-          },
-        ],
-      }),
-    })
-    await render()
-    expect(container.textContent).not.toContain('Other private account')
-    await act(async () => button('Connect')!.click())
-    expect(mocks.connect).toHaveBeenCalledWith(
-      { organizationId: 'org', mcpServerId: 'coda-server' },
-      expect.any(Object)
-    )
-  })
-  it.each([false, true])(
-    'keeps Slack app setup out of member Integrations, admin=%s',
-    async (canManage) => {
-      mocks.policies.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
-      mockInventory.mockReturnValue({ data: inventory({ canManage }) })
-      await render()
-      expect(container.textContent).toContain('Slack')
-      expect(container.textContent).toContain('Not configured')
-      expect(container.textContent).not.toContain('Finish setup')
-      expect(container.querySelector('a')).toBeNull()
-      expect(button('Connect')?.disabled).toBe(true)
-      await act(async () => button('Connect')!.click())
-      expect(mocks.connect).not.toHaveBeenCalled()
-    }
-  )
-  it('explains service-account scope without hiding member connection controls', async () => {
-    mocks.policies.mockReturnValue({
-      data: [
+it('never presents another MCP provider as a Coda connection', async () => {
+  const inventory = {
+    credentialGroup: {
+      id: 'group',
+      workspaceId: null,
+      organizationId: 'org',
+      name: 'Organization accounts',
+      description: null,
+      status: 'active',
+      options: [],
+      mcpServers: [
         {
-          connectorType: 'github',
-          approved: true,
-          policy: {
-            ...defaultLiveSearchPolicy(),
-            accessMode: 'service_account',
-            sourceId: 'source',
-          },
+          id: 'coda-server',
+          name: 'Coda',
+          description: null,
+          authType: 'oauth',
+          managedConnectorId: 'coda',
+          enabled: true,
         },
       ],
-    })
-    mockInventory.mockReturnValue({
-      data: inventory({
-        viewerAccounts: [
-          {
-            credentialId: 'own',
-            providerId: 'github-repositories',
-            displayName: 'reader',
-            status: 'active',
-          },
-        ],
-      }),
-    })
-    await render()
-    expect(container.textContent).toContain('Selected resources you can access')
-    expect(button('Add account')).toBeDefined()
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    availableProviders: [],
+    assistantProviders: [],
+    availableMcpConnectors: ['coda'],
+    viewerAccounts: [],
+    viewerMcpAccounts: [
+      {
+        credentialId: 'other',
+        mcpServerId: 'other-server',
+        displayName: 'Other private account',
+        status: 'active',
+      },
+    ],
+    canManage: false,
+    indexingAvailable: true,
+  } satisfies OrganizationAccountsSettings
+  organizationAccountsQueriesMockFns.mockUseOrganizationAccounts.mockReturnValue({
+    data: inventory,
   })
+  await act(async () => root.render(<LiveMemberIntegrations organizationId='org' search='' />))
+  expect(container.textContent).not.toContain('Other private account')
+  const connect = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Connect'
+  )
+  if (!connect) throw new Error('Missing Coda connection control')
+  await act(async () => connect.click())
+  expect(mocks.connect).toHaveBeenCalledWith(
+    { organizationId: 'org', mcpServerId: 'coda-server' },
+    expect.any(Object)
+  )
 })

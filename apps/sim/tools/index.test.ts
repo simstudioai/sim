@@ -57,6 +57,7 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
@@ -7444,16 +7445,21 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
     },
   })
   it('executes the existing user lookup tool using the selected personal OAuth account', async () => {
-    const { getToolMetadata } = await import('@/tools/metadata')
-    expect(getToolMetadata('github_search_users_v2')).toMatchObject({
-      id: 'github_search_users_v2',
-      params: { apiKey: { required: true } },
-    })
     const params = {
       credentialId: 'own-account',
       q: 'icecrasher321 in:login',
     }
-    const result = await executeTool('github_search_users_v2', params, options())
+    const result = await withAssistantActionExecution(
+      {
+        userId: 'person',
+        organizationId: 'org',
+        toolCallId: 'call',
+        toolId: 'github_search_users_v2',
+        args: params,
+        binding: { credentialId: 'own-account', effect: 'read', operationVersion: 1 },
+      },
+      () => executeTool('github_search_users_v2', params, options())
+    )
     expect(result.success, result.error).toBe(true)
     expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
     expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(

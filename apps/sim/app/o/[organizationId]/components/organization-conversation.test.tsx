@@ -14,7 +14,12 @@ import {
   organizationProviderMock,
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
-import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import {
+  createMutationResultMock,
+  createQueryResultMock,
+  reactQueryMock,
+  reactQueryMockFns,
+} from '@sim/testing/mocks/react-query.mock'
 import { toRecord } from '@sim/utils/object'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
@@ -102,6 +107,8 @@ deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  reactQueryMockFns.mockUseQuery.mockReturnValue(createQueryResultMock())
+  reactQueryMockFns.mockUseMutation.mockReturnValue(createMutationResultMock())
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   mocks.activeResource = null

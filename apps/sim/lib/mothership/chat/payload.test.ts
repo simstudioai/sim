@@ -1,3 +1,4 @@
+import { organization } from '@sim/db/schema'
 import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { billingPlanHelpersMock } from '@sim/testing/mocks/billing-plan-helpers.mock'
@@ -5,6 +6,11 @@ import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   integrationsAvailabilityMock,
@@ -71,6 +77,7 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     truncated: [],
   })),
 }))
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/dashboards/application/availability', () => ({
   readDashboardAvailability: { execute: mockDashboardAvailability },
@@ -695,6 +702,15 @@ describe('buildCopilotRequestPayload', () => {
 describe('Assistant payload', () => {
   afterEach(() => vi.mocked(getExposedIntegrationTools).mockReset())
   beforeEach(() => {
+    resetDbChainMock()
+    for (let i = 0; i < 4; i++) queueTableRows(organization, [{ metadata: {} }])
+    credentialGroupsServiceMockFns.mockGetOrganizationAccountsGroup.mockResolvedValue({
+      status: 'active',
+      options: [
+        { provider: 'github-repositories', status: 'active' },
+        { provider: 'gmail', status: 'active' },
+      ],
+    })
     resetEnvFlagsMock()
     mockGetUserPermissionConfig.mockResolvedValue(null)
     mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
