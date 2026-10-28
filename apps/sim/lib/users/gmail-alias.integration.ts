@@ -24,7 +24,7 @@ const userIds: string[] = []
 
 async function insertUser(
   email: string,
-  { banned = false, createdAt = new Date() } = {}
+  { banned = false, emailVerified = true, createdAt = new Date() } = {}
 ): Promise<string> {
   const id = generateId()
   userIds.push(id)
@@ -32,7 +32,7 @@ async function insertUser(
     id,
     name: 'Gmail alias fixture',
     email,
-    emailVerified: true,
+    emailVerified,
     banned,
     createdAt,
     updatedAt: createdAt,
@@ -40,7 +40,10 @@ async function insertUser(
   return id
 }
 
-async function signUp(email: string, options?: { banned?: boolean }): Promise<string> {
+async function signUp(
+  email: string,
+  options?: { banned?: boolean; emailVerified?: boolean }
+): Promise<string> {
   const id = await insertUser(email, options)
   await handleNewUser(id, {})
   return id
@@ -88,6 +91,15 @@ describe('Gmail inboxes and the free allowance', () => {
     const returning = await signUp(`${local}+again@gmail.com`)
 
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('grants it when the earlier account never verified the inbox', async () => {
+    const local = uniqueLocalPart()
+    await signUp(`${local}@gmail.com`, { emailVerified: false })
+
+    const owner = await signUp(`${local.slice(0, 5)}.${local.slice(5)}@gmail.com`)
+
+    expect(await statsOf(owner)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
   })
 
   it('grants it to a different Gmail inbox and never folds addresses outside Gmail', async () => {
